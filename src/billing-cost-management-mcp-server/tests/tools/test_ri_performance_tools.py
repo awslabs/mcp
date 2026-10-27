@@ -1355,3 +1355,142 @@ class TestMaxPages:
         description = tool.description or ''
         assert 'get_reservation_utilization takes max_pages (pages of 500 groups)' in description
         assert 'rounded up' not in description
+
+
+def _utilization_entry(start, end, hours):
+    return {'TimePeriod': {'Start': start, 'End': end}, 'Total': {'PurchasedHours': hours}}
+
+
+# A MONTHLY GetReservationUtilization request for 2026-01-24 to 2026-03-10, as the API returns
+# it: each entry is labelled with its whole calendar month, but the first holds only 8 days
+# and the last only 9.
+SNAPPED_UTILIZATION = {
+    'UtilizationsByTime': [
+        _utilization_entry('2026-01-01', '2026-02-01', '192'),
+        _utilization_entry('2026-02-01', '2026-03-01', '672'),
+        _utilization_entry('2026-03-01', '2026-04-01', '216'),
+    ],
+    'Total': {'PurchasedHours': '1080'},
+}
+
+
+async def _utilization(ctx, client, start, end, granularity='MONTHLY', group_by=None):
+    return await get_reservation_utilization(
+        ctx, client, start, end, granularity, group_by, None, None
+    )
+
+
+async def _coverage(ctx, client, start, end, granularity='MONTHLY'):
+    return await get_reservation_coverage(
+        ctx, client, start, end, granularity, None, None, None, None
+    )
+
+
+@pytest.mark.asyncio
+class TestResponsePeriods:
+    """The request is echoed, and a calendar-month label wider than the request is flagged."""
+
+    async def test_monthly_utilization_flags_both_snapped_ends(self, mock_context):
+        """A mid-month start and end are both labelled with the whole month and flagged."""
+        client = MagicMock()
+        client.get_reservation_utilization.return_value = SNAPPED_UTILIZATION
+
+        data = (await _utilization(mock_context, client, '2026-01-24', '2026-03-10'))['data']
+
+        assert data['requested_time_period'] == {'start': '2026-01-24', 'end': '2026-03-10'}
+        note = data['period_note']
+        assert 'first entry, labelled 2026-01-01 to 2026-02-01, covers only 2026-01-24' in note
+        assert (
+            'last entry, labelled 2026-03-01 to 2026-04-01, covers only the days before 2026-03-10'
+            in note
+        )
+        assert 'partial' in note
+        # The API's labels reach the caller untouched.
+        periods = [e['time_period'] for e in data['utilizations_by_time']]
+        assert periods[0] == {'start': '2026-01-01', 'end': '2026-02-01'}
+        assert periods[-1] == {'start': '2026-03-01', 'end': '2026-04-01'}
+
+    async def test_monthly_utilization_single_month_flags_one_entry(self, mock_context):
+        """One snapped entry is described as a single entry, not first and last."""
+        client = MagicMock()
+        client.get_reservation_utilization.return_value = {
+            'UtilizationsByTime': [_utilization_entry('2026-01-01', '2026-02-01', '336')],
+        }
+
+        data = (await _utilization(mock_context, client, '2026-01-01', '2026-01-15'))['data']
+
+        note = data['period_note']
+        assert 'entry labelled 2026-01-01 to 2026-02-01 covers only 2026-01-01 to 2026-01-15' in (
+            note
+        )
+        assert 'first entry' not in note
+
+    async def test_whole_month_utilization_has_no_note(self, mock_context):
+        """Labels that match the request need no note."""
+        client = MagicMock()
+        client.get_reservation_utilization.return_value = {
+            'UtilizationsByTime': [_utilization_entry('2026-01-01', '2026-02-01', '744')],
+        }
+
+        data = (await _utilization(mock_context, client, '2026-01-01', '2026-02-01'))['data']
+
+        assert data['requested_time_period'] == {'start': '2026-01-01', 'end': '2026-02-01'}
+        assert 'period_note' not in data
+
+    async def test_grouped_utilization_labelled_with_request_has_no_note(self, mock_context):
+        """Grouped by SUBSCRIPTION_ID, the API labels its one entry with the requested period."""
+        client = MagicMock()
+        client.get_reservation_utilization.return_value = {
+            'UtilizationsByTime': [
+                {
+                    'TimePeriod': {'Start': '2026-01-24', 'End': '2026-03-10'},
+                    'Groups': [],
+                    'Total': {},
+                }
+            ],
+        }
+
+        data = (
+            await _utilization(
+                mock_context, client, '2026-01-24', '2026-03-10', None, GROUP_BY_SUBSCRIPTION
+            )
+        )['data']
+
+        assert data['requested_time_period'] == {'start': '2026-01-24', 'end': '2026-03-10'}
+        assert 'period_note' not in data
+
+    async def test_empty_utilization_echoes_request_without_note(self, mock_context):
+        """No entries: the request is still echoed and there is no note."""
+        client = MagicMock()
+        client.get_reservation_utilization.return_value = {'UtilizationsByTime': []}
+
+        data = (await _utilization(mock_context, client, '2026-01-24', '2026-03-10'))['data']
+
+        assert data['requested_time_period'] == {'start': '2026-01-24', 'end': '2026-03-10'}
+        assert 'period_note' not in data
+
+    async def test_coverage_echoes_request_without_note(self, mock_context):
+        """Coverage entries start and end at the requested dates; there is nothing to flag."""
+        client = MagicMock()
+        client.get_reservation_coverage.return_value = {
+            'CoveragesByTime': [
+                {'TimePeriod': {'Start': '2026-01-24', 'End': '2026-02-01'}, 'Total': {}},
+                {'TimePeriod': {'Start': '2026-02-01', 'End': '2026-03-01'}, 'Total': {}},
+            ],
+        }
+
+        data = (await _coverage(mock_context, client, '2026-01-24', '2026-03-01'))['data']
+
+        assert data['requested_time_period'] == {'start': '2026-01-24', 'end': '2026-03-01'}
+        assert 'period_note' not in data
+
+    async def test_description_explains_response_periods(self):
+        """The description explains the echo, the note and which operation snaps."""
+        description = ' '.join((await _ri_description()).split())
+        assert 'RESPONSE PERIODS' in description
+        assert '`requested_time_period`' in description
+        assert '`period_note`' in description
+        assert 'with its whole calendar month, but the figures cover only the requested days' in (
+            description
+        )
+        assert 'get_reservation_coverage entries are not snapped' in description

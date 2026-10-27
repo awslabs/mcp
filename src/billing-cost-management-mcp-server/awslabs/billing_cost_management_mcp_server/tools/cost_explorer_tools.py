@@ -212,7 +212,7 @@ Correct filter examples:
    Required: operation="getSavingsPlansUtilization", start_date, end_date
    Optional: granularity, filter
    Example: {"operation": "getSavingsPlansUtilization", "granularity": "MONTHLY"}
-   Notes: Supports only DAILY and MONTHLY granularity. start_date must be within the last 13 months, and end_date must be before the current date. Data lags ~1 day: a window ending today (an incomplete UTC day) may come back empty or as a DataUnavailableException. A DataUnavailableException here means there is no Savings Plans data for THIS window (no active plans, or the window is outside the plan period) — report none/zero and do NOT retry the identical window; change the window (e.g. set end_date to yesterday) instead.
+   Notes: Supports only DAILY and MONTHLY granularity. With MONTHLY granularity each entry's TimePeriod is its whole calendar month, but the figures (and Total) cover only the requested days: a start_date or end_date inside a month makes that month's entry partial though it is labelled with the whole month. The response's `period_note` says when this happened; report those months as partial. start_date must be within the last 13 months, and end_date must be before the current date. Data lags ~1 day: a window ending today (an incomplete UTC day) may come back empty or as a DataUnavailableException. A DataUnavailableException here means there is no Savings Plans data for THIS window (no active plans, or the window is outside the plan period) — report none/zero and do NOT retry the identical window; change the window (e.g. set end_date to yesterday) instead.
    Returns: Savings Plans utilization for the specified time period
 
 DIMENSION REFERENCE:
