@@ -1020,3 +1020,120 @@ class TestGetAnomaliesAdditional:
         assert 'score' not in anomaly
         assert 'impact' not in anomaly
         assert 'root_causes' not in anomaly
+
+
+async def _call_cost_anomaly_capturing_request(mock_context, **kwargs):
+    """Call the real cost_anomaly with a mocked CE client; return (response, client)."""
+    ca_mod = _reload_cost_anomaly_with_identity_decorator()
+    mock_client = MagicMock()
+    mock_client.get_anomalies.return_value = {'Anomalies': []}
+    with (
+        patch.object(ca_mod, 'get_context_logger', return_value=AsyncMock()),
+        patch.object(ca_mod, 'create_aws_client', return_value=mock_client),
+    ):
+        res = await ca_mod.cost_anomaly(  # type: ignore[reportCallIssue]
+            mock_context, start_date='2023-01-01', end_date='2023-01-31', **kwargs
+        )
+    return res, mock_client
+
+
+@pytest.mark.asyncio
+class TestTotalImpactFilter:
+    """total_impact_* arguments must reach the API or be rejected, never be dropped."""
+
+    @pytest.mark.parametrize(
+        'kwargs,expected',
+        [
+            (
+                {'total_impact_start': 1000.0},
+                {'NumericOperator': 'GREATER_THAN_OR_EQUAL', 'StartValue': 1000.0},
+            ),
+            (
+                {'total_impact_start': 0.0},
+                {'NumericOperator': 'GREATER_THAN_OR_EQUAL', 'StartValue': 0.0},
+            ),
+            (
+                {'total_impact_start': 100.0, 'total_impact_end': 500.0},
+                {'NumericOperator': 'BETWEEN', 'StartValue': 100.0, 'EndValue': 500.0},
+            ),
+            (
+                {'total_impact_start': 0.0, 'total_impact_end': 0.0},
+                {'NumericOperator': 'BETWEEN', 'StartValue': 0.0, 'EndValue': 0.0},
+            ),
+            (
+                {'total_impact_operator': '', 'total_impact_start': 10.0},
+                {'NumericOperator': 'GREATER_THAN_OR_EQUAL', 'StartValue': 10.0},
+            ),
+            (
+                {'total_impact_operator': 'GREATER_THAN', 'total_impact_start': 200.0},
+                {'NumericOperator': 'GREATER_THAN', 'StartValue': 200.0},
+            ),
+            (
+                {
+                    'total_impact_operator': 'BETWEEN',
+                    'total_impact_start': 100.0,
+                    'total_impact_end': 500.0,
+                },
+                {'NumericOperator': 'BETWEEN', 'StartValue': 100.0, 'EndValue': 500.0},
+            ),
+        ],
+    )
+    async def test_filter_sent(self, mock_context, kwargs, expected):
+        """A start value without an operator defaults the operator instead of being dropped."""
+        res, client = await _call_cost_anomaly_capturing_request(mock_context, **kwargs)
+        assert res['status'] == 'success'
+        assert client.get_anomalies.call_args.kwargs['TotalImpact'] == expected
+
+    async def test_no_filter_sends_no_total_impact(self, mock_context):
+        """No total_impact_* arguments sends no TotalImpact."""
+        res, client = await _call_cost_anomaly_capturing_request(mock_context)
+        assert res['status'] == 'success'
+        assert 'TotalImpact' not in client.get_anomalies.call_args.kwargs
+
+    @pytest.mark.parametrize(
+        'kwargs,parameter,text',
+        [
+            (
+                {'total_impact_operator': 'GREATER_THAN'},
+                'total_impact_start',
+                'total_impact_operator needs total_impact_start',
+            ),
+            (
+                {'total_impact_operator': 'LESS_THAN', 'total_impact_end': 50.0},
+                'total_impact_start',
+                'total_impact_end is only used with BETWEEN',
+            ),
+            (
+                {'total_impact_operator': 'BETWEEN', 'total_impact_end': 50.0},
+                'total_impact_start',
+                'total_impact_operator needs total_impact_start',
+            ),
+            (
+                {'total_impact_end': 50.0},
+                'total_impact_start',
+                "total_impact_operator='LESS_THAN_OR_EQUAL' and total_impact_start=50.0",
+            ),
+            (
+                {'total_impact_end': 0.0},
+                'total_impact_start',
+                'total_impact_end needs total_impact_start',
+            ),
+            (
+                {
+                    'total_impact_operator': 'GREATER_THAN',
+                    'total_impact_start': 100.0,
+                    'total_impact_end': 500.0,
+                },
+                'total_impact_end',
+                'total_impact_end is only used with BETWEEN',
+            ),
+        ],
+    )
+    async def test_rejected_locally(self, mock_context, kwargs, parameter, text):
+        """Incomplete or ignored total impact arguments fail before any API call."""
+        res, client = await _call_cost_anomaly_capturing_request(mock_context, **kwargs)
+        assert res['status'] == 'error'
+        _assert_validation_error(res)
+        assert res['data']['invalid_parameter'] == parameter
+        assert text in res['message']
+        client.get_anomalies.assert_not_called()
