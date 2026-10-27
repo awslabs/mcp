@@ -16,7 +16,7 @@
 
 from .logging_utils import get_logger
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Mapping, Optional, Sequence, Union
 
 
 logger = get_logger(__name__)
@@ -162,7 +162,7 @@ def normalize_datetimes_to_iso(obj: Any) -> Any:
 def monthly_period_note(
     requested_start: str,
     requested_end: str,
-    periods: List[Optional[Dict[str, Any]]],
+    periods: Sequence[Optional[Mapping[str, Any]]],
 ) -> Dict[str, str]:
     """Say when MONTHLY entries are labelled with more of the month than their figures cover.
 
@@ -183,10 +183,11 @@ def monthly_period_note(
     """
     if not periods:
         return {}
-    first_start, first_end = (periods[0] or {}).get('Start'), (periods[0] or {}).get('End')
-    last_start, last_end = (periods[-1] or {}).get('Start'), (periods[-1] or {}).get('End')
-    start_snapped = bool(first_start and first_end) and first_start < requested_start
-    end_snapped = bool(last_start and last_end) and last_end > requested_end
+    first, last = periods[0] or {}, periods[-1] or {}
+    first_start, first_end = first.get('Start'), first.get('End')
+    last_start, last_end = last.get('Start'), last.get('End')
+    start_snapped = bool(first_start and first_end and first_start < requested_start)
+    end_snapped = bool(last_start and last_end and last_end > requested_end)
     if not (start_snapped or end_snapped):
         return {}
     if len(periods) == 1:

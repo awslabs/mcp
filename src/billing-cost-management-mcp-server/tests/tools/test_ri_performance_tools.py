@@ -1452,7 +1452,7 @@ class TestResponsePeriods:
 
         data = (
             await _utilization(
-                mock_context, client, '2026-01-24', '2026-03-10', None, GROUP_BY_SUBSCRIPTION
+                mock_context, client, '2026-01-24', '2026-03-10', 'DAILY', GROUP_BY_SUBSCRIPTION
             )
         )['data']
 
