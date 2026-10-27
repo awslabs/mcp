@@ -1757,6 +1757,40 @@ class TestCostExplorerDescriptionContract:
             # A wrong value only counts as a whole list item, so 'Aurora MySQL' is not 'Aurora'.
             assert not re.search(rf'[ (]{re.escape(value)}(?=[,);.]|$)', entry), value
 
+    @pytest.mark.parametrize(
+        'module_name, tool_name, server_attr',
+        [
+            ('cost_explorer_tools', 'cost-explorer', 'cost_explorer_server'),
+            ('cost_comparison_tools', 'cost-comparison', 'cost_comparison_server'),
+        ],
+    )
+    def test_empty_value_placeholder_is_filtered_as_empty_string(
+        self, module_name, tool_name, server_attr
+    ):
+        """Grouped results label an empty value NoRegion etc.; a filter must use "" instead.
+
+        Cost Explorer reports a cost with no value for a grouped dimension under a
+        placeholder key (NoRegion, NoTenancy, ...), but its filters match the stored empty
+        value, so a filter on the placeholder silently returns $0.
+        """
+        module = importlib.reload(
+            importlib.import_module(
+                f'awslabs.billing_cost_management_mcp_server.tools.{module_name}'
+            )
+        )
+        description = _registered_tool(getattr(module, server_attr), tool_name).description or ''
+        flat = ' '.join(description.split())
+        assert 'NoRegion' in flat
+        assert 'NoTenancy' in flat
+        assert 'a filter on it matches nothing' in flat
+        examples = [json.loads(m) for m in re.findall(r'`(\{"Dimensions": [^`]*\})`', description)]
+        assert {'Dimensions': {'Key': 'REGION', 'Values': ['']}} in examples
+
+    def test_filter_grammar_allows_one_empty_string_value(self, tool):
+        """The grammar's "Values must not be empty" rule does not forbid the [""] filter."""
+        grammar = tool.description.split('Values per leaf type:')[1].split('\n- Tags')[0]
+        assert '`[""]` (one empty string) is not' in grammar
+
     def test_description_prefers_monthly_for_whole_month_rankings(self, tool):
         """Whole-month totals and rankings are steered to MONTHLY; the code default stays DAILY."""
         assert 'DAILY granularity for periods <3 months' not in tool.description

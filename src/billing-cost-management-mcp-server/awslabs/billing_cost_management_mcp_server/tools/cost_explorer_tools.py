@@ -95,6 +95,12 @@ nothing when filtered on LEGAL_ENTITY_NAME because the key for it is BILLING_ENT
    with usage in the period, so absence is not proof the value is invalid. If you also need the
    spend, re-run grouped by that dimension to get the value and its cost in one call.
 2. If you GROUPED and the line genuinely shows $0, report "$0.00", not "no data found".
+3. A grouped result shows costs with no value for the dimension under a placeholder key such
+   as NoRegion or NoTenancy. The placeholder is not a value: a filter on it matches nothing
+   and returns $0, and getDimensionValues lists the empty value as "". To filter on those
+   costs, pass the empty string: `{"Dimensions": {"Key": "REGION", "Values": [""]}}`. For
+   costs without a tag or cost category key, use `ABSENT` instead (see FILTER EXPRESSION
+   GRAMMAR).
 
 PAGINATION (max_items, next_token: getCostAndUsage, getCostAndUsageWithResources, getDimensionValues, getTagsOrValues, getCostCategories only; the other operations take neither):
 - max_items is the total number of items returned (getCostAndUsage: one item per group per period, or per period without group_by). Omit it to fetch every page (no limit). Pass it, or narrow the time range, filter or group_by, for queries that can be large (e.g. daily data grouped by RESOURCE_ID, USAGE_TYPE or LINKED_ACCOUNT).
@@ -145,7 +151,9 @@ and `GREATER_THAN_OR_EQUAL`. These apply to Cost Category rules and anomaly subs
 to these filters.
 
 Values per leaf type:
-- Dimensions: `Values` is required and must not be empty.
+- Dimensions: `Values` is required and must not be empty. `[""]` (one empty string) is not
+  empty: in getCostAndUsage it matches costs with no value for the dimension (see
+  REPORTING $0).
 - Tags / CostCategories: `Values` is required, except with `ABSENT`. `ABSENT` matches costs
   where the tag or cost category key is not present, so there is no value to compare against:
   omit `Values` entirely (an empty `Values` list is rejected too).
