@@ -296,6 +296,130 @@ GET_PRODUCTS_PAGE_SPEC = PageSpec(
 )
 
 
+# Console names whose Price List service codes are easy to guess wrong.
+SERVICE_CODE_EXAMPLES = {
+    'OpenSearch': 'AmazonES',
+    'Lambda': 'AWSLambda',
+    'DynamoDB': 'AmazonDynamoDB',
+    'Bedrock': 'AmazonBedrock',
+}
+
+# Past this many names the hint points at varying_attributes instead of listing them.
+_HINT_MAX_ATTRIBUTES = 10
+
+# An offloaded response is not parsed whole; its guidance looks at this many products.
+_GUIDANCE_SAMPLE = 1000
+
+
+def _decode_products(price_list: list) -> list:
+    """Parse each PriceList entry once: the product dict, or the exception that parsing raised."""
+    decoded: list = []
+    for product_json in price_list:
+        try:
+            decoded.append(json.loads(product_json))
+        except Exception as e:
+            decoded.append(e)
+    return decoded
+
+
+def _many_products_guidance(products: list, total: Optional[int] = None) -> Dict[str, Any]:
+    """Name the attributes that tell several products apart, so one is not quoted as the price.
+
+    Takes _decode_products output: every product, or the first of ``total`` products. Returns
+    {} for one product or fewer. Entries without a product.attributes dict are skipped.
+    """
+    total = len(products) if total is None else total
+    if total < 2:
+        return {}
+    values: Dict[str, set] = {}
+    seen: Dict[str, int] = {}
+    parsed = 0
+    for product in products:
+        try:
+            attributes = product['product']['attributes']
+        except (TypeError, KeyError):
+            continue
+        if not isinstance(attributes, dict):
+            continue
+        parsed += 1
+        for name, value in attributes.items():
+            values.setdefault(name, set()).add(repr(value))
+            seen[name] = seen.get(name, 0) + 1
+    # An attribute missing from some products also tells them apart.
+    varying = sorted(n for n in values if len(values[n]) > 1 or seen[n] < parsed)
+    they = f'In the first {len(products)}, they' if len(products) < total else 'They'
+    if not varying:
+        # Nothing to filter on: the products differ only in their terms, or did not parse.
+        if parsed < max(len(products), 2):
+            same = ''  # Too few parsed products to say anything about their attributes.
+        elif len(products) < total:
+            same = f' The first {parsed} have the same attributes; query the rest.'
+        else:
+            same = ' They have the same attributes.'
+        return {
+            'varying_attributes': varying,
+            'hint': (
+                f'This response has {total} products, each priced separately.{same} '
+                'Compare their terms; do not quote the first product or an average.'
+            ),
+        }
+    if len(varying) > _HINT_MAX_ATTRIBUTES:
+        differ = f' {they} differ in {len(varying)} attributes (see varying_attributes).'
+    else:
+        differ = f' {they} differ in: {", ".join(varying)}.'
+    return {
+        'varying_attributes': varying,
+        'hint': (
+            f'This response has {total} products, each priced separately.{differ} '
+            'To price one configuration, add filters for these attributes or pick the product '
+            'whose attributes match; do not quote the first product or an average.'
+        ),
+    }
+
+
+def _filters_matched_nothing(
+    service_code: str, api_filters: list, service_known: Optional[bool]
+) -> Dict[str, Any]:
+    """The no_results response for filters that matched nothing.
+
+    service_known is True when the service code returns products without filters, None when
+    that check failed.
+    """
+    applied = {f['Field']: f['Value'] for f in api_filters}
+    if service_known:
+        cause = 'The service code is valid.'
+    else:
+        cause = 'Either the service code or a filter is wrong (checking the service code failed).'
+    message = (
+        f'No {service_code} products matched the filters {json.dumps(applied)}. {cause} '
+        'The Price List API returns no products, not an error, when a field is not one of the '
+        "service's attributes, a value is not one of its values, or no product has this "
+        'combination of values (for example, an instance type not offered in that Region). '
+        'Check fields with get_service_attributes and values with get_attribute_values, and '
+        'drop filters one at a time to find the one that excludes everything.'
+    )
+    if any(field.lower() == 'location' for field in applied):
+        message += (
+            ' "location" takes the Price List location name (for example "US East (N. Virginia)"'
+            ' or "EU (Ireland)"), not a region code; services with a "regionCode" attribute take'
+            ' codes such as "us-east-1" in regionCode.'
+        )
+    message += (
+        ' This tool matches each filter against one value; a comma-separated list is matched'
+        ' as one literal value, not as a list.'
+    )
+    data: Dict[str, Any] = {'message': message, 'filters': applied}
+    if service_known is None:
+        data['examples'] = dict(SERVICE_CODE_EXAMPLES)
+    return {
+        **format_response('error', data),
+        'service': AWS_PRICING_SERVICE_NAME,
+        'operation': 'get_pricing_from_api',
+        'error_type': 'no_results',
+        'message': message,
+    }
+
+
 async def get_pricing_from_api(
     ctx: Context,
     service_code: str,
@@ -353,15 +477,30 @@ async def get_pricing_from_api(
         # "no data", so it falls through with its pagination block.
         # A continuation (next_token) that reaches an empty last page is not a bad service code.
         if not all_price_list and pagination['complete_dataset'] and not next_token:
+            # An unknown filter field or value matches nothing without an error, just like an
+            # unknown service code. One unfiltered product tells the two apart.
+            if api_filters:
+                try:
+                    service_known: Optional[bool] = bool(
+                        pricing_client.get_products(ServiceCode=service_code, MaxResults=1).get(
+                            'PriceList'
+                        )
+                    )
+                except Exception as e:
+                    # The check only sharpens the message; it must not turn an empty result
+                    # into an API error.
+                    # Log the class only: AWS messages can repeat filter values.
+                    await get_context_logger(ctx, __name__).warning(
+                        f'Unfiltered GetProducts check failed: {type(e).__name__}'
+                    )
+                    service_known = None
+                if service_known is not False:
+                    return _filters_matched_nothing(service_code, api_filters, service_known)
             message = f'The service code "{service_code}" did not return any pricing data. AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES", etc. Please check the exact service code and try again.'
-            examples = {
-                'OpenSearch': 'AmazonES',
-                'Lambda': 'AWSLambda',
-                'DynamoDB': 'AmazonDynamoDB',
-                'Bedrock': 'AmazonBedrock',
-            }
             return {
-                **format_response('error', {'message': message, 'examples': examples}),
+                **format_response(
+                    'error', {'message': message, 'examples': dict(SERVICE_CODE_EXAMPLES)}
+                ),
                 'service': AWS_PRICING_SERVICE_NAME,
                 'operation': 'get_pricing_from_api',
                 'error_type': 'no_results',
@@ -387,7 +526,13 @@ async def get_pricing_from_api(
 
         # If table was created, return that, otherwise process the response for easier consumption
         if isinstance(table_response, dict) and 'data_stored' in table_response:
-            return format_response('success', table_response)
+            sample = _decode_products(all_price_list[:_GUIDANCE_SAMPLE])
+            guidance = _many_products_guidance(sample, total=len(all_price_list))
+            return format_response('success', {**table_response, **guidance})
+
+        # Small enough to return inline: parse every product once, for guidance and display.
+        decoded_products = _decode_products(all_price_list)
+        guidance = _many_products_guidance(decoded_products)
 
         # Process the pricing data for easier consumption. max_items already bounds
         # what was fetched, so every fetched product is returned.
@@ -402,8 +547,10 @@ async def get_pricing_from_api(
 
         for i, product_json in enumerate(all_price_list):
             try:
-                # Wrap the JSON parsing in a try-except block
-                product = json.loads(product_json)
+                # Parsed once above; re-raise a parse failure into the handlers below.
+                product = decoded_products[i]
+                if isinstance(product, Exception):
+                    raise product
 
                 # Process the product data
                 processed_product = {
@@ -462,6 +609,7 @@ async def get_pricing_from_api(
             'filter_count': len(api_filters),
             'total_products_found': len(all_price_list),
             'products_returned': len(processed_products),
+            **guidance,
             'products': processed_products,
         }
 

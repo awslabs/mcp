@@ -1721,3 +1721,368 @@ async def test_aws_pricing_tool_takes_max_items_and_next_token():
     assert 'max_results' not in properties
     assert 'max_items' in description
     assert 'complete_dataset' in description
+
+
+def _product(sku, **attributes):
+    """A GetProducts PriceList entry: a JSON string with product.sku and product.attributes."""
+    return json.dumps({'product': {'sku': sku, 'attributes': attributes}, 'terms': {}})
+
+
+@patch('awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client')
+class TestGetPricingFromApiFilterGuidance:
+    """An empty filtered result and a many-product result each tell the caller what to change."""
+
+    async def test_filters_matching_nothing_on_a_valid_service_blame_the_filters(
+        self, mock_create_client, mock_context
+    ):
+        """A valid service code whose filters match nothing is not reported as a bad service code."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        # The filtered query matches nothing; the unfiltered probe finds the service.
+        mock_client.get_products.side_effect = [
+            {'PriceList': []},
+            {'PriceList': [_product('ANY')]},
+        ]
+
+        result = await get_pricing_from_api(
+            mock_context, 'AmazonEC2', filters='{"location": "us-east-1"}'
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'no_results'
+        message = result['message']
+        assert 'did not return any pricing data' not in message
+        assert 'check the exact service code' not in message.lower()
+        assert '"location": "us-east-1"' in message
+        assert 'get_attribute_values' in message
+        assert 'regionCode' in message
+        assert 'US East (N. Virginia)' in message
+        assert result['data']['message'] == message
+        assert result['data']['filters'] == {'location': 'us-east-1'}
+        assert 'examples' not in result['data']
+        probe = mock_client.get_products.call_args_list[1].kwargs
+        assert probe == {'ServiceCode': 'AmazonEC2', 'MaxResults': 1}
+
+    async def test_filters_on_an_unknown_service_code_keep_the_service_code_message(
+        self, mock_create_client, mock_context
+    ):
+        """When the service code itself has no products, the service-code message stays."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {'PriceList': []}
+
+        result = await get_pricing_from_api(
+            mock_context, 'AmazonEC99', filters='{"instanceType": "m5.large"}'
+        )
+
+        assert result['error_type'] == 'no_results'
+        assert 'did not return any pricing data' in result['message']
+        assert 'examples' in result['data']
+        assert mock_client.get_products.call_count == 2
+        probe = mock_client.get_products.call_args_list[1].kwargs
+        assert probe == {'ServiceCode': 'AmazonEC99', 'MaxResults': 1}
+
+    async def test_no_filters_and_no_products_skip_the_probe(
+        self, mock_create_client, mock_context
+    ):
+        """Without filters the empty result already answers for the service code: no second call."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {'PriceList': []}
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC99')
+
+        assert 'did not return any pricing data' in result['message']
+        assert mock_client.get_products.call_count == 1
+
+    async def test_a_failed_service_check_still_returns_no_results(
+        self, mock_create_client, mock_context
+    ):
+        """If the unfiltered check raises, the empty result stays no_results, not an API error."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.side_effect = [
+            {'PriceList': []},
+            ClientError(
+                {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
+                'GetProducts',
+            ),
+        ]
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.get_context_logger'
+        ) as mock_logger:
+            mock_logger.return_value.warning = AsyncMock()
+            result = await get_pricing_from_api(
+                mock_context, 'AmazonEC2', filters='{"instanceType": "m5.large"}'
+            )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'no_results'
+        assert 'Either the service code or a filter is wrong' in result['message']
+        assert result['data']['examples']['OpenSearch'] == 'AmazonES'
+        assert 'did not return any pricing data' not in result['message']
+        mock_logger.return_value.warning.assert_awaited_once_with(
+            'Unfiltered GetProducts check failed: ClientError'
+        )
+
+    async def test_location_advice_only_when_location_is_filtered(
+        self, mock_create_client, mock_context
+    ):
+        """The location/regionCode note appears only when a location filter was sent."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.side_effect = [
+            {'PriceList': []},
+            {'PriceList': [_product('ANY')]},
+        ]
+
+        result = await get_pricing_from_api(
+            mock_context, 'AmazonEC2', filters='{"instanceType": "m5.large,m5.xlarge"}'
+        )
+
+        message = result['message']
+        assert 'The service code is valid.' in message
+        assert 'no product has this combination of values' in message
+        assert 'matched as one literal value, not as a list' in message
+        assert '"location" takes' not in message
+
+    async def test_all_none_filters_skip_the_check(self, mock_create_client, mock_context):
+        """Filters whose values are all None send no filter, so no unfiltered check is made."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {'PriceList': []}
+
+        result = await get_pricing_from_api(
+            mock_context, 'AmazonEC99', filters='{"instanceType": null}'
+        )
+
+        assert 'did not return any pricing data' in result['message']
+        assert mock_client.get_products.call_count == 1
+
+    async def test_filtered_empty_continuation_skips_the_check(
+        self, mock_create_client, mock_context
+    ):
+        """An empty last page reached with next_token is a success; no unfiltered check."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {'PriceList': []}
+
+        result = await get_pricing_from_api(
+            mock_context, 'AmazonEC2', filters='{"instanceType": "m5.large"}', next_token='tok'
+        )
+
+        assert result['status'] == 'success'
+        assert mock_client.get_products.call_count == 1
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
+    )
+    async def test_several_products_list_the_attributes_that_differ(
+        self, mock_convert_table, mock_create_client, mock_context
+    ):
+        """More than one product comes with varying_attributes and a hint not to take the first."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {
+            'PriceList': [
+                _product('A', instanceType='m5.large', operatingSystem='Linux', tenancy='Shared'),
+                _product(
+                    'B', instanceType='m5.large', operatingSystem='Windows', tenancy='Shared'
+                ),
+                _product('C', instanceType='m5.large', operatingSystem='Linux'),
+            ]
+        }
+        mock_convert_table.side_effect = lambda ctx, response, *a, **k: response
+
+        result = await get_pricing_from_api(
+            mock_context, 'AmazonEC2', filters='{"instanceType": "m5.large"}'
+        )
+
+        data = result['data']
+        assert result['status'] == 'success'
+        assert data['varying_attributes'] == ['operatingSystem', 'tenancy']
+        assert '3 products' in data['hint']
+        assert 'operatingSystem, tenancy' in data['hint']
+        assert 'do not quote the first product' in data['hint']
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
+    )
+    async def test_offloaded_products_also_carry_the_hint(
+        self, mock_convert_table, mock_create_client, mock_context
+    ):
+        """A response large enough to be offloaded to SQL keeps varying_attributes and the hint."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {
+            'PriceList': [_product('A', tenancy='Shared'), _product('B', tenancy='Dedicated')]
+        }
+        mock_convert_table.return_value = {'data_stored': True, 'table_name': 't'}
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2')
+
+        assert result['data']['data_stored'] is True
+        assert result['data']['varying_attributes'] == ['tenancy']
+        assert '2 products' in result['data']['hint']
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
+    )
+    async def test_each_product_is_parsed_once(
+        self, mock_convert_table, mock_create_client, mock_context
+    ):
+        """The guidance and the inline products share one json.loads per product."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {
+            'PriceList': [_product('A', tenancy='Shared'), _product('B', tenancy='Dedicated')]
+        }
+        mock_convert_table.side_effect = lambda ctx, response, *a, **k: response
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.json.loads',
+            wraps=json.loads,
+        ) as spy:
+            result = await get_pricing_from_api(mock_context, 'AmazonEC2')
+
+        assert spy.call_count == 2
+        assert result['data']['varying_attributes'] == ['tenancy']
+        assert [p['sku'] for p in result['data']['products']] == ['A', 'B']
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
+    )
+    async def test_offloaded_guidance_parses_only_a_sample(
+        self, mock_convert_table, mock_create_client, mock_context
+    ):
+        """An offloaded result is not parsed whole for guidance; only the first products are."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {
+            'PriceList': [
+                _product(f'S{i}', tenancy='Shared' if i % 2 else 'Host') for i in range(5)
+            ]
+        }
+        mock_convert_table.return_value = {'data_stored': True, 'table_name': 't'}
+
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations._GUIDANCE_SAMPLE',
+                2,
+            ),
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.json.loads',
+                wraps=json.loads,
+            ) as spy,
+        ):
+            result = await get_pricing_from_api(mock_context, 'AmazonEC2')
+
+        assert spy.call_count == 2
+        assert 'This response has 5 products' in result['data']['hint']
+        assert 'In the first 2, they differ in: tenancy.' in result['data']['hint']
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
+    )
+    async def test_one_product_has_no_hint(
+        self, mock_convert_table, mock_create_client, mock_context
+    ):
+        """A filter that resolves to one product needs no hint."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {'PriceList': [_product('A', tenancy='Shared')]}
+        mock_convert_table.side_effect = lambda ctx, response, *a, **k: response
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2')
+
+        assert 'hint' not in result['data']
+        assert 'varying_attributes' not in result['data']
+
+
+@pytest.mark.asyncio
+async def test_aws_pricing_description_teaches_a_filter_that_resolves_to_one_product():
+    """The served example filter pins every EC2 attribute that splits an instance type's price."""
+    tool = await aws_pricing_server.get_tool('aws-pricing')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert "'location': 'US East (N. Virginia)'}" not in description
+    for pair in (
+        "'instanceType': 'm5.large'",
+        "'regionCode': 'us-east-1'",
+        "'operatingSystem': 'Linux'",
+        "'tenancy': 'Shared'",
+        "'preInstalledSw': 'NA'",
+        "'capacitystatus': 'Used'",
+    ):
+        assert pair in description
+    assert 'about 100' in description
+    assert 'not a region code' in description
+    assert 'varying_attributes' in description
+
+
+def _guidance(entries):
+    """Run _many_products_guidance on raw PriceList strings, decoded as get_pricing_from_api does."""
+    from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations import (
+        _decode_products,
+        _many_products_guidance,
+    )
+
+    return _many_products_guidance(_decode_products(entries))
+
+
+def test_many_products_guidance_skips_unparseable_entries_and_identical_attributes():
+    """Bad JSON is skipped; products whose attributes all match yield no 'differ in' clause."""
+    guidance = _guidance(
+        [_product('A', tenancy='Shared'), 'not json', '[]', _product('B', tenancy='Shared')]
+    )
+
+    assert guidance['varying_attributes'] == []
+    assert '4 products, each priced separately' in guidance['hint']
+    assert 'same attributes' not in guidance['hint']
+    assert 'Compare their terms' in guidance['hint']
+    assert 'add filters' not in guidance['hint']
+    assert _guidance([_product('A')]) == {}
+    same = _guidance([_product('A', tenancy='Shared'), _product('B', tenancy='Shared')])
+    assert '2 products, each priced separately. They have the same attributes.' in same['hint']
+
+
+def test_many_products_guidance_points_at_the_list_when_many_attributes_differ():
+    """Past ten differing attributes the hint gives a count instead of every name."""
+    ten = [f'attr{i:02d}' for i in range(10)]
+    at_limit = _guidance(
+        [_product('A', **dict.fromkeys(ten, 'a')), _product('B', **dict.fromkeys(ten, 'b'))]
+    )
+    assert f'They differ in: {", ".join(ten)}.' in at_limit['hint']
+
+    names = [f'attr{i:02d}' for i in range(12)]
+    guidance = _guidance(
+        [_product('A', **dict.fromkeys(names, 'a')), _product('B', **dict.fromkeys(names, 'b'))]
+    )
+
+    assert guidance['varying_attributes'] == names
+    assert 'They differ in 12 attributes (see varying_attributes).' in guidance['hint']
+    assert 'attr00' not in guidance['hint']
+
+
+def test_many_products_guidance_on_a_sample_says_so():
+    """Guidance from the first products of a larger (offloaded) result names the sample size."""
+    from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations import (
+        _decode_products,
+        _many_products_guidance,
+    )
+
+    sample = _decode_products([_product('A', tenancy='Shared'), _product('B', tenancy='Host')])
+    guidance = _many_products_guidance(sample, total=5000)
+
+    assert guidance['varying_attributes'] == ['tenancy']
+    assert 'This response has 5000 products' in guidance['hint']
+    assert 'In the first 2, they differ in: tenancy.' in guidance['hint']
+    sampled_same = _many_products_guidance(
+        _decode_products([_product('A', tenancy='Shared'), _product('B', tenancy='Shared')]),
+        total=3,
+    )
+    assert 'The first 2 have the same attributes; query the rest.' in sampled_same['hint']
+    partial = _many_products_guidance(_decode_products([_product('A')]), total=3)
+    assert 'same attributes' not in partial['hint']
