@@ -544,15 +544,15 @@ class TestHandleAwsError:
             ),
             (
                 lambda e: e.OperationNotPageableError(operation_name='get_cost_forecast'),
-                'The AWS SDK rejected the call',
+                'The AWS SDK raised a client-side error',
             ),
             (
                 lambda e: e.DataNotFoundError(data_path='ce/2017-10-25'),
-                'The AWS SDK rejected the call',
+                'The AWS SDK raised a client-side error',
             ),
             (
                 lambda e: e.WaiterError(name='Done', reason='Max attempts', last_response={}),
-                'The AWS SDK rejected the call',
+                'The AWS SDK raised a client-side error',
             ),
         ],
         ids=[
@@ -695,6 +695,28 @@ class TestHandleAwsError:
             'FlexibleChecksumError',
             'CapacityNotAvailableError',
         }
+        # Fixable by the user's AWS profile or credentials, pinned by name
+        CONFIGURATION = tuple(
+            getattr(boto_exceptions, name)
+            for name in (
+                'NoCredentialsError',
+                'PartialCredentialsError',
+                'CredentialRetrievalError',
+                'TokenRetrievalError',
+                'SSOError',
+                'LoginError',
+                'MetadataRetrievalError',
+                'NoAuthTokenError',
+                'RefreshWithMFAUnsupportedError',
+                'UnknownCredentialError',
+                'NoRegionError',
+                'ProfileNotFound',
+                'ConfigNotFound',
+                'ConfigParseError',
+                'InvalidConfigError',
+                'UnknownServiceError',
+            )
+        )
         classes = [
             cls
             for _, cls in inspect.getmembers(boto_exceptions, inspect.isclass)
@@ -714,6 +736,13 @@ class TestHandleAwsError:
             else:
                 expected = DO_NOT_RETRY
             assert result['retry_strategy'] == expected, cls.__name__
+            if expected == DO_NOT_RETRY:
+                is_config = issubclass(cls, CONFIGURATION)
+                assert result['hint'].startswith(
+                    'AWS credentials or client configuration'
+                    if is_config
+                    else 'The AWS SDK raised a client-side error'
+                ), cls.__name__
 
 
 class TestFormatResponse:

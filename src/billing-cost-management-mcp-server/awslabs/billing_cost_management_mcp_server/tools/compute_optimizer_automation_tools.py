@@ -869,7 +869,7 @@ async def _get_automation_event_multi_region(
             data,
             f'Could not determine whether automation event {event_id} exists because '
             f'{len(region_errors)} of {len(regions)} region(s) could not be searched. '
-            'Review region_errors and retry.',
+            'Review region_errors and follow retry_strategy.',
             error_type=_multi_region_error_type(region_errors, regions_not_found),
             operation='get_automation_event',
             service=_SERVICE_NAME,

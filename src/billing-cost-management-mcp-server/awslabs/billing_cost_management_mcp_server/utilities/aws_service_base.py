@@ -77,11 +77,12 @@ logger = get_logger(__name__)
 # HTTPClientError: read timeout, connection closed, response streaming), the SDK's
 # retry quota running out, and a response body cut short or corrupted in transit
 # (raised while reading the body, after botocore's retries; FlexibleChecksumError is
-# also raised for an unsupported request checksum algorithm, which no tool sets). Every other BotoCoreError
-# is raised the same way on every
-# attempt (credentials, configuration, an SDK-side check), so handle_aws_error keeps
-# error_type='aws_connection_error' (stable for callers) but sets
-# retry_strategy='do_not_retry' explicitly; ErrorSignalingMiddleware keeps a
+# also raised for request checksum settings, which no tool sets). botocore's
+# ValidationError family is modify_request. Every other BotoCoreError is raised the
+# same way on every attempt (credentials, configuration, an SDK-side check; botocore
+# already retries credential fetches from instance and container metadata before it
+# raises), so handle_aws_error keeps error_type='aws_connection_error' (stable for
+# callers) but sets retry_strategy explicitly; ErrorSignalingMiddleware keeps a
 # retry_strategy that is already set.
 _TRANSIENT_BOTOCORE_ERRORS = (
     BotoConnectionError,
@@ -122,9 +123,8 @@ _HINT_BOTO_VALIDATION = (
     'details, then retry.'
 )
 _HINT_AWS_SDK = (
-    'The AWS SDK rejected the call before or while sending it; this is not a network '
-    'failure, and the same request fails the same way. Do not retry; report the details '
-    'to the user.'
+    'The AWS SDK raised a client-side error; this is not a network failure, and the same '
+    'request fails the same way. Do not retry; report the details to the user.'
 )
 
 
