@@ -575,7 +575,7 @@ class TestListWorkloadEstimateUsage:
             service_code_filter='AmazonEC2',
             usage_type_filter='BoxUsage',
             operation_filter='RunInstances',
-            location_filter='US East (N. Virginia)',
+            location_filter='us-east-1',
             usage_group_filter='EC2-Instance',
             max_items=100,
         )
@@ -1852,7 +1852,7 @@ class TestBcmPricingCalcCoreFunction:
             service_code_filter='AmazonEC2',
             usage_type_filter='BoxUsage',
             operation_filter='RunInstances',
-            location_filter='US East (N. Virginia)',
+            location_filter='us-east-1',
             usage_group_filter='EC2-Instance',
             next_token='usage-token',
             max_items=100,
@@ -1866,7 +1866,7 @@ class TestBcmPricingCalcCoreFunction:
             'AmazonEC2',
             'BoxUsage',
             'RunInstances',
-            'US East (N. Virginia)',
+            'us-east-1',
             'EC2-Instance',
             'usage-token',
             100,
@@ -2014,6 +2014,173 @@ class TestBcmPricingCalcCoreFunction:
             'Failed to process AWS Billing and Cost Management Pricing Calculator request'
             in result['message']
         )
+
+
+class TestNameMatchOptionValidation:
+    """name_match_option must be EQUALS, STARTS_WITH or CONTAINS; the service rejects any other casing."""
+
+    @staticmethod
+    async def _list(client, **kwargs):
+        """Run list_workload_estimates against a client mock with preferences configured."""
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
+                return_value=client,
+            ) as create_client,
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences',
+                new=AsyncMock(return_value={'account_types': ['management account']}),
+            ) as get_prefs,
+        ):
+            ctx = MagicMock()
+            ctx.info = AsyncMock()
+            ctx.error = AsyncMock()
+            result = await list_workload_estimates(ctx, **kwargs)
+            return result, create_client, get_prefs
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'given,sent',
+        [
+            ('CONTAINS', 'CONTAINS'),
+            ('contains', 'CONTAINS'),
+            ('Equals', 'EQUALS'),
+            (' starts_with ', 'STARTS_WITH'),
+        ],
+    )
+    async def test_match_option_is_upper_cased(self, given, sent):
+        """Any casing of a valid option is sent upper-cased; the name value is sent unchanged."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(client, name_filter='Demo', name_match_option=given)
+
+        assert result['status'] == 'success'
+        filters = client.list_workload_estimates.call_args.kwargs['filters']
+        assert filters == [{'name': 'NAME', 'values': ['Demo'], 'matchOption': sent}]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('given', ['LIKE', 'starts with', 'EXACT', '   ', None])
+    async def test_unknown_match_option_is_rejected_before_any_call(self, given):
+        """A value outside the enum returns validation_error listing the valid values, with no AWS call."""
+        client = MagicMock()
+
+        result, create_client, get_prefs = await self._list(
+            client, name_filter='Demo', name_match_option=given
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == 'name_match_option'
+        assert result['data']['value'] == given
+        for option in ('EQUALS', 'STARTS_WITH', 'CONTAINS'):
+            assert option in result['message']
+        create_client.assert_not_called()
+        get_prefs.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_match_option_is_ignored_without_name_filter(self):
+        """name_match_option applies only to name_filter, so it is not checked or sent alone."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(client, name_match_option='LIKE')
+
+        assert result['status'] == 'success'
+        assert 'filters' not in client.list_workload_estimates.call_args.kwargs
+
+    @pytest.mark.asyncio
+    async def test_empty_name_filter_sends_no_filter(self):
+        """An empty name_filter is not sent, so its match option is not checked."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(client, name_filter='', name_match_option='LIKE')
+
+        assert result['status'] == 'success'
+        assert 'filters' not in client.list_workload_estimates.call_args.kwargs
+
+    @pytest.mark.asyncio
+    async def test_tool_entry_point_rejects_unknown_match_option(self):
+        """The validation also applies through bcm_pricing_calc_core, the tool's entry point."""
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+        ) as create_client:
+            ctx = MagicMock()
+            ctx.info = AsyncMock()
+            ctx.error = AsyncMock()
+            result = await bcm_pricing_calc_core(
+                ctx,
+                operation='list_workload_estimates',
+                name_filter='Demo',
+                name_match_option='LIKE',
+            )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == 'name_match_option'
+        create_client.assert_not_called()
+
+
+class TestFilterArgDocs:
+    """The served arg docs state how each filter is matched, since a mismatch returns no rows, not an error."""
+
+    @staticmethod
+    async def _docs():
+        tool = await bcm_pricing_calculator_server.get_tool('bcm-pricing-calc')
+        assert tool is not None
+        properties = tool.parameters['properties']
+        return {name: ' '.join(spec['description'].split()) for name, spec in properties.items()}
+
+    @pytest.mark.asyncio
+    async def test_name_filter_docs_state_case_rules(self):
+        """name_filter is case-sensitive; name_match_option lists its values and takes any case."""
+        docs = await self._docs()
+        assert 'always case-sensitive' in docs['name_filter']
+        assert 'EQUALS, STARTS_WITH or CONTAINS' in docs['name_match_option']
+        assert 'any case' in docs['name_match_option']
+        # The option's case rule must not read as a rule about the name match.
+        assert 'case-insensitive' not in docs['name_match_option']
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('param', ['usage_type_filter', 'operation_filter'])
+    async def test_substring_filters_are_documented(self, param):
+        """usage_type_filter and operation_filter are sent as case-sensitive CONTAINS."""
+        doc = (await self._docs())[param]
+        assert 'CONTAINS' in doc
+        assert 'case-sensitive' in doc
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'param',
+        [
+            'usage_account_id_filter',
+            'service_code_filter',
+            'location_filter',
+            'usage_group_filter',
+        ],
+    )
+    async def test_exact_filters_are_documented(self, param):
+        """The other usage filters are sent as EQUALS; the text-valued ones say case-sensitive."""
+        doc = (await self._docs())[param]
+        assert 'EQUALS' in doc
+        # Account IDs are 12 digits, so case does not apply to them.
+        if param != 'usage_account_id_filter':
+            assert 'case-sensitive' in doc
+
+    @pytest.mark.asyncio
+    async def test_operation_filter_warns_about_variants(self):
+        """CONTAINS on RunInstances also matches the platform variants such as RunInstances:0002."""
+        assert 'RunInstances:0002' in (await self._docs())['operation_filter']
+
+    @pytest.mark.asyncio
+    async def test_location_filter_takes_a_region_code(self):
+        """location_filter takes a region code; the aws-pricing display name matches nothing."""
+        doc = (await self._docs())['location_filter']
+        assert 'region code' in doc
+        assert 'us-east-1' in doc
+        assert 'US East (N. Virginia)' in doc
+        assert 'location/region' not in doc
 
 
 class TestBcmPricingCalcToolSchema:
