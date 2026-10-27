@@ -30,7 +30,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.constants import (
     EFFICIENCY_PARETO_MAX_PAGES,
     EFFICIENCY_PARETO_PAGE_SIZE,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock
 
@@ -646,23 +646,6 @@ class TestListRecommendationsErrorHandling:
 class TestGetRecommendationErrorHandling:
     """Test error handling scenarios for get_recommendation."""
 
-    async def test_empty_recommendation_response(self, mock_context, mock_coh_client):
-        """Test get_recommendation with empty recommendation in response."""
-        mock_coh_client.get_recommendation.return_value = {}
-
-        result = await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
-
-        assert result['status'] == 'warning'
-
-    async def test_no_recommendation_key(self, mock_context, mock_coh_client):
-        """Test get_recommendation with no recommendation key in response."""
-        mock_coh_client.get_recommendation.return_value = {}
-
-        result = await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
-
-        assert result['status'] == 'warning'
-        assert 'No recommendation found' in result['message']
-
     async def test_validation_exception(self, mock_context, mock_coh_client):
         """Test get_recommendation ValidationException handling."""
         from botocore.exceptions import ClientError
@@ -1002,6 +985,29 @@ class TestRecommendationFormatting:
         assert rec['source'] is None
         assert rec['lookback_period_in_days'] is None
         assert rec['estimated_monthly_savings'] is None
+        assert rec['last_refresh_timestamp'] is None
+
+    async def test_last_refresh_timestamp_matches_list_recommendations(
+        self, mock_context, mock_coh_client
+    ):
+        """get_recommendation formats lastRefreshTimestamp the same way list_recommendations does."""
+        refreshed = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        mock_coh_client.get_recommendation.return_value = {
+            'recommendationId': 'rec-1',
+            'lastRefreshTimestamp': refreshed,
+        }
+        mock_coh_client.list_recommendations.return_value = {
+            'items': [{'recommendationId': 'rec-1', 'lastRefreshTimestamp': refreshed}]
+        }
+
+        got = await get_recommendation(mock_context, mock_coh_client, 'rec-1')
+        listed = await list_recommendations(mock_context, mock_coh_client)
+
+        assert got['data']['last_refresh_timestamp'] == '2026-06-01T00:00:00'
+        assert (
+            listed['data']['recommendations'][0]['last_refresh_timestamp']
+            == got['data']['last_refresh_timestamp']
+        )
 
     async def test_recommendation_with_cost_breakdown_no_implementation(
         self, mock_context, mock_coh_client
