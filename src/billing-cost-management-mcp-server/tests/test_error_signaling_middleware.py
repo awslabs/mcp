@@ -314,12 +314,16 @@ class TestErrorRedactionEndToEnd:
             result = await client.call_tool('denied_tool', raise_on_error=False)
 
         assert result.is_error is True
-        everything = json.dumps(result.structured_content) + result.content[0].text + ''.join(logs)
+        structured = result.structured_content
+        content = result.content[0]
+        assert structured is not None
+        assert isinstance(content, TextContent)
+        everything = json.dumps(structured) + content.text + ''.join(logs)
         assert logs
         for secret in ('123456789012', 'arn:aws', 'ExampleRole', 'example-session'):
             assert secret not in everything, secret
-        assert 'ce:GetCostAndUsage' in result.structured_content['message']
-        assert result.structured_content['retry_strategy'] == 'do_not_retry'
+        assert 'ce:GetCostAndUsage' in structured['message']
+        assert structured['retry_strategy'] == 'do_not_retry'
 
     @pytest.mark.asyncio
     async def test_raised_exception_text_is_redacted(self):
@@ -339,7 +343,9 @@ class TestErrorRedactionEndToEnd:
             result = await client.call_tool('raising_tool', raise_on_error=False)
 
         assert result.is_error is True
-        text = result.content[0].text
+        content = result.content[0]
+        assert isinstance(content, TextContent)
+        text = content.text
         assert 'User: [ARN redacted] is not authorized' in text
         assert '123456789012' not in text and 'ExampleRole' not in text
 
