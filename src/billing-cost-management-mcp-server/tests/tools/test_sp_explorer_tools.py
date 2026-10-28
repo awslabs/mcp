@@ -1343,3 +1343,57 @@ class TestDescribeSavingsPlanRatesRequiredParameter:
         )
 
         assert mock_paginate.call_args[0][3]['savingsPlanId'] == '577d4a65'
+
+
+@pytest.mark.asyncio
+class TestOfferingFilterVocabulary:
+    """Each offering operation's arg docs give the values that operation accepts."""
+
+    RATES = 'describe_savings_plans_offering_rates takes'
+
+    @staticmethod
+    async def _arg_doc(name: str) -> str:
+        """One sp-explorer argument description as published to MCP clients."""
+        async with fastmcp.Client(sp_explorer_server) as client:
+            tools = await client.list_tools()
+        props = next(t for t in tools if t.name == 'sp-explorer').input_schema['properties']
+        return ' '.join((props[name].get('description') or '').split())
+
+    async def test_offering_rate_filters_omit_product_id(self):
+        """The offering-rate filter names are the five the service accepts."""
+        doc = await self._arg_doc('filters')
+
+        assert self.RATES in doc
+        rate_filters = doc.split(self.RATES, 1)[1]
+        assert 'productId' not in rate_filters
+        for name in ('region', 'instanceFamily', 'instanceType', 'productDescription', 'tenancy'):
+            assert name in rate_filters
+
+    async def test_service_codes_give_offering_codes_apart_from_rate_codes(self):
+        """Offering codes come before the rate operation, rate codes after it."""
+        doc = await self._arg_doc('service_codes')
+
+        assert self.RATES in doc
+        offerings, rates = doc.split(self.RATES, 1)
+        for code in ('ComputeSavingsPlans', 'MachineLearningSavingsPlans', 'DatabaseSavingsPlans'):
+            assert code in offerings
+            assert code not in rates
+        assert 'EC2Instance' in offerings
+        assert re.search(r'reject', offerings, re.I)
+        for code in ('AmazonEC2', 'AmazonRDS', 'AmazonES'):
+            assert code in rates
+
+    async def test_usage_types_give_both_formats(self):
+        """Offering and rate usage types are shown, region prefix and empty match included."""
+        doc = await self._arg_doc('usage_types')
+
+        for example in (
+            'ComputeSP:1yrNoUpfront',
+            'EC2SP:m5.1yrNoUpfront',
+            'AFS1-EC2SP:c5.1yrAllUpfront',
+            'BoxUsage:m5.large',
+            'USW2-BoxUsage:m5.large',
+        ):
+            assert example in doc
+        assert re.search(r'matches nothing', doc)
+        assert re.search(r'empty result', doc)
