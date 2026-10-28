@@ -14,7 +14,9 @@
 
 """Unit tests for the cost_explorer_operations module."""
 
+import json
 import pytest
+from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_operations
 from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations import (
     get_cost_and_usage,
     get_cost_and_usage_with_resources,
@@ -1928,3 +1930,115 @@ async def test_max_items_without_next_token_omits_token_from_first_request(
     first_call_kwargs = getattr(mock_ce_client, ce_method).call_args_list[0][1]
     assert token_key not in first_call_kwargs
     assert 'MaxResults' not in first_call_kwargs
+
+
+def _data_unavailable(operation):
+    """The error Cost Explorer returns for a forecast it cannot produce."""
+    from botocore.exceptions import ClientError
+
+    return ClientError(
+        {
+            'Error': {
+                'Code': 'DataUnavailableException',
+                'Message': 'Insufficient amount of historical data.',
+            },
+            'ResponseMetadata': {'RequestId': 'r', 'HTTPStatusCode': 400},
+        },
+        operation,
+    )
+
+
+_FORECASTS = [
+    (get_cost_forecast, 'get_cost_forecast', 'UNBLENDED_COST'),
+    (get_usage_forecast, 'get_usage_forecast', 'USAGE_QUANTITY'),
+]
+_OPERATION_NAMES = {
+    'get_cost_forecast': 'GetCostForecast',
+    'get_usage_forecast': 'GetUsageForecast',
+}
+_NO_MATCH_FILTER = {
+    'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compte']}
+}
+
+
+@pytest.mark.asyncio
+class TestForecastFilterNoMatch:
+    """A forecast filter that matches no past costs fails like an account with too little history."""
+
+    @pytest.mark.parametrize('func, api, metric', _FORECASTS)
+    @pytest.mark.parametrize('filter_expr', [_NO_MATCH_FILTER, json.dumps(_NO_MATCH_FILTER)])
+    async def test_filtered_data_unavailable_asks_to_check_the_filter(
+        self, mock_context, mock_ce_client, func, api, metric, filter_expr
+    ):
+        """With a filter, the caller is told to check the values, not that no forecast exists."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            MODIFY_REQUEST,
+            add_retry_guidance,
+        )
+
+        getattr(mock_ce_client, api).side_effect = _data_unavailable(_OPERATION_NAMES[api])
+
+        result = add_retry_guidance(
+            await func(mock_context, mock_ce_client, metric=metric, filter_expr=filter_expr)
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'DataUnavailableException'
+        assert result['message'] == 'Insufficient amount of historical data.'
+        assert result['retry_strategy'] == MODIFY_REQUEST
+        assert result['hint'] == cost_explorer_operations._FORECAST_FILTER_NO_DATA_HINT
+
+    @pytest.mark.parametrize('func, api, metric', _FORECASTS)
+    @pytest.mark.parametrize('filter_expr', [None, {}, '{}'])
+    async def test_unfiltered_data_unavailable_keeps_default_guidance(
+        self, mock_context, mock_ce_client, func, api, metric, filter_expr
+    ):
+        """Without a filter sent, the error keeps the shared do_not_retry guidance."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            DO_NOT_RETRY,
+            add_retry_guidance,
+            classify_error,
+        )
+
+        getattr(mock_ce_client, api).side_effect = _data_unavailable(_OPERATION_NAMES[api])
+
+        result = add_retry_guidance(
+            await func(mock_context, mock_ce_client, metric=metric, filter_expr=filter_expr)
+        )
+
+        assert 'Filter' not in getattr(mock_ce_client, api).call_args[1]
+        assert result['retry_strategy'] == DO_NOT_RETRY
+        assert result['hint'] == classify_error('DataUnavailableException')[1]
+
+    @pytest.mark.parametrize('func, api, metric', _FORECASTS)
+    async def test_other_errors_with_a_filter_are_unchanged(
+        self, mock_context, mock_ce_client, func, api, metric
+    ):
+        """Only DataUnavailableException gets the filter guidance."""
+        from botocore.exceptions import ClientError
+
+        getattr(mock_ce_client, api).side_effect = ClientError(
+            {'Error': {'Code': 'ValidationException', 'Message': 'bad'}}, 'GetCostForecast'
+        )
+
+        result = await func(
+            mock_context, mock_ce_client, metric=metric, filter_expr=_NO_MATCH_FILTER
+        )
+
+        assert result['error_type'] == 'ValidationException'
+        assert 'retry_strategy' not in result
+        assert 'hint' not in result
+
+
+def test_hint_names_the_lookups_and_the_ignored_match_options():
+    """The hint says how to check each kind of value and that partial matching is ignored."""
+    for phrase in (
+        'the filter as a whole matches no past costs or usage',
+        'CASE_INSENSITIVE are accepted but not applied',
+        'Do not resend the same request',
+        'getDimensionValues',
+        'getTagsOrValues',
+        'getCostCategories',
+        'too little history',
+    ):
+        assert phrase in cost_explorer_operations._FORECAST_FILTER_NO_DATA_HINT
