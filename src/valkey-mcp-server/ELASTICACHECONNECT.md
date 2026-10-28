@@ -143,14 +143,14 @@ VALKEY_HOST=my-public-cache-x2e9hv.public.serverless.use1.cache.amazonaws.com
 VALKEY_PORT=6379
 VALKEY_IAM_AUTH=true
 VALKEY_USERNAME=default.iam-user      # the IAM-enabled ElastiCache user
-VALKEY_CACHE_NAME=my-public-cache     # the cache name the token is signed for (lowercase)
-AWS_REGION=us-east-1                  # region of the cache
+VALKEY_CACHE_NAME=my-public-cache     # the cache name the token is signed for
+VALKEY_REGION=us-east-1               # region of the cache (falls back to AWS_REGION)
 VALKEY_CLUSTER_MODE=true              # matches the cluster-mode clients used in the ElastiCache docs
 ```
 
 Notes:
 
-* `VALKEY_CACHE_NAME` is the ElastiCache **cache name**, not the endpoint hostname in `VALKEY_HOST`. It must be lowercase.
+* `VALKEY_CACHE_NAME` is the ElastiCache **cache name**, not the endpoint hostname in `VALKEY_HOST`.
 * TLS is enabled automatically when `VALKEY_IAM_AUTH=true`; you do not need `VALKEY_USE_SSL`. GLIDE negotiates TLS 1.3 natively, so a TLS handshake failure usually means a proxy or TLS-inspecting device on the network path is downgrading or intercepting the connection.
 * `VALKEY_PWD` is ignored when `VALKEY_IAM_AUTH=true`.
 * IAM auth tokens are valid for 15 minutes (or until the temporary credentials that signed them expire, if sooner). Sessions expire after 12 hours and reconnect automatically. GLIDE handles both.

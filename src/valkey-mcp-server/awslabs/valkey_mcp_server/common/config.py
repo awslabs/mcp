@@ -35,7 +35,9 @@ VALKEY_CFG = {
     'glide_log_level': os.getenv('VALKEY_GLIDE_LOG_LEVEL', 'WARN').upper(),
     'iam_auth': os.getenv('VALKEY_IAM_AUTH', False) in ('true', '1', 't'),
     'cache_name': os.getenv('VALKEY_CACHE_NAME', None),
-    'region': os.getenv('AWS_REGION') or os.getenv('AWS_DEFAULT_REGION') or None,
+    'region': (
+        os.getenv('VALKEY_REGION') or os.getenv('AWS_REGION') or os.getenv('AWS_DEFAULT_REGION')
+    ),
 }
 
 

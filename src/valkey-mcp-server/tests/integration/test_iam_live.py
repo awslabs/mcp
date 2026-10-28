@@ -21,8 +21,8 @@ Requires (all read by awslabs.valkey_mcp_server.common.config at import time):
     VALKEY_IAM_AUTH=true
     VALKEY_HOST        — public endpoint address (Endpoint.Address from describe-serverless-caches)
     VALKEY_USERNAME    — IAM-enabled ElastiCache user, e.g. default.iam-user
-    VALKEY_CACHE_NAME  — serverless cache name (lowercase)
-    AWS_REGION         — region of the cache
+    VALKEY_CACHE_NAME  — serverless cache name
+    VALKEY_REGION      — region of the cache (falls back to AWS_REGION)
     VALKEY_CLUSTER_MODE=true (recommended for serverless)
     AWS credentials with elasticache:Connect on the cache and user ARNs
 

@@ -44,8 +44,9 @@ _client: GlideClientType | None = None
 def _resolve_region() -> str:
     """Resolve the AWS region used to sign ElastiCache IAM auth tokens.
 
-    Uses AWS_REGION / AWS_DEFAULT_REGION (captured in VALKEY_CFG['region']) and falls
-    back to the boto3 default session (shared config, AWS_PROFILE, and so on).
+    Uses VALKEY_REGION / AWS_REGION / AWS_DEFAULT_REGION (captured in
+    VALKEY_CFG['region']), and falls back to the boto3 default session (shared config,
+    AWS_PROFILE, and so on).
     """
     region = VALKEY_CFG.get('region')
     if not region:
@@ -54,8 +55,8 @@ def _resolve_region() -> str:
         region = boto3.session.Session().region_name
     if not region:
         raise ValueError(
-            'AWS_REGION is required when VALKEY_IAM_AUTH is enabled '
-            '(set AWS_REGION to the region of the ElastiCache cache)'
+            'VALKEY_REGION is required when VALKEY_IAM_AUTH is enabled '
+            '(set it to the region of the ElastiCache cache)'
         )
     return region
 

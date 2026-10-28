@@ -237,7 +237,7 @@ class TestIamAuth:
             patch(f'{MODULE}.VALKEY_CFG', dict(self.IAM_CFG, region=None)),
             patch('boto3.session.Session', mock_session),
         ):
-            with pytest.raises(ValueError, match='AWS_REGION'):
+            with pytest.raises(ValueError, match='VALKEY_REGION'):
                 _build_config()
 
     def test_ca_certs_wired_when_tls_forced_by_iam(self, tmp_path):
