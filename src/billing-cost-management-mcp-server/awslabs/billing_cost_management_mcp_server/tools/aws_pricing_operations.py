@@ -308,7 +308,8 @@ SERVICE_CODE_EXAMPLES = {
     'Bedrock': 'AmazonBedrock',
 }
 
-# GetProducts Filter.Type values. TERM_MATCH and EQUALS are the same exact match, CONTAINS
+# GetProducts Filter.Type values. TERM_MATCH and EQUALS are the same whole-value match
+# (case-insensitive: the service lower-cases field and value), CONTAINS
 # matches a substring, and ANY_OF and NONE_OF split Value on commas.
 FILTER_TYPES = ('TERM_MATCH', 'EQUALS', 'CONTAINS', 'ANY_OF', 'NONE_OF')
 _LIST_FILTER_TYPES = ('ANY_OF', 'NONE_OF')
@@ -366,6 +367,13 @@ def _build_filters(parsed: Any) -> list:
     ANY_OF. A list is the API's own [{Field, Type, Value}] shape, for every filter type.
     """
     filters = []
+    # The service lower-cases field names, so {"field", "type", "value"} is the same mistake.
+    if isinstance(parsed, dict) and {str(k).lower() for k in parsed} == {'field', 'type', 'value'}:
+        canonical = {str(k).capitalize(): v for k, v in parsed.items()}
+        raise ValueError(
+            'A single filter in the API format must be inside a list, with the keys Field, Type '
+            f'and Value: [{json.dumps(canonical)}]. Field, Type and Value are not attribute names.'
+        )
     if isinstance(parsed, dict):
         for field, value in parsed.items():
             if value is None:
@@ -559,12 +567,23 @@ async def get_pricing_from_api(
         # Process filters
         api_filters = []
         if filters:
-            # Parse JSON using shared utility
-            parsed_filters = parse_json(filters, 'filters')
-            # An empty object or list sends no filter; any other JSON value is checked, so '0'
-            # or 'false' is refused rather than fetching the whole service unfiltered.
-            if parsed_filters is not None and parsed_filters != {} and parsed_filters != []:
-                api_filters = _build_filters(parsed_filters)
+            try:
+                # Parse JSON using shared utility
+                parsed_filters = parse_json(filters, 'filters')
+                # An empty object or list sends no filter; any other JSON value is checked, so
+                # '0' or 'false' is refused rather than fetching the whole service unfiltered.
+                if parsed_filters is not None and parsed_filters != {} and parsed_filters != []:
+                    api_filters = _build_filters(parsed_filters)
+            except ValueError as e:
+                # Refused before any request, so not reported as a failed API call.
+                return format_response(
+                    'error',
+                    {'invalid_parameter': 'filters', 'message': str(e)},
+                    error_type='validation_error',
+                    operation='get_pricing_from_api',
+                    service=AWS_PRICING_SERVICE_NAME,
+                )
+            if api_filters:
                 await ctx.info(f'Applied {len(api_filters)} filters')
 
         all_price_list, _, pagination = await paginate_aws_items(

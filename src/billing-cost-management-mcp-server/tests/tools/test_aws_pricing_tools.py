@@ -2220,6 +2220,48 @@ class TestGetPricingFromApiFilterTypes:
         assert expected in result['message']
         mock_client.get_products.assert_not_called()
 
+    @pytest.mark.parametrize(
+        'filters',
+        [
+            '{"Field": "instanceType", "Type": "ANY_OF", "Value": "m5.large,m5.xlarge"}',
+            '{"field": "instanceType", "type": "ANY_OF", "value": "m5.large,m5.xlarge"}',
+        ],
+    )
+    async def test_one_api_filter_without_a_list_is_refused(
+        self, mock_create_client, mock_context, filters
+    ):
+        """A lone {Field, Type, Value} object, in any key case, is not read as three attributes."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2', filters=filters)
+
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == 'filters'
+        assert 'inside a list' in result['message']
+        # The suggested list uses the key names the list form accepts.
+        assert '[{"Field": "instanceType", "Type": "ANY_OF", "Value":' in result['message']
+        mock_client.get_products.assert_not_called()
+
+    @pytest.mark.parametrize('filters', ['{"instanceType": true}', '{not json'])
+    async def test_a_local_filter_error_does_not_claim_an_api_request(
+        self, mock_create_client, mock_context, filters
+    ):
+        """A filter refused before any call says so in data too, not 'Pricing API request failed'."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2', filters=filters)
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'get_pricing_from_api'
+        assert result['data']['invalid_parameter'] == 'filters'
+        assert result['data']['message'] == result['message']
+        assert 'Pricing API request failed' not in json.dumps(result)
+        assert 'note' not in result['data']
+        mock_client.get_products.assert_not_called()
+
     async def test_an_invalid_type_names_the_valid_ones(self, mock_create_client, mock_context):
         """The Type error lists the five values the API accepts."""
         mock_create_client.return_value = MagicMock()
@@ -2283,7 +2325,11 @@ async def test_aws_pricing_description_documents_the_filter_types():
 
     assert 'one value per attribute' not in description
     assert 'matched as one literal value, not as a list' not in description
+    assert 'must match exactly' not in description
+    assert '(exact match)' not in description
     for text in (
+        'must equal the whole attribute value, ignoring case (TERM_MATCH)',
+        'TERM_MATCH or EQUALS (whole value, case-insensitive)',
         'ANY_OF',
         'NONE_OF',
         'CONTAINS',
