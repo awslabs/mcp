@@ -112,9 +112,10 @@ and so are Tags and CostCategories expressions ("Tags expression is not allowed"
 SORTING (sort_by): {"Key": "<key>", "SortOrder": "DESCENDING"} (or "ASCENDING").
 SortOrder is required and upper case; "descending" is a ValidationException.
 get_reservation_utilization applies sort_by only with group_by; without group_by it
-ignores the key (no sorting, and a wrong key is not reported), though a SortOrder other
-than ASCENDING or DESCENDING is still rejected. Keys differ per operation; any other key
-returns "Unsupported sortKey":
+ignores the key (no sorting, a wrong key is not reported, and SortOrder may be omitted;
+the response's sort_by_note says so), though a SortOrder other than ASCENDING or
+DESCENDING is still rejected. Keys differ per operation; any other key (with group_by,
+for utilization) returns "Unsupported sortKey":
 - get_reservation_coverage: CoverageHoursPercentage, CoverageNormalizedUnitsPercentage,
   OnDemandCost, OnDemandHours, OnDemandNormalizedUnits, ReservedHours,
   ReservedNormalizedUnits, TotalRunningHours, TotalRunningNormalizedUnits, Time
@@ -191,7 +192,7 @@ async def ri_performance(
         metrics: List of metrics to retrieve for coverage as a JSON string (e.g., '["Hour", "Cost"]'). Valid values are Hour, Unit and Cost; Unit is EC2 only. Defaults to Hour only.
         group_by: Optional grouping as a JSON string. For coverage: AZ, CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION, INSTANCE_TYPE, INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PLATFORM, REGION, or TENANCY, depending on the service (see the tool description) (SERVICE is NOT valid — filter on it instead). For utilization: SUBSCRIPTION_ID only.
         filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE defaults to EC2 when omitted; valid coverage SERVICE values are "Amazon Elastic Compute Cloud - Compute", "Amazon Relational Database Service", "Amazon ElastiCache", "Amazon MemoryDB", "Amazon Redshift", "Amazon OpenSearch Service", and "Amazon Elasticsearch Service" (use the full display name, not "EC2"/"RDS"); coverage takes one SERVICE value per call and rejects more. SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
-        sort_by: Optional sort as a JSON string: '{"Key": "<key>", "SortOrder": "DESCENDING"}'. SortOrder is required: ASCENDING or DESCENDING, upper case only. Valid keys differ per operation (see SORTING in the tool description). get_reservation_utilization ignores sort_by without group_by.
+        sort_by: Optional sort as a JSON string: '{"Key": "<key>", "SortOrder": "DESCENDING"}'. SortOrder is required: ASCENDING or DESCENDING, upper case only. Valid keys differ per operation (see SORTING in the tool description). get_reservation_utilization ignores sort_by without group_by (the response then carries a sort_by_note).
         max_items: Total number of groups to return across all pages. Omit it to fetch every
             page. Applies only to get_reservation_coverage with group_by set.
         next_token: The pagination.next_token from a previous response; continue with otherwise
@@ -583,6 +584,14 @@ async def get_reservation_utilization(
         formatted_response: Dict[str, Any] = {
             'utilizations_by_time': [],
         }
+
+        # Without GroupBy the API accepts SortBy but ignores it, without checking the key.
+        if sort_by and not group_by:
+            formatted_response['sort_by_note'] = (
+                'sort_by was not applied: get_reservation_utilization sorts only grouped '
+                'results (group_by SUBSCRIPTION_ID), and without group_by it does not check '
+                'the sort key either.'
+            )
 
         # Format total utilization if present
         if total_utilization:

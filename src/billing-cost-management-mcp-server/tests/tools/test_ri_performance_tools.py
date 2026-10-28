@@ -1318,7 +1318,9 @@ async def test_description_lists_sort_keys_and_sort_order_shape():
     section = _section(await _ri_description(), 'SORTING (sort_by):')
     assert '{"Key": "<key>", "SortOrder": "DESCENDING"}' in section
     assert 'SortOrder is required and upper case; "descending" is a ValidationException' in section
-    assert 'any other key returns "Unsupported sortKey"' in section
+    assert (
+        'any other key (with group_by, for utilization) returns "Unsupported sortKey"' in section
+    )
     assert _keys_after(section, 'get_reservation_coverage') == COVERAGE_SORT_KEYS
     assert _keys_after(section, 'get_reservation_utilization') == UTILIZATION_SORT_KEYS
 
@@ -1329,6 +1331,8 @@ async def test_description_states_utilization_sorts_only_when_grouped():
     section = _section(await _ri_description(), 'SORTING (sort_by):')
     assert 'get_reservation_utilization applies sort_by only with group_by' in section
     assert 'a wrong key is not reported' in section
+    assert 'SortOrder may be omitted' in section
+    assert "the response's sort_by_note says so" in section
     assert 'a SortOrder other than ASCENDING or DESCENDING is still rejected' in section
 
 
@@ -1365,7 +1369,10 @@ async def test_sort_by_arg_names_sort_order_not_direction():
     sort_doc = tool.parameters['properties']['sort_by']['description']
     assert '{"Key": "<key>", "SortOrder": "DESCENDING"}' in sort_doc
     assert 'SortOrder is required: ASCENDING or DESCENDING, upper case only' in sort_doc
-    assert 'get_reservation_utilization ignores sort_by without group_by' in sort_doc
+    assert (
+        'get_reservation_utilization ignores sort_by without group_by '
+        '(the response then carries a sort_by_note)'
+    ) in sort_doc
     assert 'direction' not in sort_doc
 
 
@@ -1395,6 +1402,46 @@ async def test_ungrouped_utilization_ignores_max_items_and_next_token(mock_conte
     )
 
     assert 'NextPageToken' not in client.get_reservation_utilization.call_args.kwargs
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'group_by, noted',
+    [(None, True), ('[{"Type": "DIMENSION", "Key": "SUBSCRIPTION_ID"}]', False)],
+)
+async def test_utilization_notes_sort_by_ignored_without_group_by(mock_context, group_by, noted):
+    """Without GroupBy the API ignores SortBy, even an invalid key; the response says so."""
+    client = MagicMock()
+    client.get_reservation_utilization.return_value = {'UtilizationsByTime': []}
+
+    result = await _call_tool(
+        client,
+        mock_context,
+        operation='get_reservation_utilization',
+        group_by=group_by,
+        sort_by='{"Key": "UnusedHours", "SortOrder": "DESCENDING"}',
+    )
+
+    # SortBy is still sent: the API validates SortOrder even when it ignores the key.
+    sort = client.get_reservation_utilization.call_args.kwargs['SortBy']
+    assert sort == {'Key': 'UnusedHours', 'SortOrder': 'DESCENDING'}
+    note = result['data'].get('sort_by_note')
+    if noted:
+        assert note is not None
+        assert 'not applied' in note and 'group_by' in note
+    else:
+        assert note is None
+
+
+@pytest.mark.asyncio
+async def test_utilization_without_sort_by_has_no_sort_note(mock_context):
+    """No sort_by, no note."""
+    client = MagicMock()
+    client.get_reservation_utilization.return_value = {'UtilizationsByTime': []}
+
+    result = await _call_tool(client, mock_context, operation='get_reservation_utilization')
+
+    assert 'sort_by_note' not in result['data']
 
 
 async def _call_tool(client, ctx, **kwargs):
