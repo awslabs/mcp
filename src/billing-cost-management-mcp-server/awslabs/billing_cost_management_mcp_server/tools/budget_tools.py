@@ -84,25 +84,25 @@ example because it can no longer read its billing view (`status_reason` says why
 An `actual_spend` of 0 on a filtered budget does not prove there was no spend: a filter that
 matches nothing also tracks 0, and no error is raised. Two common causes: SERVICE (or `cost_filters`
 `Service`) values given as service codes such as `AmazonEC2` instead of Cost Explorer service names
-such as `Amazon Elastic Compute Cloud - Compute` (service codes belong under `SERVICE_CODE`); and
-`cost_filters` keys are combined with AND (values within one key with OR), so keys that never occur
-together match nothing. Before reporting no spend, run the equivalent filter, metric and billing
-view with `cost-explorer`. In `filter_expression`, a tag value of `""` matches costs that have no
-value for that tag key.
+such as `Amazon Elastic Compute Cloud - Compute`; and `cost_filters` keys are combined with AND
+(values within one key with OR), so keys that never occur together match nothing. Before reporting
+no spend, run the equivalent filter, metric and billing view with `cost-explorer`. In
+`filter_expression`, a tag value of `""` matches costs that have no value for that tag key.
 
 In `cost_types` on a COST budget, `IncludeCredit` and `IncludeRefund` default to true, so unless
 they are false the budget's spend is net of credits and refunds. A COST budget with no `cost_types`
 includes credits and refunds unless its `filter_expression` excludes them, for example with a `Not`
 on dimension `RECORD_TYPE` with values `Credit` and `Refund`. USAGE, RI and Savings Plans budgets
-can also return `cost_types`; on RI and Savings Plans budgets it is always `IncludeSubscription`
-true and all else false.
+can also return `cost_types`; when an RI or Savings Plans budget returns it, it is
+`IncludeSubscription` true and all else false.
 
-`budget_limit` is the limit for the current period. A budget with `planned_budget_limits` has its
-own limit for each current or future period (`period_start` in UTC) and keeps the last one after
-the plan ends. A budget with `auto_adjust` (`last_auto_adjust_time` in UTC) has its limit
-recomputed by AWS, from the average of up to `budget_adjustment_period` past periods
-(`HISTORICAL`; `look_back_available_periods` is how many had cost data) or from the forecast
-(`FORECAST`), so the limit can change with no one editing the budget.
+`budget_limit` is the limit for the current period. A budget with `planned_budget_limits` has a
+limit for each period of its plan (`period_start` in UTC; past periods are included) and keeps the
+last one after the plan ends. A budget with `auto_adjust` (`last_auto_adjust_time` in UTC) has its
+limit recomputed by AWS, from the average of up to `budget_adjustment_period` past periods
+(`HISTORICAL`; `look_back_available_periods` is how many of those periods were averaged; periods
+before the first one with cost are left out) or from the forecast (`FORECAST`), so the limit can
+change with no one editing the budget.
 
 With this information, you can determine which budgets have been exceeded or are projected to exceed their limits.
 

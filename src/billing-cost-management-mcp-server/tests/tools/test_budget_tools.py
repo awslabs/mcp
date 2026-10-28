@@ -1595,5 +1595,28 @@ async def test_budgets_description_names_zero_spend_traps_and_limit_fields():
         '`IncludeCredit` and `IncludeRefund` default to true',
         '`planned_budget_limits`',
         '`auto_adjust`',
+        'when an RI or Savings Plans budget returns it',
+        'past periods are included',
+        'periods before the first one with cost are left out',
     ):
         assert text in description, text
+
+
+@pytest.mark.asyncio
+async def test_budgets_description_drops_disproved_claims():
+    """Claims the service contradicts stay out of the description.
+
+    A SERVICE_CODE filter fails in the budget's spend calculation, so it is not a fix for a
+    service-code filter; planned limits include past periods; and an RI or Savings Plans budget
+    in the filter-expression form returns no cost_types at all.
+    """
+    tools = {t.name: t for t in await budget_server.list_tools()}
+    description = ' '.join((tools['budgets'].description or '').split())
+
+    for text in (
+        'SERVICE_CODE',
+        'current or future period',
+        'it is always `IncludeSubscription`',
+        'is how many had cost data',
+    ):
+        assert text not in description, text
