@@ -260,8 +260,8 @@ async def list_invoice_summaries(
             )
 
         # With ReceiverRole the service treats the request as an account query:
-        # it requires a time filter, which invoice_id cannot have. Say so before
-        # the call.
+        # without a time filter it errors, and with one it returns no rows. Say
+        # so before the call.
         if invoice_id and receiver_role:
             return _validation_error(
                 {

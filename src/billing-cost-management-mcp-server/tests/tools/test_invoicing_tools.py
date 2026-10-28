@@ -1073,6 +1073,8 @@ class TestInvoicingToolContract:
         assert '5 years' in description
         assert 'Estimate-' in description
         assert 'not a superset' in description
+        assert 'report the issued invoices, not the estimate' in description
+        assert '"estimated invoices for June 2026"' not in description
         assert 'TimePeriod cannot last more than a month' not in description
 
     @pytest.mark.asyncio
