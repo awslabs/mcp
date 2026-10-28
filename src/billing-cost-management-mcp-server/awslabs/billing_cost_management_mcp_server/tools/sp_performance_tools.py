@@ -69,8 +69,9 @@ DATES AND DATA FRESHNESS (all three operations):
   yet: yesterday is usually still missing, so excluding only today is not enough. A
   start_date inside those days returns a DataUnavailableException, which the service
   sends without a message. A window that only reaches into those days succeeds but
-  silently leaves them out, so the last entry can end before end_date. A start_date at
-  least 3 days before today is usually past that delay.
+  silently leaves them out, so the last DAILY entry can end before end_date (MONTHLY
+  labels: see RESPONSE PERIODS). A start_date at least 3 days before today is usually
+  past that delay.
 - A DataUnavailableException means there is no data for THIS window and filter: the
   window is too recent, no plan was active in it, or a filter value matches nothing
   (an unknown SAVINGS_PLANS_TYPE, for example, returns this error, not a

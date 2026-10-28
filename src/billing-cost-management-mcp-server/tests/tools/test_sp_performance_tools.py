@@ -1632,6 +1632,7 @@ class TestSpPerformanceDescription:
         assert 'most recent 2-3 days (counting today) is not processed yet' in description
         assert 'excluding only today is not enough' in description
         assert 'succeeds but silently leaves them out' in description
+        assert 'the last DAILY entry can end before end_date' in description
         assert (
             'A start_date at least 3 days before today is usually past that delay' in description
         )
