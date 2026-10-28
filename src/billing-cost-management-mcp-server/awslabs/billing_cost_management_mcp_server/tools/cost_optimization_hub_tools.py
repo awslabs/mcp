@@ -394,8 +394,7 @@ Supported Operations:
    about the cost-efficiency score, how it changed over time (use 'Daily' for
    that), cross-region/cross-account comparison, and top/worst performers. Each
    point is a one-day snapshot, not a period total: the estimated savings of the
-   recommendations open on that day, against the spend for the 30 days ending
-   that day.
+   recommendations open on that day, against the trailing 30 days of spend.
 5. list_enrollment_statuses: Cost Optimization Hub enrollment status (Active/Inactive)
    of the calling account. Optional 'account_id' returns the status of that account instead.
    An account that has never enrolled has no enrollment record; it is reported as
@@ -429,11 +428,13 @@ PAGINATION (list_recommendations, list_recommendation_summaries, list_efficiency
 list_efficiency_metrics parameters:
 - 'granularity': 'Daily' or 'Monthly' (defaults to 'Monthly' when omitted).
   A Monthly point ('YYYY-MM') is not a monthly average or total: it is the
-  snapshot for the last day of the month that has data, with spend for the 30
-  days ending on the month's last day, so a change on that one day moves the
-  month's value. Only completed months are returned. For a trend or a change
-  over time, use 'Daily' and read the daily series rather than comparing Monthly
-  values. When reporting a Monthly value, say it is the month-end snapshot.
+  snapshot for the last day of the month that has data, with the trailing 30
+  days of spend at month-end, so a change on that one day moves the month's
+  value. Ask only for completed months (end_date no later than the current
+  month, since end is exclusive); a current-month point would be partial. For a
+  trend or a change over time, use 'Daily' and read the daily series rather than
+  comparing Monthly values. When reporting a Monthly value, say it is the
+  month-end snapshot.
 - 'start_date' / 'end_date': window bounds as 'YYYY-MM-DD' (daily) or 'YYYY-MM'
   (monthly); end is exclusive. Both default to a ~90-day lookback when omitted.
   The API only serves data whose start is within the most recent 90 days (Daily)

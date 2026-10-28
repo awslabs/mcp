@@ -1808,8 +1808,10 @@ async def test_description_does_not_route_trends_to_monthly_efficiency():
 
 @pytest.mark.asyncio
 async def test_description_says_what_an_efficiency_point_covers():
-    """Each point is a snapshot over trailing-30-day spend; Monthly covers completed months."""
+    """Each point is a snapshot over trailing-30-day spend; ask Monthly only for completed months."""
     flat = await _coh_served_description()
     assert 'one-day snapshot, not a period total' in flat
-    assert 'the 30 days ending that day' in flat
-    assert 'Only completed months are returned' in flat
+    assert 'the trailing 30 days of spend' in flat
+    assert 'Ask only for completed months' in flat
+    assert 'a current-month point would be partial' in flat
+    assert 'Only completed months are returned' not in flat

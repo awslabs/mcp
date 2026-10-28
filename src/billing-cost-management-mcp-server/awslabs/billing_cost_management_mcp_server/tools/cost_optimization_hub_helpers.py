@@ -610,10 +610,9 @@ async def list_efficiency_metrics(
 
     Returns time-series efficiency data (efficiency score, estimated savings, and
     spend), optionally grouped by account ID or Region. Each point is a one-day
-    snapshot (estimated savings of the recommendations open that day, spend for
-    the 30 days ending that day); a Monthly point is the snapshot for the last
-    day of the month that has data, with spend for the 30 days ending on the
-    month's last day.
+    snapshot (estimated savings of the recommendations open that day, against the
+    trailing 30 days of spend); a Monthly point is the snapshot for the last day
+    of the month that has data, with the trailing 30 days of spend at month-end.
 
     Fetches every page, or stops before exceeding ``max_items``, and returns the combined
     groups with a ``pagination`` block. ``orderBy`` is sent on every page. In ``performance``
