@@ -253,7 +253,7 @@ def _validate_account_association_filters(filters: Any) -> None:
         and not association.startswith('arn:')
     ):
         raise ValueError(
-            'Association must be MONITORED, UNMONITORED or a full billing group ARN '
+            'Association must be MONITORED or UNMONITORED (upper case), or a full billing group ARN '
             '(arn:aws:billingconductor::<account>:billinggroup/<id>). Without AccountId or '
             'AccountIds the service rejects a bare billing group ID; with either it returns nothing.'
         )

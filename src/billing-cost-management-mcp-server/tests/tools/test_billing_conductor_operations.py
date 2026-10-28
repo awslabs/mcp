@@ -27,6 +27,8 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operatio
     _format_linked_accounts,
     _format_pricing_plans,
     _format_pricing_rules,
+    _validate_account_association_filters,
+    _validate_billing_group_filters,
     get_billing_group_cost_report,
     get_billing_transfer_preference,
     list_account_associations,
@@ -433,7 +435,6 @@ class TestListBillingGroupsFilterLimits:
             {'Names': [{'SearchOption': 'STARTS_WITH', 'SearchValue': 'Team'}]},
             {'PricingPlan': PRICING_PLAN_ARN_1},
             {'PricingPlan': 'arn:aws-cn:billingconductor::123456789012:pricingplan/abcdef1234'},
-            {'Statuses': None, 'Names': None},
         ],
     )
     @patch(PATCH_BC_CLIENT)
@@ -1875,8 +1876,8 @@ class TestListAccountAssociationsFilterLimits:
                 'AccountId or AccountIds, not both',
             ),
             ({'Association': BILLING_GROUP_ARN_1.rsplit('/', 1)[1]}, 'full billing group ARN'),
-            ({'Association': 'monitored'}, 'full billing group ARN'),
-            ({'Association': 'unmonitored'}, 'full billing group ARN'),
+            ({'Association': 'monitored'}, 'UNMONITORED (upper case)'),
+            ({'Association': 'unmonitored'}, 'UNMONITORED (upper case)'),
         ],
     )
     @patch(PATCH_BC_CLIENT)
@@ -1896,7 +1897,6 @@ class TestListAccountAssociationsFilterLimits:
             {'Association': 'UNMONITORED'},
             {'Association': BILLING_GROUP_ARN_1, 'AccountIds': [ACCOUNT_ID_LINKED_1]},
             {'AccountId': ACCOUNT_ID_LINKED_1, 'Association': 'MONITORED'},
-            {'AccountId': None, 'AccountIds': [ACCOUNT_ID_LINKED_1]},
             {'Association': 'arn:aws-cn:billingconductor::123456789012:billinggroup/abcdef1234'},
         ],
     )
@@ -1911,6 +1911,22 @@ class TestListAccountAssociationsFilterLimits:
 
         assert result['status'] == STATUS_SUCCESS
         assert mock_client.list_account_associations.call_args[1]['Filters'] == filters
+
+
+@pytest.mark.parametrize(
+    'validate,filters',
+    [
+        (_validate_billing_group_filters, {'Statuses': None, 'Names': None, 'PricingPlan': None}),
+        (
+            _validate_account_association_filters,
+            {'AccountId': None, 'AccountIds': ['111111111111']},
+        ),
+        (_validate_account_association_filters, {'Association': None}),
+    ],
+)
+def test_filter_rules_ignore_none_values(validate, filters):
+    """A None value breaks none of these rules; botocore rejects it on its own type check."""
+    validate(filters)
 
 
 # --- Billing Transfer Preference Tests ---
