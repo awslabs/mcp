@@ -48,7 +48,7 @@ LIST_COST_CATEGORY_DEFINITIONS = PageSpec(
 )
 
 
-_DATE_ONLY = re.compile(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+_DATE_ONLY = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}')
 
 
 def _normalize_effective_on(effective_on: str) -> str:
@@ -57,12 +57,12 @@ def _normalize_effective_on(effective_on: str) -> str:
     Raises ValueError for a YYYY-MM-DD value that is not a calendar date. Any other
     value is returned unchanged for the API to validate.
     """
-    if not _DATE_ONLY.match(effective_on):
+    if not _DATE_ONLY.fullmatch(effective_on):
         return effective_on
     if not validate_date_format(effective_on):
         raise ValueError(
             f'effective_on {effective_on!r} is not a calendar date. '
-            'Use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ.'
+            'Use YYYY-MM-DD, or YYYY-MM-DDTHH:MM:SS followed by Z or +HH:MM/-HH:MM.'
         )
     return f'{effective_on}T00:00:00Z'
 
@@ -179,9 +179,10 @@ You can filter with:
   Valid values: "billing:rispgroupsharing", "billing:billingview",
   "billing:creditsharing". At most 5 values.
   Example: '["billing:billingview"]'
-  Returns only categories that support every listed type. An unknown type of the
-  form `service:type` returns no categories, not an error; a value without the colon
-  fails with ValidationException.
+  Returns only categories that support every listed type. A value of the form
+  `service:type` (letters, digits, `-`, `/` or `_` on each side of one colon) that is
+  not a known type returns no categories, not an error. Any other value, such as
+  "billingview" or "billing:", fails with ValidationException.
 
 Pagination:
 - max_items: total number of cost categories returned. Omit it to fetch every page

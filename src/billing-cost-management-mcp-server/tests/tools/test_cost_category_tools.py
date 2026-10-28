@@ -488,8 +488,8 @@ def test_list_description_states_resource_type_filter_semantics():
     ):
         assert resource_type in description
     assert 'support every listed type' in description
-    assert 'unknown type of the form `service:type` returns no categories' in description
-    assert 'a value without the colon fails with ValidationException' in description
+    assert 'that is not a known type returns no categories, not an error' in description
+    assert '"billingview" or "billing:", fails with ValidationException' in description
     assert 'At most 5 values' in description
 
 
@@ -509,6 +509,7 @@ def test_descriptions_state_effective_on_formats():
         ('2024-06-01T00:00:00+07:00', '2024-06-01T00:00:00+07:00'),
         (' 2024-06-01', ' 2024-06-01'),
         ('2024-06-01T00:00:00', '2024-06-01T00:00:00'),
+        ('2024-06-01\n', '2024-06-01\n'),
     ],
 )
 def test_normalize_effective_on(value, expected):
