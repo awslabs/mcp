@@ -34,7 +34,7 @@ from ..utilities.time_utils import (
 from calendar import monthrange
 from datetime import datetime, timezone
 from fastmcp import Context
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 
 # InvoiceSummary fields that AWS returns as timestamps. We normalize these to
@@ -43,6 +43,10 @@ from typing import Any, Dict, List, Optional
 _TIMESTAMP_FIELDS = ('IssuedDate', 'DueDate')
 
 _SECONDS_PER_DAY = 86400
+
+# Setting Filter.ReceiverRole raises the TimeInterval cap from one month to
+# five years.
+_RECEIVER_ROLE_MAX_YEARS = 5
 
 # Classification for local parameter-validation failures, mirroring the
 # top-level fields handle_aws_error sets on AWS-side errors so callers can
@@ -91,6 +95,29 @@ def _max_time_interval_days(start_epoch: int) -> int:
     """
     start = datetime.fromtimestamp(start_epoch, tz=timezone.utc)
     return monthrange(start.year, start.month)[1]
+
+
+def _max_time_interval_days_with_receiver_role(start_epoch: int) -> int:
+    """Widest ``TimeInterval`` span, in whole days, accepted with a receiver role.
+
+    Setting ``Filter.ReceiverRole`` raises the cap from one month to five years.
+    The bound is derived from the start date rather than a fixed day count, so
+    leap years inside the window do not shift it; a 29 February start clamps to
+    28 February, having no counterpart five years on.
+
+    Args:
+        start_epoch: Range start as epoch seconds (UTC).
+
+    Returns:
+        The maximum span in whole days, i.e. the distance to the same calendar
+        date five years later.
+    """
+    start = datetime.fromtimestamp(start_epoch, tz=timezone.utc)
+    try:
+        limit = start.replace(year=start.year + _RECEIVER_ROLE_MAX_YEARS)
+    except ValueError:
+        limit = start.replace(year=start.year + _RECEIVER_ROLE_MAX_YEARS, day=28)
+    return (limit - start).days
 
 
 def _format_range_bound(moment: datetime) -> str:
@@ -188,6 +215,7 @@ async def list_invoice_summaries(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     invoicing_entity: Optional[str] = None,
+    receiver_role: Optional[Literal['SELLER', 'RESELLER', 'BUYER']] = None,
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -217,6 +245,11 @@ async def list_invoice_summaries(
             day here -- ``"2026-06-30"`` excludes invoices issued during June 30.
         invoicing_entity: Filter by the AWS legal selling entity name (for
             example ``"Amazon Web Services, Inc."``).
+        receiver_role: Restrict to invoices where the selected account holds
+            this role. Raises the ``start_date``/``end_date`` cap from one month
+            to five years and is the only way estimated invoices are returned.
+            Not a superset of an unrestricted query: see the note on the span
+            check below.
         max_items: Most invoice summaries to return. None fetches every page.
         next_token: Pagination token from a previous response to resume from.
 
@@ -328,24 +361,44 @@ async def list_invoice_summaries(
             # sub-ranges that together cover the request instead. The service
             # truncates to whole days, so compare on the same basis.
             span_days = (end_epoch - start_epoch) // _SECONDS_PER_DAY
-            max_days = _max_time_interval_days(start_epoch)
-            if span_days > max_days:
-                return _validation_error(
-                    {
-                        'message': (
-                            f'start_date to end_date spans {span_days} days. The Invoicing '
-                            'service accepts at most one month per call, measured as the '
-                            f"number of days in the start date's month ({max_days} here). "
-                            'Issue one call per suggested_date_ranges entry instead of '
-                            'widening the range, then combine the results.'
-                        ),
-                        'suggested_date_ranges': _split_range_by_month(start_epoch, end_epoch),
-                    },
-                )
+            if receiver_role:
+                # A receiver role lifts the cap to five years, so the per-month
+                # split does not apply; there is nothing useful to suggest.
+                max_days = _max_time_interval_days_with_receiver_role(start_epoch)
+                if span_days > max_days:
+                    return _validation_error(
+                        {
+                            'message': (
+                                f'start_date to end_date spans {span_days} days. With '
+                                'receiver_role set the Invoicing service accepts at most '
+                                f'five years per call ({max_days} days from this start '
+                                'date). Narrow the range.'
+                            )
+                        },
+                    )
+            else:
+                max_days = _max_time_interval_days(start_epoch)
+                if span_days > max_days:
+                    return _validation_error(
+                        {
+                            'message': (
+                                f'start_date to end_date spans {span_days} days. The Invoicing '
+                                'service accepts at most one month per call, measured as the '
+                                f"number of days in the start date's month ({max_days} here). "
+                                'Issue one call per suggested_date_ranges entry instead of '
+                                'widening the range, then combine the results. Setting '
+                                'receiver_role raises the cap to five years, but returns a '
+                                'different set of invoices.'
+                            ),
+                            'suggested_date_ranges': _split_range_by_month(start_epoch, end_epoch),
+                        },
+                    )
 
             api_filter['TimeInterval'] = {'StartDate': start_epoch, 'EndDate': end_epoch}
         if invoicing_entity:
             api_filter['InvoicingEntity'] = invoicing_entity
+        if receiver_role:
+            api_filter['ReceiverRole'] = receiver_role
         if api_filter:
             request_params['Filter'] = api_filter
 
