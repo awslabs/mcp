@@ -1470,6 +1470,7 @@ class TestBudgetsPaginationContract:
 
         result = await budgets(mock_context)
 
+        mock_get_id.assert_awaited_once()
         assert result['status'] == 'error'
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.get_aws_account_id')
