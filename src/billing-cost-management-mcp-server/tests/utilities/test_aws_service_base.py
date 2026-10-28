@@ -333,6 +333,64 @@ class TestHandleAwsError:
         assert result['message'] == 'No error message provided'
 
     @pytest.mark.asyncio
+    async def test_data_unavailable_with_empty_message_says_no_data(self):
+        """Cost Explorer's empty-message DataUnavailableException is reported as no data."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            add_retry_guidance,
+        )
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {
+                'Error': {'Code': 'DataUnavailableException', 'Message': ''},
+                'ResponseMetadata': {'HTTPStatusCode': 400},
+            },
+            'GetSavingsPlansUtilization',
+        )
+
+        result = add_retry_guidance(
+            await handle_aws_error(
+                AsyncMock(), error, 'get_savings_plans_utilization', 'Cost Explorer'
+            )
+        )
+
+        assert result['error_type'] == 'DataUnavailableException'
+        assert result['message'] == (
+            'Cost Explorer has no data for this request '
+            '(DataUnavailableException; the service sent no message).'
+        )
+        assert result['retry_strategy'] == 'do_not_retry'
+        assert 'The service has no data for this request' in result['hint']
+
+    @pytest.mark.asyncio
+    async def test_data_unavailable_without_message_key_says_no_data(self):
+        """A DataUnavailableException with no Message key at all is reported the same way."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError({'Error': {'Code': 'DataUnavailableException'}}, 'GetCostForecast')
+
+        result = await handle_aws_error(AsyncMock(), error, 'getCostForecast', 'Cost Explorer')
+
+        assert result['message'] == (
+            'Cost Explorer has no data for this request '
+            '(DataUnavailableException; the service sent no message).'
+        )
+
+    @pytest.mark.asyncio
+    async def test_data_unavailable_keeps_a_service_message(self):
+        """A DataUnavailableException that carries a message passes it through unchanged."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {'Error': {'Code': 'DataUnavailableException', 'Message': 'No data yet.'}},
+            'GetCostAndUsage',
+        )
+
+        result = await handle_aws_error(AsyncMock(), error, 'getCostAndUsage', 'Cost Explorer')
+
+        assert result['message'] == 'No data yet.'
+
+    @pytest.mark.asyncio
     async def test_handle_value_error(self):
         """Test handling ValueError."""
         # Setup

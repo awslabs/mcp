@@ -433,6 +433,74 @@ class TestFormatBudgets:
             f'Budget with actual={actual_amount}, forecast={forecast_amount}, limit={budget_limit} should have status {expected_status}'
         )
 
+    def test_format_budgets_status_usage_budget(self):
+        """A USAGE budget gets a status, since more usage is worse, as it is for COST."""
+        budgets_list = [
+            {
+                'BudgetName': 'Usage Budget',
+                'BudgetType': 'USAGE',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '1000.0', 'Unit': 'GB'},
+                'CalculatedSpend': {'ActualSpend': {'Amount': '1200.0', 'Unit': 'GB'}},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['status'] == 'EXCEEDED'
+
+    @pytest.mark.parametrize(
+        'budget_type',
+        [
+            'RI_UTILIZATION',
+            'RI_COVERAGE',
+            'SAVINGS_PLANS_UTILIZATION',
+            'SAVINGS_PLANS_COVERAGE',
+        ],
+    )
+    @pytest.mark.parametrize('actual_amount', ['100.0', '20.0'])
+    def test_format_budgets_no_status_for_utilization_and_coverage(
+        self, budget_type, actual_amount
+    ):
+        """Utilization and coverage budgets get no status.
+
+        Their limit is always 100 PERCENTAGE and a higher actual is better, so a
+        spend-vs-limit status read 100% as EXCEEDED and 20% as OK.
+        """
+        budgets_list = [
+            {
+                'BudgetName': 'Commitment Budget',
+                'BudgetType': budget_type,
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '100.0', 'Unit': 'PERCENTAGE'},
+                'CalculatedSpend': {
+                    'ActualSpend': {'Amount': actual_amount, 'Unit': 'PERCENTAGE'}
+                },
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert 'status' not in result[0]
+        assert result[0]['calculated_spend']['actual_spend']['amount'] == actual_amount
+        assert result[0]['budget_limit']['amount'] == '100.0'
+
+    def test_format_budgets_no_status_for_unknown_budget_type(self):
+        """Status is derived only for known spend types, so a new budget type gets none."""
+        budgets_list = [
+            {
+                'BudgetName': 'Future Budget',
+                'BudgetType': 'SOME_FUTURE_TYPE',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '100.0', 'Unit': 'PERCENTAGE'},
+                'CalculatedSpend': {'ActualSpend': {'Amount': '100.0', 'Unit': 'PERCENTAGE'}},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert 'status' not in result[0]
+
 
 @pytest.mark.asyncio
 class TestDescribeBudgets:

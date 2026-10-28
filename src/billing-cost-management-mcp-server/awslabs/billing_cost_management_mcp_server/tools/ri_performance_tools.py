@@ -89,6 +89,14 @@ FILTERING (both operations): the Cost Explorer Expression supports only AND amon
 dimensions and nests one level deep; multiple values for one dimension are OR'd.
 The SERVICE filter defaults to Amazon Elastic Compute Cloud - Compute when omitted.
 
+DATA FRESHNESS: Reserved Instance utilization data for the most recent 2-3 days
+(counting today) is not processed yet. A get_reservation_utilization start_date inside
+those days returns a DataUnavailableException, which the service sends without a
+message. It means there is no data for that window, not a failure and not zero
+utilization: report that, and do not resend the identical request. A start_date at
+least 3 days before today is usually past that delay; query an earlier window only if
+the question allows it.
+
 SCOPING LARGE QUERIES: a grouped or DAILY query over a wide window or many
 subscriptions can exceed the tool result size cap and return a ToolResultOversized
 error. Scope such queries with `filter` (e.g. one SERVICE or one SUBSCRIPTION_ID),
