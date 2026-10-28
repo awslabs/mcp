@@ -18,6 +18,7 @@ This module contains the individual operation handlers for the Billing tools.
 Each operation handles the AWS API call and response formatting.
 """
 
+import calendar
 from ..utilities.aws_service_base import (
     PageSpec,
     create_aws_client,
@@ -33,6 +34,7 @@ from ..utilities.time_utils import (
     timestamp_to_utc_iso_string,
     utc_datetime_string_to_epoch_seconds,
 )
+from datetime import datetime, timezone
 from fastmcp import Context
 from typing import Any, Dict, Optional
 
@@ -151,6 +153,45 @@ BVS_LIST_BILLING_VIEWS = PageSpec(
 )
 
 
+def _active_time_range(after: str, before: str) -> Dict[str, int]:
+    """Build ListBillingViews' activeTimeRange, checking the rules the service enforces.
+
+    The service rejects a range whose end is not strictly after its start, or whose
+    ends fall in different UTC calendar months, with only "Failed to get billing view
+    data for an invalid time range.", so name the rule here instead.
+
+    Args:
+        after: active_after_inclusive as given by the caller.
+        before: active_before_inclusive as given by the caller.
+
+    Returns:
+        The activeTimeRange request member, in epoch seconds.
+
+    Raises:
+        ValueError: If a date is malformed or the range breaks a rule.
+    """
+    after_epoch = utc_datetime_string_to_epoch_seconds(after)
+    before_epoch = utc_datetime_string_to_epoch_seconds(before)
+    start = datetime.fromtimestamp(after_epoch, timezone.utc)
+    end = datetime.fromtimestamp(before_epoch, timezone.utc)
+
+    if end <= start:
+        raise ValueError(
+            f'active_before_inclusive ({before}) must be later than active_after_inclusive '
+            f'({after}). A date-only value means 00:00:00 of that day; to cover a whole day, '
+            'end with YYYY-MM-DDT23:59:59.'
+        )
+    if (start.year, start.month) != (end.year, end.month):
+        last_day = calendar.monthrange(start.year, start.month)[1]
+        raise ValueError(
+            f'active_after_inclusive ({after}) and active_before_inclusive ({before}) must '
+            'fall in the same UTC calendar month. Make one call per month; for the whole '
+            f'month of the start, use {start:%Y-%m}-01T00:00:00 to '
+            f'{start:%Y-%m}-{last_day:02d}T23:59:59.'
+        )
+    return {'activeAfterInclusive': after_epoch, 'activeBeforeInclusive': before_epoch}
+
+
 async def list_billing_views(
     ctx: Context,
     active_after_inclusive: Optional[str] = None,
@@ -175,11 +216,12 @@ async def list_billing_views(
         active_after_inclusive: Optional UTC datetime string for the inclusive start of the
             active time range. Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (UTC).
             Must be used together with active_before_inclusive. The time range must be
-            within one calendar month.
+            within one UTC calendar month.
         active_before_inclusive: Optional UTC datetime string for the inclusive end of the
             active time range. Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (UTC).
-            Must be used together with active_after_inclusive. The time range must be
-            within one calendar month.
+            Must be used together with active_after_inclusive, later than it and in the
+            same UTC calendar month. A date-only value means 00:00:00 of that day;
+            use YYYY-MM-DDT23:59:59 to include the whole day.
         arns: Optional JSON string containing a list of billing view ARNs to filter by
             (maximum 10 items).
         billing_view_types: Optional JSON string containing a list of billing view types
@@ -204,14 +246,9 @@ async def list_billing_views(
                     'Both active_after_inclusive and active_before_inclusive must be provided '
                     'together when specifying an active time range.'
                 )
-            request_params['activeTimeRange'] = {
-                'activeAfterInclusive': utc_datetime_string_to_epoch_seconds(
-                    active_after_inclusive
-                ),
-                'activeBeforeInclusive': utc_datetime_string_to_epoch_seconds(
-                    active_before_inclusive
-                ),
-            }
+            request_params['activeTimeRange'] = _active_time_range(
+                active_after_inclusive, active_before_inclusive
+            )
 
         parsed_arns = parse_json(arns, 'arns')
         if parsed_arns:
