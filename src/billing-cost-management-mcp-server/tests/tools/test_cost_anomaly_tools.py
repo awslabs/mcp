@@ -541,6 +541,20 @@ def test_cost_anomaly_server_initialization():
     )
 
 
+@pytest.mark.asyncio
+async def test_description_documents_end_date_matching():
+    """The description says the range matches end_date, so earlier-starting anomalies are kept."""
+    tool = await cost_anomaly_server.get_tool('cost-anomaly')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert 'its end_date (the last day it was detected)' in description
+    assert (
+        'began before the range and was still being detected inside it is in range' in description
+    )
+    assert 'do not drop results whose start_date is before the range' in description
+
+
 def _assert_validation_error(res):
     """Local validation failures carry a top-level classification."""
     assert res['error_type'] == 'validation_error'
