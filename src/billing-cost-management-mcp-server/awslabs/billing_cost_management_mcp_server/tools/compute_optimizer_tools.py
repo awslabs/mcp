@@ -99,10 +99,10 @@ Accepted filter names:
   ["TeamA"]}; `tag-key` matches resources that have any of the tag keys given, e.g.
   {"name": "tag-key", "values": ["Owner"]}. The tool sends tag keys and values unchanged.
 The API is case-sensitive on filter names and values, though EC2 and Auto Scaling group
-Finding also accept the UPPER_SNAKE form (e.g. OVER_PROVISIONED, NOT_OPTIMIZED). The tool
-folds near-misses (e.g. `overprovisioned`, `finding`) onto the right spelling and echoes
-the result as `applied_filters`. If the API still rejects a filter, the error lists
-`valid_filters`.
+Finding also accept the UPPER_SNAKE form (e.g. OVER_PROVISIONED for EC2, NOT_OPTIMIZED for
+Auto Scaling groups). The tool folds near-misses (e.g. `overprovisioned`, `finding`) onto
+the right spelling and echoes the result as `applied_filters`. If the API still rejects a
+filter, the error lists `valid_filters`.
 
 To look up specific resources, pass `resource_arns` as a JSON array of ARNs (e.g.
 '["arn:aws:ec2:us-east-1:123456789012:instance/i-0abc"]'). This is sent as the
@@ -140,7 +140,9 @@ and Reserved Instances). Each is the cost difference between the current and the
 recommended resource (for idle recommendations, the resource's whole cost) at its own
 prices, so neither caps the other: when the recommended
 resource gets a bigger dollar discount than the current one, the after-discounts figure is
-the larger. Say which one you report, and do not add them together.
+the larger. The two can also be equal, for example when Compute Optimizer has no discount
+data to apply, and `savings_opportunity_after_discounts` is null when Compute Optimizer
+returns no after-discounts figure. Say which one you report, and do not add them together.
 
 EC2, Auto Scaling group, and RDS recommendations rank options within the current CPU
 architecture by default (cpuVendorArchitectures CURRENT). To get Graviton options, pass
@@ -508,8 +510,7 @@ def _parse_account_ids(account_ids: str) -> List[str]:
 
     Bare IDs are accepted too, alone or separated by commas or spaces. They are kept as
     text: JSON would read 123456789012 as a number (which botocore rejects) and cannot read
-    012345678901 at all. A JSON number is padded back to 12 digits, the length of every
-    account ID.
+    012345678901 at all.
     """
     text = account_ids.strip()
     if re.fullmatch(r'[0-9]+(?:[\s,]+[0-9]+)*', text):
@@ -520,7 +521,7 @@ def _parse_account_ids(account_ids: str) -> List[str]:
         parsed = [parsed]
     if not all(isinstance(i, (str, int)) and not isinstance(i, bool) for i in parsed):
         raise ValueError('account_ids must be an account ID or a JSON array of account IDs')
-    return [f'{i:012d}' if isinstance(i, int) and i >= 0 else str(i).strip() for i in parsed]
+    return [str(i).strip() for i in parsed]
 
 
 def _resolve_region_for_arns(arns: List[str], region: Optional[str]) -> Optional[str]:

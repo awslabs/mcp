@@ -53,7 +53,8 @@ class TestAccountIdsParsing:
             ('012345678901', ['012345678901']),
             ('"123456789012"', ['123456789012']),
             ('[123456789012]', ['123456789012']),
-            ('[12345678901]', ['012345678901']),
+            ('[12345678901]', ['12345678901']),
+            ('[12345]', ['12345']),
             ('[-1]', ['-1']),
             ('["123456789012"]', ['123456789012']),
             ('[" 012345678901 "]', ['012345678901']),
@@ -61,7 +62,7 @@ class TestAccountIdsParsing:
         ],
     )
     def test_account_ids_are_sent_as_a_list_of_strings(self, account_ids, expected):
-        """A bare, quoted, or numeric ID is sent as a list of 12-digit strings."""
+        """A bare, quoted, or numeric ID is sent as a list of strings, digits unchanged."""
         params, error = _build(account_ids)
 
         assert error is None
