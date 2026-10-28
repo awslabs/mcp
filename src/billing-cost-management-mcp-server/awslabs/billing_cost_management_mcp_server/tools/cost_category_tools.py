@@ -26,6 +26,7 @@ from ..utilities.aws_service_base import (
     format_response,
     handle_aws_error,
     paginate_aws_items,
+    validate_date_format,
     with_pagination,
 )
 from fastmcp import Context, FastMCP
@@ -46,15 +47,28 @@ LIST_COST_CATEGORY_DEFINITIONS = PageSpec(
 )
 
 
+def _normalize_effective_on(effective_on: str) -> str:
+    """Return a YYYY-MM-DD date as midnight UTC; the API needs a full ISO 8601 datetime."""
+    return f'{effective_on}T00:00:00Z' if validate_date_format(effective_on) else effective_on
+
+
 @cost_category_server.tool(
     name='describe-cost-category-definition',
     description="""Returns the full definition of a cost category using the DescribeCostCategoryDefinition API.
 
 Cost categories group AWS costs using rule-based expressions that match line items by
-dimensions (SERVICE, LINKED_ACCOUNT, USAGE_TYPE), resource tags, or other cost category
-values. Each matched line item is assigned a category value such as "Production" or
-"Development". Rules can be REGULAR (explicit match) or INHERITED_VALUE (dynamic value
-from a tag key or account name). A DefaultValue catches costs that do not match any rule.
+dimensions, resource tags, or other cost category values. Each matched line item is
+assigned a category value such as "Production" or "Development". Rules can be REGULAR
+(explicit match) or INHERITED_VALUE (dynamic value from a tag key or account name). A
+DefaultValue catches costs that do not match any rule.
+
+How rules work:
+- Rules are evaluated in order; the first rule that matches a line item sets its value.
+- Rule dimensions include LINKED_ACCOUNT, SERVICE_CODE, RECORD_TYPE, LINKED_ACCOUNT_NAME,
+  REGION and USAGE_TYPE. SERVICE_CODE holds service codes such as "AmazonEC2", not
+  service names such as "Amazon Elastic Compute Cloud - Compute".
+- MatchOptions can include STARTS_WITH, ENDS_WITH and CONTAINS. On dimensions, these
+  work only with LINKED_ACCOUNT_NAME and USAGE_TYPE.
 
 The tool returns a CostCategory object containing:
 - Name (1-50 chars, unique per account, case-sensitive), CostCategoryArn
@@ -64,20 +78,24 @@ The tool returns a CostCategory object containing:
 - EffectiveStart/EffectiveEnd (null if still active)
 - ProcessingStatus: APPLIED (rules reflected in data) or PROCESSING (backfill in progress)
 
-Linked accounts can describe cost categories from their management account.
+Only a management account or a standalone account can call this; member (linked)
+accounts get an access denied error.
 
 Required parameters:
 - cost_category_arn: ARN of the cost category (arn:aws:ce::<account_id>:costcategory/<uuid>).
   Use list-cost-category-definitions to discover ARNs.
 
 Optional parameters:
-- effective_on: ISO 8601 datetime (e.g., 2024-01-01T00:00:00Z) to retrieve the version
-  active at that time. Defaults to the current version.
+- effective_on: YYYY-MM-DDTHH:MM:SS followed by Z or +HH:MM/-HH:MM, without fractional
+  seconds (e.g., 2024-01-01T00:00:00Z), or YYYY-MM-DD (read as midnight UTC), to
+  retrieve the version active at that time. Defaults to the current
+  version. Each version starts on the first day of a month; a date before the first
+  version returns ResourceNotFoundException.
 
 Example 1 - Get current definition:
   {"cost_category_arn": "arn:aws:ce::123456789012:costcategory/abcd-1234"}
 Example 2 - Get historical version:
-  {"cost_category_arn": "arn:aws:ce::123456789012:costcategory/abcd-1234", "effective_on": "2024-06-01T00:00:00Z"}""",
+  {"cost_category_arn": "arn:aws:ce::123456789012:costcategory/abcd-1234", "effective_on": "2024-06-01"}""",
 )
 async def describe_cost_category_definition(
     ctx: Context,
@@ -89,7 +107,7 @@ async def describe_cost_category_definition(
     Args:
         ctx: The MCP context object
         cost_category_arn: ARN of the cost category to describe
-        effective_on: Optional ISO 8601 datetime to retrieve a historical version
+        effective_on: Optional ISO 8601 datetime or YYYY-MM-DD to retrieve a historical version
 
     Returns:
         Dict containing the cost category definition
@@ -101,7 +119,7 @@ async def describe_cost_category_definition(
         params: Dict[str, Any] = {'CostCategoryArn': cost_category_arn}
 
         if effective_on:
-            params['EffectiveOn'] = effective_on
+            params['EffectiveOn'] = _normalize_effective_on(effective_on)
 
         response = ce_client.describe_cost_category_definition(**params)
         return format_response('success', response)
@@ -125,12 +143,16 @@ The tool returns CostCategoryReference objects containing:
 - SupportedResourceTypes
 
 You can filter with:
-- effective_on: ISO 8601 datetime to return only categories active at that time.
-  Defaults to current date.
+- effective_on: YYYY-MM-DDTHH:MM:SS followed by Z or +HH:MM/-HH:MM, without fractional
+  seconds, or YYYY-MM-DD (read as midnight UTC), to return only categories active at
+  that time. Defaults to current date. Each version starts on the
+  first day of a month.
 - supported_resource_types: JSON array to filter by resource type support.
-  Valid values: "billing:rispgroupsharing", "billing:billingview"
+  Valid values: "billing:rispgroupsharing", "billing:billingview",
+  "billing:creditsharing". At most 5 values.
   Example: '["billing:billingview"]'
-  Returns only categories supporting all specified types.
+  Returns only categories that support every listed type. An unknown type returns
+  no categories, not an error.
 
 Pagination:
 - max_items: total number of cost categories returned. Omit it to fetch every page
@@ -138,11 +160,14 @@ Pagination:
 - If the result has complete_dataset: false, it is partial: call again with a larger
   max_items, continue with next_token, or say the result is partial.
 
+Only a management account or a standalone account can call this; member (linked)
+accounts get an access denied error.
+
 Limits: 50 cost categories per management account, 500 rules per category (API),
 100 rules per category (console), 10 split charge rules per category.
 
 Example 1 - List all current categories: {}
-Example 2 - List categories active on a date: {"effective_on": "2024-06-01T00:00:00Z"}
+Example 2 - List categories active on a date: {"effective_on": "2024-06-01"}
 Example 3 - Filter by billing view support: {"supported_resource_types": "[\"billing:billingview\"]"}""",
 )
 async def list_cost_category_definitions(
@@ -156,7 +181,7 @@ async def list_cost_category_definitions(
 
     Args:
         ctx: The MCP context object
-        effective_on: Optional ISO 8601 datetime to filter by active date
+        effective_on: Optional ISO 8601 datetime or YYYY-MM-DD to filter by active date
         supported_resource_types: Optional JSON array of resource type strings
         max_items: Total cost categories to return. None fetches every page.
         next_token: Pagination token from previous response
@@ -171,7 +196,7 @@ async def list_cost_category_definitions(
         params: Dict[str, Any] = {}
 
         if effective_on:
-            params['EffectiveOn'] = effective_on
+            params['EffectiveOn'] = _normalize_effective_on(effective_on)
         if supported_resource_types:
             try:
                 params['SupportedResourceTypes'] = json.loads(supported_resource_types)
