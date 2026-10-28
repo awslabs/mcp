@@ -65,7 +65,8 @@ async def _invoice_units(
         invoice_unit_arn: ARN of a single invoice unit (get_invoice_unit).
         names: Filter invoice units by name (list_invoice_units).
         invoice_receivers: Filter by receiver account ID (list_invoice_units).
-        accounts: Global-search filter across receiver, linked, and bill-source accounts (list_invoice_units).
+        accounts: Filter by receiver or linked (member) account ID; does not
+            match bill-source accounts (list_invoice_units).
         bill_source_accounts: Filter by bill source account ID
             (list_invoice_units).
         account_ids: Account IDs to fetch profiles for
@@ -131,7 +132,7 @@ async def _invoice_units(
      - names: match invoice unit names
      - invoice_receivers: match the invoice unit's receiver account
      - bill_source_accounts: match a bill-source account
-     - accounts: global search — matches invoice units where the account appears as the receiver, a linked (member) account, OR a bill-source account
+     - accounts: matches invoice units where the account is the receiver OR a linked (member) account. It does NOT match bill-source accounts, so an empty result does not mean the account is in no invoice unit — read Rule.BillSourceAccounts on the units a list call returns.
      - as_of: point-in-time UTC "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SS" (definitions as of that instant; defaults to current)
    Pagination:
      - max_items: total invoice units returned. Omit it to fetch every page (no limit). Pass it, or narrow the filters, for queries that can be large.
@@ -178,7 +179,8 @@ async def invoice_units(
         invoice_unit_arn: ARN of a single invoice unit (get_invoice_unit).
         names: Filter invoice units by name (list_invoice_units).
         invoice_receivers: Filter by receiver account ID (list_invoice_units).
-        accounts: Global-search filter across receiver, linked, and bill-source accounts (list_invoice_units).
+        accounts: Filter by receiver or linked (member) account ID; does not
+            match bill-source accounts (list_invoice_units).
         bill_source_accounts: Filter by bill source account ID
             (list_invoice_units).
         account_ids: Account IDs to fetch profiles for

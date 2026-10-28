@@ -491,3 +491,98 @@ class TestInvoiceUnitsRouting:
 
         assert result['status'] == 'error'
         assert 'not_a_real_operation' in result['data']['message']
+
+
+async def _published_description():
+    """The `invoice_units` tool description as an MCP client receives it."""
+    import fastmcp
+    from awslabs.billing_cost_management_mcp_server.tools.invoice_units_tools import (
+        invoice_units_server,
+    )
+
+    async with fastmcp.Client(invoice_units_server) as client:
+        published = {t.name: t for t in await client.list_tools()}
+        assert 'invoice-units' in published, (
+            f'the invoice-units tool is no longer published; found {sorted(published)}'
+        )
+        return published['invoice-units'].description or ''
+
+
+class TestAccountsFilterScopeIsDocumented:
+    """The `accounts` filter's documented scope, at each site that states it.
+
+    ListInvoiceUnits matches an `Accounts` value against the receiver and the
+    rule's linked accounts only -- AWS's own Filters reference says the value is
+    "matched with either the receiver or the linked accounts in the rules," and
+    the service builds the same union. A description promising bill-source
+    coverage makes a model read an empty result as "that account is in no
+    invoice unit", which is wrong for any account that is a bill source of one.
+
+    The tool description is asserted as a client receives it, rather than off the
+    decorator, because that is the text the model is given.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_description_names_the_two_positions_it_matches(self):
+        """The description states receiver OR linked, and excludes bill-source."""
+        text = await _published_description()
+
+        accounts_line = next(
+            (line for line in text.splitlines() if line.strip().startswith('- accounts:')),
+            None,
+        )
+        assert accounts_line is not None, 'the accounts filter is no longer documented'
+        assert 'receiver' in accounts_line
+        assert 'linked' in accounts_line
+        assert 'does NOT match bill-source' in accounts_line
+
+    @pytest.mark.asyncio
+    async def test_the_description_says_an_empty_result_is_not_proof(self):
+        """A caller is told what an empty `accounts` result does not establish."""
+        text = await _published_description()
+
+        assert 'empty result does not mean the account is in no invoice unit' in text
+        assert 'read Rule.BillSourceAccounts on the units a list call returns' in text
+        # Not 'only reachable by an unfiltered call': whether the
+        # bill_source_accounts filter reaches such a unit is unverified, so the
+        # description says where the field is, not which call is obligatory.
+        assert 'only reachable by an unfiltered call' not in text
+
+    @pytest.mark.asyncio
+    async def test_the_description_offers_no_global_search(self):
+        """`accounts` is not offered as a search across all three roles."""
+        text = (await _published_description()).lower()
+
+        assert 'global search' not in text
+        assert 'global-search' not in text
+
+    @pytest.mark.asyncio
+    async def test_bill_source_accounts_stays_its_own_filter(self):
+        """Correcting `accounts` does not remove the filter that does target bill sources."""
+        text = await _published_description()
+
+        assert 'bill_source_accounts' in text
+
+    @pytest.mark.parametrize(
+        'docstring_owner',
+        ['_invoice_units', 'invoice_units'],
+    )
+    def test_no_parameter_docstring_claims_a_global_search(self, docstring_owner):
+        """Neither the router nor the wrapper describes `accounts` as a global search."""
+        from awslabs.billing_cost_management_mcp_server.tools import invoice_units_tools
+
+        text = (getattr(invoice_units_tools, docstring_owner).__doc__ or '').lower()
+
+        assert 'global search' not in text
+        assert 'global-search' not in text
+
+    def test_the_operations_docstring_states_the_same_scope(self):
+        """The operations layer agrees with the published description."""
+        from awslabs.billing_cost_management_mcp_server.tools.invoice_units_operations import (
+            list_invoice_units,
+        )
+
+        text = list_invoice_units.__doc__ or ''
+
+        assert 'global search' not in text.lower()
+        assert 'not against bill-source accounts' in text

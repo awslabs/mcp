@@ -84,8 +84,9 @@ async def list_invoice_units(
         invoice_receivers: Return only invoice units whose receiver is one of
             these AWS account IDs (12 digits).
         accounts: Return only invoice units that reference one of these AWS
-            account IDs anywhere — as the receiver, a linked (member) account,
-            or a bill-source account (a global search across all three roles).
+            account IDs as the receiver or as a linked (member) account. It is
+            matched against the receiver and the rule's linked accounts only,
+            not against bill-source accounts.
         bill_source_accounts: Return only invoice units with one of these AWS
             account IDs as a bill-source account.
         as_of: Return the invoice unit definitions as they existed at this
