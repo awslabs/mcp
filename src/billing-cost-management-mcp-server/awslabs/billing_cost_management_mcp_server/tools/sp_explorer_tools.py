@@ -137,9 +137,10 @@ async def sp_explorer(
         service_codes: The service codes as a list. describe_savings_plans_offerings takes
             the plan's own code: ComputeSavingsPlans (Compute and EC2Instance plans),
             MachineLearningSavingsPlans (SageMaker plans), or DatabaseSavingsPlans (Database
-            plans), as in the serviceCode field of a returned offering. Rate codes do not work
-            there: AmazonEC2, for example, is rejected, even though the error message lists it
-            as allowed.
+            plans), as in the serviceCode field of a returned offering. Any other value,
+            including a rate code such as AmazonSageMaker, matches nothing and returns an empty
+            result, not an error. AmazonEC2 alone is rejected, even though the error message
+            lists it as allowed.
             describe_savings_plans_offering_rates takes the code of the service the rate
             applies to: AmazonEC2, AmazonECS, AmazonEKS, AWSLambda, AmazonSageMaker, AmazonRDS,
             AuroraDSQL, AmazonDynamoDB, AmazonElastiCache, AmazonDocDB, AmazonNeptune,
@@ -150,7 +151,8 @@ async def sp_explorer(
             regional plan. A rate's usage type names the usage it covers, such as
             BoxUsage:m5.large.
             Outside us-east-1 a regional usage type carries a region prefix
-            (AFS1-EC2SP:c5.1yrAllUpfront, USW2-BoxUsage:m5.large). A value that matches nothing
+            (AFS1-EC2SP:c5.1yrAllUpfront, USW2-BoxUsage:m5.large). In us-east-1 most have none,
+            but some rates carry one (USE1-Fargate-GB-Hours). A value that matches nothing
             returns an empty result, not an error, so copy values from the usageType field of
             a returned offering or rate.
         operations: The operations as a list.

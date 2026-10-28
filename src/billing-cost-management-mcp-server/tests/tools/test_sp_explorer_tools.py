@@ -1379,9 +1379,16 @@ class TestOfferingFilterVocabulary:
             assert code in offerings
             assert code not in rates
         assert 'EC2Instance' in offerings
-        assert re.search(r'reject', offerings, re.I)
         for code in ('AmazonEC2', 'AmazonRDS', 'AmazonES'):
             assert code in rates
+
+    async def test_service_codes_say_other_offering_codes_return_empty(self):
+        """On offerings only AmazonEC2 is rejected; every other code returns an empty result."""
+        offerings = (await self._arg_doc('service_codes')).split(self.RATES, 1)[0]
+
+        assert 'Rate codes do not work there' not in offerings
+        assert re.search(r'Any other value.*empty result, not an error', offerings)
+        assert re.search(r'AmazonEC2 alone is rejected', offerings)
 
     async def test_usage_types_give_both_formats(self):
         """Offering and rate usage types are shown, region prefix and empty match included."""
@@ -1397,3 +1404,9 @@ class TestOfferingFilterVocabulary:
             assert example in doc
         assert re.search(r'matches nothing', doc)
         assert re.search(r'empty result', doc)
+
+    async def test_usage_types_say_some_us_east_1_rates_are_prefixed(self):
+        """Some us-east-1 rate usage types carry USE1-, so a bare value is not always right."""
+        doc = await self._arg_doc('usage_types')
+
+        assert 'USE1-Fargate-GB-Hours' in doc
