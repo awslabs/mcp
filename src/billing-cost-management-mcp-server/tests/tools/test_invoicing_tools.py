@@ -158,6 +158,77 @@ class TestListInvoiceSummariesSelector:
         assert result['status'] == 'error'
 
 
+class TestListInvoiceSummariesSelectorEcho:
+    """The response names the account or invoice the result was read for.
+
+    The request shape is covered above; these assert the echo, which is the
+    only place the queried identity appears. A row's ``AccountId`` cannot stand
+    in for it: an account query also returns invoices issued to invoice-unit
+    receivers billed from that account, and those rows name a different account.
+    """
+
+    @pytest.mark.asyncio
+    async def test_auto_detected_selector_echoed(self, mock_context, sample_summary):
+        """An account resolved from the caller's identity is echoed as auto-detected."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.return_value = {'Account': '123456789012'}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, mock_sts)
+            result = await list_invoice_summaries(mock_context, billing_period='2026-05')
+
+        assert result['status'] == 'success'
+        assert result['data']['selector'] == {
+            'type': 'ACCOUNT_ID',
+            'value': '123456789012',
+            'auto_detected': True,
+        }
+
+    @pytest.mark.asyncio
+    async def test_explicit_selector_echoed_not_auto_detected(self, mock_context, sample_summary):
+        """An account given in the request is echoed, and not as auto-detected."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+        mock_sts = MagicMock()
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, mock_sts)
+            result = await list_invoice_summaries(
+                mock_context, account_id='999888777666', billing_period='2026-05'
+            )
+
+        assert result['status'] == 'success'
+        assert result['data']['selector'] == {
+            'type': 'ACCOUNT_ID',
+            'value': '999888777666',
+            'auto_detected': False,
+        }
+
+    @pytest.mark.asyncio
+    async def test_invoice_id_selector_echoed(self, mock_context, sample_summary):
+        """An invoice query echoes INVOICE_ID, even when the row names another account."""
+        other_account = dict(sample_summary, AccountId='210987654321')
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [other_account]}
+        mock_sts = MagicMock()
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, mock_sts)
+            result = await list_invoice_summaries(mock_context, invoice_id='INV-001')
+
+        assert result['status'] == 'success'
+        assert result['data']['selector'] == {
+            'type': 'INVOICE_ID',
+            'value': 'INV-001',
+            'auto_detected': False,
+        }
+        # The row's own account differs from the selector, so a reader taking the
+        # queried identity from the row would get the wrong answer.
+        assert result['data']['invoice_summaries'][0]['AccountId'] == '210987654321'
+
+
 class TestListInvoiceSummariesFilter:
     """Filter construction and validation."""
 

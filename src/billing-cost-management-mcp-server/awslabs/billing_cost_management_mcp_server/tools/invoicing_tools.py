@@ -116,6 +116,7 @@ async def _invoicing(
      - max_items: total invoice summaries returned. Omit it to fetch every page (no limit). Pass it, or narrow the filters, for queries that can be large.
      - next_token: the `pagination.next_token` from a previous response, to continue where it stopped. Send every other parameter unchanged.
      - A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token, or state in the answer that the result is partial. `pagination.items_returned` counts only this response, and a continuation call does not repeat earlier items.
+   Returns: `data.selector`, the account or invoice this result was read for, as {type: "ACCOUNT_ID" | "INVOICE_ID", value, auto_detected}. `auto_detected` is true when account_id was omitted and resolved from the caller's identity. Take the queried account from here, never from a row's AccountId: an account query also returns invoices issued to invoice-unit receivers billed from that account, and those rows carry a different AccountId.
    Returns: `data.invoice_summaries`, a list where each item contains:
      - AccountId; InvoiceId; InvoiceType ("INVOICE" or "CREDIT_MEMO"); OriginalInvoiceId (the invoice a CREDIT_MEMO adjusts); PurchaseOrderNumber
      - IssuedDate / DueDate: ISO 8601 UTC timestamps (converted from epoch)

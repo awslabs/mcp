@@ -221,8 +221,10 @@ async def list_invoice_summaries(
         next_token: Pagination token from a previous response to resume from.
 
     Returns:
-        Dict containing ``invoice_summaries`` (with ISO 8601 timestamps) and a
-        ``pagination`` metadata block, or a standardized error response.
+        Dict containing ``invoice_summaries`` (with ISO 8601 timestamps), the
+        ``selector`` the request resolved to (its ``type``, its ``value``, and
+        ``auto_detected`` when the account came from the caller's identity),
+        and a ``pagination`` metadata block, or a standardized error response.
     """
     try:
         # --- Selector: ACCOUNT_ID or INVOICE_ID, not both ---
@@ -284,12 +286,18 @@ async def list_invoice_summaries(
                 )
 
         # --- Resolve the required Selector ---
+        # Whether the account came from the caller's identity rather than the
+        # request is echoed back: a row's AccountId cannot stand in for it,
+        # because an account query also returns invoices issued to invoice-unit
+        # receivers billed from that account.
+        auto_detected = False
         if invoice_id:
             selector = {'ResourceType': 'INVOICE_ID', 'Value': invoice_id}
         else:
             if not account_id:
                 sts_client = create_aws_client('sts')
                 account_id = sts_client.get_caller_identity()['Account']
+                auto_detected = True
                 await ctx.info(f'Auto-detected account ID: {account_id}')
             selector = {'ResourceType': 'ACCOUNT_ID', 'Value': account_id}
 
@@ -358,7 +366,18 @@ async def list_invoice_summaries(
         await ctx.info(f'Successfully listed {len(normalized)} invoice summaries')
 
         return format_response(
-            'success', with_pagination({'invoice_summaries': normalized}, pagination)
+            'success',
+            with_pagination(
+                {
+                    'invoice_summaries': normalized,
+                    'selector': {
+                        'type': selector['ResourceType'],
+                        'value': selector['Value'],
+                        'auto_detected': auto_detected,
+                    },
+                },
+                pagination,
+            ),
         )
 
     except Exception as e:
