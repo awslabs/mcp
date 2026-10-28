@@ -1182,6 +1182,139 @@ async def test_description_states_subscription_id_format_and_error():
     assert 'SERVICE filter takes a single value' not in description
 
 
+# GetReservationUtilization's filter dimensions, the same for every service. The public API
+# reference omits INSTANCE_TYPE_FAMILY, SUBSCRIPTION_ID and the SUBSCRIPTION_END_DATE_TIME_*
+# keys, and lists CACHE_ENGINE, DEPLOYMENT_OPTION and OPERATING_SYSTEM, which are rejected.
+UTILIZATION_FILTER_DIMENSIONS = {
+    'AZ',
+    'INSTANCE_TYPE',
+    'INSTANCE_TYPE_FAMILY',
+    'LINKED_ACCOUNT',
+    'PLATFORM',
+    'REGION',
+    'SCOPE',
+    'SERVICE',
+    'SUBSCRIPTION_END_DATE_TIME_AFTER',
+    'SUBSCRIPTION_END_DATE_TIME_BEFORE',
+    'SUBSCRIPTION_ID',
+    'TENANCY',
+}
+
+# SortBy keys each operation accepts; any other key returns "Unsupported sortKey".
+COVERAGE_SORT_KEYS = {
+    'CoverageHoursPercentage',
+    'CoverageNormalizedUnitsPercentage',
+    'OnDemandCost',
+    'OnDemandHours',
+    'OnDemandNormalizedUnits',
+    'ReservedHours',
+    'ReservedNormalizedUnits',
+    'TotalRunningHours',
+    'TotalRunningNormalizedUnits',
+    'Time',
+}
+UTILIZATION_SORT_KEYS = {
+    'AmortizedRecurringFee',
+    'AmortizedUpfrontFee',
+    'NetRISavings',
+    'OnDemandCostOfRIHoursUsed',
+    'PurchasedHours',
+    'PurchasedUnits',
+    'RealizedSavings',
+    'RICostForUnusedHours',
+    'TotalActualHours',
+    'TotalActualUnits',
+    'TotalAmortizedFee',
+    'TotalPotentialRISavings',
+    'UnrealizedSavings',
+    'UnusedHours',
+    'UnusedUnits',
+    'UtilizationPercentage',
+    'UtilizationPercentageInUnits',
+}
+
+
+def _section(description: str, heading: str) -> str:
+    """The paragraph that starts with heading, whitespace collapsed."""
+    block = description.split(heading, 1)[1].split('\n\n', 1)[0]
+    return ' '.join(block.split())
+
+
+def _keys_after(text: str, label: str) -> set:
+    """The comma-separated identifiers listed after "label:" up to the next "- " item or end."""
+    listed = text.split(f'{label}:', 1)[1].split(' - ', 1)[0]
+    return set(re.findall(r'[A-Za-z_]+', listed))
+
+
+@pytest.mark.asyncio
+async def test_description_states_coverage_filter_dimensions():
+    """Coverage filters take SERVICE plus the service's group_by keys; three keys never work."""
+    section = _section(
+        await _ri_description(), 'FILTER DIMENSIONS get_reservation_coverage (filter):'
+    )
+    assert 'SERVICE plus the same attributes that service takes for group_by above' in section
+    assert 'Tags and CostCategories expressions also work' in section
+    assert 'OPERATING_SYSTEM, INVOICING_ENTITY and SCOPE are rejected for every service' in section
+    assert 'Dimension ... is not allowed' in section
+
+
+def _utilization_filter_keys(section: str) -> set:
+    """Per "- " item, the key names before its ":" (or the whole item when it has none)."""
+    keys = set()
+    for item in section.split('.', 1)[0].split(' - ')[1:]:
+        names = item.split(':', 1)[0]
+        keys |= {name.strip() for name in names.split(',')}
+    return keys
+
+
+@pytest.mark.asyncio
+async def test_description_lists_utilization_filter_dimensions():
+    """The documented utilization filter keys equal the keys the service accepts."""
+    section = _section(
+        await _ri_description(), 'FILTER DIMENSIONS get_reservation_utilization (filter)'
+    )
+    assert _utilization_filter_keys(section) == UTILIZATION_FILTER_DIMENSIONS
+    rejected = section.split(' are rejected here', 1)[0].rsplit('. ', 1)[-1]
+    assert rejected == 'CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION and OPERATING_SYSTEM'
+    assert '"Region" (regional RI) or "Availability Zone" (zonal RI)' in section
+
+
+@pytest.mark.asyncio
+async def test_description_states_subscription_end_filter_rules():
+    """BEFORE is exclusive, AFTER inclusive and not before start_date; both flagged unstable."""
+    section = _section(
+        await _ri_description(), 'FILTER DIMENSIONS get_reservation_utilization (filter)'
+    )
+    assert 'BEFORE keeps RIs whose term ends before the date' in section
+    assert 'AFTER those that end on or after it' in section
+    assert 'The AFTER date must not be before start_date' in section
+    assert 'a BEFORE date must be later than the AFTER date' in section
+    # Not in the public API reference, so the description says they may change.
+    assert 'Undocumented upstream, so they may change' in section
+
+
+@pytest.mark.asyncio
+async def test_description_lists_sort_keys_and_sort_order_shape():
+    """sort_by is {"Key", "SortOrder"}, upper case, with each operation's key list."""
+    section = _section(await _ri_description(), 'SORTING (sort_by):')
+    assert '{"Key": "<key>", "SortOrder": "DESCENDING"}' in section
+    assert 'SortOrder is required and upper case; "descending" is a ValidationException' in section
+    assert 'any other key returns "Unsupported sortKey"' in section
+    assert _keys_after(section, 'get_reservation_coverage') == COVERAGE_SORT_KEYS
+    assert _keys_after(section, 'get_reservation_utilization') == UTILIZATION_SORT_KEYS
+
+
+@pytest.mark.asyncio
+async def test_sort_by_arg_names_sort_order_not_direction():
+    """The arg doc uses the API's field names; "direction" is not one."""
+    tool = await ri_performance_server.get_tool('ri-performance')
+    assert tool is not None
+    sort_doc = tool.parameters['properties']['sort_by']['description']
+    assert '{"Key": "<key>", "SortOrder": "DESCENDING"}' in sort_doc
+    assert 'SortOrder is required: ASCENDING or DESCENDING, upper case only' in sort_doc
+    assert 'direction' not in sort_doc
+
+
 @pytest.mark.asyncio
 async def test_metrics_arg_lists_the_values_cost_explorer_accepts():
     """GetReservationCoverage takes Hour, Unit and Cost; other names are a ValidationException."""
