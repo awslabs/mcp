@@ -22,14 +22,18 @@ These tests verify the functionality of the AWS Budgets API tools, including:
 - Formatting budget data for display and analysis
 """
 
+import boto3
+import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import (
+    _describe_budget_by_name,
     budget_server,
     budgets,
     describe_budgets,
     format_budgets,
     get_aws_account_id,
 )
+from botocore.awsrequest import AWSResponse
 from botocore.exceptions import ClientError
 from datetime import datetime
 from fastmcp import Context
@@ -653,6 +657,77 @@ class TestDescribeBudgets:
         )
         assert result['status'] == 'error'
         assert result['message'] == 'API error'
+
+
+class _WireBody:
+    """Raw HTTP body for botocore's AWSResponse."""
+
+    def __init__(self, body: bytes):
+        self._body = body
+
+    def stream(self, **kwargs):
+        yield self._body
+
+
+class TestBudgetFilterExpressionParsing:
+    """The installed botocore must parse every FilterExpression member the service returns.
+
+    botocore silently drops a response member its service model does not define. Before
+    botocore 1.43.110 the budgets model had no ProductAttributes, so a budget scoped by a
+    product attribute came back with that filter node as an empty dict.
+
+    Stubber would bypass the response parser, so these tests stub the HTTP send instead and let
+    botocore parse the wire JSON.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _no_ambient_profile(self, monkeypatch):
+        monkeypatch.delenv('AWS_PROFILE', raising=False)
+        monkeypatch.delenv('AWS_DEFAULT_PROFILE', raising=False)
+
+    FILTER_EXPRESSION = {
+        'And': [
+            {'ProductAttributes': {'Key': 'feature', 'Values': ['On-demand Inference']}},
+            {'Not': {'Dimensions': {'Key': 'RECORD_TYPE', 'Values': ['Credit', 'Refund']}}},
+        ]
+    }
+
+    def _client_returning(self, payload):
+        """A real budgets client whose HTTP send returns ``payload`` as the wire response."""
+        client = boto3.Session(
+            aws_access_key_id='a', aws_secret_access_key='b', region_name='us-east-1'
+        ).client('budgets')
+        body = json.dumps(payload).encode()
+
+        def send(request, **kwargs):
+            return AWSResponse(request.url, 200, {}, _WireBody(body))
+
+        client.meta.events.register('before-send.budgets', send)
+        return client
+
+    def _budget(self):
+        return {
+            'BudgetName': 'Feature Budget',
+            'BudgetType': 'COST',
+            'TimeUnit': 'MONTHLY',
+            'FilterExpression': self.FILTER_EXPRESSION,
+        }
+
+    def test_describe_budget_keeps_product_attributes(self):
+        """DescribeBudget (the budget_name path) keeps the ProductAttributes leaf."""
+        client = self._client_returning({'Budget': self._budget()})
+
+        result = _describe_budget_by_name(client, '123456789012', 'Feature Budget')
+
+        assert result[0]['FilterExpression'] == self.FILTER_EXPRESSION
+
+    def test_describe_budgets_keeps_product_attributes(self):
+        """DescribeBudgets (the listing path) keeps the ProductAttributes leaf."""
+        client = self._client_returning({'Budgets': [self._budget()]})
+
+        response = client.describe_budgets(AccountId='123456789012')
+
+        assert response['Budgets'][0]['FilterExpression'] == self.FILTER_EXPRESSION
 
 
 def test_budget_server_initialization():
