@@ -27,7 +27,6 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operatio
     _format_linked_accounts,
     _format_pricing_plans,
     _format_pricing_rules,
-    _is_future_billing_period,
     get_billing_group_cost_report,
     get_billing_transfer_preference,
     list_account_associations,
@@ -2445,5 +2444,9 @@ class TestFutureBillingPeriod:
 )
 def test_is_future_billing_period_year_boundary(today, period, future):
     """The comparison uses year then month; malformed or missing periods are never future."""
+    from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operations import (
+        _is_future_billing_period,
+    )
+
     with patch(PATCH_BC_TODAY, return_value=today):
         assert _is_future_billing_period(period) is future
