@@ -295,12 +295,42 @@ class TestToolRegistration:
         assert (
             'A credit with no endDate does not expire and is ACTIVE once its startDate is reached'
         ) in description
+        assert 'no-expiry placeholder' not in description
         assert (
-            'An endDate in 2099 or later (for example 2099-12-31) is a no-expiry placeholder'
-            in description
-        )
+            'An endDate in 2099 or later (for example 2099-12-31) means the credit effectively '
+            'does not expire'
+        ) in description
         assert 'not as expiring in that year' in description
-        assert 'except when it is missing or a placeholder in 2099 or later' in description
+        assert 'except when it is missing or in 2099 or later' in description
+
+    @pytest.mark.asyncio
+    async def test_description_scopes_future_credits_and_expiry_to_the_service_rules(self):
+        """Future credits are tied to an omitted end_date, and expired is not "unusable".
+
+        The service drops the upper bound of the window only when no end date is sent,
+        and bill computation applies a credit to any billing period it overlaps, so a
+        credit that expired this month can still reduce this month's bill.
+        """
+        description = ' '.join(((await _registered_tool()).description or '').split())
+
+        assert 'whatever window was requested' not in description
+        assert (
+            'It also includes credits that start after today when end_date is omitted, '
+            'because the service then applies no upper bound.'
+        ) in description
+        assert 'omit end_date, then total remainingAmount' in description
+        assert 'API default of today' not in description
+        assert 'neither queries the future' not in description
+        assert 'a future end_date is limited to now' in description
+        assert (
+            'Omit it to send no end date: the service then applies no upper bound, so the '
+            'result also includes credits that start after today.'
+        ) in description
+        assert 'expired and no longer usable' not in description
+        assert (
+            'a credit that expired during the current month can still be applied to that '
+            "month's bill until it is finalized"
+        ) in description
 
     @pytest.mark.asyncio
     async def test_description_documents_max_items_contract(self):

@@ -124,8 +124,8 @@ def _credit_validity_status(
     GetCredits can return credits that have already expired, which keep their
     ``remainingAmount`` and a ``creditStatus`` of ``ENABLED``, and credits whose
     ``startDate`` is still ahead, so neither field says whether the balance can be
-    used now. The billing console treats a credit as expired once its ``endDate``
-    is reached; the same rule is used here. A readable date that settles the
+    used now. ``endDate`` is the expiration date, so a credit is treated as expired
+    once it is reached. A readable date that settles the
     status wins; otherwise a date that is present but unreadable gives ``UNKNOWN``
     rather than a guess, so it is never counted as usable by default. A credit
     with no ``endDate`` is treated as not expiring.
@@ -494,8 +494,9 @@ def _build_get_credit_allocation_history_request(
 def _clamp_get_credits_range(start_epoch: int, end_epoch: Optional[int]) -> tuple:
     """Narrow a range to the enforced one-year lookback ending no later than now.
 
-    An omitted end date is left as None because the API defaults it to the
-    current date, so supplying one would only restate the default.
+    An omitted end date is left as None, so no end date is sent and the service
+    applies no upper bound; clamping it to now would drop credits that start
+    later.
 
     Args:
         start_epoch: Requested range start in epoch seconds.
@@ -553,8 +554,8 @@ def _build_get_credits_time_range(
     """Describe the window actually queried alongside the one requested.
 
     Reporting both makes a limited window visible to the agent so a limited
-    result is never mistaken for a complete one. A null end date means the API
-    default of the current date applies.
+    result is never mistaken for a complete one. A null end date means no end
+    date was sent, so the service applied no upper bound.
 
     Args:
         start_epoch: Effective range start after clamping.

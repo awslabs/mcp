@@ -324,7 +324,7 @@ class TestGetCreditsValidity:
 
     @pytest.mark.asyncio
     async def test_placeholder_end_date_is_active(self, mock_context, sample_credit):
-        """A 2099-12-31 no-expiry placeholder classifies ACTIVE, so its balance counts as usable."""
+        """A 2099-12-31 endDate classifies ACTIVE once started, so its balance counts as usable."""
         now = datetime.now(timezone.utc)
         credit = dict(
             sample_credit,
@@ -366,7 +366,7 @@ class TestGetCreditsValidity:
 
     @pytest.mark.asyncio
     async def test_end_date_equal_to_now_is_expired(self, mock_context, sample_credit):
-        """A credit whose endDate has been reached is expired, matching the billing console."""
+        """A credit whose endDate (its expiration date) has been reached is expired."""
         frozen = datetime.now(timezone.utc).replace(microsecond=0)
         credit = dict(sample_credit, startDate=frozen - timedelta(days=30), endDate=frozen)
 
