@@ -97,11 +97,18 @@ def _max_time_interval_days(start_epoch: int) -> int:
     return monthrange(start.year, start.month)[1]
 
 
-def _max_time_interval_days_with_receiver_role(start_epoch: int) -> int:
-    """Widest ``TimeInterval`` span, in whole days, accepted with a receiver role.
+def _receiver_role_span_limit(start_epoch: int) -> int:
+    """First instant a ``TimeInterval`` may NOT reach with a receiver role.
 
-    Setting ``Filter.ReceiverRole`` raises the cap from one month to five years.
-    The bound is derived from the start date rather than a fixed day count, so
+    Setting ``Filter.ReceiverRole`` raises the cap from one month to five
+    years, and the service requires the range to be *less than* five years:
+    verified live, a start of 2021-10-01 with an end of exactly 2026-10-01 is
+    rejected with "TimePeriod must be less than 5 years", while one day short
+    of it is accepted. The bound is therefore exclusive, and is compared on the
+    exact instants rather than on whole days -- the service compares instants
+    too, so flooring to days would admit a range up to five years plus 23:59:59.
+
+    The limit is derived from the start date rather than a fixed day count, so
     leap years inside the window do not shift it; a 29 February start clamps to
     28 February, having no counterpart five years on.
 
@@ -109,15 +116,15 @@ def _max_time_interval_days_with_receiver_role(start_epoch: int) -> int:
         start_epoch: Range start as epoch seconds (UTC).
 
     Returns:
-        The maximum span in whole days, i.e. the distance to the same calendar
-        date five years later.
+        The exclusive upper bound as epoch seconds: the same calendar instant
+        five years after the start.
     """
     start = datetime.fromtimestamp(start_epoch, tz=timezone.utc)
     try:
         limit = start.replace(year=start.year + _RECEIVER_ROLE_MAX_YEARS)
     except ValueError:
         limit = start.replace(year=start.year + _RECEIVER_ROLE_MAX_YEARS, day=28)
-    return (limit - start).days
+    return int(limit.timestamp())
 
 
 def _format_range_bound(moment: datetime) -> str:
@@ -246,10 +253,11 @@ async def list_invoice_summaries(
         invoicing_entity: Filter by the AWS legal selling entity name (for
             example ``"Amazon Web Services, Inc."``).
         receiver_role: Restrict to invoices where the selected account holds
-            this role. Raises the ``start_date``/``end_date`` cap from one month
-            to five years and is the only way estimated invoices are returned.
-            Not a superset of an unrestricted query: see the note on the span
-            check below.
+            this role. Account queries only -- it cannot be combined with
+            ``invoice_id``. Raises the ``start_date``/``end_date`` cap from one
+            month to less than five years, and is the only way estimated
+            invoices are returned. Not a superset of an unrestricted query: see
+            the note on the span check below.
         max_items: Most invoice summaries to return. None fetches every page.
         next_token: Pagination token from a previous response to resume from.
 
@@ -264,6 +272,23 @@ async def list_invoice_summaries(
         if account_id and invoice_id:
             return _validation_error(
                 {'message': 'Provide either account_id or invoice_id, not both.'},
+            )
+
+        # A receiver role makes the service treat the request as an account
+        # query, which an INVOICE_ID selector cannot satisfy. Verified live:
+        # the role alone is rejected ("BillingPeriod and TimePeriod cannot both
+        # be null when retrieve invoice summary by account ID"), and the role
+        # with a time filter returns 0 rows for an invoice that exists, which
+        # reads as "not found". Refuse the combination here instead.
+        if invoice_id and receiver_role:
+            return _validation_error(
+                {
+                    'message': (
+                        'receiver_role applies to account queries only, and cannot be '
+                        'combined with invoice_id. Drop receiver_role to retrieve this '
+                        'invoice, or select by account_id with a time filter.'
+                    )
+                },
             )
 
         # --- Time filter: billing_period XOR start_date/end_date ---
@@ -291,8 +316,13 @@ async def list_invoice_summaries(
                     'message': (
                         'A time filter is required when listing invoice summaries for an '
                         'account. Provide billing_period="YYYY-MM" for a single calendar '
-                        'month, or start_date and end_date for a range spanning at most one '
-                        'month. To cover several months, make one call per month.'
+                        'month, or start_date and end_date for a range spanning '
+                        + (
+                            'less than five years, which receiver_role allows in one call.'
+                            if receiver_role
+                            else 'at most one month. To cover several months, make one '
+                            'call per month.'
+                        )
                     )
                 },
             )
@@ -362,17 +392,20 @@ async def list_invoice_summaries(
             # truncates to whole days, so compare on the same basis.
             span_days = (end_epoch - start_epoch) // _SECONDS_PER_DAY
             if receiver_role:
-                # A receiver role lifts the cap to five years, so the per-month
-                # split does not apply; there is nothing useful to suggest.
-                max_days = _max_time_interval_days_with_receiver_role(start_epoch)
-                if span_days > max_days:
+                # A receiver role lifts the cap to just under five years, so the
+                # per-month split does not apply; there is nothing useful to
+                # suggest. The bound is exclusive and compared on instants, as
+                # the service compares them.
+                limit_epoch = _receiver_role_span_limit(start_epoch)
+                if end_epoch >= limit_epoch:
                     return _validation_error(
                         {
                             'message': (
                                 f'start_date to end_date spans {span_days} days. With '
-                                'receiver_role set the Invoicing service accepts at most '
-                                f'five years per call ({max_days} days from this start '
-                                'date). Narrow the range.'
+                                'receiver_role set the Invoicing service requires a range '
+                                'of less than five years, so end_date must be earlier than '
+                                f'{_format_range_bound(datetime.fromtimestamp(limit_epoch, tz=timezone.utc))}. '
+                                'Narrow the range.'
                             )
                         },
                     )
@@ -387,8 +420,8 @@ async def list_invoice_summaries(
                                 f"number of days in the start date's month ({max_days} here). "
                                 'Issue one call per suggested_date_ranges entry instead of '
                                 'widening the range, then combine the results. Setting '
-                                'receiver_role raises the cap to five years, but returns a '
-                                'different set of invoices.'
+                                'receiver_role raises the cap to less than five years, but '
+                                'returns a different set of invoices.'
                             ),
                             'suggested_date_ranges': _split_range_by_month(start_epoch, end_epoch),
                         },
