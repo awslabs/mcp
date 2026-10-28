@@ -24,7 +24,7 @@ every request parameter and response field.
 from ..utilities.aws_service_base import format_response
 from .invoicing_operations import list_invoice_summaries as _list_invoice_summaries
 from fastmcp import Context, FastMCP
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 
 invoicing_server = FastMCP(
@@ -44,6 +44,7 @@ async def _invoicing(
     invoicing_entity: Optional[str] = None,
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
+    receiver_role: Optional[Literal['BUYER', 'SELLER', 'RESELLER']] = None,
 ) -> Dict[str, Any]:
     """Route an AWS Invoicing ``operation`` to its handler.
 
@@ -63,6 +64,8 @@ async def _invoicing(
         invoicing_entity: Filter by AWS legal selling entity name.
         max_items: Most items to return (list operation only). None fetches every page.
         next_token: Pagination token from a previous response (list operation only).
+        receiver_role: ``BUYER``, ``SELLER`` or ``RESELLER``. Account queries
+            only; allows a range of less than 5 years and returns ``Estimate-`` rows.
 
     Returns:
         The operation's response, or a standardized error for an unknown
@@ -81,6 +84,7 @@ async def _invoicing(
             invoicing_entity=invoicing_entity,
             max_items=max_items,
             next_token=next_token,
+            receiver_role=receiver_role,
         )
 
     return format_response(
@@ -108,16 +112,18 @@ async def _invoicing(
    Time filter — REQUIRED when selecting by account_id, not allowed with invoice_id. Provide exactly one:
      - billing_period: a single calendar month "YYYY-MM" (e.g. "2026-05")
      - start_date + end_date: a UTC range "YYYY-MM-DD" (or "YYYY-MM-DDTHH:MM:SS"); required together and mutually exclusive with billing_period. A date-only bound means 00:00:00 UTC, so end_date must be the day AFTER the last day you want: all of June 2026 is start_date "2026-06-01" with end_date "2026-07-01". Using "2026-06-30" silently drops invoices issued during June 30.
-   IMPORTANT — ONE MONTH MAXIMUM per call. A start_date/end_date range may span at most the number of days in the START date's month (31 from a January start, 28 from a February start); longer is rejected with "TimePeriod cannot last more than a month". Calendar alignment is NOT required: "2026-05-14" to "2026-06-13" is valid. For a longer period issue ONE CALL PER MONTH and combine the results yourself — never widen the range. A rejection returns `data.suggested_date_ranges`: the exact per-month calls to make.
+   IMPORTANT — without receiver_role, ONE MONTH MAXIMUM per call. A start_date/end_date range may span at most the number of days in the START date's month (31 from a January start, 28 from a February start); longer returns a validation_error before any AWS call. Calendar alignment is NOT required: "2026-05-14" to "2026-06-13" is valid. For a longer period issue ONE CALL PER MONTH and combine the results yourself — never widen the range, and never add receiver_role just to widen it (it changes which invoices come back). A rejection returns `data.suggested_date_ranges`: the exact per-month calls to make.
    NOTE — the two time filters are not interchangeable: billing_period selects by BILLING MONTH, start_date/end_date select by ISSUED DATE. Pick whichever the question asks for, and keep using that same one when splitting a multi-month request.
    Other filters (optional):
-     - invoicing_entity: filter by the AWS legal selling entity (seller of record) name. Examples: "Amazon Web Services, Inc." (US), "Amazon Web Services EMEA SARL" (Europe/Middle East/Africa), "Amazon Web Services Australia Pty Ltd" (Australia), "Amazon Web Services Japan G.K." (Japan). Also applies with invoice_id. An empty list for an invoice_id means the invoice was not found, is not accessible, or belongs to a different entity.
+     - invoicing_entity: filter by the AWS legal selling entity (seller of record) name. Examples: "Amazon Web Services, Inc." (US), "Amazon Web Services EMEA SARL" (Europe/Middle East/Africa), "Amazon Web Services Australia Pty Ltd" (Australia), "Amazon Web Services Japan G.K." (Japan). Also applies with invoice_id. An empty list for an invoice_id means the invoice was not found, is not accessible, or belongs to a different entity. The name is exact and case-sensitive: a lowercased or misspelled name returns a ValidationException ("Input invoice entity is not supported"), not an empty list. A correctly spelled entity with no invoices in the period returns an empty list.
+     - receiver_role: "BUYER", "SELLER" or "RESELLER"; lists only invoices where the account has that role. Use it when the question is about that role or about estimated (not yet issued) invoices. Account queries only (rejected with invoice_id), and a time filter is still required. With it a start_date/end_date range may span less than 5 years instead of one month; the service rejects longer. It also returns estimate rows, even within a start_date/end_date range: InvoiceId starts with "Estimate-" and IssuedDate is 1970-01-01T00:00:00 because they are not issued yet. That prefix is the only marker: estimates still show InvoiceType "INVOICE" and TaxAuthorityStatus "ISSUED". An estimate covers a billing month that can also have issued invoices, so never add estimate amounts to issued ones. The result is not a superset of the same call without receiver_role: invoices whose AccountId is another account (an invoice-unit receiver billed from this account) can be missing, so when combining both, de-duplicate on InvoiceId.
    Pagination:
      - max_items: total invoice summaries returned. Omit it to fetch every page (no limit). Pass it, or narrow the filters, for queries that can be large.
      - next_token: the `pagination.next_token` from a previous response, to continue where it stopped. Send every other parameter unchanged.
      - A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token, or state in the answer that the result is partial. `pagination.items_returned` counts only this response, and a continuation call does not repeat earlier items.
-   Returns: `data.invoice_summaries`, a list where each item contains:
-     - AccountId; InvoiceId; InvoiceType ("INVOICE" or "CREDIT_MEMO"); OriginalInvoiceId (the invoice a CREDIT_MEMO adjusts); PurchaseOrderNumber
+   Returns (on success): `data.selector` {type: "ACCOUNT_ID" or "INVOICE_ID", value, auto_detected: true when the account came from STS}, the account or invoice that was read. And `data.invoice_summaries`, a list where each item contains:
+     - AccountId; InvoiceId; InvoiceType ("INVOICE", "CREDIT_MEMO" or "PAYMENT_RECEIPT"); OriginalInvoiceId (the invoice a CREDIT_MEMO adjusts); PurchaseOrderNumber
+     - ReceiverRole ("BUYER", "SELLER" or "RESELLER"); BillType ("ANNIVERSARY", "PURCHASE" or "REFUND"); TaxAuthorityStatus ("ISSUED" or "CANCELLED"; CANCELLED means the invoice was cancelled after it was issued)
      - IssuedDate / DueDate: ISO 8601 UTC timestamps (converted from epoch)
      - BillingPeriod {Month, Year}; Entity {InvoicingEntity}
      - BaseCurrencyAmount, PaymentCurrencyAmount, TaxCurrencyAmount: the invoice total in the product-and-service currency, the customer's configured payment currency, and the tax currency respectively. For single-currency accounts (e.g. USD-only) these coincide; when they differ, an amount carries CurrencyExchangeDetails describing the conversion. Each contains CurrencyCode (ISO 4217), TotalAmount, TotalAmountBeforeTax, AmountBreakdown { SubTotalAmount, Discounts, Taxes, Fees (each a TotalAmount plus a Breakdown[] of {Description, Amount, Rate}) }, and CurrencyExchangeDetails { SourceCurrencyCode, TargetCurrencyCode, Rate }.
@@ -127,6 +133,7 @@ EXAMPLES
 - {"operation": "list_invoice_summaries", "billing_period": "2026-05"}
 - {"operation": "list_invoice_summaries", "account_id": "123456789012", "start_date": "2026-06-01", "end_date": "2026-07-01"}
 - {"operation": "list_invoice_summaries", "invoice_id": "1234567890"}
+- "estimated invoices for June 2026" -> {"operation": "list_invoice_summaries", "billing_period": "2026-06", "receiver_role": "BUYER"}, then keep the rows whose InvoiceId starts with "Estimate-"
 - {"operation": "list_invoice_summaries", "billing_period": "2026-05", "invoicing_entity": "Amazon Web Services EMEA SARL"}
 - "the last 3 billing months" -> three calls, one billing_period each: "2026-06", then "2026-07", then "2026-08"
 - "invoices issued Jan 15 through Mar 10" -> three calls by issued date, split on month boundaries, end_date one day past Mar 10: 2026-01-15/2026-02-01, then 2026-02-01/2026-03-01, then 2026-03-01/2026-03-11""",
@@ -142,6 +149,7 @@ async def invoicing(
     invoicing_entity: Optional[str] = None,
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
+    receiver_role: Optional[Literal['BUYER', 'SELLER', 'RESELLER']] = None,
 ) -> Dict[str, Any]:
     """FastMCP wrapper for AWS Invoicing operations.
 
@@ -161,6 +169,8 @@ async def invoicing(
         invoicing_entity: Filter by AWS legal selling entity name.
         max_items: Most items to return (list operation only). None fetches every page.
         next_token: Pagination token from a previous response (list operation only).
+        receiver_role: ``BUYER``, ``SELLER`` or ``RESELLER``. Account queries
+            only; allows a range of less than 5 years and returns ``Estimate-`` rows.
 
     Returns:
         Dict containing the operation result.
@@ -176,4 +186,5 @@ async def invoicing(
         invoicing_entity=invoicing_entity,
         max_items=max_items,
         next_token=next_token,
+        receiver_role=receiver_role,
     )

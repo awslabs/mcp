@@ -780,3 +780,344 @@ class TestInvoicingRouting:
 
         assert result['status'] == 'error'
         assert 'not_a_real_operation' in result['data']['message']
+
+
+class TestListInvoiceSummariesReceiverRole:
+    """``receiver_role`` maps to ``Filter.ReceiverRole`` and lifts the one-month cap."""
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_sent_and_lifts_one_month_cap(self, mock_context, sample_summary):
+        """With receiver_role a 92-day range reaches the API whole, with the role in Filter."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2026-06-01',
+                end_date='2026-09-01',
+                receiver_role='BUYER',
+            )
+
+        assert result['status'] == 'success'
+        call = mock_client.list_invoice_summaries.call_args.kwargs
+        assert call['Filter'] == {
+            'ReceiverRole': 'BUYER',
+            'TimeInterval': {
+                'StartDate': int(datetime(2026, 6, 1, tzinfo=timezone.utc).timestamp()),
+                'EndDate': int(datetime(2026, 9, 1, tzinfo=timezone.utc).timestamp()),
+            },
+        }
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_with_billing_period(self, mock_context, sample_summary):
+        """receiver_role combines with billing_period."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                billing_period='2026-06',
+                receiver_role='SELLER',
+            )
+
+        assert result['status'] == 'success'
+        call = mock_client.list_invoice_summaries.call_args.kwargs
+        assert call['Filter'] == {
+            'BillingPeriod': {'Month': 6, 'Year': 2026},
+            'ReceiverRole': 'SELLER',
+        }
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_still_needs_a_time_filter(self, mock_context):
+        """The account query keeps requiring a time filter when receiver_role is set."""
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            result = await list_invoice_summaries(
+                mock_context, account_id='123456789012', receiver_role='BUYER'
+            )
+
+        assert result['status'] == 'error'
+        _assert_validation_error(result)
+        assert 'time filter is required' in result['data']['message']
+        mock_create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_time_filter_message_drops_the_month_cap(self, mock_context):
+        """The missing-time-filter message for a role query names the 5-year limit, not one month."""
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            result = await list_invoice_summaries(
+                mock_context, account_id='123456789012', receiver_role='BUYER'
+            )
+
+        assert 'less than 5 years' in result['data']['message']
+        assert 'one call per month' not in result['data']['message']
+        mock_create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_long_range_is_left_to_the_service(
+        self, mock_context, sample_summary
+    ):
+        """With receiver_role a range of 5 years or more is not rejected locally."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2020-01-01',
+                end_date='2026-01-01',
+                receiver_role='BUYER',
+            )
+
+        assert result['status'] == 'success'
+        mock_client.list_invoice_summaries.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_with_invoicing_entity(self, mock_context, sample_summary):
+        """receiver_role and invoicing_entity are both sent in Filter."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                billing_period='2026-06',
+                invoicing_entity='Amazon Web Services, Inc.',
+                receiver_role='BUYER',
+            )
+
+        call = mock_client.list_invoice_summaries.call_args.kwargs
+        assert call['Filter']['InvoicingEntity'] == 'Amazon Web Services, Inc.'
+        assert call['Filter']['ReceiverRole'] == 'BUYER'
+
+    @pytest.mark.asyncio
+    async def test_continuation_keeps_receiver_role_and_echoes_selector(
+        self, mock_context, sample_summary
+    ):
+        """A next_token call still sends ReceiverRole and echoes the auto-detected selector."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.return_value = {'Account': '111122223333'}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, mock_sts)
+            result = await list_invoice_summaries(
+                mock_context,
+                billing_period='2026-06',
+                receiver_role='BUYER',
+                next_token='token-1',
+            )
+
+        call = mock_client.list_invoice_summaries.call_args.kwargs
+        assert call['NextToken'] == 'token-1'
+        assert call['Filter']['ReceiverRole'] == 'BUYER'
+        assert result['data']['selector'] == {
+            'type': 'ACCOUNT_ID',
+            'value': '111122223333',
+            'auto_detected': True,
+        }
+
+    @pytest.mark.asyncio
+    async def test_invoice_id_time_filter_error_wins_over_receiver_role(self, mock_context):
+        """invoice_id with a time filter and receiver_role reports the time-filter conflict."""
+        result = await list_invoice_summaries(
+            mock_context, invoice_id='INV-001', billing_period='2026-06', receiver_role='BUYER'
+        )
+
+        _assert_validation_error(result)
+        assert 'invoice_id cannot be combined' in result['data']['message']
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_with_invoice_id_is_rejected(self, mock_context):
+        """receiver_role applies only to an account query; the service rejects it with invoice_id."""
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            result = await list_invoice_summaries(
+                mock_context, invoice_id='INV-001', receiver_role='BUYER'
+            )
+
+        assert result['status'] == 'error'
+        _assert_validation_error(result)
+        assert 'receiver_role' in result['data']['message']
+        assert 'account' in result['data']['message']
+        mock_create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_without_receiver_role_the_month_cap_is_unchanged(self, mock_context):
+        """The same 92-day range without receiver_role still errors locally with sub-ranges."""
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2026-06-01',
+                end_date='2026-09-01',
+            )
+
+        assert result['status'] == 'error'
+        _assert_validation_error(result)
+        assert len(result['data']['suggested_date_ranges']) == 3
+        mock_create.assert_not_called()
+
+
+class TestListInvoiceSummariesSelectorEcho:
+    """The resolved selector is returned so callers know which account or invoice was read."""
+
+    @pytest.mark.asyncio
+    async def test_auto_detected_account_is_echoed(self, mock_context, sample_summary):
+        """An STS-resolved account is echoed with auto_detected true."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.return_value = {'Account': '111122223333'}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, mock_sts)
+            result = await list_invoice_summaries(mock_context, billing_period='2026-05')
+
+        assert result['data']['selector'] == {
+            'type': 'ACCOUNT_ID',
+            'value': '111122223333',
+            'auto_detected': True,
+        }
+
+    @pytest.mark.asyncio
+    async def test_explicit_account_is_echoed(self, mock_context, sample_summary):
+        """An explicit account_id is echoed with auto_detected false."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await list_invoice_summaries(
+                mock_context, account_id='999888777666', billing_period='2026-05'
+            )
+
+        assert result['data']['selector'] == {
+            'type': 'ACCOUNT_ID',
+            'value': '999888777666',
+            'auto_detected': False,
+        }
+
+    @pytest.mark.asyncio
+    async def test_invoice_id_is_echoed(self, mock_context, sample_summary):
+        """An invoice_id query echoes the INVOICE_ID selector."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await list_invoice_summaries(mock_context, invoice_id='INV-001')
+
+        assert result['data']['selector'] == {
+            'type': 'INVOICE_ID',
+            'value': 'INV-001',
+            'auto_detected': False,
+        }
+
+
+class TestInvoicingToolContract:
+    """The ``invoicing`` schema and description as published to MCP clients."""
+
+    @staticmethod
+    async def _tool():
+        import fastmcp
+        from awslabs.billing_cost_management_mcp_server.tools.invoicing_tools import (
+            invoicing_server,
+        )
+
+        async with fastmcp.Client(invoicing_server) as client:
+            tools = await client.list_tools()
+        return next(t for t in tools if t.name == 'invoicing')
+
+    @classmethod
+    async def _description(cls) -> str:
+        description = (await cls._tool()).description
+        assert description is not None, 'invoicing is served with no description'
+        return description
+
+    @staticmethod
+    def _enum(shape_name) -> list:
+        import botocore.session
+
+        model = botocore.session.get_session().get_service_model('invoicing')
+        return list(model.shape_for(shape_name).enum or [])
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_is_optional_with_the_api_enum(self):
+        """receiver_role is optional and accepts exactly the API's ReceiverRole values."""
+        tool = await self._tool()
+        prop = tool.input_schema['properties']['receiver_role']
+        values = prop.get('enum') or next(
+            (branch.get('enum') for branch in prop.get('anyOf', []) if branch.get('enum')), None
+        )
+
+        assert values is not None
+        assert sorted(values) == sorted(self._enum('ReceiverRole'))
+        assert 'receiver_role' not in tool.input_schema.get('required', [])
+
+    @pytest.mark.asyncio
+    async def test_description_documents_receiver_role(self):
+        """The description names the cap lift, estimate rows and the not-a-superset caveat."""
+        description = await self._description()
+
+        assert 'receiver_role' in description
+        assert '5 years' in description
+        assert 'Estimate-' in description
+        assert 'not a superset' in description
+        assert 'TimePeriod cannot last more than a month' not in description
+
+    @pytest.mark.asyncio
+    async def test_description_lists_every_enum_value(self):
+        """Every InvoiceType, BillType and TaxAuthorityStatus value is named."""
+        description = await self._description()
+
+        for shape in ('InvoiceType', 'BillType', 'TaxAuthorityStatus'):
+            for value in self._enum(shape):
+                assert value in description, f'{shape} value {value} is not described'
+
+    @pytest.mark.asyncio
+    async def test_description_states_invoicing_entity_is_exact(self):
+        """invoicing_entity is exact and case-sensitive, and a wrong value errors."""
+        description = await self._description()
+
+        assert 'case-sensitive' in description
+        assert 'Input invoice entity is not supported' in description
+
+    @pytest.mark.asyncio
+    async def test_description_documents_selector_echo(self):
+        """The returned data.selector is described."""
+        description = await self._description()
+
+        assert 'data.selector' in description
+        assert 'auto_detected' in description
+
+    @pytest.mark.asyncio
+    async def test_routing_forwards_receiver_role(self, mock_context, sample_summary):
+        """_invoicing passes receiver_role through to the operation."""
+        from awslabs.billing_cost_management_mcp_server.tools.invoicing_tools import _invoicing
+
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await _invoicing(
+                mock_context,
+                'list_invoice_summaries',
+                account_id='123456789012',
+                billing_period='2026-05',
+                receiver_role='RESELLER',
+            )
+
+        assert result['status'] == 'success'
+        call = mock_client.list_invoice_summaries.call_args.kwargs
+        assert call['Filter']['ReceiverRole'] == 'RESELLER'

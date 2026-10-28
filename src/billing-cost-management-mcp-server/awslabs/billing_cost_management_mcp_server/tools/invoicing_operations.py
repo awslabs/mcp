@@ -190,6 +190,7 @@ async def list_invoice_summaries(
     invoicing_entity: Optional[str] = None,
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
+    receiver_role: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List AWS invoice summaries for an account or a single invoice.
 
@@ -224,9 +225,14 @@ async def list_invoice_summaries(
             was not found, is not accessible, or belongs to another entity.
         max_items: Most invoice summaries to return. None fetches every page.
         next_token: Pagination token from a previous response to resume from.
+        receiver_role: ``BUYER``, ``SELLER`` or ``RESELLER``; sent as
+            ``Filter.ReceiverRole``. Account queries only. With it the service
+            allows a ``start_date``/``end_date`` range of less than 5 years
+            instead of one month, and also returns ``Estimate-`` rows.
 
     Returns:
-        Dict containing ``invoice_summaries`` (with ISO 8601 timestamps) and a
+        Dict containing ``invoice_summaries`` (with ISO 8601 timestamps), the
+        resolved ``selector`` (``type``, ``value``, ``auto_detected``) and a
         ``pagination`` metadata block, or a standardized error response.
     """
     try:
@@ -253,6 +259,19 @@ async def list_invoice_summaries(
                 },
             )
 
+        # With ReceiverRole the service treats the request as an account query:
+        # it requires a time filter, which invoice_id cannot have. Say so before
+        # the call.
+        if invoice_id and receiver_role:
+            return _validation_error(
+                {
+                    'message': (
+                        'receiver_role applies only to an account query. Omit it with '
+                        'invoice_id, or list by account_id with a time filter instead.'
+                    )
+                },
+            )
+
         # --- Time filter: billing_period XOR start_date/end_date ---
         if billing_period and (start_date or end_date):
             return _validation_error(
@@ -273,13 +292,18 @@ async def list_invoice_summaries(
         # TimeInterval are absent. The INVOICE_ID flow takes a different path
         # and ignores any time filter (refused above), so only guard the account case.
         if not invoice_id and not billing_period and not start_date and not end_date:
+            range_limit = (
+                'a range of less than 5 years.'
+                if receiver_role
+                else 'a range spanning at most one month. To cover several months, '
+                'make one call per month.'
+            )
             return _validation_error(
                 {
                     'message': (
                         'A time filter is required when listing invoice summaries for an '
                         'account. Provide billing_period="YYYY-MM" for a single calendar '
-                        'month, or start_date and end_date for a range spanning at most one '
-                        'month. To cover several months, make one call per month.'
+                        f'month, or start_date and end_date for {range_limit}'
                     )
                 },
             )
@@ -306,12 +330,14 @@ async def list_invoice_summaries(
                 )
 
         # --- Resolve the required Selector ---
+        auto_detected = False
         if invoice_id:
             selector = {'ResourceType': 'INVOICE_ID', 'Value': invoice_id}
         else:
             if not account_id:
                 sts_client = create_aws_client('sts')
                 account_id = sts_client.get_caller_identity()['Account']
+                auto_detected = True
                 await ctx.info(f'Auto-detected account ID: {account_id}')
             selector = {'ResourceType': 'ACCOUNT_ID', 'Value': account_id}
 
@@ -338,12 +364,14 @@ async def list_invoice_summaries(
                     },
                 )
 
-            # Reject a span the service is guaranteed to refuse, and name the
-            # sub-ranges that together cover the request instead. The service
-            # truncates to whole days, so compare on the same basis.
+            # Without ReceiverRole, reject a span the service is guaranteed to
+            # refuse, and name the sub-ranges that together cover the request
+            # instead. The service truncates to whole days, so compare on the
+            # same basis. With ReceiverRole the service allows less than 5
+            # years and enforces that itself.
             span_days = (end_epoch - start_epoch) // _SECONDS_PER_DAY
             max_days = _max_time_interval_days(start_epoch)
-            if span_days > max_days:
+            if not receiver_role and span_days > max_days:
                 return _validation_error(
                     {
                         'message': (
@@ -360,6 +388,8 @@ async def list_invoice_summaries(
             api_filter['TimeInterval'] = {'StartDate': start_epoch, 'EndDate': end_epoch}
         if invoicing_entity:
             api_filter['InvoicingEntity'] = invoicing_entity
+        if receiver_role:
+            api_filter['ReceiverRole'] = receiver_role
         if api_filter:
             request_params['Filter'] = api_filter
 
@@ -380,7 +410,18 @@ async def list_invoice_summaries(
         await ctx.info(f'Successfully listed {len(normalized)} invoice summaries')
 
         return format_response(
-            'success', with_pagination({'invoice_summaries': normalized}, pagination)
+            'success',
+            with_pagination(
+                {
+                    'invoice_summaries': normalized,
+                    'selector': {
+                        'type': selector['ResourceType'],
+                        'value': selector['Value'],
+                        'auto_detected': auto_detected,
+                    },
+                },
+                pagination,
+            ),
         )
 
     except Exception as e:
