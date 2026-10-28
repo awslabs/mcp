@@ -212,7 +212,7 @@ Correct filter examples:
    Required: operation="getSavingsPlansUtilization", start_date, end_date
    Optional: granularity, filter
    Example: {"operation": "getSavingsPlansUtilization", "granularity": "MONTHLY"}
-   Notes: Supports only DAILY and MONTHLY granularity. start_date must be within the last 13 months, and end_date must be before the current date. Data lags ~1 day: a window ending today (an incomplete UTC day) may come back empty or as a DataUnavailableException. A DataUnavailableException here means there is no Savings Plans data for THIS window (no active plans, or the window is outside the plan period) — report none/zero and do NOT retry the identical window; change the window (e.g. set end_date to yesterday) instead.
+   Notes: Supports only DAILY and MONTHLY granularity. start_date must be within the last 13 months, and end_date is exclusive and may be today. Data for the most recent 2-3 days (counting today) is not processed yet: a start_date in those days returns a DataUnavailableException, and a window that reaches into them silently leaves them out; a start_date at least 3 days before today is usually past that delay. A DataUnavailableException here means there is no Savings Plans data for THIS window and filter (the window is too recent, no plan was active in it, or a filter value such as an unknown SAVINGS_PLANS_TYPE matches nothing) — report that no data is available for that window (not zero) and do NOT resend the identical request; correct an unknown filter value, and query an earlier window only if the question allows it.
    Returns: Savings Plans utilization for the specified time period
 
 DIMENSION REFERENCE:
