@@ -1704,6 +1704,24 @@ class TestSpPerformanceDimensionsAndSort:
             'get_savings_plans_utilization_details; not accepted by coverage)'
         ) in flat
 
+    async def test_says_sort_happens_before_max_items(self):
+        """sort_by + max_items=N is the top N by the key, not N items sorted afterwards."""
+        tool = await self._tool()
+        flat = ' '.join((tool.description or '').split())
+        assert (
+            'Order of operations: the API sorts every matching item by the key first, then '
+            'pages; max_items=N keeps the first N of that sorted order.'
+        ) in flat
+        assert 'not N arbitrary items sorted afterwards' in flat
+        params = tool.parameters['properties']
+        sort_doc = ' '.join(params['sort_by']['description'].split())
+        max_doc = ' '.join(params['max_items']['description'].split())
+        assert 'Applied before max_items, so sort_by + max_items=N returns the top N.' in sort_doc
+        assert (
+            'With sort_by, these are the first N items in the requested SortOrder (the top N)'
+            in max_doc
+        )
+
     async def test_coverage_dimension_sort_keys_need_group_by(self):
         """Sorting coverage by a dimension key needs that dimension in group_by."""
         flat = ' '.join(((await self._tool()).description or '').split())

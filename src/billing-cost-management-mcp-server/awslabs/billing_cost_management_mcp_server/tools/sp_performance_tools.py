@@ -99,9 +99,11 @@ FILTER VALUES (exact, case-sensitive spellings):
   changing the window.
 
 SORTING (sort_by; get_savings_plans_coverage and get_savings_plans_utilization_details):
-- A JSON string `{"Key": "...", "SortOrder": "ASCENDING" or "DESCENDING"}`. Sorting is done
-  by the API across all pages, so sort_by + max_items=N returns the top N items (see
-  PAGINATION for what an item is).
+- A JSON string `{"Key": "...", "SortOrder": "ASCENDING" or "DESCENDING"}`.
+- Order of operations: the API sorts every matching item by the key first, then pages;
+  max_items=N keeps the first N of that sorted order. So sort_by + max_items=N returns the
+  top N items by the key across everything that matches, not N arbitrary items sorted
+  afterwards (see PAGINATION for what an item is).
 - Coverage keys: CoveragePercentage, SpendCoveredBySavingsPlan (singular, unlike the
   metric), OnDemandCost, TotalCost, InstanceFamily, Region, Service. Sort keys are not
   dimension names: sort by InstanceFamily, group by INSTANCE_TYPE_FAMILY. Sorting coverage
@@ -164,10 +166,12 @@ async def sp_performance(
         group_by: Optional grouping of results as a JSON string. For coverage, supports SERVICE, REGION, or INSTANCE_TYPE_FAMILY (NOT LINKED_ACCOUNT). Each entry is {"Type": ..., "Key": ...}; there is no "Value" field.
         filter: Optional filter to apply to the results as a JSON string. Coverage filter dimensions: LINKED_ACCOUNT, REGION, SERVICE, INSTANCE_TYPE_FAMILY. And needs >=2 operands; for one condition pass the leaf object directly. Values are case-sensitive; see FILTER VALUES in the tool description.
         max_items: Total number of items to return across all pages. Omit it to fetch every
-            page. Coverage and utilization details only.
+            page. Coverage and utilization details only. With sort_by, these are the first N
+            items in the requested SortOrder (the top N), not N items sorted afterwards.
         next_token: The pagination.next_token from a previous response; continue with otherwise
             identical parameters. Coverage and utilization details only.
         sort_by: Optional sort as a JSON string, e.g. {"Key": "CoveragePercentage", "SortOrder": "ASCENDING"}.
+            Applied before max_items, so sort_by + max_items=N returns the top N.
             Coverage and utilization details only (ignored by get_savings_plans_utilization);
             the valid keys differ per operation (see SORTING).
 
