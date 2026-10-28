@@ -1614,7 +1614,7 @@ async def test_budgets_description_drops_disproved_claims():
     description = ' '.join((tools['budgets'].description or '').split())
 
     for text in (
-        'SERVICE_CODE',
+        'service codes belong under',
         'current or future period',
         'it is always `IncludeSubscription`',
         'is how many had cost data',
