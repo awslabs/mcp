@@ -29,6 +29,7 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_anomaly_tools import 
     cost_anomaly_server,
     get_anomalies,
 )
+from botocore.exceptions import ClientError, NoCredentialsError
 from datetime import date, datetime, timezone
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -791,6 +792,45 @@ class TestCostAnomalyFastMCP:
             assert res['status'] == 'error'
             assert res['error_type'] == code
             assert message in res['message']
+
+    @pytest.mark.parametrize(
+        'error,error_type,message',
+        [
+            (
+                ClientError(
+                    {'Error': {'Code': 'AccessDeniedException', 'Message': 'not authorized'}},
+                    'GetAnomalies',
+                ),
+                'AccessDeniedException',
+                'not authorized',
+            ),
+            (NoCredentialsError(), 'aws_connection_error', 'NoCredentialsError'),
+            (RuntimeError('boom'), 'unknown_runtimeerror', 'boom'),
+        ],
+        ids=['client-error', 'no-credentials', 'unexpected'],
+    )
+    async def test_ca_real_client_creation_error_returns_error_envelope(
+        self, mock_context, error, error_type, message
+    ):
+        """An error creating the CE client is returned as cost_anomaly's error response."""
+        ca_mod = _reload_cost_anomaly_with_identity_decorator()
+        real_fn = ca_mod.cost_anomaly
+
+        with (
+            patch.object(ca_mod, 'get_context_logger', return_value=AsyncMock()),
+            patch.object(ca_mod, 'create_aws_client', side_effect=error) as create,
+            patch.object(ca_mod, 'get_anomalies', new_callable=AsyncMock) as mock_get_anomalies,
+            patch.object(ca_mod, '_utc_today', return_value=date(2024, 2, 1)),
+        ):
+            res = await real_fn(mock_context, start_date='2024-01-01', end_date='2024-01-31')  # type: ignore[reportCallIssue]
+
+        create.assert_called_once_with('ce', region_name='us-east-1')
+        mock_get_anomalies.assert_not_called()
+        assert res['status'] == 'error'
+        assert res['error_type'] == error_type
+        assert message in res['message']
+        assert res['operation'] == 'cost_anomaly'
+        assert res['service'] == 'Cost Explorer'
 
     async def test_ca_real_successful_call(self, mock_context):
         """Test cost_anomaly successful call."""
