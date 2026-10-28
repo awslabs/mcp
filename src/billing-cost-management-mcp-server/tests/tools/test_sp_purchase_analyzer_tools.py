@@ -452,8 +452,10 @@ class TestGetCommitmentPurchaseAnalysis:
 
         release = threading.Event()
         replies = list(answered)
+        threads = []
 
         def check(**_):
+            threads.append(threading.current_thread().name)
             if replies:
                 reply = replies.pop(0)
                 if reply == 'THROTTLED':
@@ -482,6 +484,8 @@ class TestGetCommitmentPurchaseAnalysis:
         assert real_time.monotonic() - started < 2.5
         # Every answered check, then the one cut off in flight.
         assert mock_ce_client.get_commitment_purchase_analysis.call_count == len(answered) + 1
+        # On the tool's own pool, so a stuck check cannot starve the default executor.
+        assert all(name.startswith('sp-purchase-analysis-poll') for name in threads)
         if expected == 'PROCESSING':
             assert result['status'] == 'success'
             assert result['data']['AnalysisStatus'] == 'PROCESSING'
@@ -835,3 +839,23 @@ async def test_served_docs_name_plan_ids_and_the_wait():
     assert 'Savings Plan ARNs' not in tool.description + str(tool.parameters)
     assert 'await_completion' in tool.description
     assert 'INVALID_SAVINGS_PLANS_TO_EXCLUDE' in str(tool.parameters)
+
+
+@pytest.mark.asyncio
+async def test_served_exclusion_doc_names_who_may_exclude_which_plans():
+    """A member account may exclude only its own plans, the management account any in the org.
+
+    Queued plans, and plans that ended before the lookback period, cannot be excluded.
+    """
+    tool = await sp_purchase_analyzer_server.get_tool('sp-purchase-analyzer')
+    assert tool is not None
+    doc = ' '.join(
+        tool.parameters['properties']['savings_plans_to_exclude']['description'].split()
+    )
+
+    assert "Each must be one of the account's plans" not in doc
+    assert (
+        'Each must be an active or recently ended plan the calling account owns (from the '
+        'management account, any such plan in the organization); a queued plan, or any other ID, '
+        'ends the analysis FAILED with ErrorCode INVALID_SAVINGS_PLANS_TO_EXCLUDE.'
+    ) in doc
