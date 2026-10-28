@@ -203,8 +203,8 @@ async def ri_performance(
 def _selected_services(expression: Any) -> List[str]:
     """Return the distinct SERVICE values a filter expression selects, in order.
 
-    Walks Dimensions and nested And / Or. Values under Not exclude services rather than
-    select them, so they are not counted.
+    Walks Dimensions and nested And / Or. Values under Not are not counted: Cost Explorer
+    does not split coverage by them (a Not on SERVICE matches no usage).
     """
     if not isinstance(expression, dict):
         return []
