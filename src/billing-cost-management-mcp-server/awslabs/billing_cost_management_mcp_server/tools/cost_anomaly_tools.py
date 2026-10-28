@@ -27,7 +27,7 @@ from ..utilities.aws_service_base import (
     with_pagination,
 )
 from ..utilities.logging_utils import get_context_logger
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
 
@@ -44,6 +44,9 @@ GET_ANOMALIES = PageSpec(
     page_max=10000,
     page_size_param='MaxResults',
 )
+
+# GetAnomalies rejects a StartDate or EndDate before UTC today minus this many days, or after today.
+MAX_LOOKBACK_DAYS = 90
 
 
 @cost_anomaly_server.tool(
@@ -69,6 +72,13 @@ You can filter anomalies by:
 
 Note: Both start_date and end_date are INCLUSIVE. To get anomalies including today, use today's date as end_date.
 
+Date window: GetAnomalies serves only today minus 90 days through today (UTC); anomalies that
+ended earlier cannot be retrieved. A start_date before that, or an end_date after today, is
+limited to the window, and data.time_range shows the dates used: when limited_from_request is
+true, report the period from time_range.start_date to time_range.end_date, not the requested
+one. A range with no day inside the window returns a validation_error that states the window.
+With next_token, pass the same start_date and end_date as the first call.
+
 Feedback status options:
 - YES: Anomalies marked as accurate
 - NO: Anomalies marked as inaccurate
@@ -81,7 +91,14 @@ Pagination:
 - Anomalies come back newest first (by anomaly end date), so max_items=N returns the N most
   recent.
 - If the result has complete_dataset: false, it is partial: call again with a larger
-  max_items, continue with next_token, or say the result is partial.""",
+  max_items, continue with next_token, or say the result is partial.
+
+Results:
+- impact.total_impact is in dollars: actual spend minus expected spend over the anomaly
+  (total_actual_spend - total_expected_spend), not a percentage; total_impact_percentage is
+  the percentage. The total impact filter compares against this value. BETWEEN includes both
+  bounds. EQUAL is an exact match on the unrounded value, so it rarely matches.
+- A monitor_arn in this account that matches no monitor returns an empty list, not an error.""",
 )
 async def cost_anomaly(
     ctx: Context,
@@ -138,12 +155,11 @@ async def cost_anomaly(
             )
 
         # Parse dates for validation
-        start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
-        end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+        start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
 
-        # Cost Anomaly Detection has a 90-day lookback limitation
-        today = datetime.now()
-        max_lookback = today - timedelta(days=90)
+        today = _utc_today()
+        earliest = today - timedelta(days=MAX_LOOKBACK_DAYS)
 
         # Check if date range is valid
         if start_date_obj > end_date_obj:
@@ -154,25 +170,6 @@ async def cost_anomaly(
                 error_type='validation_error',
                 operation='cost_anomaly',
                 service='Cost Explorer',
-            )
-
-        # Check if dates are in the future
-        if end_date_obj > today:
-            return format_response(
-                'error',
-                {'end_date': end_date},
-                'Invalid end_date: Cannot request anomalies for future dates.',
-                error_type='validation_error',
-                operation='cost_anomaly',
-                service='Cost Explorer',
-            )
-
-        # Check if dates are beyond the 90-day lookback period
-        if start_date_obj < max_lookback:
-            await ctx_logger.warning(
-                f'Requested start_date {start_date} is more than 90 days in the past. '
-                f'Cost Anomaly Detection has a 90-day data retention period. '
-                f'Some data may not be available.'
             )
 
         # For 2024 data specifically (reported issue)
@@ -267,7 +264,44 @@ async def cost_anomaly(
                 service='Cost Explorer',
             )
 
-        await ctx_logger.info(f'Retrieving cost anomalies from {start_date} to {end_date}')
+        # A range with no day in the served window has nothing to limit to
+        if end_date_obj < earliest or start_date_obj > today:
+            return format_response(
+                'error',
+                {
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'earliest_start_date': earliest.isoformat(),
+                    'latest_end_date': today.isoformat(),
+                },
+                f'Invalid date range: GetAnomalies serves only {earliest.isoformat()} to '
+                f'{today.isoformat()} (today minus {MAX_LOOKBACK_DAYS} days through today, UTC). '
+                'Use a range that overlaps it.',
+                error_type='validation_error',
+                operation='cost_anomaly',
+                service='Cost Explorer',
+            )
+
+        # The API rejects dates outside the window, so limit the range to it
+        effective_start = max(start_date_obj, earliest).isoformat()
+        effective_end = min(end_date_obj, today).isoformat()
+        time_range = {
+            'start_date': effective_start,
+            'end_date': effective_end,
+            'limited_from_request': (effective_start != start_date or effective_end != end_date),
+            'requested_start_date': start_date,
+            'requested_end_date': end_date,
+            'max_lookback_days': MAX_LOOKBACK_DAYS,
+        }
+        if time_range['limited_from_request']:
+            await ctx_logger.info(
+                f'Limited the requested range {start_date} to {end_date} to '
+                f'{effective_start} to {effective_end}, the dates GetAnomalies serves.'
+            )
+
+        await ctx_logger.info(
+            f'Retrieving cost anomalies from {effective_start} to {effective_end}'
+        )
 
         # Initialize Cost Explorer client using shared utility
         ce_client = create_aws_client('ce', region_name='us-east-1')
@@ -275,8 +309,8 @@ async def cost_anomaly(
         return await get_anomalies(
             ctx,
             ce_client,
-            start_date,
-            end_date,
+            effective_start,
+            effective_end,
             monitor_arn,
             feedback,
             max_items,
@@ -284,6 +318,7 @@ async def cost_anomaly(
             total_impact_operator,
             total_impact_start,
             total_impact_end,
+            time_range=time_range,
         )
 
     except ValueError as e:
@@ -301,6 +336,11 @@ async def cost_anomaly(
         return await handle_aws_error(ctx, e, 'cost_anomaly', 'Cost Explorer')
 
 
+def _utc_today() -> date:
+    """Return today's date in UTC, the clock GetAnomalies checks dates against."""
+    return datetime.now(timezone.utc).date()
+
+
 async def get_anomalies(
     ctx: Context,
     ce_client: Any,
@@ -313,6 +353,7 @@ async def get_anomalies(
     total_impact_operator: Optional[str],
     total_impact_start: Optional[float],
     total_impact_end: Optional[float],
+    time_range: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Retrieves cost anomalies using the AWS Cost Explorer GetAnomalies API.
 
@@ -328,6 +369,7 @@ async def get_anomalies(
         total_impact_operator: Optional numeric operator for filtering
         total_impact_start: Optional start value for total impact filter
         total_impact_end: Optional end value for total impact filter
+        time_range: Optional dates queried versus requested, returned ahead of the anomalies
 
     Returns:
         Dict containing anomaly data
@@ -366,7 +408,10 @@ async def get_anomalies(
         )
 
         # Format the response for better readability
-        formatted_response: Dict[str, Any] = {'anomalies': []}
+        formatted_response: Dict[str, Any] = (
+            {} if time_range is None else {'time_range': time_range}
+        )
+        formatted_response['anomalies'] = []
 
         for anomaly in all_anomalies:
             formatted_anomaly = {
