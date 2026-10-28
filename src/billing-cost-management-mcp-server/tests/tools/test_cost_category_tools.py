@@ -217,6 +217,23 @@ class TestDescribeCostCategoryDefinition:
         )
         assert result['status'] == 'success'
 
+    async def test_describe_impossible_date_effective_on_is_rejected_locally(
+        self, mock_context, mock_ce_client
+    ):
+        """A YYYY-MM-DD value that is not a real date gets an error naming it; no API call."""
+        mod = _reload_with_identity_decorator()
+
+        with patch.object(mod, 'create_aws_client', return_value=mock_ce_client):
+            result = await mod.describe_cost_category_definition(
+                mock_context, COST_CATEGORY_ARN, effective_on='2023-02-29'
+            )
+
+        mock_ce_client.describe_cost_category_definition.assert_not_called()
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'DescribeCostCategoryDefinition'
+        assert '2023-02-29' in result['data']['message']
+
     async def test_describe_offset_effective_on_passes_unchanged(
         self, mock_context, mock_ce_client
     ):
@@ -416,18 +433,22 @@ class TestListCostCategoryDefinitions:
         )
         assert result['status'] == 'success'
 
-    async def test_list_invalid_date_only_effective_on_passes_unchanged(
+    async def test_list_impossible_date_effective_on_is_rejected_locally(
         self, mock_context, mock_ce_client
     ):
-        """A value that is not a real calendar date is left for the API to reject."""
+        """A YYYY-MM-DD value that is not a real date gets an error naming it; no API call."""
         mod = _reload_with_identity_decorator()
 
         with patch.object(mod, 'create_aws_client', return_value=mock_ce_client):
-            await mod.list_cost_category_definitions(mock_context, effective_on='2024-13-01')
+            result = await mod.list_cost_category_definitions(
+                mock_context, effective_on='2023-02-29'
+            )
 
-        mock_ce_client.list_cost_category_definitions.assert_called_once_with(
-            EffectiveOn='2024-13-01', MaxResults=100
-        )
+        mock_ce_client.list_cost_category_definitions.assert_not_called()
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'ListCostCategoryDefinitions'
+        assert '2023-02-29' in result['data']['message']
 
 
 def _served_description(name: str) -> str:
@@ -467,7 +488,8 @@ def test_list_description_states_resource_type_filter_semantics():
     ):
         assert resource_type in description
     assert 'support every listed type' in description
-    assert 'unknown type returns no categories' in description
+    assert 'unknown type of the form `service:type` returns no categories' in description
+    assert 'a value without the colon fails with ValidationException' in description
     assert 'At most 5 values' in description
 
 
@@ -485,13 +507,21 @@ def test_descriptions_state_effective_on_formats():
         ('2024-06-01', '2024-06-01T00:00:00Z'),
         ('2024-06-01T00:00:00Z', '2024-06-01T00:00:00Z'),
         ('2024-06-01T00:00:00+07:00', '2024-06-01T00:00:00+07:00'),
-        ('2024-13-01', '2024-13-01'),
-        ('2024-02-30', '2024-02-30'),
         (' 2024-06-01', ' 2024-06-01'),
+        ('2024-06-01T00:00:00', '2024-06-01T00:00:00'),
     ],
 )
 def test_normalize_effective_on(value, expected):
-    """Only a real YYYY-MM-DD date is rewritten; anything else is left for the API to judge."""
+    """Only a real YYYY-MM-DD date is rewritten; any other shape is left for the API to judge."""
     from awslabs.billing_cost_management_mcp_server.tools import cost_category_tools as mod
 
     assert mod._normalize_effective_on(value) == expected
+
+
+@pytest.mark.parametrize('value', ['2023-02-29', '2024-02-30', '2024-13-01', '2024-00-10'])
+def test_normalize_effective_on_rejects_impossible_dates(value):
+    """A YYYY-MM-DD shaped value that is not a calendar date raises, naming the value."""
+    from awslabs.billing_cost_management_mcp_server.tools import cost_category_tools as mod
+
+    with pytest.raises(ValueError, match=value):
+        mod._normalize_effective_on(value)

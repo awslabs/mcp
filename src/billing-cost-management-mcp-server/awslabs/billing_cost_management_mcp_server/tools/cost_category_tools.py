@@ -20,6 +20,7 @@ Dedicated tools for Cost Category management APIs:
 """
 
 import json
+import re
 from ..utilities.aws_service_base import (
     PageSpec,
     create_aws_client,
@@ -47,9 +48,33 @@ LIST_COST_CATEGORY_DEFINITIONS = PageSpec(
 )
 
 
+_DATE_ONLY = re.compile(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+
+
 def _normalize_effective_on(effective_on: str) -> str:
-    """Return a YYYY-MM-DD date as midnight UTC; the API needs a full ISO 8601 datetime."""
-    return f'{effective_on}T00:00:00Z' if validate_date_format(effective_on) else effective_on
+    """Return a YYYY-MM-DD date as midnight UTC; the API needs a full datetime.
+
+    Raises ValueError for a YYYY-MM-DD value that is not a calendar date. Any other
+    value is returned unchanged for the API to validate.
+    """
+    if not _DATE_ONLY.match(effective_on):
+        return effective_on
+    if not validate_date_format(effective_on):
+        raise ValueError(
+            f'effective_on {effective_on!r} is not a calendar date. '
+            'Use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ.'
+        )
+    return f'{effective_on}T00:00:00Z'
+
+
+def _effective_on_error(error: ValueError, operation: str) -> Dict[str, Any]:
+    return format_response(
+        'error',
+        {'message': str(error)},
+        error_type='validation_error',
+        operation=operation,
+        service='Cost Explorer',
+    )
 
 
 @cost_category_server.tool(
@@ -119,7 +144,10 @@ async def describe_cost_category_definition(
         params: Dict[str, Any] = {'CostCategoryArn': cost_category_arn}
 
         if effective_on:
-            params['EffectiveOn'] = _normalize_effective_on(effective_on)
+            try:
+                params['EffectiveOn'] = _normalize_effective_on(effective_on)
+            except ValueError as e:
+                return _effective_on_error(e, 'DescribeCostCategoryDefinition')
 
         response = ce_client.describe_cost_category_definition(**params)
         return format_response('success', response)
@@ -151,8 +179,9 @@ You can filter with:
   Valid values: "billing:rispgroupsharing", "billing:billingview",
   "billing:creditsharing". At most 5 values.
   Example: '["billing:billingview"]'
-  Returns only categories that support every listed type. An unknown type returns
-  no categories, not an error.
+  Returns only categories that support every listed type. An unknown type of the
+  form `service:type` returns no categories, not an error; a value without the colon
+  fails with ValidationException.
 
 Pagination:
 - max_items: total number of cost categories returned. Omit it to fetch every page
@@ -196,7 +225,10 @@ async def list_cost_category_definitions(
         params: Dict[str, Any] = {}
 
         if effective_on:
-            params['EffectiveOn'] = _normalize_effective_on(effective_on)
+            try:
+                params['EffectiveOn'] = _normalize_effective_on(effective_on)
+            except ValueError as e:
+                return _effective_on_error(e, 'ListCostCategoryDefinitions')
         if supported_resource_types:
             try:
                 params['SupportedResourceTypes'] = json.loads(supported_resource_types)
