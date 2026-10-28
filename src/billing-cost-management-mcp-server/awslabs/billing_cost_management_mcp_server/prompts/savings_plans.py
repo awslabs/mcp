@@ -20,6 +20,11 @@ from typing import List
 
 # get_savings_plans_purchase_recommendation accepts only these lookback periods.
 _LOOKBACK_PERIODS = {7: 'SEVEN_DAYS', 30: 'THIRTY_DAYS', 60: 'SIXTY_DAYS'}
+# Savings Plans terms; the API has no other term lengths.
+_TERMS = {1: 'ONE_YEAR', 3: 'THREE_YEARS'}
+# The API shape also lists LIGHT/MEDIUM/HEAVY_UTILIZATION (Reserved Instances only); Cost Explorer
+# rejects them for Savings Plans.
+_PAYMENT_OPTIONS = ('NO_UPFRONT', 'PARTIAL_UPFRONT', 'ALL_UPFRONT')
 
 
 @finops_prompt(
@@ -50,7 +55,15 @@ def savings_plans_analysis(
     supported_days = min(_LOOKBACK_PERIODS, key=lambda days: abs(days - lookback_days))
     lookback_period = _LOOKBACK_PERIODS[supported_days]
     term_in_years = int(term_in_years)
-    term = 'THREE_YEARS' if term_in_years == 3 else 'ONE_YEAR'
+    if term_in_years not in _TERMS:
+        raise ValueError(f'term_in_years must be 1 or 3, got {term_in_years}')
+    term = _TERMS[term_in_years]
+    given_payment_option = payment_option
+    payment_option = payment_option.strip().upper()
+    if payment_option not in _PAYMENT_OPTIONS:
+        raise ValueError(
+            f'payment_option must be NO_UPFRONT, PARTIAL_UPFRONT or ALL_UPFRONT, got {given_payment_option!r}'
+        )
     account_filter = (
         ' and `filter` '
         + json.dumps({'Dimensions': {'Key': 'LINKED_ACCOUNT', 'Values': account_id_list}})

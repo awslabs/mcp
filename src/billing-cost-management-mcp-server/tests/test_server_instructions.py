@@ -33,6 +33,7 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_help
 )
 from contextlib import asynccontextmanager
 from fastmcp import Client, Context
+from fastmcp.exceptions import McpError
 from mcp.types import TextContent
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -254,7 +255,7 @@ async def test_prompt_names_only_served_tools_and_operations(prompt):
     """Each `tool` `operation` pair in a rendered prompt exists on the server."""
     async with _served() as served:
         text = await _rendered(served, prompt)
-        pairs = re.findall(r'`([a-z][a-z0-9-]+)` `([a-z_]+)`', text)
+        pairs = re.findall(r'`([a-z][a-z0-9-]+)` `([a-z0-9_]+)`', text)
         assert pairs, 'prompt names no tool operation'
         for tool, operation in pairs:
             assert tool in served.tools, f'{prompt} references unknown tool {tool!r}'
@@ -357,8 +358,49 @@ def test_sp_prompt_term(years, term, label):
     assert f'Savings Plans term length: {label}' in text
 
 
+@pytest.mark.parametrize('years', [2, 5, '2', 0])
+def test_sp_prompt_rejects_unsupported_term(years):
+    """Savings Plans terms are 1 or 3 years; any other term is rejected, not sent as ONE_YEAR."""
+    with pytest.raises(ValueError, match='term_in_years must be 1 or 3'):
+        _sp_text('111111111111', 30, years)
+
+
+async def test_served_sp_prompt_rejects_unsupported_term():
+    """Over MCP (string arguments), an unsupported term reaches the client as an error."""
+    async with _served() as served:
+        with pytest.raises(McpError, match='term_in_years must be 1 or 3, got 2'):
+            await served.client.get_prompt(
+                'analyze_savings_plans_opportunities', {**SP_ARGS, 'term_in_years': '2'}
+            )
+
+
+@pytest.mark.parametrize(
+    ('given', 'sent'),
+    [
+        ('NO_UPFRONT', 'NO_UPFRONT'),
+        ('all_upfront', 'ALL_UPFRONT'),
+        (' Partial_Upfront ', 'PARTIAL_UPFRONT'),
+    ],
+)
+def test_sp_prompt_normalizes_payment_option(given, sent):
+    """payment_option is upper-cased to the API value."""
+    assert f'`payment_option` {sent} ' in _sp_text('111111111111', 30, 1, given)
+
+
+@pytest.mark.parametrize('given', ['all upfront', 'HEAVY_UTILIZATION', ''])
+def test_sp_prompt_rejects_unsupported_payment_option(given):
+    """Only the three Savings Plans payment options are accepted (the RI utilization values are not)."""
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            f'payment_option must be NO_UPFRONT, PARTIAL_UPFRONT or ALL_UPFRONT, got {given!r}'
+        ),
+    ):
+        _sp_text('111111111111', 30, 1, given)
+
+
 def test_sp_prompt_account_filter_and_payment_option():
-    """Accounts become a LINKED_ACCOUNT filter; payment_option passes through."""
+    """Accounts become a LINKED_ACCOUNT filter; payment_option ALL_UPFRONT is sent unchanged."""
     text = _sp_text('111111111111, 222222222222', 30, 1, 'ALL_UPFRONT')
     assert '`payment_option` ALL_UPFRONT' in text
     account_filter = json.loads(_group(r'`filter` (\{.*\})\.', text))
