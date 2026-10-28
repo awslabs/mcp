@@ -142,8 +142,8 @@ class TestToolRegistration:
         description = await _description()
 
         assert (
-            'If a result fetched without `next_token` is complete (`complete_dataset: true`) and has '
-            '`default` but no group row, no group mode is reported'
+            'a complete result fetched without `next_token` (`complete_dataset: true`) that has '
+            '`default` but no group row normally means organization-wide sharing'
         ) in description
         assert (
             'Any other result without a group row (partial, or fetched with `next_token`) says nothing'
@@ -156,7 +156,7 @@ class TestToolRegistration:
             'rows come in this order across pages: `default`, at most one GROUP-SHARING row'
             in description
         )
-        assert 'normally means organization-wide sharing; say the mode was inferred' in description
+        assert 'say the mode was inferred from the missing row' in description
         assert 'No group-sharing row means organization-wide sharing' not in description
         assert '`complete_dataset: true`) does a missing group row' not in description
 
@@ -169,14 +169,25 @@ class TestToolRegistration:
         assert 'CREDIT_SHARING uses the same keys' in description
 
     @pytest.mark.asyncio
-    async def test_description_says_the_cost_category_default_value_is_no_group(self):
-        """Accounts left to the cost category's default value are not a sharing group."""
+    async def test_description_says_why_a_group_row_can_be_missing(self):
+        """The service omits the group row in cases where group sharing may still apply."""
         description = await _description()
 
         assert (
-            'accounts left to its default value, and the management account, are in no group'
-            in description
-        )
+            'LEAVES OUT the group row when group-sharing reporting is not enabled for the organization, '
+            'or when a prioritized or restricted mode has no cost category attached; group sharing '
+            'may still apply then'
+        ) in description
+        assert 'A period can lack its group row for the same reasons' in description
+
+    @pytest.mark.asyncio
+    async def test_description_makes_no_unverified_group_membership_claim(self):
+        """Group membership of default-value accounts is not verified, so it is not stated."""
+        description = await _description()
+
+        assert 'That cost category defines the account groups' in description
+        assert 'default value' not in description
+        assert 'are in no group' not in description
 
     @pytest.mark.asyncio
     async def test_description_covers_member_account_callers(self):

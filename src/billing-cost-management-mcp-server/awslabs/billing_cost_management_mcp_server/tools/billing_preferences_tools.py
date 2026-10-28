@@ -75,12 +75,13 @@ accounts: count only `account/` keys.
     the owner's group first, then the rest of the organization.
   - `costcategory-restricted/<cost category ARN>` (RI_SHARING may say `benefitgroup-restricted/`): only
     inside the owner's group, never outside it.
-  Groups are the values of that cost category's rules (describe-cost-category-definition); accounts left
-  to its default value, and the management account, are in no group. If a result fetched without
-  `next_token` is complete (`complete_dataset: true`) and has `default` but no group row, no group mode
-  is reported, which normally means organization-wide sharing; say the mode was inferred from the
-  missing row. Any other result without a group row (partial, or fetched with `next_token`) says nothing
-  about the mode.
+  That cost category defines the account groups; describe-cost-category-definition shows its rules.
+  The service also LEAVES OUT the group row when group-sharing reporting is not enabled for the
+  organization, or when a prioritized or restricted mode has no cost category attached; group sharing
+  may still apply then. Even so, a complete result fetched without `next_token` (`complete_dataset: true`)
+  that has `default` but no group row normally means organization-wide sharing: say the mode was inferred
+  from the missing row. Any other result without a group row (partial, or fetched with `next_token`) says
+  nothing about the mode.
 - `account/<id>`: that account's setting; DISABLED excludes it from sharing.
 The rows above read as: baseline ENABLED, discounts going to the owner's cost-category group before the
 rest of the organization, one account excluded. CREDIT_LEVEL_SHARING can narrow where one credit goes.
@@ -91,10 +92,10 @@ account.
 
 RI_SHARING_HISTORY and CREDIT_SHARING_HISTORY prefix each key, the group row included, with `<yyyy-MM>/`
 and add `billingPeriod`. They always write `costcategory-` (a history key with the same mode and ARN
-as a current `benefitgroup-` key is the same setting) and list only accounts that differ from that period's
-`default`. A period can lack its group row even when group sharing applied, so a missing history group
-row is not evidence of open sharing. A history page fetched with `next_token` can start mid-period,
-without that period's `default` and group rows:
+as a current `benefitgroup-` key is the same setting) and list only accounts that differ from that
+period's `default`. A period can lack its group row for the same reasons, or when it does not name
+exactly one cost category, so a missing history group row is not evidence of open sharing. A history
+page fetched with `next_token` can start mid-period, without that period's `default` and group rows:
 
   {"feature": "RI_SHARING_HISTORY", "key": "2025-09/costcategory-prioritized/arn:aws:ce::...",
    "value": "ENABLED", "billingPeriod": {"year": 2025, "month": 9}}
