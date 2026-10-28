@@ -5,6 +5,7 @@ ensuring complete code coverage and proper error handling.
 """
 
 import pytest
+import time
 from awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools import (
     PREFERENCES_NOT_CONFIGURED_ERROR,
     bcm_pricing_calc_core,
@@ -17,7 +18,7 @@ from awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_too
     list_workload_estimates,
 )
 from botocore.exceptions import BotoCoreError, ClientError
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -406,6 +407,194 @@ class TestListWorkloadEstimates:
             mock_context, error, 'list_workload_estimates', 'BCM Pricing Calculator'
         )
         assert result['status'] == 'error'
+
+
+class TestDateFilterOrder:
+    """An after bound later than its before bound is rejected locally, before any AWS call.
+
+    The service rejects it too, but with a message that names the bounds the wrong way round.
+    """
+
+    @staticmethod
+    async def _list(client, **kwargs):
+        """Run list_workload_estimates against a client mock with preferences configured."""
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
+                return_value=client,
+            ),
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences',
+                new=AsyncMock(return_value={'account_types': ['management account']}),
+            ) as get_prefs,
+        ):
+            ctx = MagicMock()
+            ctx.info = AsyncMock()
+            ctx.warning = AsyncMock()
+            ctx.error = AsyncMock()
+            result = await list_workload_estimates(ctx, **kwargs)
+            return result, get_prefs
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('prefix', ['created', 'expires'])
+    @pytest.mark.parametrize(
+        'after,before',
+        [
+            ('2026-02-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+            ('2026-01-01T00:00:01', '2026-01-01T00:00:00'),
+            # Mixed offsets compare as instants: 01:00+00:00 is later than 00:30Z.
+            ('2026-01-01T01:00:00+00:00', '2026-01-01T00:30:00Z'),
+            # A value without an offset is UTC, as botocore sends it.
+            ('2026-01-01T12:00:00', '2026-01-01T11:00:00Z'),
+            ('2026-01-01T06:00:00+05:00', '2026-01-01T00:00:00'),
+        ],
+    )
+    async def test_after_later_than_before_is_rejected(self, prefix, after, before):
+        """The error names both parameters in the right order, with no AWS call."""
+        client = MagicMock()
+
+        result, get_prefs = await self._list(
+            client, **{f'{prefix}_after': after, f'{prefix}_before': before}
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == f'{prefix}_after'
+        assert result['data']['value'] == after
+        expected = f'{prefix}_after ({after}) is later than {prefix}_before ({before})'
+        assert expected in result['message']
+        assert 'beforeTimestamp' not in result['message']
+        get_prefs.assert_not_called()
+        client.list_workload_estimates.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('prefix', ['created', 'expires'])
+    @pytest.mark.parametrize(
+        'after,before',
+        [
+            ('2026-01-01T00:00:00Z', '2026-02-01T00:00:00Z'),
+            # Equal bounds are accepted by the service.
+            ('2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+            ('2026-01-01T05:00:00+05:00', '2026-01-01T00:00:00'),
+            ('2026-01-01T00:30:00Z', '2026-01-01T01:00:00+00:00'),
+        ],
+    )
+    async def test_ordered_or_equal_bounds_are_sent(self, prefix, after, before):
+        """Ordered or equal bounds are sent as UTC instants in the matching filter."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _ = await self._list(
+            client, **{f'{prefix}_after': after, f'{prefix}_before': before}
+        )
+
+        assert result['status'] == 'success'
+        sent = client.list_workload_estimates.call_args.kwargs[f'{prefix}AtFilter']
+        assert sent['afterTimestamp'] <= sent['beforeTimestamp']
+        assert sent['afterTimestamp'].utcoffset() == timedelta(0)
+        assert sent['beforeTimestamp'].utcoffset() == timedelta(0)
+
+    @pytest.fixture
+    def non_utc_local_time(self, monkeypatch):
+        """Run with a non-UTC local zone, so a naive value read as local time would show."""
+        if not hasattr(time, 'tzset'):
+            pytest.skip('time.tzset is not available on this platform')
+        monkeypatch.setenv('TZ', 'America/New_York')
+        time.tzset()
+        yield
+        monkeypatch.undo()
+        time.tzset()
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures('non_utc_local_time')
+    async def test_value_without_offset_is_sent_as_utc(self):
+        """A naive value is sent as the same UTC instant botocore would have sent."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        await self._list(client, created_after='2026-01-01T12:00:00')
+
+        sent = client.list_workload_estimates.call_args.kwargs['createdAtFilter']
+        assert sent == {'afterTimestamp': datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)}
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures('non_utc_local_time')
+    async def test_naive_and_utc_bounds_compare_as_utc_off_a_utc_host(self):
+        """Naive 12:00 is UTC noon, earlier than 13:00Z, even where local time is not UTC."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _ = await self._list(
+            client, created_after='2026-01-01T12:00:00', created_before='2026-01-01T13:00:00Z'
+        )
+
+        assert result['status'] == 'success'
+        sent = client.list_workload_estimates.call_args.kwargs['createdAtFilter']
+        assert sent['afterTimestamp'] == datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+
+    @pytest.mark.asyncio
+    async def test_unparseable_date_is_rejected_before_any_call(self):
+        """A value that is not ISO 8601 returns validation_error without calling the service."""
+        client = MagicMock()
+
+        result, get_prefs = await self._list(client, expires_before='last week')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        get_prefs.assert_not_called()
+        client.list_workload_estimates.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_each_pair_is_checked_independently(self):
+        """created_after may be later than expires_before; only bounds of one pair are compared."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _ = await self._list(
+            client,
+            created_after='2026-06-01T00:00:00Z',
+            expires_before='2026-01-01T00:00:00Z',
+        )
+
+        assert result['status'] == 'success'
+        kwargs = client.list_workload_estimates.call_args.kwargs
+        assert set(kwargs['createdAtFilter']) == {'afterTimestamp'}
+        assert set(kwargs['expiresAtFilter']) == {'beforeTimestamp'}
+
+    @pytest.mark.asyncio
+    async def test_core_returns_the_same_rejection(self, mock_context):
+        """The tool entry point returns the validation_error without calling the service."""
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+            ) as create_client,
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+            ) as get_prefs,
+        ):
+            result = await bcm_pricing_calc_core(
+                mock_context,
+                operation='list_workload_estimates',
+                expires_after='2026-03-01T00:00:00Z',
+                expires_before='2026-02-01T00:00:00Z',
+            )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == 'expires_after'
+        get_prefs.assert_not_called()
+        create_client.return_value.list_workload_estimates.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_served_arg_docs_state_the_order(self):
+        """The served schema says each after bound must not be later than its before bound."""
+        tool = await bcm_pricing_calculator_server.get_tool('bcm-pricing-calc')
+        assert tool is not None
+        properties = tool.parameters['properties']
+
+        for prefix in ('created', 'expires'):
+            description = properties[f'{prefix}_after']['description']
+            assert f'Must not be later than {prefix}_before' in description
 
 
 @pytest.mark.asyncio

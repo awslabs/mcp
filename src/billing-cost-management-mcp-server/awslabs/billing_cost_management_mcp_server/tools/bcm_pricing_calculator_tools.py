@@ -26,7 +26,7 @@ from ..utilities.aws_service_base import (
     paginate_aws_items,
     with_pagination,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
 
@@ -292,11 +292,11 @@ async def bcm_pricing_calc(
         identifier: The workload estimate identifier. Required for get_workload_estimate
             and list_workload_estimate_usage.
         created_after: Filter estimates created after this timestamp
-            (ISO format: YYYY-MM-DDTHH:MM:SS).
+            (ISO format: YYYY-MM-DDTHH:MM:SS). Must not be later than created_before.
         created_before: Filter estimates created before this timestamp
             (ISO format: YYYY-MM-DDTHH:MM:SS).
         expires_after: Filter estimates expiring after this timestamp
-            (ISO format: YYYY-MM-DDTHH:MM:SS).
+            (ISO format: YYYY-MM-DDTHH:MM:SS). Must not be later than expires_before.
         expires_before: Filter estimates expiring before this timestamp
             (ISO format: YYYY-MM-DDTHH:MM:SS).
         status_filter: Filter by status (UPDATING, VALID, INVALID, ACTION_NEEDED).
@@ -409,9 +409,11 @@ async def list_workload_estimates(
 
     Args:
         ctx: The MCP context object
-        created_after: Filter estimates created after this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
+        created_after: Filter estimates created after this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS).
+            Must not be later than created_before.
         created_before: Filter estimates created before this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
-        expires_after: Filter estimates expiring after this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
+        expires_after: Filter estimates expiring after this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS).
+            Must not be later than expires_before.
         expires_before: Filter estimates expiring before this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
         status_filter: Filter by status (UPDATING, VALID, INVALID, ACTION_NEEDED)
         name_filter: Filter by name (supports partial matching)
@@ -431,6 +433,31 @@ async def list_workload_estimates(
         # Create BCM Pricing Calculator client
         bcm_client = create_aws_client('bcm-pricing-calculator')
 
+        # Check each date range before any AWS call. The service also rejects an after
+        # bound later than its before bound, but its message names the bounds the wrong
+        # way round.
+        created_filter = _build_timestamp_filter(created_after, created_before)
+        expires_filter = _build_timestamp_filter(expires_after, expires_before)
+        for prefix, after, before, timestamp_filter in (
+            ('created', created_after, created_before, created_filter),
+            ('expires', expires_after, expires_before, expires_filter),
+        ):
+            if (
+                'afterTimestamp' in timestamp_filter
+                and 'beforeTimestamp' in timestamp_filter
+                and timestamp_filter['afterTimestamp'] > timestamp_filter['beforeTimestamp']
+            ):
+                return format_response(
+                    'error',
+                    {'invalid_parameter': f'{prefix}_after', 'value': after},
+                    f'Invalid date range: {prefix}_after ({after}) is later than '
+                    f'{prefix}_before ({before}). {prefix}_after must be earlier than '
+                    f'or equal to {prefix}_before.',
+                    error_type='validation_error',
+                    operation='list_workload_estimates',
+                    service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+                )
+
         # Check preferences before proceeding
         preferences_result = await get_preferences(ctx)
         if 'error' in preferences_result:
@@ -438,31 +465,9 @@ async def list_workload_estimates(
 
         # Build request parameters. The token and page size are added per page.
         request_params: Dict[str, Any] = {}
-
-        # Add created at filter
-        if created_after or created_before:
-            created_filter = {}
-            if created_after:
-                created_filter['afterTimestamp'] = datetime.fromisoformat(
-                    created_after.replace('Z', UTC_TIMEZONE_OFFSET)
-                )
-            if created_before:
-                created_filter['beforeTimestamp'] = datetime.fromisoformat(
-                    created_before.replace('Z', UTC_TIMEZONE_OFFSET)
-                )
+        if created_filter:
             request_params['createdAtFilter'] = created_filter
-
-        # Add expires at filter
-        if expires_after or expires_before:
-            expires_filter = {}
-            if expires_after:
-                expires_filter['afterTimestamp'] = datetime.fromisoformat(
-                    expires_after.replace('Z', UTC_TIMEZONE_OFFSET)
-                )
-            if expires_before:
-                expires_filter['beforeTimestamp'] = datetime.fromisoformat(
-                    expires_before.replace('Z', UTC_TIMEZONE_OFFSET)
-                )
+        if expires_filter:
             request_params['expiresAtFilter'] = expires_filter
 
         # Add additional filters
@@ -501,6 +506,21 @@ async def list_workload_estimates(
         return await handle_aws_error(
             ctx, e, 'list_workload_estimates', BCM_PRICING_CALCULATOR_SERVICE_NAME
         )
+
+
+def _build_timestamp_filter(after: Optional[str], before: Optional[str]) -> Dict[str, datetime]:
+    """Build a FilterTimestamp from ISO 8601 bounds, as UTC instants so the two compare.
+
+    A value without an offset is taken as UTC, which is how botocore sends it.
+    """
+    timestamp_filter: Dict[str, datetime] = {}
+    for key, value in (('afterTimestamp', after), ('beforeTimestamp', before)):
+        if value:
+            parsed = datetime.fromisoformat(value.replace('Z', UTC_TIMEZONE_OFFSET))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            timestamp_filter[key] = parsed.astimezone(timezone.utc)
+    return timestamp_filter
 
 
 async def get_workload_estimate(
