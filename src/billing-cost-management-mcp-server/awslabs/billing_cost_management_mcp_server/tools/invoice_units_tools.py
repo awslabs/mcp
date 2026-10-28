@@ -137,7 +137,7 @@ async def _invoice_units(
      - max_items: total invoice units returned. Omit it to fetch every page (no limit). Pass it, or narrow the filters, for queries that can be large.
      - next_token: the `pagination.next_token` from a previous response, to continue where it stopped. Send every other parameter unchanged.
      - A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token, or state in the answer that the result is partial. `pagination.items_returned` counts only this response, and a continuation call does not repeat earlier items.
-   Returns: `data.invoice_units`, each with InvoiceUnitArn, Name, Description, InvoiceReceiver, TaxInheritanceDisabled, Rule {LinkedAccounts}, and LastModified (ISO 8601 UTC).
+   Returns: `data.invoice_units`, each with InvoiceUnitArn, Name, Description, InvoiceReceiver, TaxInheritanceDisabled, Rule {LinkedAccounts, BillSourceAccounts}, and LastModified (ISO 8601 UTC). Rule.LinkedAccounts are the accounts whose charges the unit collects; Rule.BillSourceAccounts are the accounts billed for them. An account can therefore belong to a unit as its receiver, as a linked account, or as a bill source, and each is a different answer to "which unit is this account in".
 
 2) get_invoice_unit - retrieve one invoice unit definition
    Required: operation="get_invoice_unit", invoice_unit_arn
