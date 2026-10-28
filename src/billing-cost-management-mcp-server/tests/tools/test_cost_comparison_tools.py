@@ -1096,6 +1096,8 @@ MISALIGNED = {
     'comparison_reversed_bounds': (month(2), (month_start(0), month_start(1))),
     'baseline_not_a_date': (('last month', month_start(1)), month(1)),
     'baseline_impossible_date': ((month_start(2)[:8] + '32', month_start(1)), month(1)),
+    'baseline_off_midnight': ((month_start(2) + 'T05:00:00Z', month_start(1)), month(1)),
+    'baseline_trailing_newline': ((month_start(2) + '\n', month_start(1)), month(1)),
 }
 
 
@@ -1166,6 +1168,24 @@ class TestCostComparisonDispatcherValidation:
         )
         assert result['status'] == 'success'
         getattr(dispatch_ce_client, CE_METHOD[operation]).assert_called_once()
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    async def test_midnight_timestamp_is_sent_to_ce_as_a_date(
+        self, mock_context, dispatch_ce_client, operation
+    ):
+        """A T00:00:00Z period is sent as a date (getCostComparisonDrivers answers 504 otherwise)."""
+        (b0, b1), (c0, c1) = month(2), month(1)
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            operation,
+            (b0 + 'T00:00:00Z', b1 + 'T00:00:00Z'),
+            (c0 + 'T00:00:00Z', c1 + 'T00:00:00Z'),
+        )
+        assert result['status'] == 'success'
+        sent = getattr(dispatch_ce_client, CE_METHOD[operation]).call_args.kwargs
+        assert sent['BaselineTimePeriod'] == {'Start': b0, 'End': b1}
+        assert sent['ComparisonTimePeriod'] == {'Start': c0, 'End': c1}
 
     @pytest.mark.parametrize('operation', OPERATIONS)
     async def test_baseline_later_than_comparison_reaches_ce(
@@ -1582,10 +1602,22 @@ class TestValidateComparisonRequest:
         self._validate(('2025-12-01', '2026-01-01'), ('2026-09-01', '2026-10-01'))
 
     def test_timestamp_form_is_accepted(self):
-        """CE accepts YYYY-MM-DDThh:mm:ssZ as well as YYYY-MM-DD."""
+        """The tool accepts a midnight YYYY-MM-DDThh:mm:ssZ as well as YYYY-MM-DD."""
         self._validate(
             ('2026-08-01T00:00:00Z', '2026-09-01T00:00:00Z'), ('2026-09-01', '2026-10-01')
         )
+
+    @pytest.mark.parametrize(
+        'baseline',
+        [
+            ('2026-08-01T05:00:00Z', '2026-09-01'),
+            ('2026-08-01', '2026-09-01T00:00:01Z'),
+        ],
+    )
+    def test_timestamp_off_midnight_is_rejected(self, baseline):
+        """A month boundary must be at midnight UTC; CE fails otherwise (InternalFailure or 504)."""
+        with pytest.raises(ValueError, match='not midnight UTC'):
+            self._validate(baseline, ('2026-09-01', '2026-10-01'))
 
     def test_months_before_clamps_to_month_end(self):
         """Like Java's minusMonths, the day clamps to the shorter month."""
