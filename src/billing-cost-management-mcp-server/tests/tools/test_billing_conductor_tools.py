@@ -885,3 +885,27 @@ async def test_tool_schemas_follow_the_max_items_contract():
         else:
             assert {'max_items', 'next_token'} <= params, name
             assert 'max_items' in tool.description, name
+
+
+@pytest.mark.asyncio
+async def test_descriptions_state_future_billing_period_behavior():
+    """Each tool that takes a billing period says what a month after the current one does."""
+    from awslabs.billing_cost_management_mcp_server.tools import billing_conductor_tools as bct
+
+    # Other tests reload this module under a patched FastMCP; reload the real one here.
+    real = importlib.reload(bct)
+    tools = {t.name: t for t in await real.billing_conductor_server.list_tools()}
+    rejected = {'list-billing-group-cost-reports', 'get-billing-group-cost-report'}
+    projected = {
+        name
+        for name, tool in tools.items()
+        if 'billing_period' in tool.parameters['properties'] and name not in rejected
+    }
+    assert len(projected) == 8
+    for name in projected:
+        description = ' '.join((tools[name].description or '').split())
+        assert 'after the current month (UTC) is a projection, not a record' in description, name
+        assert '`billing_period_is_future: true`' in description, name
+    for name in rejected:
+        description = ' '.join((tools[name].description or '').split())
+        assert 'after the current month (UTC) fails with validation_error' in description, name
