@@ -401,7 +401,9 @@ async def test_description_says_default_hides_alternative_recommendations():
     flat = ' '.join((tool.description or '').split())
     assert 'Set include_all_recommendations=true to compare purchase options' in flat
     assert 'do not add their estimated savings together' in flat
-    assert 'list_recommendation_summaries always uses the deduplicated set' in flat
+    assert 'list_recommendation_summaries always deduplicates' in flat
+    assert 'need not match list_recommendations' in flat
+    assert "closest to the account's commitment preference" in flat
     arg_doc = ' '.join(
         (
             tool.parameters['properties']['include_all_recommendations'].get('description') or ''
@@ -446,8 +448,8 @@ async def test_summaries_do_not_take_include_all_recommendations(mock_context):
 @pytest.mark.parametrize(
     'include_all, expected_phrase',
     [
-        (None, 'deduplicated view'),
-        (False, 'deduplicated view'),
+        (None, "chosen first by the account's commitment preference"),
+        (False, "chosen first by the account's commitment preference"),
         (True, 'do not add their estimated savings together'),
     ],
 )
