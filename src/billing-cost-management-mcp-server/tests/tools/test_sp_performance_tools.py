@@ -1577,6 +1577,28 @@ class TestSpPerformanceDescription:
         assert tool is not None and tool.description
         return tool.description
 
+    async def test_states_the_data_lag_and_data_unavailable_causes(self):
+        """The lag is 2-3 days (excluding today is not enough), and unmatched filters fail too."""
+        description = ' '.join((await self._description()).split())
+        assert 'lags roughly one day' not in description
+        assert 'then the window resolves' not in description
+        assert 'most recent 2-3 days (counting today) is not processed yet' in description
+        assert 'excluding only today is not enough' in description
+        assert 'succeeds but silently leaves them out' in description
+        assert (
+            'A start_date at least 3 days before today is usually past that delay' in description
+        )
+        assert 'an unknown SAVINGS_PLANS_TYPE, for example, returns this error' in description
+        assert 'not zero utilization or coverage' in description
+
+    async def test_end_date_doc_states_the_data_lag(self):
+        """The end_date arg doc no longer says excluding today is enough."""
+        tool = await sp_performance_server.get_tool('sp-performance')
+        assert tool is not None
+        end_date_doc = tool.parameters['properties']['end_date'].get('description', '')
+        assert 'lags ~1 day' not in end_date_doc
+        assert 'last 2-3 days (counting today) is not processed yet' in end_date_doc
+
     async def test_lists_utilization_details_filter_dimensions(self):
         """Every GetSavingsPlansUtilizationDetails filter dimension is named."""
         description = await self._description()

@@ -18,7 +18,8 @@ Every error response carries a ``retry_strategy`` telling the caller what to do 
 
 - ``retry_same_request``: the failure is transient (throttling, connection, 5xx).
 - ``modify_request``: the arguments must change before trying again.
-- ``do_not_retry``: the failure cannot be fixed during this run (permissions, opt-in).
+- ``do_not_retry``: the failure cannot be fixed during this run (permissions, opt-in, no data
+  for the request).
 
 The strategy is derived from the existing ``error_type`` values, which are left
 unchanged. Unknown or missing types get ``do_not_retry``.
@@ -48,6 +49,14 @@ _HINT_ACCESS = (
 _HINT_OPT_IN = (
     'The account is not opted in or enrolled for this feature. Do not retry; '
     'tell the user how to enable it.'
+)
+# Mapped by error_type, so it reaches every service that raises the code (Cost Explorer,
+# Pricing Calculator): keep it service-neutral. Tool descriptions carry the specifics.
+_HINT_DATA_UNAVAILABLE = (
+    'The service has no data for this request, so sending it again unchanged usually returns '
+    'the same error. Common causes are a time period too recent to have been processed yet, or '
+    'a filter value that matches nothing; the tool description may say when this happens. '
+    'Report that no data is available, not a failure and not a zero.'
 )
 
 # error_type -> (retry_strategy, hint). Covers both AWS error codes passed through by
@@ -101,7 +110,7 @@ _ERROR_TYPE_GUIDANCE: Dict[str, Tuple[str, Optional[str]]] = {
     'OptInRequiredException': (DO_NOT_RETRY, _HINT_OPT_IN),
     'opt_in_required': (DO_NOT_RETRY, _HINT_OPT_IN),
     'enrollment_error': (DO_NOT_RETRY, _HINT_OPT_IN),
-    'DataUnavailableException': (DO_NOT_RETRY, None),
+    'DataUnavailableException': (DO_NOT_RETRY, _HINT_DATA_UNAVAILABLE),
 }
 
 # Families of AWS codes matched by prefix, checked after the exact table.
