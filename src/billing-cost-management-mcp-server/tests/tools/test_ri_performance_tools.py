@@ -1178,7 +1178,7 @@ async def test_description_states_subscription_id_format_and_error():
     assert 'is a NUMERIC id' in description
     assert 'must contain only digits' in description
     assert 'returns no match' not in description
-    # Utilization accepts several SERVICE values; only coverage caps them at 2.
+    # Utilization accepts several SERVICE values; only coverage takes one per call.
     assert 'SERVICE filter takes a single value' not in description
 
 
@@ -1259,10 +1259,10 @@ async def test_description_states_coverage_filter_dimensions():
 
 
 def _utilization_filter_keys(section: str) -> set:
-    """Per "- " item, the key names before its ":" (or the whole item when it has none)."""
+    """Per "- " bullet of the utilization filter section, the key names before its ":"."""
     keys = set()
-    for item in section.split('.', 1)[0].split(' - ')[1:]:
-        names = item.split(':', 1)[0]
+    for bullet in section.split(' - ')[1:]:
+        names = bullet.split(':', 1)[0]
         keys |= {name.strip() for name in names.split(',')}
     return keys
 
@@ -1274,21 +1274,40 @@ async def test_description_lists_utilization_filter_dimensions():
         await _ri_description(), 'FILTER DIMENSIONS get_reservation_utilization (filter)'
     )
     assert _utilization_filter_keys(section) == UTILIZATION_FILTER_DIMENSIONS
-    rejected = section.split(' are rejected here', 1)[0].rsplit('. ', 1)[-1]
-    assert rejected == 'CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION and OPERATING_SYSTEM'
-    assert '"Region" (regional RI) or "Availability Zone" (zonal RI)' in section
+    assert (
+        'CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION and OPERATING_SYSTEM are rejected here'
+        in section
+    )
+    # Unlike coverage, utilization takes Dimensions only.
+    assert 'and so are Tags and CostCategories expressions ("Tags expression is not allowed")' in (
+        section
+    )
+
+
+@pytest.mark.asyncio
+async def test_description_states_scope_values_are_exact():
+    """SCOPE matches exactly; a wrong case returns no RIs rather than an error."""
+    section = _section(
+        await _ri_description(), 'FILTER DIMENSIONS get_reservation_utilization (filter)'
+    )
+    assert 'exactly "Region" (regional RI) or "Availability Zone" (zonal RI), case-sensitive' in (
+        section
+    )
+    assert 'any other value (e.g. "region") returns no RIs and no error' in section
 
 
 @pytest.mark.asyncio
 async def test_description_states_subscription_end_filter_rules():
-    """BEFORE is exclusive, AFTER inclusive and not before start_date; both flagged unstable."""
+    """BEFORE is exclusive, AFTER inclusive and not before start_date; Not is ignored."""
     section = _section(
         await _ri_description(), 'FILTER DIMENSIONS get_reservation_utilization (filter)'
     )
+    assert 'Exactly one YYYY-MM-DD value each; a datetime or a second value is a' in section
     assert 'BEFORE keeps RIs whose term ends before the date' in section
     assert 'AFTER those that end on or after it' in section
     assert 'The AFTER date must not be before start_date' in section
     assert 'a BEFORE date must be later than the AFTER date' in section
+    assert 'Not has no effect on these two keys' in section
     # Not in the public API reference, so the description says they may change.
     assert 'Undocumented upstream, so they may change' in section
 
@@ -1305,6 +1324,40 @@ async def test_description_lists_sort_keys_and_sort_order_shape():
 
 
 @pytest.mark.asyncio
+async def test_description_states_utilization_sorts_only_when_grouped():
+    """Ungrouped GetReservationUtilization never reads SortBy, so a bad key is not reported."""
+    section = _section(await _ri_description(), 'SORTING (sort_by):')
+    assert 'get_reservation_utilization applies sort_by only with group_by' in section
+    assert 'a wrong key is not reported' in section
+    assert 'a SortOrder other than ASCENDING or DESCENDING is still rejected' in section
+
+
+@pytest.mark.asyncio
+async def test_description_states_coverage_service_value_limit():
+    """The filter list points at the local one-SERVICE check, not at service behavior."""
+    description = await _ri_description()
+    section = _section(description, 'FILTER DIMENSIONS get_reservation_coverage (filter):')
+    assert 'Use one SERVICE value per call; more are rejected (see SERVICE above)' in section
+    # The tool rejects a second SERVICE value before any call, so no text may describe
+    # what Cost Explorer does with two or more.
+    flat = ' '.join(description.split())
+    assert 'at most 2' not in flat
+    assert 'merges both' not in flat
+
+
+@pytest.mark.asyncio
+async def test_description_states_filter_expression_shapes():
+    """Only a leaf, Not(leaf) or And of those; Or is rejected; one leaf per dimension."""
+    section = _section(await _ri_description(), 'FILTERING (both operations):')
+    assert 'Not of one leaf, or an And of leaves and Not-leaves' in section
+    assert 'Or anywhere, an And inside an And, or a Not around anything but a leaf' in section
+    assert 'Each dimension (tags excepted) may appear only once per filter' in section
+    assert 'within the limits above for SERVICE and the SUBSCRIPTION_END keys' in section
+    # The old text said only AND was supported; Not is accepted too.
+    assert 'supports only AND' not in section
+
+
+@pytest.mark.asyncio
 async def test_sort_by_arg_names_sort_order_not_direction():
     """The arg doc uses the API's field names; "direction" is not one."""
     tool = await ri_performance_server.get_tool('ri-performance')
@@ -1312,6 +1365,7 @@ async def test_sort_by_arg_names_sort_order_not_direction():
     sort_doc = tool.parameters['properties']['sort_by']['description']
     assert '{"Key": "<key>", "SortOrder": "DESCENDING"}' in sort_doc
     assert 'SortOrder is required: ASCENDING or DESCENDING, upper case only' in sort_doc
+    assert 'get_reservation_utilization ignores sort_by without group_by' in sort_doc
     assert 'direction' not in sort_doc
 
 

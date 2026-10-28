@@ -91,22 +91,30 @@ FILTER DIMENSIONS get_reservation_coverage (filter): SERVICE plus the same attri
 that service takes for group_by above (e.g. DEPLOYMENT_OPTION only with RDS); Tags and
 CostCategories expressions also work. OPERATING_SYSTEM, INVOICING_ENTITY and SCOPE are
 rejected for every service, as is an attribute the service does not take (e.g. TENANCY
-with RDS): ValidationException "Dimension ... is not allowed".
+with RDS): ValidationException "Dimension ... is not allowed". Use one SERVICE value
+per call; more are rejected (see SERVICE above).
 
 FILTER DIMENSIONS get_reservation_utilization (filter), the same for every service:
 - AZ, INSTANCE_TYPE, INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PLATFORM, REGION, SERVICE,
   SUBSCRIPTION_ID, TENANCY
-- SCOPE: "Region" (regional RI) or "Availability Zone" (zonal RI)
-- SUBSCRIPTION_END_DATE_TIME_BEFORE, SUBSCRIPTION_END_DATE_TIME_AFTER: one YYYY-MM-DD
-  date each, for expiry questions. BEFORE keeps RIs whose term ends before the date,
-  AFTER those that end on or after it. The AFTER date must not be before start_date,
-  and a BEFORE date must be later than the AFTER date (else ValidationException).
-  Undocumented upstream, so they may change.
-CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION and OPERATING_SYSTEM are rejected here.
+- SCOPE: exactly "Region" (regional RI) or "Availability Zone" (zonal RI), case-sensitive;
+  any other value (e.g. "region") returns no RIs and no error.
+- SUBSCRIPTION_END_DATE_TIME_BEFORE, SUBSCRIPTION_END_DATE_TIME_AFTER: for expiry
+  questions. Exactly one YYYY-MM-DD value each; a datetime or a second value is a
+  ValidationException. BEFORE keeps RIs whose term ends before the date, AFTER those
+  that end on or after it. The AFTER date must not be before start_date, and a BEFORE
+  date must be later than the AFTER date (else ValidationException). Not has no effect
+  on these two keys: Not(BEFORE) returns the same RIs as BEFORE. Undocumented upstream,
+  so they may change.
+CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION and OPERATING_SYSTEM are rejected here,
+and so are Tags and CostCategories expressions ("Tags expression is not allowed").
 
 SORTING (sort_by): {"Key": "<key>", "SortOrder": "DESCENDING"} (or "ASCENDING").
-SortOrder is required and upper case; "descending" is a ValidationException. Keys
-differ per operation; any other key returns "Unsupported sortKey":
+SortOrder is required and upper case; "descending" is a ValidationException.
+get_reservation_utilization applies sort_by only with group_by; without group_by it
+ignores the key (no sorting, and a wrong key is not reported), though a SortOrder other
+than ASCENDING or DESCENDING is still rejected. Keys differ per operation; any other key
+returns "Unsupported sortKey":
 - get_reservation_coverage: CoverageHoursPercentage, CoverageNormalizedUnitsPercentage,
   OnDemandCost, OnDemandHours, OnDemandNormalizedUnits, ReservedHours,
   ReservedNormalizedUnits, TotalRunningHours, TotalRunningNormalizedUnits, Time
@@ -116,8 +124,12 @@ differ per operation; any other key returns "Unsupported sortKey":
   AmortizedUpfrontFee, AmortizedRecurringFee, TotalAmortizedFee, RICostForUnusedHours,
   RealizedSavings, UnrealizedSavings
 
-FILTERING (both operations): the Cost Explorer Expression supports only AND among
-dimensions and nests one level deep; multiple values for one dimension are OR'd.
+FILTERING (both operations): a filter is one leaf (Dimensions; for coverage also Tags or
+CostCategories), Not of one leaf, or an And of leaves and Not-leaves. Or anywhere, an And
+inside an And, or a Not around anything but a leaf is a ValidationException ("Invalid
+expression"). Each dimension (tags excepted) may appear only once per filter ("filtered
+more than once"); put several values in one leaf instead, and they are OR'd, within the
+limits above for SERVICE and the SUBSCRIPTION_END keys.
 The SERVICE filter defaults to Amazon Elastic Compute Cloud - Compute when omitted.
 
 DATA FRESHNESS: Reserved Instance utilization data for the most recent 2-3 days
@@ -179,7 +191,7 @@ async def ri_performance(
         metrics: List of metrics to retrieve for coverage as a JSON string (e.g., '["Hour", "Cost"]'). Valid values are Hour, Unit and Cost; Unit is EC2 only. Defaults to Hour only.
         group_by: Optional grouping as a JSON string. For coverage: AZ, CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION, INSTANCE_TYPE, INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PLATFORM, REGION, or TENANCY, depending on the service (see the tool description) (SERVICE is NOT valid — filter on it instead). For utilization: SUBSCRIPTION_ID only.
         filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE defaults to EC2 when omitted; valid coverage SERVICE values are "Amazon Elastic Compute Cloud - Compute", "Amazon Relational Database Service", "Amazon ElastiCache", "Amazon MemoryDB", "Amazon Redshift", "Amazon OpenSearch Service", and "Amazon Elasticsearch Service" (use the full display name, not "EC2"/"RDS"); coverage takes one SERVICE value per call and rejects more. SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
-        sort_by: Optional sort as a JSON string: '{"Key": "<key>", "SortOrder": "DESCENDING"}'. SortOrder is required: ASCENDING or DESCENDING, upper case only. Valid keys differ per operation (see SORTING in the tool description).
+        sort_by: Optional sort as a JSON string: '{"Key": "<key>", "SortOrder": "DESCENDING"}'. SortOrder is required: ASCENDING or DESCENDING, upper case only. Valid keys differ per operation (see SORTING in the tool description). get_reservation_utilization ignores sort_by without group_by.
         max_items: Total number of groups to return across all pages. Omit it to fetch every
             page. Applies only to get_reservation_coverage with group_by set.
         next_token: The pagination.next_token from a previous response; continue with otherwise
