@@ -1933,6 +1933,10 @@ class TestCostExplorerDescriptionContract:
         assert 'most CUR Fee rows as Upfront, Other or Support' in record_type
         assert 'use Upfront for RI upfront fees, Other for other subscription fees' in record_type
         assert 'RIFee and Fee match nothing' not in record_type
+        # The list is not exhaustive: any unmapped CUR line-item type passes through unchanged.
+        assert 'Exact' not in record_type
+        assert 'Any other CUR line-item type' in record_type
+        assert 'passes through unchanged' in record_type
         assert 'getDimensionValues with RECORD_TYPE' in record_type
 
     @pytest.mark.parametrize(
