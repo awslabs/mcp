@@ -233,21 +233,22 @@ budget over last month?" or "which months breached?"; the `budgets` tool covers 
 period. Read-only.
 
 - Only DAILY, MONTHLY and QUARTERLY budgets have history. A CUSTOM or ANNUALLY budget returns a
-  validation_error; an ANNUALLY budget defined with metrics or a filter expression that has no
-  history yet can return empty `periods` with a null `time_unit` instead.
+  validation_error.
 - The tool returns the service's default window: up to 13 MONTHLY periods (this month and the
-  previous 12), 4 QUARTERLY periods or 60 DAILY periods. A budget can have fewer.
+  previous 12), 4 QUARTERLY periods or 60 DAILY periods. History starts when the budget was
+  created (or re-created), whatever its start date, so a newer budget returns fewer periods:
+  one created this period returns only the current one.
 - `periods` are oldest first. Each has `start` and `end` (UTC dates; the end is exclusive, the
-  start of the next period), `budgeted_amount` (the limit that applied in that period) and
-  `actual_amount` (null when no actual data is available). The last period is usually still in
-  progress, so its actual amount is to date, not final.
+  start of the next period), `budgeted_amount` (the limit that applied in that period; null when
+  the budget had none for it) and `actual_amount` (null when no actual data is available). The
+  last period is the one containing today, so its actual amount is to date, not final.
 - Amounts are decimal strings with a `unit`: compare them as numbers. For RI and Savings Plans
   utilization and coverage budgets they are percentages, and a period breached when
   `actual_amount` is below `budgeted_amount`; for COST and USAGE budgets, when it is above.
 - `actual_amount` is measured with the budget's own filter and cost settings, so it can differ
   from an unfiltered Cost Explorer total.
-- `time_unit` is null for budgets defined with metrics or a filter expression rather than cost
-  filters and cost types; the `budgets` tool always returns the time unit.
+- `time_unit` is often null: the service omits it for many budgets, and nothing in a budget's
+  definition shows which. Take the time unit from the `budgets` tool, which always returns it.
 - An unknown `budget_name` (an exact name) returns NotFoundException.
 
 Pagination: the whole history fits in one page (at most 60 periods), so omit `max_items`;
@@ -569,7 +570,7 @@ BUDGETS_DESCRIBE_BUDGET_PERFORMANCE_HISTORY = PageSpec(
 )
 
 # The API's InvalidParameterException text for a budget whose time unit has no history
-# (CUSTOM, and ANNUALLY once it has history records).
+# (CUSTOM and ANNUALLY; a budget gets a history record when it is created).
 _UNSUPPORTED_HISTORY_MESSAGE = 'does not support custom time periods'
 
 
@@ -623,7 +624,8 @@ async def describe_budget_performance_history(
 
     history = (pages[0] if pages else {}).get('BudgetPerformanceHistory') or {}
     if history.get('TimeUnit') == 'ANNUALLY' and not periods:
-        # An ANNUALLY budget with no history records yet is not rejected by the API.
+        # The API rejects an ANNUALLY budget only when its history query finds a record, which a
+        # budget gets on creation; a missing record (a rare data gap) returns no periods instead.
         return _no_history_error(budget_name)
     # At most 60 periods, so unlike budget-actions this is never offloaded to session SQL.
     data = {

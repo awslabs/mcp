@@ -319,13 +319,19 @@ async def test_description_documents_history_rules():
         'validation_error',
         '13',
         'end is exclusive',
-        'in progress',
+        'the one containing today',
         'budgeted_amount',
+        'null when the budget had none for it',
         'actual_amount',
         'Read-only',
-        'null for budgets defined with metrics or a filter expression rather than cost filters and cost types',
+        'History starts when the budget was created',
+        "nothing in a budget's definition shows which",
     ):
         assert text in description, text
+    # A new ANNUALLY budget is rejected like CUSTOM, and the service's TimeUnit omission does not
+    # follow the budget's visible definition (checked live).
+    for text in ('no history yet', 'null for budgets defined with metrics', 'usually still in'):
+        assert text not in description, text
     assert tool.parameters['required'] == ['budget_name']
 
 
