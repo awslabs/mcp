@@ -430,8 +430,8 @@ using the Cost Explorer GetAnomalyMonitors and GetAnomalySubscriptions APIs. Use
 the monitor behind an anomaly tracks and who is alerted; use cost-anomaly for the anomalies.
 This tool is read-only.
 
-Operations:
-1. list_monitors (default): returns data.monitors.
+operation (required): list_monitors or list_subscriptions; any other value is a validation_error.
+1. list_monitors: returns data.monitors.
    - monitor_type DIMENSIONAL tracks each value of monitor_dimension (SERVICE, LINKED_ACCOUNT,
      TAG or COST_CATEGORY) separately, and dimensional_value_count is how many values it tracks.
      An anomaly's dimension_value from such a monitor is one of those values: a service name for
@@ -465,7 +465,7 @@ Pagination:
 )
 async def cost_anomaly_monitors(
     ctx: Context,
-    operation: str = 'list_monitors',
+    operation: str,
     monitor_arn: Optional[str] = None,
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
@@ -474,7 +474,7 @@ async def cost_anomaly_monitors(
 
     Args:
         ctx: The MCP context object
-        operation: 'list_monitors' (default) or 'list_subscriptions'.
+        operation: Required. 'list_monitors' or 'list_subscriptions'.
         monitor_arn: Optional monitor ARN. list_monitors returns only that monitor;
             list_subscriptions returns only the subscriptions attached to it.
         max_items: Optional total number of items to return. None fetches every page.
@@ -483,6 +483,16 @@ async def cost_anomaly_monitors(
     Returns:
         Dict containing the monitors or subscriptions and a pagination block
     """
+    if operation not in MONITOR_OPERATIONS:
+        return format_response(
+            'error',
+            {'invalid_parameter': 'operation', 'value': operation},
+            f'Unsupported operation: {operation}. Use one of: {", ".join(MONITOR_OPERATIONS)}.',
+            error_type='validation_error',
+            operation='cost_anomaly_monitors',
+            service='Cost Explorer',
+        )
+
     if monitor_arn is not None:
         monitor_arn = monitor_arn.strip()
     if monitor_arn == '':
@@ -490,16 +500,6 @@ async def cost_anomaly_monitors(
             'error',
             {'invalid_parameter': 'monitor_arn'},
             'monitor_arn is empty. Pass a monitor ARN, or omit monitor_arn to list them all.',
-            error_type='validation_error',
-            operation='cost_anomaly_monitors',
-            service='Cost Explorer',
-        )
-
-    if operation not in MONITOR_OPERATIONS:
-        return format_response(
-            'error',
-            {'invalid_parameter': 'operation', 'value': operation},
-            f'Unsupported operation: {operation}. Use one of: {", ".join(MONITOR_OPERATIONS)}.',
             error_type='validation_error',
             operation='cost_anomaly_monitors',
             service='Cost Explorer',

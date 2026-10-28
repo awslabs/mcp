@@ -14,6 +14,7 @@
 
 """Tests for the cost-anomaly-monitors tool (anomaly monitors and alert subscriptions)."""
 
+import fastmcp
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.cost_anomaly_tools import (
     cost_anomaly_server,
@@ -21,6 +22,7 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_anomaly_tools import 
 from botocore.exceptions import ClientError
 from fastmcp import Context
 from fastmcp.tools import FunctionTool
+from mcp.types import TextContent
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -128,15 +130,54 @@ class TestListMonitors:
         ]
         assert result['data']['pagination']['complete_dataset'] is True
 
-    async def test_default_operation_is_list_monitors(self, mock_context):
-        """Omitting operation lists monitors."""
+    async def test_operation_is_required_in_schema(self):
+        """Operation has no default: the served schema lists it as required."""
+        tool = await _tool()
+
+        assert 'operation' in tool.parameters['required']
+        assert 'default' not in tool.parameters['properties']['operation']
+
+    @pytest.mark.parametrize('arguments', [{}, {'operation': None}, {'operation': 5}])
+    async def test_missing_or_non_string_operation_fails_without_aws_call(self, arguments):
+        """Over MCP, a missing or non-string operation fails argument validation; no client."""
+        with patch(CLIENT_PATH) as create_client:
+            async with fastmcp.Client(cost_anomaly_server) as client:
+                result = await client.call_tool(
+                    'cost-anomaly-monitors', arguments, raise_on_error=False
+                )
+
+        assert result.is_error
+        content = result.content[0]
+        assert isinstance(content, TextContent)
+        assert 'operation' in content.text
+        create_client.assert_not_called()
+
+    @pytest.mark.parametrize(
+        'operation',
+        ['', ' list_monitors', 'list_monitors ', 'LIST_MONITORS', 'List_Subscriptions', None],
+    )
+    async def test_only_exact_operation_values_succeed(self, mock_context, operation):
+        """Empty, padded, wrong-case and None values are a validation_error; no AWS call."""
         client = MagicMock()
-        client.get_anomaly_monitors.return_value = {'AnomalyMonitors': []}
 
-        result, _ = await _call(mock_context, client)
+        result, create_client = await _call(mock_context, client, operation=operation)
 
-        assert result['status'] == 'success'
-        assert result['data']['monitors'] == []
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == 'operation'
+        assert 'list_monitors' in result['message']
+        assert 'list_subscriptions' in result['message']
+        create_client.assert_not_called()
+
+    async def test_bad_operation_is_reported_before_bad_monitor_arn(self, mock_context):
+        """With both an invalid operation and an empty monitor_arn, the operation is reported."""
+        result, create_client = await _call(
+            mock_context, MagicMock(), operation='x', monitor_arn=' '
+        )
+
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == 'operation'
+        create_client.assert_not_called()
 
     async def test_monitor_arn_filters_to_one_monitor(self, mock_context):
         """monitor_arn is sent as a one-item MonitorArnList."""
