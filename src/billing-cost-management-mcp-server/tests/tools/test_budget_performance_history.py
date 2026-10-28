@@ -130,7 +130,7 @@ class TestBudgetPerformanceHistory:
         assert result['data']['periods'][0]['actual_amount'] is None
 
     async def test_time_unit_missing_from_response(self, mock_context):
-        """Budgets that use a filter expression return no TimeUnit; time_unit is null."""
+        """Current-form budgets (metrics or a filter expression) return no TimeUnit; time_unit is null."""
         client = MagicMock()
         history = _history([_period(9, '150.0', '1.0')])
         del history['BudgetPerformanceHistory']['TimeUnit']
@@ -323,6 +323,7 @@ async def test_description_documents_history_rules():
         'budgeted_amount',
         'actual_amount',
         'Read-only',
+        'null for budgets defined with metrics or a filter expression rather than cost filters and cost types',
     ):
         assert text in description, text
     assert tool.parameters['required'] == ['budget_name']

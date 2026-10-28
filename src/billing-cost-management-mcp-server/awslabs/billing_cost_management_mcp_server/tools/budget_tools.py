@@ -233,8 +233,8 @@ budget over last month?" or "which months breached?"; the `budgets` tool covers 
 period. Read-only.
 
 - Only DAILY, MONTHLY and QUARTERLY budgets have history. A CUSTOM or ANNUALLY budget returns a
-  validation_error; an ANNUALLY budget that uses a filter expression and has no history yet can
-  return empty `periods` with a null `time_unit` instead.
+  validation_error; an ANNUALLY budget defined with metrics or a filter expression that has no
+  history yet can return empty `periods` with a null `time_unit` instead.
 - The tool returns the service's default window: up to 13 MONTHLY periods (this month and the
   previous 12), 4 QUARTERLY periods or 60 DAILY periods. A budget can have fewer.
 - `periods` are oldest first. Each has `start` and `end` (UTC dates; the end is exclusive, the
@@ -246,7 +246,8 @@ period. Read-only.
   `actual_amount` is below `budgeted_amount`; for COST and USAGE budgets, when it is above.
 - `actual_amount` is measured with the budget's own filter and cost settings, so it can differ
   from an unfiltered Cost Explorer total.
-- `time_unit` is null for budgets that use a filter expression; the `budgets` tool returns it.
+- `time_unit` is null for budgets defined with metrics or a filter expression rather than cost
+  filters and cost types; the `budgets` tool always returns the time unit.
 - An unknown `budget_name` (an exact name) returns NotFoundException.
 
 Pagination: the whole history fits in one page (at most 60 periods), so omit `max_items`;
