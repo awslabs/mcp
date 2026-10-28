@@ -16,12 +16,14 @@
 
 import boto3
 import pytest
+import sqlite3
 from awslabs.billing_cost_management_mcp_server.tools.business_support_operations import (
     ACCOUNT_CHARGES_SUMMARY_FIELDS,
     EARLIEST_BILLING_MONTH,
     list_account_charges,
     list_subscription_history,
 )
+from awslabs.billing_cost_management_mcp_server.utilities import sql_utils
 from botocore.exceptions import ClientError, EndpointConnectionError
 from botocore.stub import Stubber
 from datetime import datetime, timezone
@@ -975,6 +977,111 @@ class TestRealPaginator:
 
 
 # ---------------------------------------------------------------------------
+# Real SQL offload (convert_response_if_needed is NOT mocked)
+# ---------------------------------------------------------------------------
+
+
+def _stored_table(table_name: str):
+    """Return the column names and row count of an offloaded session table."""
+    with sqlite3.connect(sql_utils.get_session_db_path()) as conn:
+        columns = [row[1] for row in conn.execute(f'PRAGMA table_info("{table_name}")')]
+        (count,) = conn.execute(f'SELECT COUNT(*) FROM "{table_name}"').fetchone()
+    return columns, count
+
+
+class TestSqlOffload:
+    """With MCP_FORCE_SQL on, results are stored as real rows and keep their totals."""
+
+    @pytest.fixture(autouse=True)
+    def force_sql(self, tmp_path):
+        """Force every response through the SQL offloader into a temporary database.
+
+        MCP_FORCE_SQL is read once at import into FORCE_SQL_CONVERSION, so the flag
+        itself is patched; the session database is pointed at tmp_path so the test
+        can read the stored table back without touching the shared sessions folder.
+        """
+        with (
+            patch.object(sql_utils, 'FORCE_SQL_CONVERSION', True),
+            patch.object(sql_utils, '_SESSION_DB_PATH', str(tmp_path / 'session.db')),
+        ):
+            yield
+
+    @pytest.mark.asyncio
+    async def test_account_charges_offload_keeps_summary_and_rows(self, mock_context):
+        """The totals stay on the sentinel and each charge is its own row."""
+        result = await _run_with_stubbed_pages(
+            mock_context,
+            list_account_charges,
+            'list_business_support_account_charges',
+            [
+                (
+                    {'billingMonth': '2026-06', 'maxResults': 100},
+                    {
+                        **CHARGES_SUMMARY,
+                        'accountCharges': [
+                            CHARGE_ROW,
+                            {**CHARGE_ROW, 'accountId': '444455556666'},
+                        ],
+                    },
+                ),
+            ],
+            billing_month='2026-06',
+        )
+
+        assert result['status'] == 'success'
+        data = result['data']
+        assert data['data_stored'] is True
+        assert data['isEstimated'] is True
+        assert data['totalSupportCharge'] == '1000.00'
+        assert data['totalSupportEligibleSpend'] == '20000.00'
+        assert data['accountCount'] == 2
+        assert data['billingMonth'] == '2026-06'
+
+        columns, count = _stored_table(data['table_name'])
+        assert count == 2
+        assert 'accountId' in columns
+        assert 'totalCharge' in columns
+        assert columns != ['key', 'value']
+
+    @pytest.mark.asyncio
+    async def test_subscription_history_offload_stores_one_row_per_contract(self, mock_context):
+        """Each subscription contract is its own row, not one JSON string."""
+        contract = {
+            'accountId': '111122223333',
+            'planName': 'AWSSupportBusiness',
+            'contractStartDate': datetime(2025, 6, 1, tzinfo=timezone.utc),
+            'contractEndDate': datetime(2026, 6, 1, tzinfo=timezone.utc),
+        }
+        result = await _run_with_stubbed_pages(
+            mock_context,
+            list_subscription_history,
+            'list_business_support_subscription_history',
+            [
+                (
+                    {'billingMonth': '2026-06', 'maxResults': 100},
+                    {
+                        'subscriptionContracts': [
+                            contract,
+                            {**contract, 'accountId': '444455556666'},
+                        ]
+                    },
+                ),
+            ],
+            billing_month='2026-06',
+        )
+
+        assert result['status'] == 'success'
+        data = result['data']
+        assert data['data_stored'] is True
+
+        columns, count = _stored_table(data['table_name'])
+        assert count == 2
+        assert 'planName' in columns
+        assert 'contractEndDate' in columns
+        assert columns != ['key', 'value']
+
+
+# ---------------------------------------------------------------------------
 # Validation error contract
 # ---------------------------------------------------------------------------
 
@@ -1164,6 +1271,33 @@ class TestSharedErrorClassification:
 
         assert result['status'] == 'error'
         assert result['error_type'] == 'not_found'
+
+    @pytest.mark.asyncio
+    async def test_access_denied_is_logged_as_error(self, mock_context):
+        """A classified access denial still reaches the context logger."""
+        error = _make_client_error('AccessDeniedException')
+        await _run_with_error(
+            mock_context, list_account_charges, error, billing_month=_previous_month()
+        )
+
+        mock_context.error.assert_awaited_once()
+        logged = mock_context.error.await_args.args[0]
+        assert 'ListBusinessSupportAccountCharges' in logged
+        assert 'access_denied' in logged
+
+    @pytest.mark.asyncio
+    async def test_not_found_is_logged_as_warning(self, mock_context):
+        """A classified not-found is logged at warning level, not error."""
+        error = _make_client_error('ResourceNotFoundException')
+        await _run_with_error(
+            mock_context, list_subscription_history, error, billing_month=_previous_month()
+        )
+
+        mock_context.warning.assert_awaited_once()
+        mock_context.error.assert_not_awaited()
+        logged = mock_context.warning.await_args.args[0]
+        assert 'ListBusinessSupportSubscriptionHistory' in logged
+        assert 'not_found' in logged
 
     @pytest.mark.asyncio
     async def test_throttling_falls_through_to_shared_handler(self, mock_context):

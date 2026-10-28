@@ -31,6 +31,7 @@ from ..utilities.aws_service_base import (
     paginate_aws_items,
     with_pagination,
 )
+from ..utilities.logging_utils import get_context_logger
 from ..utilities.sql_utils import convert_response_if_needed
 from ..utilities.time_utils import normalize_datetimes_to_iso
 from botocore.exceptions import ClientError
@@ -174,6 +175,18 @@ async def _handle_business_support_error(
         if classified:
             error_type, message, resolution = classified
             metadata = error.response.get('ResponseMetadata', {})
+            request_id = metadata.get('RequestId', 'Unknown')
+            # These return before handle_aws_error, so log them here; otherwise
+            # the classified failures would be the only ones missing from the logs.
+            ctx_logger = get_context_logger(ctx, __name__)
+            log_message = (
+                f"Billing operation '{api_name}' failed with {aws_error.get('Code', '')} "
+                f'(classified as {error_type}, request_id={request_id})'
+            )
+            if error_type == 'access_denied':
+                await ctx_logger.error(log_message)
+            else:
+                await ctx_logger.warning(log_message)
             return {
                 'status': 'error',
                 'service': 'Billing',
@@ -182,7 +195,7 @@ async def _handle_business_support_error(
                 'message': message,
                 'resolution': resolution,
                 'aws_message': aws_error.get('Message', ''),
-                'request_id': metadata.get('RequestId', 'Unknown'),
+                'request_id': request_id,
                 'http_status': metadata.get('HTTPStatusCode', 0),
             }
 
@@ -522,17 +535,22 @@ async def _finalize_account_charges(
     Returns:
         The standardized success envelope.
     """
+    summary = first_page_fields(pages, ACCOUNT_CHARGES_SUMMARY_FIELDS)
     data: Dict[str, Any] = {
-        **first_page_fields(pages, ACCOUNT_CHARGES_SUMMARY_FIELDS),
+        **summary,
         'account_charges': normalize_datetimes_to_iso(charges),
     }
     response = with_pagination(data, pagination)
+    # The summary fields also go to the offload sentinel as metadata, so an
+    # oversized result stored for SQL still carries isEstimated and the totals
+    # in its data instead of only inside the stored table.
     converted = await convert_response_if_needed(
         ctx,
         response,
         'business_support_list_account_charges',
         billing_month=billing_month,
         account_id=account_id,
+        **summary,
     )
     return format_response('success', converted)
 
