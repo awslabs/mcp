@@ -220,6 +220,9 @@ PAYMENT_OPTION_MAP = {
 # Account scope mapping
 ACCOUNT_SCOPE_MAP = {'Linked': 'LINKED', 'Payer': 'PAYER'}
 
+# EC2 RI offering class mapping (Cost Optimization Hub -> Cost Explorer)
+OFFERING_CLASS_MAP = {'Standard': 'STANDARD', 'Convertible': 'CONVERTIBLE'}
+
 # Lookback period mapping
 LOOKBACK_PERIOD_MAP = {
     7: 'SEVEN_DAYS',

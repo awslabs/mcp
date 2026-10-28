@@ -17,6 +17,8 @@
 Updated to use shared utility functions.
 """
 
+import botocore.session
+import functools
 import os
 from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
 from ..utilities.constants import (
@@ -26,6 +28,7 @@ from ..utilities.constants import (
     ACTION_TYPE_PURCHASE_SAVINGS_PLAN,
     ACTION_TYPE_STOP,
     LOOKBACK_PERIOD_MAP,
+    OFFERING_CLASS_MAP,
     PAYMENT_OPTION_MAP,
     RESOURCE_TYPE_EBS_VOLUME,
     RESOURCE_TYPE_EC2_ASG,
@@ -39,7 +42,7 @@ from ..utilities.constants import (
 )
 from ..utilities.time_utils import format_timestamp_to_utc_iso
 from fastmcp import Context, FastMCP
-from typing import Any, Dict, Optional
+from typing import Any, Dict, FrozenSet, List, Optional
 
 
 recommendation_details_server = FastMCP(
@@ -61,8 +64,15 @@ It provides comprehensive analysis with utilization metrics, savings calculation
 
 COMMITMENT PURCHASE DETAILS:
 - For PurchaseReservedInstances, additional_details is the Cost Explorer reservation purchase
-  recommendation for the recommendation's service, term and payment option. It may list several
-  instance types and regions; EstimatedBreakEvenInMonths is per RecommendationDetails row.
+  recommendation for the recommendation's service, term, payment option and, for EC2, offering
+  class; EstimatedBreakEvenInMonths is per RecommendationDetails row.
+- Cost Explorer is asked for the recommendation's account scope (Payer or Linked), filtered to
+  the recommendation's account when Linked. RecommendationDetails and
+  SavingsPlansPurchaseRecommendationDetails then keep only the rows for the recommendation's
+  own account (and, for EC2 RIs, its instance type and region). The summary is not recomputed
+  from the kept rows: it totals every row Cost Explorer returned, which for RIs spans other
+  instance types and regions, so use the kept row(s) for this recommendation. A top-level "note"
+  key in additional_details counts dropped rows; "warning" means none matched.
 - Savings Plans recommendations carry no break-even. They return EstimatedROI (estimated savings /
   Savings Plan cost x 100 over the lookback period), which is not a payback period.
 
@@ -184,15 +194,141 @@ async def get_cost_explorer_data(ctx: Context, recommendation: Dict[str, Any]) -
     try:
         if action_type == ACTION_TYPE_PURCHASE_SAVINGS_PLAN:
             # Handle Savings Plans recommendations
-            return await get_savings_plans_recommendation(ctx, recommendation, ce_client)
+            details = await get_savings_plans_recommendation(ctx, recommendation, ce_client)
+            return scope_savings_plans_details(details, recommendation)
         elif action_type == ACTION_TYPE_PURCHASE_RESERVED_INSTANCE:
             # Handle Reserved Instance recommendations
-            return await get_reserved_instances_recommendation(ctx, recommendation, ce_client)
+            details = await get_reserved_instances_recommendation(ctx, recommendation, ce_client)
+            return scope_reserved_instances_details(details, recommendation)
         else:
             return {'error': 'Unsupported action type for Cost Explorer data'}
     except Exception as e:
         await ctx.error(f'Error getting Cost Explorer data: {str(e)}')
         return {'error': f'Error getting Cost Explorer data: {str(e)}'}
+
+
+def commitment_config(recommendation: Dict[str, Any], key_map: Dict[str, str]) -> tuple:
+    """Return the (key, configuration) of the recommendation's commitment details."""
+    recommended_details = recommendation.get('recommendedResourceDetails', {})
+    key = next((k for k in recommended_details if k in key_map), None)
+    if not key:
+        return None, {}
+    return key, recommended_details[key].get('configuration', {})
+
+
+def linked_account(config: Dict[str, Any], recommendation: Dict[str, Any]) -> Optional[str]:
+    """Return the account ID of a Linked recommendation, else None."""
+    if config.get('accountScope') != 'Linked':
+        return None
+    return recommendation.get('accountId') or None
+
+
+def linked_account_filter(
+    config: Dict[str, Any], recommendation: Dict[str, Any]
+) -> Optional[Dict[str, Any]]:
+    """Cost Explorer Filter that narrows a Linked recommendation to its own account."""
+    # Cost Explorer rejects an AccountId other than the caller's own account, so a
+    # management account cannot name a member account there; LINKED_ACCOUNT can.
+    account_id = linked_account(config, recommendation)
+    if not account_id:
+        return None
+    return {'Dimensions': {'Key': 'LINKED_ACCOUNT', 'Values': [account_id]}}
+
+
+@functools.lru_cache(maxsize=None)
+def region_names(region_code: str) -> Optional[FrozenSet[str]]:
+    """Names Cost Explorer may give a Region code in RI rows, or None if it is unknown."""
+    for partition in botocore.session.get_session().get_data('endpoints').get('partitions', []):
+        description = partition.get('regions', {}).get(region_code, {}).get('description')
+        if description:
+            # Cost Explorer names older European Regions 'EU (...)', e.g. 'EU (Paris)'.
+            return frozenset(
+                {region_code, description, description.replace('Europe (', 'EU (', 1)}
+            )
+    return None
+
+
+def keep_matching_rows(rows: List[Dict[str, Any]], matches) -> tuple:
+    """Return (kept rows, number of rows dropped)."""
+    kept = [row for row in rows if matches(row)]
+    return kept, len(rows) - len(kept)
+
+
+def scope_reserved_instances_details(
+    response: Dict[str, Any], recommendation: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Keep only the RI rows for the recommendation's account, instance type and Region."""
+    if 'Recommendations' not in response:
+        return response
+    ri_key, config = commitment_config(recommendation, SERVICE_MAP)
+    account_id = linked_account(config, recommendation)
+    criteria: Dict[str, str] = {'account': account_id} if account_id else {}
+    instance_type = config.get('instanceType')
+    region = config.get('reservedInstancesRegion')
+    names = region_names(region) if region else None
+    # Only EC2InstanceDetails is checked against the COH instance type and Region.
+    if ri_key == 'ec2ReservedInstances':
+        if instance_type:
+            criteria['instance type'] = instance_type
+        if names:
+            criteria['region'] = region
+
+    def matches(row: Dict[str, Any]) -> bool:
+        ec2 = row.get('InstanceDetails', {}).get('EC2InstanceDetails', {})
+        return (
+            (not account_id or row.get('AccountId') == account_id)
+            and ('instance type' not in criteria or ec2.get('InstanceType') == instance_type)
+            and ('region' not in criteria or ec2.get('Region') in (names or ()))
+        )
+
+    dropped = kept = 0
+    for ri in response['Recommendations']:
+        rows, removed = keep_matching_rows(ri.get('RecommendationDetails', []), matches)
+        ri['RecommendationDetails'] = rows
+        dropped += removed
+        kept += len(rows)
+    return add_scope_notes(response, criteria, kept, dropped, 'RecommendationDetails')
+
+
+def scope_savings_plans_details(
+    details: Dict[str, Any], recommendation: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Keep only the Savings Plans rows for a Linked recommendation's account."""
+    if 'SavingsPlansPurchaseRecommendationDetails' not in details:
+        return details
+    _, config = commitment_config(recommendation, SAVINGS_PLANS_TYPE_MAP)
+    account_id = linked_account(config, recommendation)
+    criteria: Dict[str, str] = {'account': account_id} if account_id else {}
+    rows, dropped = keep_matching_rows(
+        details['SavingsPlansPurchaseRecommendationDetails'],
+        lambda row: not account_id or row.get('AccountId') == account_id,
+    )
+    details['SavingsPlansPurchaseRecommendationDetails'] = rows
+    return add_scope_notes(
+        details, criteria, len(rows), dropped, 'SavingsPlansPurchaseRecommendationDetails'
+    )
+
+
+def add_scope_notes(
+    result: Dict[str, Any], criteria: Dict[str, str], kept: int, dropped: int, rows_key: str
+) -> Dict[str, Any]:
+    """Say when rows were dropped (the summary still covers them) or none matched."""
+    wanted = ', '.join(f'{name} {value}' for name, value in criteria.items()) or 'its scope'
+    if kept == 0:
+        result['warning'] = (
+            f'Cost Explorer returned no {rows_key} row for this recommendation ({wanted}). '
+            'Cost Explorer may have regenerated its recommendations since Cost Optimization '
+            'Hub produced this one.'
+        )
+        if result.get('NextPageToken'):
+            result['warning'] += ' Only the first page was read; the row may be on a later page.'
+    elif dropped:
+        result['note'] = (
+            f'{rows_key} keeps only the {kept} row(s) for {wanted}; {dropped} other row(s) '
+            "were dropped. Cost Explorer's summary still totals all of them, so use the kept "
+            'row(s) for this recommendation.'
+        )
+    return result
 
 
 def missing_details_error(recommended_details: Dict[str, Any], kind: str) -> Dict[str, Any]:
@@ -269,6 +405,10 @@ async def get_savings_plans_recommendation(
         if lookback_value is not None:
             params['LookbackPeriodInDays'] = lookback_value
 
+    account_filter = linked_account_filter(config, recommendation)
+    if account_filter:
+        params['Filter'] = account_filter
+
     try:
         # Call Cost Explorer API
         response = ce_client.get_savings_plans_purchase_recommendation(**params)
@@ -323,6 +463,22 @@ async def get_reserved_instances_recommendation(
         lookback_value = LOOKBACK_PERIOD_MAP.get(lookback_period)
         if lookback_value is not None:
             params['LookbackPeriodInDays'] = lookback_value
+
+    # Map account scope (when omitted, Cost Explorer uses the caller's own: PAYER for a payer)
+    account_scope = config.get('accountScope')
+    if account_scope in ACCOUNT_SCOPE_MAP:
+        params['AccountScope'] = ACCOUNT_SCOPE_MAP[account_scope]
+
+    account_filter = linked_account_filter(config, recommendation)
+    if account_filter:
+        params['Filter'] = account_filter
+
+    # Map EC2 offering class; ServiceSpecification has no member for other services
+    offering_class = config.get('offeringClass')
+    if ri_key == 'ec2ReservedInstances' and offering_class in OFFERING_CLASS_MAP:
+        params['ServiceSpecification'] = {
+            'EC2Specification': {'OfferingClass': OFFERING_CLASS_MAP[offering_class]}
+        }
 
     try:
         # Call Cost Explorer API
