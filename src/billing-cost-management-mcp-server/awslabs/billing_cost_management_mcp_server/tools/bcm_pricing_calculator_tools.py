@@ -138,7 +138,8 @@ async def bcm_pricing_calc_core(
         service_code_filter: Filter by AWS service code
         usage_type_filter: Filter by usage type
         operation_filter: Filter by operation name
-        location_filter: Filter by region code (e.g. us-east-1)
+        location_filter: Filter by location: usually a region code (e.g. us-east-1), or a
+            Local Zone or Wavelength Zone code
         usage_group_filter: Filter by usage group
         next_token: Continuation token from a previous response (list operations only)
         max_items: Total items to return (list operations only). None fetches every page.
@@ -327,9 +328,14 @@ async def bcm_pricing_calc(
         operation_filter: Filter usage lines whose operation contains this text
             (CONTAINS, case-sensitive). RunInstances also matches RunInstances:0002
             and the other platform variants; an exact match is not available.
-        location_filter: Filter usage lines by region code (EQUALS, case-sensitive),
-            e.g. us-east-1. A location name such as US East (N. Virginia), as used
-            by aws-pricing, matches nothing.
+        location_filter: Filter usage lines by location (EQUALS, case-sensitive):
+            usually a region code such as us-east-1, but a Local Zone or Wavelength
+            Zone code (e.g. us-east-1-lim-1) for usage there. A region code does not
+            match its Local Zones' lines. Global usage such as CloudFront or Global
+            Accelerator has an empty location, which this tool cannot select (an empty
+            location_filter means no filter). An Availability Zone (us-east-1a) or a
+            location name such as US East (N. Virginia), as used by aws-pricing,
+            matches nothing.
         usage_group_filter: Filter usage lines by usage group (EQUALS, case-sensitive).
         next_token: Continuation token from a previous response (list operations only).
         max_items: Total items to return (list operations only). None fetches every page.
@@ -716,7 +722,8 @@ async def list_workload_estimate_usage(
         service_code_filter: Filter by AWS service code (EQUALS, e.g. AmazonEC2, AmazonS3)
         usage_type_filter: Filter by usage type (CONTAINS)
         operation_filter: Filter by operation name (CONTAINS)
-        location_filter: Filter by region code (EQUALS, e.g. us-east-1)
+        location_filter: Filter by location (EQUALS): usually a region code (e.g. us-east-1),
+            or a Local Zone or Wavelength Zone code
         usage_group_filter: Filter by usage group (EQUALS)
         next_token: Continuation token from a previous response
         max_items: Total items to return. None fetches every page.

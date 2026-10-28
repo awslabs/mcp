@@ -2386,13 +2386,40 @@ class TestFilterArgDocs:
         assert 'RunInstances:0002' in (await self._docs())['operation_filter']
 
     @pytest.mark.asyncio
-    async def test_location_filter_takes_a_region_code(self):
-        """location_filter takes a region code; the aws-pricing display name matches nothing."""
-        doc = (await self._docs())['location_filter']
-        assert 'region code' in doc
-        assert 'us-east-1' in doc
+    async def test_location_filter_documents_the_location_values(self):
+        """Local Zone codes, empty global usage, no AZs, and names that match nothing."""
+        doc = ' '.join((await self._docs())['location_filter'].split())
+        assert 'usually a region code such as us-east-1' in doc
+        assert 'Local Zone or Wavelength Zone code (e.g. us-east-1-lim-1)' in doc
+        assert "A region code does not match its Local Zones' lines." in doc
+        assert 'empty location, which this tool cannot select' in doc
+        assert 'an empty location_filter means no filter' in doc
+        assert 'Availability Zone (us-east-1a)' in doc
         assert 'US East (N. Virginia)' in doc
+        assert 'Filter usage lines by region code' not in doc
         assert 'location/region' not in doc
+
+    @pytest.mark.asyncio
+    async def test_empty_location_filter_sends_no_location_filter(self):
+        """An empty location_filter is no filter, so empty-location lines cannot be selected."""
+        client = MagicMock()
+        client.list_workload_estimate_usage.return_value = {'items': []}
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
+                return_value=client,
+            ),
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences',
+                new=AsyncMock(return_value={'account_types': ['management account']}),
+            ),
+        ):
+            ctx = MagicMock()
+            ctx.info = AsyncMock()
+            await list_workload_estimate_usage(
+                ctx, workload_estimate_id='estimate-1', location_filter=''
+            )
+        assert 'filters' not in client.list_workload_estimate_usage.call_args.kwargs
 
 
 class TestBcmPricingCalcToolSchema:
