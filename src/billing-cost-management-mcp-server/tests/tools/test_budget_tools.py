@@ -766,6 +766,22 @@ class TestFormatBudgets:
 
         assert 'status' not in result[0]
 
+    def test_format_budgets_status_ok_without_forecast(self):
+        """A spend budget under its limit with no forecast is OK."""
+        budgets_list = [
+            {
+                'BudgetName': 'Cost Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '100.0', 'Unit': 'USD'},
+                'CalculatedSpend': {'ActualSpend': {'Amount': '50.0', 'Unit': 'USD'}},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['status'] == 'OK'
+
 
 @pytest.mark.asyncio
 class TestDescribeBudgets:
@@ -1446,6 +1462,15 @@ class TestBudgetsPaginationContract:
         assert first['NextToken'] == 'caller-token'
         assert second['NextToken'] == 't2'
         assert _strip_paging(first) == _strip_paging(second) == {'AccountId': ACCOUNT}
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.get_aws_account_id')
+    async def test_budgets_tool_entrypoint_error_is_handled(self, mock_get_id, mock_context):
+        """A failure resolving the account ID is returned as an error, not raised."""
+        mock_get_id.side_effect = Exception('sts down')
+
+        result = await budgets(mock_context)
+
+        assert result['status'] == 'error'
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.get_aws_account_id')
     @patch(PATCH_BUDGETS_CLIENT)
