@@ -659,3 +659,149 @@ async def test_description_documents_the_filter_rules():
     assert '12 Months Free' in description
     assert 'Free Trial' in description
     assert 'Only USAGE_PERCENTAGE takes GREATER_THAN_OR_EQUAL' in description
+
+
+def _usage_row(service, actual, forecast, limit, region='us-east-1', free_tier_type='Always Free'):
+    """Build one GetFreeTierUsage row."""
+    return {
+        'service': service,
+        'usageType': f'{service}-Usage',
+        'actualUsageAmount': actual,
+        'forecastedUsageAmount': forecast,
+        'limit': limit,
+        'unit': 'Units',
+        'region': region,
+        'freeTierType': free_tier_type,
+    }
+
+
+class TestSummaryForecastAndOffer:
+    """The summary flags forecast breaches and keeps each row's region and offer type."""
+
+    def test_row_under_limit_with_forecast_at_limit_is_flagged(self):
+        """A row at 50% whose month-end forecast reaches the limit is in forecast_exceeds_limit."""
+        result = create_free_tier_usage_summary([_usage_row('Service A', 50, 120, 100)])
+
+        assert result['forecast_exceeds_limit_count'] == 1
+        item = result['forecast_exceeds_limit_items'][0]
+        assert item['service'] == 'Service A'
+        assert item['forecast'] == 120
+        assert item['forecast_percentage'] == 120.0
+        # The actual-usage buckets are unchanged: the row is still counted as safe.
+        assert result['safe_count'] == 1
+
+    def test_forecast_equal_to_limit_is_flagged(self):
+        """A forecast of exactly the limit counts as reaching it."""
+        result = create_free_tier_usage_summary([_usage_row('Service A', 85, 100, 100)])
+
+        assert result['forecast_exceeds_limit_count'] == 1
+        assert result['near_limit_count'] == 1
+
+    def test_forecast_under_limit_is_not_flagged(self):
+        """A forecast below the limit is not a breach."""
+        result = create_free_tier_usage_summary([_usage_row('Service A', 50, 90, 100)])
+
+        assert result['forecast_exceeds_limit_count'] == 0
+        assert result['forecast_exceeds_limit_items'] == []
+
+    def test_row_already_at_limit_is_not_repeated(self):
+        """A row already at the limit stays in at_limit only."""
+        result = create_free_tier_usage_summary([_usage_row('Service A', 62, 71.2, 62)])
+
+        assert result['at_limit_count'] == 1
+        assert result['forecast_exceeds_limit_count'] == 0
+
+    def test_missing_forecast_or_limit_is_not_flagged(self):
+        """No forecast, or no usable limit, never lands in forecast_exceeds_limit."""
+        no_forecast = _usage_row('Service A', 85, None, 100)
+        del no_forecast['forecastedUsageAmount']
+        zero_limit = _usage_row('Service B', 0, 5, 0)
+
+        result = create_free_tier_usage_summary([no_forecast, zero_limit])
+
+        assert result['forecast_exceeds_limit_count'] == 0
+        assert result['unknown_count'] == 1
+        item = result['near_limit_items'][0]
+        assert item['forecast'] is None
+        assert 'forecast_percentage' not in item
+
+    def test_default_zero_forecast_gets_no_percentage(self):
+        """A forecast of 0 under a positive actual is the API's default, not a forecast."""
+        result = create_free_tier_usage_summary([_usage_row('Service A', 85, 0, 100)])
+
+        item = result['near_limit_items'][0]
+        assert item['forecast'] == 0
+        assert 'forecast_percentage' not in item
+        assert result['forecast_exceeds_limit_count'] == 0
+
+    @pytest.mark.parametrize(
+        'actual,forecast,flagged',
+        [
+            (50, 99.9, True),
+            (50, 99.8, False),
+            (99.85, 120, True),
+            (99.9, 120, False),
+        ],
+    )
+    def test_forecast_threshold_is_99_9_percent(self, actual, forecast, flagged):
+        """The forecast and at-limit cut-offs are both 99.9% of the limit."""
+        result = create_free_tier_usage_summary([_usage_row('Service A', actual, forecast, 100)])
+
+        assert result['forecast_exceeds_limit_count'] == (1 if flagged else 0)
+
+    def test_forecast_breaches_sort_highest_forecast_first(self):
+        """forecast_exceeds_limit_items is sorted by forecast percentage, highest first."""
+        result = create_free_tier_usage_summary(
+            [
+                _usage_row('Service A', 10, 110, 100),
+                _usage_row('Service B', 10, 300, 100),
+            ]
+        )
+
+        assert [i['service'] for i in result['forecast_exceeds_limit_items']] == [
+            'Service B',
+            'Service A',
+        ]
+
+    def test_items_carry_region_and_free_tier_type(self):
+        """Rows of one service in two regions stay apart, each with its region and offer type."""
+        result = create_free_tier_usage_summary(
+            [
+                _usage_row('Amazon SNS', 100, 110, 100, region='us-east-1'),
+                _usage_row(
+                    'Amazon SNS', 100, 100, 100, region='eu-west-1', free_tier_type='Free Trial'
+                ),
+            ]
+        )
+
+        items = sorted(result['at_limit_items'], key=lambda i: i['region'])
+        assert [(i['region'], i['free_tier_type']) for i in items] == [
+            ('eu-west-1', 'Free Trial'),
+            ('us-east-1', 'Always Free'),
+        ]
+        assert [i['forecast'] for i in items] == [100, 110]
+
+    def test_existing_item_fields_are_kept(self):
+        """The fields the summary already returned keep their names and values."""
+        result = create_free_tier_usage_summary([_usage_row('Service A', 90, 95, 100)])
+
+        item = result['near_limit_items'][0]
+        assert item['service'] == 'Service A'
+        assert item['usage_type'] == 'Service A-Usage'
+        assert item['actual'] == 90
+        assert item['limit'] == 100
+        assert item['unit'] == 'Units'
+        assert item['percentage'] == 90.0
+        assert item['forecast_percentage'] == 95.0
+
+
+async def test_description_documents_the_summary():
+    """The served description names the forecast list and the per-item region and offer type."""
+    tool = await free_tier_usage_server.get_tool('free-tier-usage')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert 'forecast_exceeds_limit_items' in description
+    assert 'forecastedUsageAmount' in description
+    assert 'free_tier_type' in description
+    assert 'region' in description

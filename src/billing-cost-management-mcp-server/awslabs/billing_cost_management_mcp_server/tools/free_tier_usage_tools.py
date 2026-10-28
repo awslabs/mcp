@@ -65,6 +65,11 @@ This tool provides insights into your AWS Free Tier usage across services:
    - Shows actual usage against Free Tier allocations
    - Returns `data.freeTierUsages`, a `data.summary` computed over the returned rows, and `data.pagination`
 
+SUMMARY (`data.summary`):
+- Each row is counted as at_limit (99.9% or more of its limit), near_limit (80% to under 99.9%), safe (under 80%) or unknown (no usable limit or usage), by actual month-to-date usage. Items are listed for at_limit and near_limit, highest first.
+- forecast_exceeds_limit_items lists rows still under the limit whose month-end forecast (forecastedUsageAmount) reaches 99.9% or more of it, highest first. Rows already at the limit are not repeated there.
+- Each item is one row, with its `forecast`, `region` and `free_tier_type`, and `forecast_percentage` when the forecast is at least the actual usage (the API defaults the forecast to 0, and a forecast below actual usage is not a real one). One service can have a row per region, so read `region` before saying which limit is reached. free_tier_type tells whether the offer ends ("12 Months Free", "Free Trial") or does not ("Always Free").
+
 FILTER (optional JSON string):
 - Shape: {"Dimensions": {"Key": "SERVICE", "Values": ["AmazonSNS"], "MatchOptions": ["EQUALS"]}}. MatchOptions is required and takes exactly one option. A row matches if it matches any of the Values.
 - Combine filters with {"And": [...]} or {"Or": [...]} (at least 2 filters each) or {"Not": {...}}. Each object holds exactly one of Dimensions, And, Or, Not.
@@ -240,6 +245,7 @@ def create_free_tier_usage_summary(usages: List[Dict[str, Any]]) -> Dict[str, An
     near_limit_items = []
     safe_items = []
     unknown_items = []
+    forecast_exceeds_limit_items = []
 
     for item in usages:
         # Extract essential fields
@@ -248,14 +254,19 @@ def create_free_tier_usage_summary(usages: List[Dict[str, Any]]) -> Dict[str, An
         actual = item.get('actualUsageAmount')
         limit = item.get('limit')
         unit = item.get('unit', '')
+        forecast = item.get('forecastedUsageAmount')
 
-        # Create formatted usage item
+        # Create formatted usage item. One service has a row per region and offer, so
+        # region and free_tier_type tell those rows apart.
         usage_item = {
             'service': service,
             'usage_type': usage_type,
             'actual': actual,
             'limit': limit,
             'unit': unit,
+            'forecast': forecast,
+            'region': item.get('region'),
+            'free_tier_type': item.get('freeTierType'),
         }
 
         # Categorize based on usage percentage if we have valid numbers
@@ -269,6 +280,15 @@ def create_free_tier_usage_summary(usages: List[Dict[str, Any]]) -> Dict[str, An
                 near_limit_items.append(usage_item)
             else:  # Safe (under 80%)
                 safe_items.append(usage_item)
+
+            # The API defaults the forecast to 0 when it has none. A forecast below the
+            # month-to-date actual is never a real one, so it gets no percentage.
+            if forecast is not None and forecast >= actual:
+                forecast_pct = (forecast / limit) * 100
+                usage_item['forecast_percentage'] = round(forecast_pct, 1)
+                # Under the limit now, but forecast to reach it by month end
+                if usage_pct < 99.9 and forecast_pct >= 99.9:
+                    forecast_exceeds_limit_items.append(usage_item)
         else:
             # Can't calculate percentage - missing data
             unknown_items.append(usage_item)
@@ -278,6 +298,9 @@ def create_free_tier_usage_summary(usages: List[Dict[str, Any]]) -> Dict[str, An
     near_limit_items.sort(key=lambda x: (-(x.get('percentage') or 0), x.get('service', '')))
     safe_items.sort(key=lambda x: (-(x.get('percentage') or 0), x.get('service', '')))
     unknown_items.sort(key=lambda x: x.get('service', ''))
+    forecast_exceeds_limit_items.sort(
+        key=lambda x: (-(x.get('forecast_percentage') or 0), x.get('service', ''))
+    )
 
     # Create the summary
     return {
@@ -287,5 +310,7 @@ def create_free_tier_usage_summary(usages: List[Dict[str, Any]]) -> Dict[str, An
         'unknown_count': len(unknown_items),
         'at_limit_items': at_limit_items,
         'near_limit_items': near_limit_items,
+        'forecast_exceeds_limit_count': len(forecast_exceeds_limit_items),
+        'forecast_exceeds_limit_items': forecast_exceeds_limit_items,
         'total_services': len({item.get('service', '') for item in usages}),
     }
