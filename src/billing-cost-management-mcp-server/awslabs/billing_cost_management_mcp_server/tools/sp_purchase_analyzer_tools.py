@@ -14,6 +14,10 @@
 
 """AWS Savings Plans Purchase Analyzer tools for the AWS Billing and Cost Management MCP server."""
 
+import asyncio
+import random
+import re
+import time
 from ..utilities.aws_service_base import (
     PageSpec,
     create_aws_client,
@@ -23,6 +27,7 @@ from ..utilities.aws_service_base import (
     with_pagination,
 )
 from ..utilities.logging_utils import get_context_logger
+from botocore.exceptions import ClientError
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
 
@@ -60,9 +65,12 @@ DO NOT USE THIS TOOL FOR:
 ASYNCHRONOUS: start_commitment_purchase_analysis returns an AnalysisId and an
 EstimatedCompletionTime, not a result. Report the AnalysisId before waiting on it — a wait that ends
 early leaves the analysis running server-side, and recovering it then means listing the account's
-analyses and picking one out by start time. Then poll get_commitment_purchase_analysis until
-AnalysisStatus leaves PROCESSING. Completion time scales with account size, so read
-EstimatedCompletionTime rather than assuming a duration.
+analyses and picking one out by start time. Then call get_commitment_purchase_analysis with
+await_completion=true, which polls within this tool call until AnalysisStatus leaves PROCESSING or
+max_wait_seconds (default 50) runs out; without it, get returns the current status at once and the
+caller polls. Completion time scales with account size, so read EstimatedCompletionTime rather
+than assuming a duration. A wait that runs out returns the analysis still PROCESSING: call get
+again with the same analysis_id rather than starting a new analysis.
 
 WRITE OPERATION: an account can start 20 analyses a day, one at a time. GenerationExistsException
 means one is already running, ServiceQuotaExceededException means the day's 20 are used up, and
@@ -98,6 +106,8 @@ async def sp_purchase_analyzer(
     analysis_status: Optional[str] = None,
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
+    await_completion: bool = False,
+    max_wait_seconds: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Tool that runs AWS Savings Plans Purchase Analyzer what-if analyses.
 
@@ -113,8 +123,11 @@ async def sp_purchase_analyzer(
             OfferingId. Required for start_commitment_purchase_analysis — for example
             [{"SavingsPlansType": "COMPUTE_SP", "TermInYears": "ONE_YEAR", "PaymentOption":
             "NO_UPFRONT"}].
-        savings_plans_to_exclude: Savings Plan ARNs to exclude from the analysis. Use it to model the
-            gap an expiring plan leaves behind.
+        savings_plans_to_exclude: Savings Plan IDs to exclude from the analysis, up to 1000. Use
+            it to model the gap an expiring plan leaves behind. The API takes the 36-character
+            plan ID, not the ARN; an ARN (arn:aws:savingsplans::<account>:savingsplan/<id>) is
+            accepted and sent as its plan ID. Each must be one of the account's plans; otherwise the
+            analysis can end FAILED with ErrorCode INVALID_SAVINGS_PLANS_TO_EXCLUDE.
         look_back_start: Start of the time period associated with the analysis, in YYYY-MM-DD format.
             Required for start_commitment_purchase_analysis.
         look_back_end: End of the time period associated with the analysis, in YYYY-MM-DD format.
@@ -135,6 +148,15 @@ async def sp_purchase_analyzer(
             page. list_commitment_purchase_analyses only.
         next_token: The pagination.next_token from a previous response; continue with otherwise
             identical parameters. list_commitment_purchase_analyses only.
+        await_completion: When true, get_commitment_purchase_analysis polls until AnalysisStatus
+            is SUCCEEDED or FAILED, or max_wait_seconds runs out, then returns the analysis.
+            Default false: one call that returns the current status.
+            get_commitment_purchase_analysis only.
+        max_wait_seconds: Longest wait for await_completion, 1 to 600 seconds (default 50); the
+            call returns by then even if a status check is still in flight. The last status check
+            starts about 3 seconds before the limit, so a value of 3 or less checks once. Some
+            MCP clients end a tool call after 60 seconds, so raise it only when the client allows a
+            longer call. get_commitment_purchase_analysis only.
 
     Returns:
         Dict containing the analysis identifiers or results
@@ -159,7 +181,9 @@ async def sp_purchase_analyzer(
                 account_id,
             )
         elif operation == 'get_commitment_purchase_analysis':
-            return await get_commitment_purchase_analysis(ctx, ce_client, analysis_id)
+            return await get_commitment_purchase_analysis(
+                ctx, ce_client, analysis_id, await_completion, max_wait_seconds
+            )
         elif operation == 'list_commitment_purchase_analyses':
             return await list_commitment_purchase_analyses(
                 ctx,
@@ -205,7 +229,8 @@ async def start_commitment_purchase_analysis(
         ce_client: Cost Explorer client
         analysis_type: The type of analysis.
         savings_plans_to_add: Savings Plans to include in the analysis.
-        savings_plans_to_exclude: Savings Plan ARNs to exclude from the analysis.
+        savings_plans_to_exclude: Savings Plan IDs to exclude from the analysis. An ARN is sent
+            as its trailing plan ID.
         look_back_start: Start of the time period associated with the analysis.
         look_back_end: End of the time period associated with the analysis.
         savings_plans_target_coverage: The target Savings Plans coverage as a percentage.
@@ -237,7 +262,7 @@ async def start_commitment_purchase_analysis(
 
         # Add optional parameters if provided
         if savings_plans_to_exclude:
-            config['SavingsPlansToExclude'] = savings_plans_to_exclude
+            config['SavingsPlansToExclude'] = [_plan_id(plan) for plan in savings_plans_to_exclude]
         if savings_plans_target_coverage is not None:
             config['SavingsPlansTargetCoverage'] = savings_plans_target_coverage
         if account_scope:
@@ -260,10 +285,46 @@ async def start_commitment_purchase_analysis(
         )
 
 
+SAVINGS_PLAN_ARN = re.compile(r'^arn:[^:]+:savingsplans::\d*:savingsplan/([^/]+)$')
+
+
+def _plan_id(plan: str) -> str:
+    """Return the plan ID of a Savings Plan ARN; any other value is returned stripped.
+
+    SavingsPlansToExclude takes only the 36-character plan ID, the last segment of the ARN
+    (arn:<partition>:savingsplans::<account>:savingsplan/<id>). botocore checks only its minimum
+    length, so an ARN would reach the service and be rejected there.
+    """
+    plan = plan.strip()
+    match = SAVINGS_PLAN_ARN.match(plan)
+    return match.group(1) if match else plan
+
+
+# get_commitment_purchase_analysis(await_completion=True) waits this long when the caller gives
+# no max_wait_seconds: under the 60-second request timeout some MCP clients apply.
+DEFAULT_MAX_WAIT_SECONDS = 50
+MAX_WAIT_SECONDS_LIMIT = 600
+# The wait between status checks starts here and doubles (jittered) up to the ceiling. No check
+# starts later than LAST_CHECK_LEAD_SECONDS before the deadline, and the whole wait, a check in
+# flight included, is cut off at the deadline.
+POLL_INTERVAL_SECONDS = 2
+POLL_MAX_INTERVAL_SECONDS = 15
+LAST_CHECK_LEAD_SECONDS = 3
+TERMINAL_ANALYSIS_STATUSES = ('SUCCEEDED', 'FAILED')
+THROTTLING_ERROR_CODES = ('ThrottlingException', 'LimitExceededException')
+
+# The wait's clock and sleep, named here so tests can drive them without patching the stdlib
+# functions the event loop itself uses.
+_monotonic = time.monotonic
+_sleep = asyncio.sleep
+
+
 async def get_commitment_purchase_analysis(
     ctx: Context,
     ce_client: Any,
     analysis_id: Optional[str],
+    await_completion: bool = False,
+    max_wait_seconds: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Retrieves a commitment purchase analysis result based on the AnalysisId.
 
@@ -271,6 +332,8 @@ async def get_commitment_purchase_analysis(
         ctx: The MCP context
         ce_client: Cost Explorer client
         analysis_id: The analysis ID that's associated with the commitment purchase analysis.
+        await_completion: Poll until the analysis is SUCCEEDED or FAILED, or the wait runs out.
+        max_wait_seconds: Longest wait for await_completion; DEFAULT_MAX_WAIT_SECONDS if None.
 
     Returns:
         Dict containing the analysis status and, once complete, its results
@@ -281,13 +344,93 @@ async def get_commitment_purchase_analysis(
     try:
         await ctx_logger.info(f'Fetching commitment purchase analysis {analysis_id}')
 
-        response = ce_client.get_commitment_purchase_analysis(AnalysisId=analysis_id)
+        if max_wait_seconds is not None and not 1 <= max_wait_seconds <= MAX_WAIT_SECONDS_LIMIT:
+            return format_response(
+                'error',
+                {},
+                f'max_wait_seconds must be from 1 to {MAX_WAIT_SECONDS_LIMIT}; '
+                f'got {max_wait_seconds}.',
+                error_type='validation_error',
+            )
 
-        return format_response('success', response)
+        if not await_completion:
+            response = ce_client.get_commitment_purchase_analysis(AnalysisId=analysis_id)
+            return format_response('success', response)
+
+        wait = DEFAULT_MAX_WAIT_SECONDS if max_wait_seconds is None else max_wait_seconds
+        latest: Dict[str, Any] = {}
+        try:
+            return await asyncio.wait_for(
+                _await_analysis(ce_client, analysis_id, wait, latest), timeout=wait
+            )
+        except asyncio.TimeoutError:
+            # A status check still in flight at the deadline; report the last one that answered.
+            if 'response' not in latest:
+                if 'throttle' in latest:
+                    raise latest['throttle']
+                raise TimeoutError(
+                    f'No status check for analysis {analysis_id} answered within {wait} seconds. '
+                    'Call get_commitment_purchase_analysis again with the same analysis_id; do '
+                    'not start a new analysis.'
+                )
+            return _still_running(latest['response'], analysis_id, wait)
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
         return await handle_aws_error(ctx, e, 'get_commitment_purchase_analysis', 'Cost Explorer')
+
+
+async def _await_analysis(
+    ce_client: Any, analysis_id: Optional[str], wait: int, latest: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Poll GetCommitmentPurchaseAnalysis until the status is terminal or the wait runs out.
+
+    ``latest`` holds the last response and the last throttle, for the caller to report if the
+    deadline cuts off a check in flight. A check that is still throttled after the SDK's own
+    retries does not end the wait; it is raised only if no check answered before the wait ran
+    out. Any other error is raised. A check cut off at the deadline keeps its worker thread until
+    botocore returns.
+    """
+    deadline = _monotonic() + wait
+    interval: float = POLL_INTERVAL_SECONDS
+    while True:
+        try:
+            # In a worker thread: botocore's retry backoff sleeps inside the call.
+            current = await asyncio.to_thread(
+                ce_client.get_commitment_purchase_analysis, AnalysisId=analysis_id
+            )
+        except ClientError as error:
+            if error.response.get('Error', {}).get('Code') not in THROTTLING_ERROR_CODES:
+                raise
+            latest['throttle'] = error
+        else:
+            if current.get('AnalysisStatus') in TERMINAL_ANALYSIS_STATUSES:
+                return format_response('success', current)
+            latest['response'] = current
+        remaining = deadline - _monotonic() - LAST_CHECK_LEAD_SECONDS
+        if remaining <= 0:
+            break
+        await _sleep(min(interval * (0.8 + 0.4 * random.random()), remaining))
+        interval = min(interval * 2, POLL_MAX_INTERVAL_SECONDS)
+
+    if 'response' not in latest and 'throttle' in latest:
+        raise latest['throttle']
+    return _still_running(latest.get('response'), analysis_id, wait)
+
+
+def _still_running(
+    response: Optional[Dict[str, Any]], analysis_id: Optional[str], wait: int
+) -> Dict[str, Any]:
+    """The last response of a wait that ran out, with how to go on."""
+    status = response.get('AnalysisStatus') if response else None
+    return format_response(
+        'success',
+        response,
+        f'Analysis {analysis_id} was still {status} at its last status check, within the '
+        f'{wait}-second wait. It keeps running in AWS: call get_commitment_purchase_analysis '
+        'again with the same analysis_id (with await_completion to keep waiting). Do not start '
+        'a new analysis.',
+    )
 
 
 CE_LIST_COMMITMENT_PURCHASE_ANALYSES = PageSpec(
