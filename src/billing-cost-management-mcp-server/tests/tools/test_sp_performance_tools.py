@@ -1680,12 +1680,44 @@ class TestSpPerformanceDimensionsAndSort:
         assert 'Only Dimensions, And and Not are allowed' in section
         assert 'Or, Tags or CostCategories expression returns a ValidationException' in section
 
+    async def test_lists_utilization_details_plan_type_and_end_date_filters(self):
+        """Details also filters on SAVINGS_PLANS_TYPE and the plan end-date bounds."""
+        flat = ' '.join(((await self._tool()).description or '').split())
+        section = flat.split(
+            'UTILIZATION DETAILS filters (get_savings_plans_utilization_details):'
+        )[1]
+        section = section.split('- The filter is')[0]
+        for dimension in (
+            'LINKED_ACCOUNT',
+            'SAVINGS_PLAN_ARN',
+            'SAVINGS_PLANS_TYPE',
+            'REGION',
+            'PAYMENT_OPTION',
+            'INSTANCE_TYPE_FAMILY',
+            'AGREEMENT_END_DATE_TIME_AFTER',
+            'AGREEMENT_END_DATE_TIME_BEFORE',
+        ):
+            assert dimension in section
+        assert "one YYYY-MM-DD value each, compared with each plan's end date" in section
+        assert (
+            'SAVINGS_PLANS_TYPE (get_savings_plans_utilization and '
+            'get_savings_plans_utilization_details; not accepted by coverage)'
+        ) in flat
+
+    async def test_coverage_dimension_sort_keys_need_group_by(self):
+        """Sorting coverage by a dimension key needs that dimension in group_by."""
+        flat = ' '.join(((await self._tool()).description or '').split())
+        assert (
+            'Sorting coverage by InstanceFamily, Region or Service needs that dimension in '
+            'group_by (INSTANCE_TYPE_FAMILY, REGION or SERVICE); otherwise the API returns a '
+            'ValidationException'
+        ) in flat
+
     async def test_gives_value_spellings_and_the_wrong_spelling_error(self):
         """PAYMENT_OPTION and SAVINGS_PLANS_TYPE values, and what another spelling returns."""
         flat = ' '.join(((await self._tool()).description or '').split())
         assert 'PAYMENT_OPTION: "No Upfront", "Partial Upfront", "All Upfront"' in flat
         assert (
-            'SAVINGS_PLANS_TYPE (get_savings_plans_utilization; not accepted by coverage): '
             '"ComputeSavingsPlans", "EC2InstanceSavingsPlans", '
             '"SageMakerSavingsPlans", "DatabaseSavingsPlans"'
         ) in flat
@@ -1694,9 +1726,6 @@ class TestSpPerformanceDimensionsAndSort:
             'not a ValidationException'
         ) in flat
         assert 'check these spellings before changing the window' in flat
-        assert (
-            'SAVINGS_PLANS_TYPE (get_savings_plans_utilization; not accepted by coverage)' in flat
-        )
 
     async def test_documents_sort_keys_per_operation(self):
         """Both sortable operations list their keys; utilization says it ignores sort_by."""

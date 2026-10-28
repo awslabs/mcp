@@ -78,8 +78,10 @@ UTILIZATION filters (get_savings_plans_utilization):
   Tags or CostCategories expression returns a ValidationException.
 
 UTILIZATION DETAILS filters (get_savings_plans_utilization_details):
-- filter accepts LINKED_ACCOUNT, SAVINGS_PLAN_ARN, REGION, PAYMENT_OPTION,
-  INSTANCE_TYPE_FAMILY.
+- filter accepts LINKED_ACCOUNT, SAVINGS_PLAN_ARN, SAVINGS_PLANS_TYPE, REGION,
+  PAYMENT_OPTION, INSTANCE_TYPE_FAMILY, AGREEMENT_END_DATE_TIME_AFTER and
+  AGREEMENT_END_DATE_TIME_BEFORE (one YYYY-MM-DD value each, compared with each plan's
+  end date).
 - The filter is a Cost Explorer Expression. And requires at least TWO
   operands ("And expression must have at least 2 operands"). For a single
   condition, pass the leaf object directly — e.g.
@@ -88,9 +90,9 @@ UTILIZATION DETAILS filters (get_savings_plans_utilization_details):
 
 FILTER VALUES (exact, case-sensitive spellings):
 - PAYMENT_OPTION: "No Upfront", "Partial Upfront", "All Upfront".
-- SAVINGS_PLANS_TYPE (get_savings_plans_utilization; not accepted by coverage):
-  "ComputeSavingsPlans", "EC2InstanceSavingsPlans", "SageMakerSavingsPlans",
-  "DatabaseSavingsPlans".
+- SAVINGS_PLANS_TYPE (get_savings_plans_utilization and
+  get_savings_plans_utilization_details; not accepted by coverage): "ComputeSavingsPlans",
+  "EC2InstanceSavingsPlans", "SageMakerSavingsPlans", "DatabaseSavingsPlans".
 - Any other spelling (NO_UPFRONT, Compute, COMPUTE_SP) matches nothing and returns a
   DataUnavailableException, which the service sends without a message, not a
   ValidationException. On that error with a filter set, check these spellings before
@@ -102,7 +104,9 @@ SORTING (sort_by; get_savings_plans_coverage and get_savings_plans_utilization_d
   PAGINATION for what an item is).
 - Coverage keys: CoveragePercentage, SpendCoveredBySavingsPlan (singular, unlike the
   metric), OnDemandCost, TotalCost, InstanceFamily, Region, Service. Sort keys are not
-  dimension names: sort by InstanceFamily, group by INSTANCE_TYPE_FAMILY.
+  dimension names: sort by InstanceFamily, group by INSTANCE_TYPE_FAMILY. Sorting coverage
+  by InstanceFamily, Region or Service needs that dimension in group_by
+  (INSTANCE_TYPE_FAMILY, REGION or SERVICE); otherwise the API returns a ValidationException.
 - Utilization details keys: UtilizationPercentage, TotalCommitment, UsedCommitment,
   UnusedCommitment, NetSavings, AmortizedRecurringCommitment, AmortizedUpfrontCommitment.
 - get_savings_plans_utilization ignores sort_by and returns its periods in date order.
