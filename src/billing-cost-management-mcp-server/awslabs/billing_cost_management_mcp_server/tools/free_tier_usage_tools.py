@@ -91,7 +91,7 @@ FREE PLAN (accounts created on or after July 15, 2025, which choose a Free or a 
 2. get_account_plan_state: The account's plan. Takes no filter, max_items or next_token.
    - Returns `data.plan_record_found` and, when true, `accountId`, `accountPlanType` (FREE is the Free plan, PAID the Paid plan), `accountPlanStatus` (NOT_STARTED, ACTIVE or EXPIRED), `accountPlanRemainingCredits` (Free Tier credits left, as `amount` and `unit` USD) and `accountPlanExpirationDate` (UTC). A PAID account can still have credits left.
    - plan_record_found: false means the account has no plan record, so it is not on the Free plan; for example, an account created before July 15, 2025 has none and uses the legacy Free Tier (get_free_tier_usage). This is an answer, not an error to retry.
-   - NOT_STARTED means the plan has not started, so its credits and expiration date are not final.
+   - NOT_STARTED means the plan has not started; its credits and expiration date are placeholders until it starts.
 
 3. list_account_activities: Activities the account can complete to earn Free Tier credits.
    - Returns `data.activities` (each with `activityId`, `title`, `status` NOT_STARTED, IN_PROGRESS, COMPLETED or EXPIRING, and `reward.credit` as `amount` and `unit` USD) and `data.pagination`. max_items and next_token work as for get_free_tier_usage.
@@ -111,9 +111,10 @@ async def free_tier_usage(
 
     Args:
         ctx: The MCP context object
-        operation: The operation to perform: 'get_free_tier_usage'
+        operation: The operation to perform: 'get_free_tier_usage', 'get_account_plan_state' or
+            'list_account_activities'
         filter: Optional filter as a JSON string, in the shape the description gives.
-        max_items: Total usage rows to return. None fetches every page.
+        max_items: Total rows to return (usage rows or activities). None fetches every page.
         next_token: Continuation token from a previous response.
 
     Returns:

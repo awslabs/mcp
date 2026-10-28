@@ -311,6 +311,7 @@ async def test_description_documents_plan_operations():
     assert 'plan_record_found' in description
     assert 'not on the Free plan' in description
     assert 'read-only' in description
+    assert 'placeholders until it starts' in description
 
 
 def test_no_write_operation_is_reachable():
