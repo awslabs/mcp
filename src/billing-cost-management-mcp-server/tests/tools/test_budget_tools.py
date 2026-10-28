@@ -22,14 +22,18 @@ These tests verify the functionality of the AWS Budgets API tools, including:
 - Formatting budget data for display and analysis
 """
 
+import boto3
+import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import (
+    _describe_budget_by_name,
     budget_server,
     budgets,
     describe_budgets,
     format_budgets,
     get_aws_account_id,
 )
+from botocore.awsrequest import AWSResponse
 from botocore.exceptions import ClientError
 from datetime import datetime
 from fastmcp import Context
@@ -433,6 +437,74 @@ class TestFormatBudgets:
             f'Budget with actual={actual_amount}, forecast={forecast_amount}, limit={budget_limit} should have status {expected_status}'
         )
 
+    def test_format_budgets_status_usage_budget(self):
+        """A USAGE budget gets a status, since more usage is worse, as it is for COST."""
+        budgets_list = [
+            {
+                'BudgetName': 'Usage Budget',
+                'BudgetType': 'USAGE',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '1000.0', 'Unit': 'GB'},
+                'CalculatedSpend': {'ActualSpend': {'Amount': '1200.0', 'Unit': 'GB'}},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['status'] == 'EXCEEDED'
+
+    @pytest.mark.parametrize(
+        'budget_type',
+        [
+            'RI_UTILIZATION',
+            'RI_COVERAGE',
+            'SAVINGS_PLANS_UTILIZATION',
+            'SAVINGS_PLANS_COVERAGE',
+        ],
+    )
+    @pytest.mark.parametrize('actual_amount', ['100.0', '20.0'])
+    def test_format_budgets_no_status_for_utilization_and_coverage(
+        self, budget_type, actual_amount
+    ):
+        """Utilization and coverage budgets get no status.
+
+        Their limit is always 100 PERCENTAGE and a higher actual is better, so a
+        spend-vs-limit status read 100% as EXCEEDED and 20% as OK.
+        """
+        budgets_list = [
+            {
+                'BudgetName': 'Commitment Budget',
+                'BudgetType': budget_type,
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '100.0', 'Unit': 'PERCENTAGE'},
+                'CalculatedSpend': {
+                    'ActualSpend': {'Amount': actual_amount, 'Unit': 'PERCENTAGE'}
+                },
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert 'status' not in result[0]
+        assert result[0]['calculated_spend']['actual_spend']['amount'] == actual_amount
+        assert result[0]['budget_limit']['amount'] == '100.0'
+
+    def test_format_budgets_no_status_for_unknown_budget_type(self):
+        """Status is derived only for known spend types, so a new budget type gets none."""
+        budgets_list = [
+            {
+                'BudgetName': 'Future Budget',
+                'BudgetType': 'SOME_FUTURE_TYPE',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '100.0', 'Unit': 'PERCENTAGE'},
+                'CalculatedSpend': {'ActualSpend': {'Amount': '100.0', 'Unit': 'PERCENTAGE'}},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert 'status' not in result[0]
+
 
 @pytest.mark.asyncio
 class TestDescribeBudgets:
@@ -585,6 +657,77 @@ class TestDescribeBudgets:
         )
         assert result['status'] == 'error'
         assert result['message'] == 'API error'
+
+
+class _WireBody:
+    """Raw HTTP body for botocore's AWSResponse."""
+
+    def __init__(self, body: bytes):
+        self._body = body
+
+    def stream(self, **kwargs):
+        yield self._body
+
+
+class TestBudgetFilterExpressionParsing:
+    """The installed botocore must parse every FilterExpression member the service returns.
+
+    botocore silently drops a response member its service model does not define. Before
+    botocore 1.43.110 the budgets model had no ProductAttributes, so a budget scoped by a
+    product attribute came back with that filter node as an empty dict.
+
+    Stubber would bypass the response parser, so these tests stub the HTTP send instead and let
+    botocore parse the wire JSON.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _no_ambient_profile(self, monkeypatch):
+        monkeypatch.delenv('AWS_PROFILE', raising=False)
+        monkeypatch.delenv('AWS_DEFAULT_PROFILE', raising=False)
+
+    FILTER_EXPRESSION = {
+        'And': [
+            {'ProductAttributes': {'Key': 'feature', 'Values': ['On-demand Inference']}},
+            {'Not': {'Dimensions': {'Key': 'RECORD_TYPE', 'Values': ['Credit', 'Refund']}}},
+        ]
+    }
+
+    def _client_returning(self, payload):
+        """A real budgets client whose HTTP send returns ``payload`` as the wire response."""
+        client = boto3.Session(
+            aws_access_key_id='a', aws_secret_access_key='b', region_name='us-east-1'
+        ).client('budgets')
+        body = json.dumps(payload).encode()
+
+        def send(request, **kwargs):
+            return AWSResponse(request.url, 200, {}, _WireBody(body))
+
+        client.meta.events.register('before-send.budgets', send)
+        return client
+
+    def _budget(self):
+        return {
+            'BudgetName': 'Feature Budget',
+            'BudgetType': 'COST',
+            'TimeUnit': 'MONTHLY',
+            'FilterExpression': self.FILTER_EXPRESSION,
+        }
+
+    def test_describe_budget_keeps_product_attributes(self):
+        """DescribeBudget (the budget_name path) keeps the ProductAttributes leaf."""
+        client = self._client_returning({'Budget': self._budget()})
+
+        result = _describe_budget_by_name(client, '123456789012', 'Feature Budget')
+
+        assert result[0]['FilterExpression'] == self.FILTER_EXPRESSION
+
+    def test_describe_budgets_keeps_product_attributes(self):
+        """DescribeBudgets (the listing path) keeps the ProductAttributes leaf."""
+        client = self._client_returning({'Budgets': [self._budget()]})
+
+        response = client.describe_budgets(AccountId='123456789012')
+
+        assert response['Budgets'][0]['FilterExpression'] == self.FILTER_EXPRESSION
 
 
 def test_budget_server_initialization():

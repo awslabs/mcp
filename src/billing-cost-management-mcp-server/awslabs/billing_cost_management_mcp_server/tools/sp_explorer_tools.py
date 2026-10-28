@@ -41,15 +41,22 @@ sp_explorer_server = FastMCP(
 This tool provides visibility into what an account already owns and what it can buy through four
 operations:
 
-1. describe_savings_plans: The plans the account owns, with state, term, payment option, and
-   expiry. Pass states to scope the result.
+1. describe_savings_plans: the plans owned by the calling account only, with state, term, payment
+   option, and expiry. No member-account plans are returned, even from a management account, so an
+   empty result does not mean the organization owns none. Pass states to scope the result. For an
+   organization-wide inventory use sp-performance get_savings_plans_utilization_details (one entry
+   per plan ARN, and the owning account is the ARN's account field) or cost-explorer
+   getDimensionValues with SAVINGS_PLAN_ARN under context=SAVINGS_PLANS. Both read Cost Explorer,
+   which lists a plan only where it has utilization records in the window, so pass an explicit
+   12-month start_date and end_date: a shorter window drops retired and idle plans, and a member
+   account's idle plan still displaces a new purchase.
 2. describe_savings_plan_rates: The rates on one Savings Plan the customer already owns.
 3. describe_savings_plans_offerings: The offerings available to purchase.
 4. describe_savings_plans_offering_rates: The rates for offerings available to purchase.
 
 USE THIS TOOL FOR:
-- **What plans an account owns** — including plans in the queued, returned, and payment-failed
-  states, which Cost Explorer does not report on
+- **What plans the calling account owns** — including plans in the queued, returned, and
+  payment-failed states, which Cost Explorer does not report on
 - **When a plan expires or can still be returned** — the end and returnableUntil fields
 - **The rates locked in on an existing plan**
 - **What is available to purchase and at what rate** — to compare the rate one plan type, term, and
@@ -225,6 +232,8 @@ SP_DESCRIBE_SAVINGS_PLANS = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 
@@ -282,6 +291,34 @@ async def describe_savings_plans(
             next_token=next_token,
         )
 
+        # An empty list is the live behaviour for a management account whose plans were all bought
+        # in member accounts: DescribeSavingsPlans is scoped to the calling account and returns
+        # none of them, even when asked for by id or ARN. Say so in the result itself, not only in
+        # the tool description, so a caller reading the response cannot take [] for "owns none".
+        # An empty result is never large enough to offload, so it returns directly.
+        if not all_plans:
+            return format_response(
+                'success',
+                with_pagination(
+                    {
+                        'savingsPlans': [],
+                        'message': (
+                            'No Savings Plans found for the calling account. This operation '
+                            'returns only plans the calling account bought, so an empty result '
+                            'does not mean the organization owns none: from a management '
+                            'account, member-account plans are never returned. For an '
+                            'organization-wide inventory call sp-performance '
+                            'get_savings_plans_utilization_details (the owning account is the '
+                            "plan ARN's account field) or cost-explorer getDimensionValues with "
+                            'SAVINGS_PLAN_ARN under context=SAVINGS_PLANS, passing an explicit '
+                            '12-month window, since both list a plan only where it has '
+                            'utilization records inside it.'
+                        ),
+                    },
+                    pagination,
+                ),
+            )
+
         # A large inventory is offloaded to session SQL (one row per plan)
         # instead of returned inline; a small result passes through unchanged.
         # An offloaded table is queried with the session-sql tool.
@@ -304,6 +341,8 @@ SP_DESCRIBE_SAVINGS_PLAN_RATES = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 
@@ -335,9 +374,14 @@ async def describe_savings_plan_rates(
         await ctx_logger.info(f'Describing rates for Savings Plan {savings_plan_id}')
 
         # Create request parameters
-        request_params: dict = {'savingsPlanId': savings_plan_id}
+        # savingsPlanId is required. Sending it as None makes botocore report a type error on the
+        # value; omitting it makes botocore name the missing field, which is the more useful
+        # failure for a caller that forgot it.
+        request_params: dict = {}
 
         # Add optional parameters if provided
+        if savings_plan_id:
+            request_params['savingsPlanId'] = savings_plan_id
         if filters:
             request_params['filters'] = filters
 
@@ -381,6 +425,8 @@ SP_DESCRIBE_SAVINGS_PLANS_OFFERINGS = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 
@@ -492,6 +538,8 @@ SP_DESCRIBE_SAVINGS_PLANS_OFFERING_RATES = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 
