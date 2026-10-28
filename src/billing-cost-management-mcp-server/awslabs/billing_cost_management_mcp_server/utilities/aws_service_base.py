@@ -272,7 +272,13 @@ async def handle_aws_error(
         # Get AWS error details
         aws_error = error.response.get('Error', {})
         error_code = aws_error.get('Code', 'UnknownError')
-        aws_message = aws_error.get('Message') or 'No error message provided'
+        aws_message = aws_error.get('Message') or (
+            # Cost Explorer sends DataUnavailableException with an empty Message.
+            f'{service_name} has no data for this request '
+            '(DataUnavailableException; the service sent no message).'
+            if error_code == 'DataUnavailableException'
+            else 'No error message provided'
+        )
         request_id = error.response.get('ResponseMetadata', {}).get('RequestId', 'Unknown')
         http_status = error.response.get('ResponseMetadata', {}).get('HTTPStatusCode', 0)
 
