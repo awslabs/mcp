@@ -82,6 +82,14 @@ example because it can no longer read its billing view (`status_reason` says why
 
 With this information, you can determine which budgets have been exceeded or are projected to exceed their limits.
 
+`status` (`EXCEEDED`, `FORECASTED_TO_EXCEED` or `OK`) compares actual and forecasted spend with the
+limit, and is returned only for COST and USAGE budgets. RI_UTILIZATION, RI_COVERAGE,
+SAVINGS_PLANS_UTILIZATION and SAVINGS_PLANS_COVERAGE budgets have no `status`: their limit is always
+100 PERCENTAGE, `actual_spend` is the utilization or coverage percentage (higher is better), and
+they alert when it falls below a notification threshold. For those, compare `actual_spend` with the
+thresholds from `budget-notifications`, where `notification_state` is `ALARM` once a threshold is
+crossed.
+
 """
     + _PAGINATION_DESCRIPTION
     + """ `max_items` and `next_token` apply only when
@@ -503,6 +511,12 @@ async def describe_budget_notifications(
 # =============================================================================
 
 
+# Budget types where more spend is worse, so actual or forecast at or above the limit is a breach.
+# Utilization and coverage budgets (limit fixed at 100 PERCENTAGE) alert when actual falls below a
+# notification threshold instead, so a spend-vs-limit status would read them inverted.
+_SPEND_BUDGET_TYPES = frozenset({'COST', 'USAGE'})
+
+
 def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Formats the budget objects from the AWS API response.
 
@@ -590,12 +604,13 @@ def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
             formatted_budget['time_period'] = time_period_dict
 
-        # Add budget status (derived field)
+        # Add budget status (derived field, COST and USAGE budgets only)
         calculated_spend = formatted_budget.get('calculated_spend')
         budget_limit = formatted_budget.get('budget_limit')
 
         if (
-            calculated_spend is not None
+            budget.get('BudgetType') in _SPEND_BUDGET_TYPES
+            and calculated_spend is not None
             and isinstance(calculated_spend, dict)
             and 'actual_spend' in calculated_spend
             and budget_limit is not None

@@ -19,6 +19,8 @@ from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base impor
     format_response,
 )
 from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+    _ERROR_TYPE_GUIDANCE,
+    _ERROR_TYPE_PREFIX_GUIDANCE,
     DO_NOT_RETRY,
     MODIFY_REQUEST,
     RETRY_SAME_REQUEST,
@@ -106,6 +108,33 @@ class TestClassifyError:
     def test_account_state_is_not_retried(self, error_type):
         """Opt-in and data availability failures cannot be fixed during the run."""
         assert classify_error(error_type)[0] == DO_NOT_RETRY
+
+    def test_data_unavailable_hint_says_no_data_not_failure(self):
+        """DataUnavailableException tells the caller there is no data, and the usual causes."""
+        strategy, hint = classify_error('DataUnavailableException')
+        assert strategy == DO_NOT_RETRY
+        assert hint is not None
+        assert 'The service has no data for this request' in hint
+        assert 'too recent to have been processed yet' in hint
+        assert 'a filter value that matches nothing' in hint
+        assert 'not a failure and not a zero' in hint
+
+    def test_data_unavailable_hint_is_service_neutral(self):
+        """Pricing Calculator raises the same code, so the hint names no Cost Explorer report."""
+        hint = classify_error('DataUnavailableException')[1] or ''
+        for specific in ('Savings Plans', 'Reserved Instance', '2-3 days'):
+            assert specific not in hint
+
+    @pytest.mark.parametrize(
+        'error_type, guidance',
+        [*_ERROR_TYPE_GUIDANCE.items(), *_ERROR_TYPE_PREFIX_GUIDANCE],
+    )
+    def test_every_mapped_error_type_has_a_hint(self, error_type, guidance):
+        """A mapped error type always carries recovery guidance, not just a strategy.
+
+        Hints are keyed by error_type, so each must hold for every service that raises it.
+        """
+        assert guidance[1], f'{error_type} is mapped without a hint'
 
     @pytest.mark.parametrize(
         'error_type',
