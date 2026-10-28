@@ -54,6 +54,12 @@ GET_ANOMALIES = PageSpec(
 This tool allows you to retrieve cost anomalies detected on your AWS account during a specified time period.
 Anomalies are available for up to 90 days.
 
+Date range matching: an anomaly is returned when its end_date (the last day it was detected) falls
+within start_date..end_date. Its start_date can be earlier than the requested start_date: an
+anomaly that began before the range and was still being detected inside it is in range. When asked
+for anomalies in a period (for example "the past 7 days"), report every returned anomaly, and do
+not drop results whose start_date is before the range.
+
 You can filter anomalies by:
 - Date range (required)
 - Monitor ARN (optional)
