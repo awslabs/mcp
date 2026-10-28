@@ -1355,3 +1355,13 @@ class TestMaxPages:
         description = tool.description or ''
         assert 'get_reservation_utilization takes max_pages (pages of 500 groups)' in description
         assert 'rounded up' not in description
+
+
+@pytest.mark.asyncio
+async def test_description_states_utilization_data_lag():
+    """Recent-day utilization windows return an empty-message DataUnavailableException."""
+    description = ' '.join((await _ri_description()).split())
+    assert 'utilization data for the most recent 2-3 days (counting today)' in description
+    assert 'which the service sends without a message' in description
+    assert 'not a failure and not zero utilization' in description
+    assert 'do not resend the identical request' in description
