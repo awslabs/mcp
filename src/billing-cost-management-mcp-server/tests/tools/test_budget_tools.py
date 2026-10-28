@@ -22,6 +22,7 @@ These tests verify the functionality of the AWS Budgets API tools, including:
 - Formatting budget data for display and analysis
 """
 
+import asyncio
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import (
     budget_server,
@@ -738,6 +739,16 @@ def test_budget_server_initialization():
     instructions = budget_server.instructions
     assert instructions is not None
     assert 'Tools for working with AWS Budgets API' in instructions if instructions else False
+
+
+def test_budgets_description_states_scope_and_health():
+    """The description names every Expression member and what UNHEALTHY does to the spend."""
+    tool = asyncio.run(budget_server.get_tool('budgets'))
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert 'Dimensions, Tags, CostCategories and ProductAttributes' in description
+    assert "means AWS has stopped updating the budget's spend" in description
+    assert 'cannot read its billing view or filter' not in description
 
 
 # ---------------------------------------------------------------------------

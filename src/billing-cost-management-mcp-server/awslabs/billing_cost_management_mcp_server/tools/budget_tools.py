@@ -65,19 +65,20 @@ The API returns information about:
 - Budget limits (amount and unit)
 - Current actual spend
 - Forecasted spend
-- The scope each budget tracks: its filter, cost metric and billing view, and whether that
-  scope can still be evaluated
+- The scope each budget tracks: its filter, cost metric and billing view, and whether AWS is
+  still updating its spend
 
-A budget's filter is in `filter_expression` (an Expression of Dimensions, Tags and CostCategories
-combined with And, Or and Not) or, for budgets that use the deprecated form, in `cost_filters`.
+A budget's filter is in `filter_expression` (an Expression of Dimensions, Tags, CostCategories and
+ProductAttributes combined with And, Or and Not) or, for budgets that use the deprecated form, in
+`cost_filters`.
 `metrics` (or the deprecated `cost_types`) says how cost is measured, and `billing_view_arn` names
 the billing view the budget reads, which can be a non-primary view such as a billing group or
 custom view. A budget with no filter tracks everything its budget type measures in its billing
 view. `calculated_spend` is computed on the budget's own filter, metric and billing view, so
 compare it only with a Cost Explorer query that applies the same ones, never with an unfiltered
-total. A `health_status` of `UNHEALTHY` means the budget cannot read its billing view or filter, or
-is no longer being updated (`status_reason` says which), so its `calculated_spend` may be stale or
-incomplete.
+total. A `health_status` of `UNHEALTHY` means AWS has stopped updating the budget's spend, for
+example because it can no longer read its billing view (`status_reason` says why), so its
+`calculated_spend` may be stale.
 
 With this information, you can determine which budgets have been exceeded or are projected to exceed their limits.
 
