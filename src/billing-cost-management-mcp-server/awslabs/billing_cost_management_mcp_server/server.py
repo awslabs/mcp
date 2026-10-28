@@ -182,6 +182,7 @@ TOOLS:
 - pricing: Access AWS service pricing information
 - bcm-pricing-calc: Work with workload estimates from AWS Billing and Cost Management Pricing Calculator
 - budget: Retrieve AWS budget information
+- budget-performance-history: Budgeted vs actual amounts per past period for one budget (which months were over budget)
 - cost-anomaly: Identify cost anomalies in AWS accounts
 - cost-comparison: Compare costs between time periods
 - free-tier-usage: Monitor AWS Free Tier usage
