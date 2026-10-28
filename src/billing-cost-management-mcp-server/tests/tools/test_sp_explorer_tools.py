@@ -1383,12 +1383,19 @@ class TestOfferingFilterVocabulary:
             assert code in rates
 
     async def test_service_codes_say_other_offering_codes_return_empty(self):
-        """On offerings only AmazonEC2 is rejected; every other code returns an empty result."""
+        """On offerings an EC2-containing code fails the call; any other code returns empty."""
         offerings = (await self._arg_doc('service_codes')).split(self.RATES, 1)[0]
 
         assert 'Rate codes do not work there' not in offerings
         assert re.search(r'Any other value.*empty result, not an error', offerings)
-        assert re.search(r'AmazonEC2 alone is rejected', offerings)
+        assert 'AmazonEC2 alone' not in offerings
+        assert re.search(r'containing EC2 in upper or lower case', offerings)
+        assert 'EC2InstanceSavingsPlans' in offerings
+        assert re.search(r'fails the whole request', offerings)
+        assert re.search(
+            r'ValidationException whose message lists AmazonEC2 as allowed', offerings
+        )
+        assert re.search(r'For EC2Instance plans use ComputeSavingsPlans', offerings)
 
     async def test_usage_types_give_both_formats(self):
         """Offering and rate usage types are shown, region prefix and empty match included."""

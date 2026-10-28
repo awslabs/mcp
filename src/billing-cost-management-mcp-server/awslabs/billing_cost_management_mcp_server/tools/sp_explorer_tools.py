@@ -139,8 +139,10 @@ async def sp_explorer(
             MachineLearningSavingsPlans (SageMaker plans), or DatabaseSavingsPlans (Database
             plans), as in the serviceCode field of a returned offering. Any other value,
             including a rate code such as AmazonSageMaker, matches nothing and returns an empty
-            result, not an error. AmazonEC2 alone is rejected, even though the error message
-            lists it as allowed.
+            result, not an error. The exception is a value containing EC2 in upper or lower
+            case, such as AmazonEC2, ec2 or EC2InstanceSavingsPlans: it fails the whole request,
+            even alongside a valid code, with a ValidationException whose message lists
+            AmazonEC2 as allowed. For EC2Instance plans use ComputeSavingsPlans.
             describe_savings_plans_offering_rates takes the code of the service the rate
             applies to: AmazonEC2, AmazonECS, AmazonEKS, AWSLambda, AmazonSageMaker, AmazonRDS,
             AuroraDSQL, AmazonDynamoDB, AmazonElastiCache, AmazonDocDB, AmazonNeptune,
