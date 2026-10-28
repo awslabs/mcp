@@ -74,11 +74,10 @@ It holds at most one of:
 - dimensions: key LINKED_ACCOUNT and a list of account IDs
 - tags: one tag key and a list of its values
 - cost_categories: one cost category name and a list of its values
-plus an optional time_range (begin_date_inclusive, end_date_inclusive; either can be
-absent, meaning open-ended on that side). Values are exact matches: there are no match
-options and no And/Or/Not. An empty or missing expression means the view is unfiltered:
-it shows all data of its source views. A cost category value of "" means uncategorized
-costs (costs no rule of that cost category assigns a value to).
+plus an optional time_range (begin_date_inclusive, end_date_inclusive; one of them can
+be absent, meaning open-ended on that side). There are no match options and no
+And/Or/Not. An empty or missing expression means the view is unfiltered: it shows all
+data of its source views.
 
 Example: {"arn": "arn:aws:billing::123456789012:billingview/custom-view-abc123"}""",
 )

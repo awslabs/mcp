@@ -701,7 +701,8 @@ async def test_get_billing_view_description_counts_types_and_explains_filter():
     assert 'data_filter_expression' in description
     assert 'LINKED_ACCOUNT' in description
     assert 'unfiltered' in description
-    assert 'uncategorized' in description
+    assert 'exact matches' not in description
+    assert 'uncategorized' not in description
 
 
 @pytest.mark.asyncio
