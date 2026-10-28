@@ -498,7 +498,7 @@ class TestProcurementPreferencesDescription:
         assert named <= summary, named - summary
         assert 'EinvoiceDeliveryEnabled' in named
         assert 'PurchaseOrderRetrievalEnabled' in named
-        assert 'There is no single status field' in returns
+        assert 'each have their own Enabled flag and status' in returns
         assert 'The summary does NOT include EinvoiceDeliveryPreference' in block
 
     @pytest.mark.asyncio

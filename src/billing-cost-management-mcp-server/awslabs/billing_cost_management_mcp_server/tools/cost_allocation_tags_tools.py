@@ -152,8 +152,7 @@ Backfill retroactively applies the current tag activation status to historical b
 Without backfill, tag activation only affects future billing periods.
 
 Backfill requests progress through these states:
-- PROCESSING: System is rewriting historical tag data and reprocessing bills. A request
-  reports PROCESSING from the moment it is accepted; there is no separate scheduled state.
+- PROCESSING: System is rewriting historical tag data and reprocessing bills
 - SUCCEEDED: Backfill completed, historical data updated
 - FAILED: Processing error occurred (can be retried)
 
