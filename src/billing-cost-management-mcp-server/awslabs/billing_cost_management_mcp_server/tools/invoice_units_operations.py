@@ -43,6 +43,8 @@ LIST_INVOICE_UNITS_PAGE_SPEC = PageSpec(
     token_key_in_response='NextToken',
     page_max=500,
     page_size_param='MaxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 
