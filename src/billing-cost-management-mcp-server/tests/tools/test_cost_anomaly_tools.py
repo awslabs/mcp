@@ -1145,6 +1145,7 @@ async def _call_cost_anomaly_capturing_request(mock_context, **kwargs):
     with (
         patch.object(ca_mod, 'get_context_logger', return_value=AsyncMock()),
         patch.object(ca_mod, 'create_aws_client', return_value=mock_client),
+        patch.object(ca_mod, '_utc_today', return_value=date(2023, 2, 1)),
     ):
         res = await ca_mod.cost_anomaly(  # type: ignore[reportCallIssue]
             mock_context, start_date='2023-01-01', end_date='2023-01-31', **kwargs
