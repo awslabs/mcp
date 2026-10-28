@@ -1027,7 +1027,9 @@ async def test_description_documents_window_and_total_impact():
     assert 'returns a validation_error that states the window' in description
     assert 'impact.total_impact is in dollars: actual spend minus expected spend' in description
     assert 'BETWEEN includes both bounds' in description
-    assert 'EQUAL is an exact match on the unrounded value' in description
+    assert 'Every comparison uses the unrounded value (responses round it to cents)' in description
+    assert 'so EQUAL rarely matches' in description
+    assert 'EQUAL is an exact match on the unrounded value' not in description
     assert 'matches no monitor returns an empty list, not an error' in description
 
 

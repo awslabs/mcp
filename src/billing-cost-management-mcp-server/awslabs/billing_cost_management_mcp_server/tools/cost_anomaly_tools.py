@@ -97,7 +97,8 @@ Results:
 - impact.total_impact is in dollars: actual spend minus expected spend over the anomaly
   (total_actual_spend - total_expected_spend), not a percentage; total_impact_percentage is
   the percentage. The total impact filter compares against this value. BETWEEN includes both
-  bounds. EQUAL is an exact match on the unrounded value, so it rarely matches.
+  bounds. Every comparison uses the unrounded value (responses round it to cents), so EQUAL
+  rarely matches.
 - A monitor_arn in this account that matches no monitor returns an empty list, not an error.""",
 )
 async def cost_anomaly(
