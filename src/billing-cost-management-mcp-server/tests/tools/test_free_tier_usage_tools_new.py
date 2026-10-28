@@ -566,7 +566,7 @@ class TestFilterValidation:
     async def test_greater_than_or_equal_off_usage_percentage_is_rejected(
         self, mock_context, filter_json
     ):
-        """GTE on a text key never matches a row at the API, so the tool rejects it, even nested."""
+        """GTE on a text key matches no row at the API (every row under Not), so the tool rejects it."""
         mock_client = MagicMock()
 
         result = await get_free_tier_usage_data(mock_context, mock_client, filter_json)
@@ -575,7 +575,7 @@ class TestFilterValidation:
         assert result['status'] == 'error'
         assert result['error_type'] == 'validation_error'
         assert 'GREATER_THAN_OR_EQUAL applies only to USAGE_PERCENTAGE' in result['message']
-        assert 'never matches a row' in result['message']
+        assert 'it matches no row (and under Not, every row)' in result['message']
 
     async def test_value_of_21_characters_is_rejected(self, mock_context):
         """21 characters is one over the API's limit."""
@@ -806,4 +806,8 @@ async def test_description_documents_the_summary():
     assert 'forecastedUsageAmount' in description
     assert 'free_tier_type' in description
     assert 'an empty one says neither' in description
+    assert (
+        'The forecast is month-to-date usage projected in a straight line to month end, '
+        'so early in the month it can greatly overstate.'
+    ) in description
     assert 'region' in description

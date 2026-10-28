@@ -67,7 +67,7 @@ This tool provides insights into your AWS Free Tier usage across services:
 
 SUMMARY (`data.summary`):
 - Each row is counted as at_limit (99.9% or more of its limit), near_limit (80% to under 99.9%), safe (under 80%) or unknown (no usable limit or usage), by actual month-to-date usage. Items are listed for at_limit and near_limit, highest first.
-- forecast_exceeds_limit_items lists rows still under the limit whose month-end forecast (forecastedUsageAmount) reaches 99.9% or more of it, highest first. Rows already at the limit are not repeated there.
+- forecast_exceeds_limit_items lists rows still under the limit whose month-end forecast (forecastedUsageAmount) reaches 99.9% or more of it, highest first. The forecast is month-to-date usage projected in a straight line to month end, so early in the month it can greatly overstate. Rows already at the limit are not repeated there.
 - Each item is one row, with its `forecast`, `region` and `free_tier_type`, and `forecast_percentage` when the forecast is at least the actual usage (the API defaults the forecast to 0, and a forecast below actual usage is not a real one). One service can have a row per region, so read `region` before saying which limit is reached. free_tier_type tells whether the offer ends ("12 Months Free", "Free Trial") or does not ("Always Free"); an empty one says neither.
 
 FILTER (optional JSON string):
@@ -189,7 +189,7 @@ def _filter_error(expression: Any) -> Optional[str]:
     """Return why a filter would fail or never match, else None.
 
     Only these two traps are checked: the API rejects a value over 20 characters, and
-    accepts GREATER_THAN_OR_EQUAL on a text key but never matches a row with it. Any
+    accepts GREATER_THAN_OR_EQUAL on a text key but it matches no row (every row under Not). Any
     other malformed filter is left for the SDK and the API to report.
 
     Args:
@@ -207,8 +207,8 @@ def _filter_error(expression: Any) -> Optional[str]:
         if key in TEXT_FILTER_KEYS and match_options == ['GREATER_THAN_OR_EQUAL']:
             return (
                 f'GREATER_THAN_OR_EQUAL applies only to USAGE_PERCENTAGE. The API accepts it '
-                f'on {key} but never matches a row with it. Use EQUALS, STARTS_WITH, '
-                'ENDS_WITH or CONTAINS.'
+                f'on {key} but it matches no row (and under Not, every row). Use EQUALS, '
+                'STARTS_WITH, ENDS_WITH or CONTAINS.'
             )
         values = dimensions.get('Values')
         for value in values if isinstance(values, list) else []:
