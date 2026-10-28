@@ -490,33 +490,49 @@ async def list_workload_estimates(
                 )
             status_filter = normalized_status
 
-        # Create BCM Pricing Calculator client
-        bcm_client = create_aws_client('bcm-pricing-calculator')
-
-        # Check each date range before any AWS call. The service also rejects an after
-        # bound later than its before bound, but its message names the bounds the wrong
-        # way round.
-        created_filter = _build_timestamp_filter(created_after, created_before)
-        expires_filter = _build_timestamp_filter(expires_after, expires_before)
-        for prefix, after, before, timestamp_filter in (
-            ('created', created_after, created_before, created_filter),
-            ('expires', expires_after, expires_before, expires_filter),
-        ):
-            if (
-                'afterTimestamp' in timestamp_filter
-                and 'beforeTimestamp' in timestamp_filter
-                and timestamp_filter['afterTimestamp'] > timestamp_filter['beforeTimestamp']
-            ):
+        # Check each date bound before any AWS call: an unparseable value names its
+        # parameter, and an after bound later than its before bound is rejected here since
+        # the service's message names the bounds the wrong way round.
+        bounds = {
+            'created_after': created_after,
+            'created_before': created_before,
+            'expires_after': expires_after,
+            'expires_before': expires_before,
+        }
+        timestamps: Dict[str, datetime] = {}
+        for name, value in bounds.items():
+            if value:
+                try:
+                    timestamps[name] = _parse_timestamp(value)
+                except (ValueError, OverflowError):
+                    return format_response(
+                        'error',
+                        {'invalid_parameter': name, 'value': value},
+                        f'Invalid {name}: {value}. Use an ISO 8601 timestamp such as '
+                        f'2026-01-31T00:00:00 (UTC when no offset is given).',
+                        error_type='validation_error',
+                        operation='list_workload_estimates',
+                        service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+                    )
+        for prefix in ('created', 'expires'):
+            after = timestamps.get(f'{prefix}_after')
+            before = timestamps.get(f'{prefix}_before')
+            if after and before and after > before:
                 return format_response(
                     'error',
-                    {'invalid_parameter': f'{prefix}_after', 'value': after},
-                    f'Invalid date range: {prefix}_after ({after}) is later than '
-                    f'{prefix}_before ({before}). {prefix}_after must be earlier than '
-                    f'or equal to {prefix}_before.',
+                    {'invalid_parameter': f'{prefix}_after', 'value': bounds[f'{prefix}_after']},
+                    f'Invalid date range: {prefix}_after ({bounds[f"{prefix}_after"]}) is later '
+                    f'than {prefix}_before ({bounds[f"{prefix}_before"]}). {prefix}_after must be '
+                    f'earlier than or equal to {prefix}_before.',
                     error_type='validation_error',
                     operation='list_workload_estimates',
                     service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
                 )
+        created_filter = _timestamp_filter(timestamps, 'created')
+        expires_filter = _timestamp_filter(timestamps, 'expires')
+
+        # Create BCM Pricing Calculator client
+        bcm_client = create_aws_client('bcm-pricing-calculator')
 
         # Check preferences before proceeding
         preferences_result = await get_preferences(ctx)
@@ -568,18 +584,25 @@ async def list_workload_estimates(
         )
 
 
-def _build_timestamp_filter(after: Optional[str], before: Optional[str]) -> Dict[str, datetime]:
-    """Build a FilterTimestamp from ISO 8601 bounds, as UTC instants so the two compare.
+def _parse_timestamp(value: str) -> datetime:
+    """Parse an ISO 8601 bound as a UTC instant, so two bounds compare.
 
     A value without an offset is taken as UTC, which is how botocore sends it.
+    Raises ValueError for a value that is not ISO 8601, and OverflowError for one whose
+    offset moves it outside the datetime range.
     """
+    parsed = datetime.fromisoformat(value.replace('Z', UTC_TIMEZONE_OFFSET))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _timestamp_filter(timestamps: Dict[str, datetime], prefix: str) -> Dict[str, datetime]:
+    """Build a FilterTimestamp from the parsed <prefix>_after and <prefix>_before bounds."""
     timestamp_filter: Dict[str, datetime] = {}
-    for key, value in (('afterTimestamp', after), ('beforeTimestamp', before)):
-        if value:
-            parsed = datetime.fromisoformat(value.replace('Z', UTC_TIMEZONE_OFFSET))
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
-            timestamp_filter[key] = parsed.astimezone(timezone.utc)
+    for key, suffix in (('afterTimestamp', 'after'), ('beforeTimestamp', 'before')):
+        if f'{prefix}_{suffix}' in timestamps:
+            timestamp_filter[key] = timestamps[f'{prefix}_{suffix}']
     return timestamp_filter
 
 

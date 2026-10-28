@@ -422,7 +422,7 @@ class TestDateFilterOrder:
             patch(
                 'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
                 return_value=client,
-            ),
+            ) as create_client,
             patch(
                 'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences',
                 new=AsyncMock(return_value={'account_types': ['management account']}),
@@ -433,7 +433,7 @@ class TestDateFilterOrder:
             ctx.warning = AsyncMock()
             ctx.error = AsyncMock()
             result = await list_workload_estimates(ctx, **kwargs)
-            return result, get_prefs
+            return result, get_prefs, create_client
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize('prefix', ['created', 'expires'])
@@ -453,7 +453,7 @@ class TestDateFilterOrder:
         """The error names both parameters in the right order, with no AWS call."""
         client = MagicMock()
 
-        result, get_prefs = await self._list(
+        result, get_prefs, create_client = await self._list(
             client, **{f'{prefix}_after': after, f'{prefix}_before': before}
         )
 
@@ -465,6 +465,7 @@ class TestDateFilterOrder:
         assert expected in result['message']
         assert 'beforeTimestamp' not in result['message']
         get_prefs.assert_not_called()
+        create_client.assert_not_called()
         client.list_workload_estimates.assert_not_called()
 
     @pytest.mark.asyncio
@@ -484,7 +485,7 @@ class TestDateFilterOrder:
         client = MagicMock()
         client.list_workload_estimates.return_value = {'items': []}
 
-        result, _ = await self._list(
+        result, _, _ = await self._list(
             client, **{f'{prefix}_after': after, f'{prefix}_before': before}
         )
 
@@ -524,7 +525,7 @@ class TestDateFilterOrder:
         client = MagicMock()
         client.list_workload_estimates.return_value = {'items': []}
 
-        result, _ = await self._list(
+        result, _, _ = await self._list(
             client, created_after='2026-01-01T12:00:00', created_before='2026-01-01T13:00:00Z'
         )
 
@@ -533,16 +534,38 @@ class TestDateFilterOrder:
         assert sent['afterTimestamp'] == datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
 
     @pytest.mark.asyncio
-    async def test_unparseable_date_is_rejected_before_any_call(self):
-        """A value that is not ISO 8601 returns validation_error without calling the service."""
+    @pytest.mark.parametrize(
+        'parameter', ['created_after', 'created_before', 'expires_after', 'expires_before']
+    )
+    async def test_unparseable_date_is_rejected_before_any_call(self, parameter):
+        """A value that is not ISO 8601 returns a validation_error naming it, with no AWS call."""
         client = MagicMock()
 
-        result, get_prefs = await self._list(client, expires_before='last week')
+        result, get_prefs, create_client = await self._list(client, **{parameter: 'last week'})
 
         assert result['status'] == 'error'
         assert result['error_type'] == 'validation_error'
+        assert result['data'] == {'invalid_parameter': parameter, 'value': 'last week'}
+        assert f'Invalid {parameter}: last week' in result['message']
+        assert 'ISO 8601' in result['message']
+        assert '(UTC when no offset is given)' in result['message']
         get_prefs.assert_not_called()
+        create_client.assert_not_called()
         client.list_workload_estimates.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_out_of_range_date_is_rejected_before_any_call(self):
+        """A date its offset moves outside the datetime range is a validation_error naming it."""
+        client = MagicMock()
+
+        result, get_prefs, create_client = await self._list(
+            client, created_before='0001-01-01T00:00:00+05:00'
+        )
+
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == 'created_before'
+        get_prefs.assert_not_called()
+        create_client.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_each_pair_is_checked_independently(self):
@@ -550,7 +573,7 @@ class TestDateFilterOrder:
         client = MagicMock()
         client.list_workload_estimates.return_value = {'items': []}
 
-        result, _ = await self._list(
+        result, _, _ = await self._list(
             client,
             created_after='2026-06-01T00:00:00Z',
             expires_before='2026-01-01T00:00:00Z',
