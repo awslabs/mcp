@@ -19,6 +19,7 @@ Updated to use shared utility functions.
 """
 
 import json
+import math
 import os
 from ..utilities.aws_service_base import (
     PageSpec,
@@ -259,19 +260,22 @@ async def get_attribute_values(
         # API reference does not document an order; sorting each page would break it.
         values = [item['Value'] for item in attribute_values if 'Value' in item]
 
+        data: Dict[str, Any] = {
+            'service_code': service_code,
+            'attribute_name': attribute_name,
+            'values': values,
+            'message': f'Successfully retrieved {len(values)} values for attribute {attribute_name} of service {service_code}',
+        }
+        # The API returns no values, not an error, for an attribute the service does not have.
+        if not values and pagination['complete_dataset'] and not next_token:
+            data['hint'] = (
+                f'{service_code} has no values for {attribute_name!r}. The Price List API '
+                'returns an empty list, not an error, when the attribute is not one of the '
+                "service's attributes: check the name with get_service_attributes."
+            )
+
         # Use shared format_response utility
-        return format_response(
-            'success',
-            with_pagination(
-                {
-                    'service_code': service_code,
-                    'attribute_name': attribute_name,
-                    'values': values,
-                    'message': f'Successfully retrieved {len(values)} values for attribute {attribute_name} of service {service_code}',
-                },
-                pagination,
-            ),
-        )
+        return format_response('success', with_pagination(data, pagination))
 
     except Exception as e:
         # Route through the shared handler so the response carries a top-level
@@ -303,6 +307,108 @@ SERVICE_CODE_EXAMPLES = {
     'DynamoDB': 'AmazonDynamoDB',
     'Bedrock': 'AmazonBedrock',
 }
+
+# GetProducts Filter.Type values. TERM_MATCH and EQUALS are the same exact match, CONTAINS
+# matches a substring, and ANY_OF and NONE_OF split Value on commas.
+FILTER_TYPES = ('TERM_MATCH', 'EQUALS', 'CONTAINS', 'ANY_OF', 'NONE_OF')
+_LIST_FILTER_TYPES = ('ANY_OF', 'NONE_OF')
+
+
+def _filter_text(field: str, value: Any) -> str:
+    """One filter value as the API takes it: a string, or a number as its text ('2', not '2.0')."""
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        raise ValueError(
+            f'Filter {field!r}: each value must be a string or a number, not {json.dumps(value)}.'
+        )
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f'Filter {field!r}: {value} is not a value the API can match.')
+        if value.is_integer():
+            return str(int(value))
+    text = str(value)
+    if not text.strip():
+        raise ValueError(f'Filter {field!r}: the value is blank.')
+    return text
+
+
+def _filter_value(field: str, value: Any, filter_type: str) -> str:
+    """A filter's Value: a list is comma-joined, which only ANY_OF and NONE_OF accept."""
+    if not isinstance(value, list):
+        if isinstance(value, (dict, type(None))):
+            raise ValueError(
+                f'Filter {field!r}: the value must be a string, a number or a list of them, '
+                f'not {json.dumps(value)}.'
+            )
+        text = _filter_text(field, value)
+        if filter_type in _LIST_FILTER_TYPES and not any(v.strip() for v in text.split(',')):
+            raise ValueError(f'Filter {field!r}: {filter_type} needs at least one value.')
+        return text
+    if filter_type not in _LIST_FILTER_TYPES:
+        raise ValueError(
+            f'Filter {field!r}: a list of values needs Type ANY_OF or NONE_OF, not {filter_type}.'
+        )
+    if not value:
+        raise ValueError(f'Filter {field!r}: the list of values is empty.')
+    values = [_filter_text(field, item) for item in value]
+    for item in values:
+        if ',' in item:
+            raise ValueError(
+                f'Filter {field!r}: {item!r} contains a comma, which {filter_type} reads as a '
+                'separator. Match that value on its own with TERM_MATCH, EQUALS or CONTAINS.'
+            )
+    return ','.join(values)
+
+
+def _build_filters(parsed: Any) -> list:
+    """The GetProducts Filters for the parsed filters argument.
+
+    An object maps each attribute to a value: a string or number is a TERM_MATCH, a list an
+    ANY_OF. A list is the API's own [{Field, Type, Value}] shape, for every filter type.
+    """
+    filters = []
+    if isinstance(parsed, dict):
+        for field, value in parsed.items():
+            if value is None:
+                continue
+            if not field.strip():
+                raise ValueError(f'Filter field names must be attribute names, not {field!r}.')
+            filter_type = 'ANY_OF' if isinstance(value, list) else 'TERM_MATCH'
+            filters.append(
+                {
+                    'Field': field,
+                    'Type': filter_type,
+                    'Value': _filter_value(field, value, filter_type),
+                }
+            )
+        return filters
+    if not isinstance(parsed, list):
+        raise ValueError(
+            'filters must be a JSON object such as {"instanceType": "m5.large"} or a JSON list '
+            'such as [{"Field": "instanceType", "Type": "ANY_OF", "Value": "m5.large,m5.xlarge"}].'
+        )
+    for entry in parsed:
+        if not isinstance(entry, dict) or set(entry) != {'Field', 'Type', 'Value'}:
+            raise ValueError(
+                'Each filter in a list must be an object with exactly the keys Field, Type and '
+                f'Value, not {json.dumps(entry)}.'
+            )
+        field, filter_type = entry['Field'], entry['Type']
+        if not isinstance(field, str) or not field.strip():
+            raise ValueError(f'Filter Field must be an attribute name, not {json.dumps(field)}.')
+        if filter_type not in FILTER_TYPES:
+            raise ValueError(
+                f'Filter {field!r}: Type must be one of {", ".join(FILTER_TYPES)}, '
+                f'not {json.dumps(filter_type)}.'
+            )
+        filters.append(
+            {
+                'Field': field,
+                'Type': filter_type,
+                'Value': _filter_value(field, entry['Value'], filter_type),
+            }
+        )
+    return filters
+
 
 # Past this many names the hint points at varying_attributes instead of listing them.
 _HINT_MAX_ATTRIBUTES = 10
@@ -385,30 +491,35 @@ def _filters_matched_nothing(
     service_known is True when the service code returns products without filters, None when
     that check failed.
     """
-    applied = {f['Field']: f['Value'] for f in api_filters}
     if service_known:
         cause = 'The service code is valid.'
     else:
         cause = 'Either the service code or a filter is wrong (checking the service code failed).'
     message = (
-        f'No {service_code} products matched the filters {json.dumps(applied)}. {cause} '
+        f'No {service_code} products matched the filters {json.dumps(api_filters)}. {cause} '
         'The Price List API returns no products, not an error, when a field is not one of the '
         "service's attributes, a value is not one of its values, or no product has this "
         'combination of values (for example, an instance type not offered in that Region). '
         'Check fields with get_service_attributes and values with get_attribute_values, and '
         'drop filters one at a time to find the one that excludes everything.'
     )
-    if any(field.lower() == 'location' for field in applied):
+    if any(f['Field'].lower() == 'location' for f in api_filters):
         message += (
             ' "location" takes the Price List location name (for example "US East (N. Virginia)"'
             ' or "EU (Ireland)"), not a region code; services with a "regionCode" attribute take'
             ' codes such as "us-east-1" in regionCode.'
         )
-    message += (
-        ' This tool matches each filter against one value; a comma-separated list is matched'
-        ' as one literal value, not as a list.'
-    )
-    data: Dict[str, Any] = {'message': message, 'filters': applied}
+    exact_with_comma = [
+        f for f in api_filters if f['Type'] in ('TERM_MATCH', 'EQUALS') and ',' in f['Value']
+    ]
+    if exact_with_comma:
+        example = exact_with_comma[0]
+        values = [v.strip() for v in example['Value'].split(',')]
+        message += (
+            f' A {example["Type"]} value with commas matches that whole string, not each part;'
+            f' to match any of them, pass a list: {json.dumps({example["Field"]: values})}.'
+        )
+    data: Dict[str, Any] = {'message': message, 'filters': api_filters}
     if service_known is None:
         data['examples'] = dict(SERVICE_CODE_EXAMPLES)
     return {
@@ -449,14 +560,11 @@ async def get_pricing_from_api(
         api_filters = []
         if filters:
             # Parse JSON using shared utility
-            filters_dict = parse_json(filters, 'filters')
-            if filters_dict:
-                # Format: {"volumeType": "Standard", "storageClass": "General Purpose"}
-                for field, value in filters_dict.items():
-                    if value is not None:
-                        filter_dict = {'Field': field, 'Type': 'TERM_MATCH', 'Value': value}
-                        api_filters.append(filter_dict)
-
+            parsed_filters = parse_json(filters, 'filters')
+            # An empty object or list sends no filter; any other JSON value is checked, so '0'
+            # or 'false' is refused rather than fetching the whole service unfiltered.
+            if parsed_filters is not None and parsed_filters != {} and parsed_filters != []:
+                api_filters = _build_filters(parsed_filters)
                 await ctx.info(f'Applied {len(api_filters)} filters')
 
         all_price_list, _, pagination = await paginate_aws_items(
