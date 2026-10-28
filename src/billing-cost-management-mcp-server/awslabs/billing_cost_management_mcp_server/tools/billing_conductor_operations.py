@@ -88,6 +88,37 @@ def _request_params(
 BC_LIST_BILLING_GROUPS = _bc_page_spec('BillingGroups')
 
 
+def _validate_billing_group_filters(filters: Any) -> None:
+    """Reject ListBillingGroups filters the service refuses with ValidationException.
+
+    The service takes exactly one Names entry and at most 2 Statuses, and PricingPlan must be
+    a full ARN. Checking here saves the round trip and names the rule.
+
+    Raises:
+        ValueError: A filter breaks one of these rules.
+    """
+    if not isinstance(filters, dict):
+        return
+    names = filters.get('Names')
+    if names is not None and (not isinstance(names, list) or len(names) != 1):
+        raise ValueError(
+            'Names takes exactly one name search: '
+            '[{"SearchOption": "STARTS_WITH", "SearchValue": "<prefix>"}]. '
+            'Call once per prefix to match several names.'
+        )
+    statuses = filters.get('Statuses')
+    if isinstance(statuses, list) and len(statuses) > 2:
+        raise ValueError(
+            'Statuses takes at most 2 values. Omit Statuses to get billing groups in every status.'
+        )
+    pricing_plan = filters.get('PricingPlan')
+    if isinstance(pricing_plan, str) and not pricing_plan.startswith('arn:'):
+        raise ValueError(
+            'PricingPlan must be a full pricing plan ARN '
+            '(arn:aws:billingconductor::<account>:pricingplan/<id>), not a bare ID.'
+        )
+
+
 async def list_billing_groups(
     ctx: Context,
     billing_period: Optional[str] = None,
@@ -109,6 +140,7 @@ async def list_billing_groups(
     """
     try:
         request_params = _request_params(billing_period=billing_period, filters=filters)
+        _validate_billing_group_filters(request_params.get('Filters'))
         bc_client = _create_billing_conductor_client()
 
         billing_groups, _, pagination = await paginate_aws_items(
@@ -194,6 +226,38 @@ BC_LIST_ACCOUNT_ASSOCIATIONS = PageSpec(
     caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
+_ASSOCIATION_KEYWORDS = frozenset({'MONITORED', 'UNMONITORED'})
+
+
+def _validate_account_association_filters(filters: Any) -> None:
+    """Reject ListAccountAssociations filters the service refuses with ValidationException.
+
+    The service rejects AccountId together with AccountIds. Association must be MONITORED,
+    UNMONITORED or a full billing group ARN. A bare billing group ID passes the API model's
+    pattern, but without AccountId or AccountIds the service rejects it, and with either it
+    returns nothing, so it is refused here in both cases.
+
+    Raises:
+        ValueError: A filter breaks one of these rules.
+    """
+    if not isinstance(filters, dict):
+        return
+    if filters.get('AccountId') is not None and filters.get('AccountIds') is not None:
+        raise ValueError(
+            'Use AccountId or AccountIds, not both. Put every account in AccountIds instead.'
+        )
+    association = filters.get('Association')
+    if (
+        isinstance(association, str)
+        and association not in _ASSOCIATION_KEYWORDS
+        and not association.startswith('arn:')
+    ):
+        raise ValueError(
+            'Association must be MONITORED, UNMONITORED or a full billing group ARN '
+            '(arn:aws:billingconductor::<account>:billinggroup/<id>). Without AccountId or '
+            'AccountIds the service rejects a bare billing group ID; with either it returns nothing.'
+        )
+
 
 async def list_account_associations(
     ctx: Context,
@@ -216,6 +280,7 @@ async def list_account_associations(
     """
     try:
         request_params = _request_params(billing_period=billing_period, filters=filters)
+        _validate_account_association_filters(request_params.get('Filters'))
         bc_client = _create_billing_conductor_client()
 
         linked_accounts, _, pagination = await paginate_aws_items(

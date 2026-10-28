@@ -113,6 +113,42 @@ def test_list_account_associations_tool_registered():
     assert tool.name == 'list-account-associations'
 
 
+def _description(tool_name):
+    tool = asyncio.run(billing_conductor_server.get_tool(tool_name))
+    assert tool is not None
+    return ' '.join((tool.description or '').split())
+
+
+def test_list_billing_groups_describes_filter_limits():
+    """Names takes one case-sensitive prefix, Statuses at most 2, PricingPlan a full ARN."""
+    description = _description('list-billing-groups')
+    assert 'Names: exactly one name search, a case-sensitive prefix match' in description
+    assert 'Statuses: at most 2 of ACTIVE, PRIMARY_ACCOUNT_MISSING, PENDING' in description
+    assert 'PricingPlan: a full pricing plan ARN' in description
+    assert 'fails with validation_error before any AWS call' in description
+    assert 'supports STARTS_WITH search' not in description
+
+
+def test_list_account_associations_describes_filter_rules():
+    """AccountId and AccountIds exclude each other, and Association takes a full ARN."""
+    description = _description('list-account-associations')
+    assert 'Use AccountId or AccountIds, not both' in description
+    assert 'A full billing group ARN' in description
+    assert 'Not a bare billing group ID: without AccountId or AccountIds' in description
+    assert 'fail with validation_error before any AWS call' in description
+
+
+def test_get_billing_group_cost_report_describes_period_defaults():
+    """No range means the current month to date; the end is exclusive; months sum without BILLING_PERIOD."""
+    description = _description('get-billing-group-cost-report')
+    assert 'Without it, the report covers only the current month, month-to-date' in description
+    assert 'The end month is excluded' in description
+    assert 'Include BILLING_PERIOD in GroupBy to get one row per month' in description
+    assert 'the months of a range are summed' in description
+    assert 'BILLING_PERIOD: "2025-01"' in description
+    assert 'Nov 2023' not in description
+
+
 def test_list_billing_group_cost_reports_tool_registered():
     """Test that the list_billing_group_cost_reports tool is registered."""
     tool = asyncio.run(billing_conductor_server.get_tool('list-billing-group-cost-reports'))
