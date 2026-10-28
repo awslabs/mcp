@@ -26,6 +26,8 @@ from ..utilities.aws_service_base import (
     parse_json,
     with_pagination,
 )
+from ..utilities.time_utils import format_timestamp_to_utc_iso
+from botocore.exceptions import ClientError
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
 
@@ -56,7 +58,7 @@ free_tier_usage_server = FastMCP(
 
 @free_tier_usage_server.tool(
     name='free-tier-usage',
-    description="""Retrieves AWS Free Tier usage information using the Free Tier Usage API.
+    description="""Retrieves AWS Free Tier usage, and the account's Free plan state and credit activities.
 
 This tool provides insights into your AWS Free Tier usage across services:
 
@@ -83,6 +85,19 @@ PAGINATION:
 - max_items: total usage rows returned. Omit it to fetch every page (no limit). Pass it, or narrow the filter, when the account has many Free Tier rows.
 - A partial result has `complete_dataset: false` and a warning. The summary then covers only the returned rows, so its counts undercount. Call again with a larger max_items, continue with next_token (the `pagination.next_token` from that response, sent with the same filter), or state in the answer that the result is partial.
 - A continuation call's summary covers only that call's rows.
+
+FREE PLAN (accounts created on or after July 15, 2025, which choose a Free or a Paid plan):
+
+2. get_account_plan_state: The account's plan. Takes no filter, max_items or next_token.
+   - Returns `data.plan_record_found` and, when true, `accountId`, `accountPlanType` (FREE is the Free plan, PAID the Paid plan), `accountPlanStatus` (NOT_STARTED, ACTIVE or EXPIRED), `accountPlanRemainingCredits` (Free Tier credits left, as `amount` and `unit` USD) and `accountPlanExpirationDate` (UTC). A PAID account can still have credits left.
+   - plan_record_found: false means the account has no plan record, so it is not on the Free plan; for example, an account created before July 15, 2025 has none and uses the legacy Free Tier (get_free_tier_usage). This is an answer, not an error to retry.
+   - NOT_STARTED means the plan has not started, so its credits and expiration date are not final.
+
+3. list_account_activities: Activities the account can complete to earn Free Tier credits.
+   - Returns `data.activities` (each with `activityId`, `title`, `status` NOT_STARTED, IN_PROGRESS, COMPLETED or EXPIRING, and `reward.credit` as `amount` and `unit` USD) and `data.pagination`. max_items and next_token work as for get_free_tier_usage.
+   - An empty list means no activities are available to the account.
+
+This tool is read-only: it cannot change the account's plan.
    """,
 )
 async def free_tier_usage(
@@ -92,7 +107,7 @@ async def free_tier_usage(
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Retrieves AWS Free Tier usage information using the Free Tier Usage API.
+    """Runs get_free_tier_usage, get_account_plan_state or list_account_activities.
 
     Args:
         ctx: The MCP context object
@@ -102,7 +117,7 @@ async def free_tier_usage(
         next_token: Continuation token from a previous response.
 
     Returns:
-        Dict containing the free tier usage information
+        Dict containing the operation's result
     """
     try:
         await ctx.info(f'Free Tier Usage operation: {operation}')
@@ -114,14 +129,138 @@ async def free_tier_usage(
             return await get_free_tier_usage_data(
                 ctx, freetier_client, filter, max_items=max_items, next_token=next_token
             )
+        elif operation in ('get_account_plan_state', 'list_account_activities') and filter:
+            return _unsupported_argument('filter', operation)
+        elif operation == 'get_account_plan_state' and (
+            max_items is not None or next_token is not None
+        ):
+            return _unsupported_argument(
+                'max_items' if max_items is not None else 'next_token', operation
+            )
+        elif operation == 'get_account_plan_state':
+            return await get_account_plan_state(ctx, freetier_client)
+        elif operation == 'list_account_activities':
+            return await list_account_activities(
+                ctx, freetier_client, max_items=max_items, next_token=next_token
+            )
         else:
             return format_response(
-                'error', {}, f"Unsupported operation: {operation}. Use 'get_free_tier_usage'."
+                'error',
+                {'invalid_parameter': 'operation', 'value': operation},
+                f'Unsupported operation: {operation}. Use '
+                "'get_free_tier_usage', 'get_account_plan_state' or 'list_account_activities'.",
+                error_type='validation_error',
+                operation='free_tier_usage',
+                service='Free Tier Usage',
             )
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
         return await handle_aws_error(ctx, e, 'free_tier_usage', 'Free Tier Usage')
+
+
+def _unsupported_argument(argument: str, operation: str) -> Dict[str, Any]:
+    """Refuse an argument the operation does not take, rather than ignore it."""
+    return format_response(
+        'error',
+        {'invalid_parameter': argument},
+        f'{argument} does not apply to {operation}.',
+        error_type='validation_error',
+        operation=operation,
+        service='Free Tier Usage',
+    )
+
+
+# ListAccountActivities rejects a maxResults above 100 (the model allows up to 1000).
+LIST_ACCOUNT_ACTIVITIES_PAGE_SPEC = PageSpec(
+    result_key='activities',
+    token_param='nextToken',
+    token_key_in_response='nextToken',
+    page_max=100,
+    page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException ("Invalid nextToken").
+    caller_token_error_codes=frozenset({'ValidationException'}),
+)
+
+# GetAccountPlanState fields returned to the caller, in order.
+ACCOUNT_PLAN_STATE_FIELDS = (
+    'accountId',
+    'accountPlanType',
+    'accountPlanStatus',
+    'accountPlanRemainingCredits',
+    'accountPlanExpirationDate',
+)
+
+NO_PLAN_RECORD_MESSAGE = (
+    'The account has no plan record (GetAccountPlanState returned ResourceNotFoundException), '
+    'so it is not on the Free plan; for example, an account created before July 15, 2025 has '
+    'none and uses the legacy Free Tier, which get_free_tier_usage reports. Report it as the '
+    'answer; retrying returns the same result.'
+)
+
+
+async def get_account_plan_state(ctx: Context, freetier_client: Any) -> Dict[str, Any]:
+    """Retrieves the account's Free Tier plan from GetAccountPlanState.
+
+    Args:
+        ctx: The MCP context
+        freetier_client: Free Tier API client
+
+    Returns:
+        Dict with ``plan_record_found`` and, when a record exists, its plan fields.
+        A missing record (ResourceNotFoundException) is a success with
+        ``plan_record_found: False``: the account is not on the Free plan.
+    """
+    try:
+        response = freetier_client.get_account_plan_state()
+    except ClientError as e:
+        if e.response.get('Error', {}).get('Code') == 'ResourceNotFoundException':
+            return format_response('success', {'plan_record_found': False}, NO_PLAN_RECORD_MESSAGE)
+        return await handle_aws_error(ctx, e, 'get_account_plan_state', 'Free Tier Usage')
+    except Exception as e:
+        return await handle_aws_error(ctx, e, 'get_account_plan_state', 'Free Tier Usage')
+
+    plan_state: Dict[str, Any] = {'plan_record_found': True}
+    for field in ACCOUNT_PLAN_STATE_FIELDS:
+        if field in response:
+            plan_state[field] = response[field]
+    if 'accountPlanExpirationDate' in plan_state:
+        plan_state['accountPlanExpirationDate'] = format_timestamp_to_utc_iso(
+            plan_state['accountPlanExpirationDate']
+        )
+    return format_response('success', plan_state)
+
+
+async def list_account_activities(
+    ctx: Context,
+    freetier_client: Any,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Retrieves the account's Free Tier credit activities from ListAccountActivities.
+
+    Args:
+        ctx: The MCP context
+        freetier_client: Free Tier API client
+        max_items: Total activities to return. None fetches every page.
+        next_token: Continuation token from a previous response.
+
+    Returns:
+        Dict containing ``activities`` and a ``pagination`` block
+    """
+    try:
+        activities, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListAccountActivities',
+            freetier_client.list_account_activities,
+            {},
+            LIST_ACCOUNT_ACTIVITIES_PAGE_SPEC,
+            max_items=max_items,
+            next_token=next_token,
+        )
+        return format_response('success', with_pagination({'activities': activities}, pagination))
+    except Exception as e:
+        return await handle_aws_error(ctx, e, 'list_account_activities', 'Free Tier Usage')
 
 
 async def get_free_tier_usage_data(
