@@ -2105,3 +2105,19 @@ def test_description_documents_max_items_paging():
     assert 'next_token' in description
     for removed in ('max_pages', 'max_results', 'automatic pagination', 'Pagination is automatic'):
         assert removed not in description
+
+
+@pytest.mark.asyncio
+async def test_description_states_savings_plans_data_lag():
+    """The getSavingsPlansUtilization notes state the 2-3 day lag and the unmatched-filter case."""
+    tool = await cost_explorer_server.get_tool('cost-explorer')
+    assert tool is not None and tool.description
+    assert 'Data lags ~1 day' not in tool.description
+    assert 'set end_date to yesterday' not in tool.description
+    assert 'end_date must be before the current date' not in tool.description
+    assert 'report none/zero' not in tool.description
+    assert 'Data for the most recent 2-3 days (counting today) is not processed yet' in (
+        tool.description
+    )
+    assert 'an unknown SAVINGS_PLANS_TYPE matches nothing' in tool.description
+    assert 'report that no data is available for that window (not zero)' in tool.description
