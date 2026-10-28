@@ -409,3 +409,38 @@ class TestListCostAllocationTagBackfillHistory:
             mock_context, error, 'ListCostAllocationTagBackfillHistory', 'Cost Explorer'
         )
         assert result['status'] == 'error'
+
+
+class TestBackfillHistoryDescription:
+    """The served backfill-history description lists only the API's statuses."""
+
+    @pytest.mark.asyncio
+    async def test_states_match_the_api_enum(self):
+        """No SCHEDULED state; the listed states equal CostAllocationTagBackfillStatus."""
+        import botocore.session
+        from awslabs.billing_cost_management_mcp_server.tools import (
+            cost_allocation_tags_tools as mod,
+        )
+
+        # Other tests reload the module with an identity decorator; reload it normally
+        # so the server registers its tools again.
+        mod = importlib.reload(mod)
+        tool = await mod.cost_allocation_tags_server.get_tool(
+            'list-cost-allocation-tag-backfill-history'
+        )
+        assert tool is not None
+        description = tool.description or ''
+        enum = set(
+            botocore.session.get_session()
+            .get_service_model('ce')
+            .shape_for('CostAllocationTagBackfillStatus')
+            .enum
+        )
+        listed = {
+            state
+            for state in ('SCHEDULED', 'PROCESSING', 'SUCCEEDED', 'FAILED')
+            if f'- {state}:' in description
+        }
+
+        assert 'SCHEDULED' not in description
+        assert listed == enum
