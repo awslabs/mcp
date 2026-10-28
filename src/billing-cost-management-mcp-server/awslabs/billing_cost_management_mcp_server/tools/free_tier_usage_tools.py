@@ -68,7 +68,7 @@ This tool provides insights into your AWS Free Tier usage across services:
 SUMMARY (`data.summary`):
 - Each row is counted as at_limit (99.9% or more of its limit), near_limit (80% to under 99.9%), safe (under 80%) or unknown (no usable limit or usage), by actual month-to-date usage. Items are listed for at_limit and near_limit, highest first.
 - forecast_exceeds_limit_items lists rows still under the limit whose month-end forecast (forecastedUsageAmount) reaches 99.9% or more of it, highest first. Rows already at the limit are not repeated there.
-- Each item is one row, with its `forecast`, `region` and `free_tier_type`, and `forecast_percentage` when the forecast is at least the actual usage (the API defaults the forecast to 0, and a forecast below actual usage is not a real one). One service can have a row per region, so read `region` before saying which limit is reached. free_tier_type tells whether the offer ends ("12 Months Free", "Free Trial") or does not ("Always Free").
+- Each item is one row, with its `forecast`, `region` and `free_tier_type`, and `forecast_percentage` when the forecast is at least the actual usage (the API defaults the forecast to 0, and a forecast below actual usage is not a real one). One service can have a row per region, so read `region` before saying which limit is reached. free_tier_type tells whether the offer ends ("12 Months Free", "Free Trial") or does not ("Always Free"); an empty one says neither.
 
 FILTER (optional JSON string):
 - Shape: {"Dimensions": {"Key": "SERVICE", "Values": ["AmazonSNS"], "MatchOptions": ["EQUALS"]}}. MatchOptions is required and takes exactly one option. A row matches if it matches any of the Values.
@@ -76,7 +76,7 @@ FILTER (optional JSON string):
 - Keys SERVICE, OPERATION, USAGE_TYPE, REGION, FREE_TIER_TYPE and DESCRIPTION take EQUALS, STARTS_WITH, ENDS_WITH or CONTAINS. Matching ignores case and spaces, so "awslambda" matches "AWS Lambda".
 - Each value is at most 20 characters of letters, digits, spaces and - : . _ / , $ ( ). A long service name such as "Amazon Simple Notification Service" is rejected. Use CONTAINS with part of the name ("Notification"), or the short code the API accepts for some long names (AmazonSNS, AmazonEC2, AmazonS3, AmazonRDS, AmazonSES, AWSSQS).
 - REGION is a region code such as us-east-1, or "global".
-- FREE_TIER_TYPE is text such as "Always Free", "12 Months Free" or "Free Trial".
+- FREE_TIER_TYPE is one of "Always Free", "12 Months Free" or "Free Trial" (empty for a row with no type).
 - USAGE_PERCENTAGE is actual usage as a percent of the limit. It takes GREATER_THAN_OR_EQUAL and one number from 0 to 100 (80 means 80%). Only USAGE_PERCENTAGE takes GREATER_THAN_OR_EQUAL.
 
 PAGINATION:

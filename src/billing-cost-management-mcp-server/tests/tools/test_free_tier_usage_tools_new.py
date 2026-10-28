@@ -655,9 +655,10 @@ async def test_description_documents_the_filter_rules():
     assert 'at most 20 characters of letters, digits, spaces and - : . _ / , $ ( )' in description
     assert 'AmazonSNS' in description
     assert 'ignores case and spaces' in description
-    assert 'Always Free' in description
-    assert '12 Months Free' in description
-    assert 'Free Trial' in description
+    assert (
+        'FREE_TIER_TYPE is one of "Always Free", "12 Months Free" or "Free Trial" '
+        '(empty for a row with no type).'
+    ) in description
     assert 'Only USAGE_PERCENTAGE takes GREATER_THAN_OR_EQUAL' in description
 
 
@@ -804,4 +805,5 @@ async def test_description_documents_the_summary():
     assert 'forecast_exceeds_limit_items' in description
     assert 'forecastedUsageAmount' in description
     assert 'free_tier_type' in description
+    assert 'an empty one says neither' in description
     assert 'region' in description
