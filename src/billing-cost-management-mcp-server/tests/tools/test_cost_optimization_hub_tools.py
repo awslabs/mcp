@@ -2069,6 +2069,8 @@ async def test_tool_description_documents_filters_and_metrics():
         'AfterDiscounts',
     ):
         assert text in description, text
+    flat = ' '.join(description.split())
+    assert "last 30 days' net amortized cost, excluding credits and refunds" in flat
     assert 'restartNeeded: boolean' not in description
 
 

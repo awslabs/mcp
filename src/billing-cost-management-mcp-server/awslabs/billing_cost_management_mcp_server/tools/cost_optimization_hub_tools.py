@@ -467,12 +467,12 @@ key is case-sensitive; recommendations without the tag, or for a key that does n
 are grouped under 'NoTagKey'.
 
 list_recommendation_summaries also returns metrics.savings_percentage: the estimated
-deduplicated monthly savings as a percent of the last 30 days' net amortized cost, for the
-whole filtered result (not per group). It is a whole-number string such as '12%', clamped
-to '>=80%' and '<=2%'. It is only computed when the savings estimation mode preference is
-AfterDiscounts and the only filters are accountIds, regions and tags; otherwise
-metrics.savings_percentage_unavailable_reason gives the service's reason instead. The
-metrics block can be absent.
+deduplicated monthly savings as a percent of the last 30 days' net amortized cost,
+excluding credits and refunds, for the whole filtered result (not per group). It is a
+whole-number string such as '12%', clamped to '>=80%' and '<=2%'. It is only computed when
+the savings estimation mode preference is AfterDiscounts and the only filters are
+accountIds, regions and tags; otherwise metrics.savings_percentage_unavailable_reason gives
+the service's reason instead. The metrics block can be absent.
 
 CRITICAL PARAMETER REQUIREMENTS:
 - 'filters' parameter must be passed as JSON string format
@@ -482,7 +482,7 @@ PAGINATION (list_recommendations, list_recommendation_summaries, list_efficiency
 - 'max_items' is the total number of items returned. Omit it to fetch every page (no limit). Pass it, or narrow 'filters', for queries that can be large (e.g. list_recommendations across an organization).
 - Top N: pass 'order_by' with max_items=N (list_recommendations, list_efficiency_metrics). Without order_by, the first N are not the top N.
 - If the result has complete_dataset: false, it is partial: totals and counts undercount. Call again with a larger 'max_items', continue with 'next_token', or state that the result is partial. Never report the number of returned items as a total count.
-- Summary fields (estimated_total_deduped_savings, currency_code, metrics) cover the whole filtered result and are the same on every page, including continuation calls: do not add them across pages.
+- Summary fields (estimated_total_deduped_savings, currency_code, metrics) cover the whole filtered result and are the same on every page, including continuation calls: do not add them across pages (total_recommendation_count is different; see the next bullet).
 - list_recommendation_summaries returns total_recommendation_count (the sum of the groups' recommendation_count) only when every group was fetched; use it as the overall count instead of adding the groups. It is absent on a partial result, a continuation call, or when a group has no recommendation_count.
 - In ranking_mode='performance', 'max_items' only limits how many ranked groups are returned; the fetch behind the ranking is fixed. A ranking has no 'next_token'; a larger 'max_items' or a continuation does not widen it. complete_dataset: false there means only the top spenders were fetched and ranked: group_by=Region (fewer groups) for a complete ranking, or state that it covers only the top spenders.
 - list_enrollment_statuses, get_recommendation and get_preferences are not paginated.
