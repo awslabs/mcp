@@ -639,8 +639,8 @@ class TestHandleAwsError:
         assert add_retry_guidance(result)['retry_strategy'] == RETRY_SAME_REQUEST
 
     @pytest.mark.asyncio
-    async def test_retry_quota_exhausted_stays_retryable(self):
-        """CapacityNotAvailableError means the SDK ran out of retries for now: try later."""
+    async def test_capacity_not_available_stays_retryable(self):
+        """CapacityNotAvailableError (no client-side request capacity) stays retryable."""
         from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
             RETRY_SAME_REQUEST,
             add_retry_guidance,

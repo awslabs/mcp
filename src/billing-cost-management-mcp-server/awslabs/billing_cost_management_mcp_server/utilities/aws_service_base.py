@@ -74,16 +74,20 @@ logger = get_logger(__name__)
 
 # The only BotoCoreError subclasses that are transient: the classes botocore's own
 # standard retry mode retries (ConnectionError: endpoint, connect timeout, proxy, SSL;
-# HTTPClientError: read timeout, connection closed, response streaming), the SDK's
-# retry quota running out, and a response body cut short or corrupted in transit
+# HTTPClientError: read timeout, connection closed, response streaming),
+# CapacityNotAvailableError (botocore's client-side token bucket on a non-blocking
+# acquire; botocore does not raise it in the standard retry mode this server uses, so it
+# is kept retryable defensively), and a response body cut short or corrupted in transit
 # (raised while reading the body, after botocore's retries; FlexibleChecksumError is
 # also raised for request checksum settings, which no tool sets). botocore's
 # ValidationError family is modify_request. Every other BotoCoreError is raised the
-# same way on every attempt (credentials, configuration, an SDK-side check; botocore
-# already retries credential fetches from instance and container metadata before it
-# raises), so handle_aws_error keeps error_type='aws_connection_error' (stable for
-# callers) but sets retry_strategy explicitly; ErrorSignalingMiddleware keeps a
-# retry_strategy that is already set.
+# same way on every attempt (credentials, configuration, an SDK-side check), so
+# handle_aws_error keeps error_type='aws_connection_error' (stable for callers) but sets
+# retry_strategy explicitly; ErrorSignalingMiddleware keeps a retry_strategy that is
+# already set. botocore tries a container-metadata credential fetch 3 times (2 retries)
+# before it raises CredentialRetrievalError; an instance-metadata fetch is tried once by
+# default (metadata_service_num_attempts) and a failure usually ends as
+# NoCredentialsError.
 _TRANSIENT_BOTOCORE_ERRORS = (
     BotoConnectionError,
     HTTPClientError,
@@ -93,8 +97,9 @@ _TRANSIENT_BOTOCORE_ERRORS = (
     FlexibleChecksumError,
 )
 
-# Non-transient BotoCoreErrors the user can fix by fixing the AWS profile or credentials,
-# e.g. a credential_process or SSO session that expired.
+# Non-transient BotoCoreErrors the user can fix in their AWS setup: the credential source
+# (e.g. a credential_process or SSO session that expired), the region, or an outdated
+# botocore that does not know the service.
 _CONFIGURATION_BOTOCORE_ERRORS = (
     NoCredentialsError,
     PartialCredentialsError,
@@ -116,7 +121,9 @@ _CONFIGURATION_BOTOCORE_ERRORS = (
 
 _HINT_AWS_CONFIGURATION = (
     'AWS credentials or client configuration are missing or invalid. Do not retry; '
-    'ask the user to fix the AWS profile, credentials, or region.'
+    'ask the user to check the credential source (profile, SSO session, credential_process, '
+    'or instance/container role) or the region, or to upgrade boto3/botocore if the '
+    'service is unknown.'
 )
 _HINT_BOTO_VALIDATION = (
     'The AWS SDK rejected the request arguments before sending them. Correct them using '
