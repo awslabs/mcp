@@ -17,6 +17,7 @@
 import asyncio
 import botocore.session
 import pytest
+import re
 from awslabs.billing_cost_management_mcp_server.tools.invoicing_operations import (
     list_invoice_summaries,
 )
@@ -955,6 +956,11 @@ def _schema_enum(schema):
     return set()
 
 
+def _documented(name, description):
+    """Whether a field or enum name appears in its own right, not inside another."""
+    return re.search(rf'\b{re.escape(name)}\b', description) is not None
+
+
 def _invoicing_shape(name):
     """A shape from the live botocore ``invoicing`` model."""
     return botocore.session.get_session().get_service_model('invoicing').shape_for(name)
@@ -1010,3 +1016,74 @@ class TestInvoicingDescriptionContract:
         description = _served_tool().description
 
         assert '2025-06-01' not in description
+
+    def test_every_invoice_type_and_bill_type_value_is_named(self):
+        """A value the API can return and the description omits is a value a reader mishandles."""
+        description = _served_tool().description
+
+        missing = [
+            f'{shape}.{value}'
+            for shape in ('InvoiceType', 'BillType', 'InvoiceFrequency')
+            for value in _invoicing_shape(shape).enum
+            if not _documented(value, description)
+        ]
+
+        assert missing == [], f'enum values the description does not name: {missing}'
+
+    def test_every_invoice_summary_member_is_named(self):
+        """Every field the result can carry is named, nested entity members included."""
+        description = _served_tool().description
+
+        missing = [
+            member
+            for shape in ('InvoiceSummary', 'Entity')
+            for member in _invoicing_shape(shape).members
+            if not _documented(member, description)
+        ]
+
+        assert missing == [], f'response members the description does not name: {missing}'
+
+    def test_credit_memo_sign_convention_is_stated(self):
+        """A positive CREDIT_MEMO summed as owed overstates the amount due."""
+        description = _served_tool().description
+
+        assert 'CREDIT_MEMO' in description
+        assert 'POSITIVE' in description
+        assert 'OriginalInvoiceId' in description
+        assert 'PAYMENT_RECEIPT' in description
+
+    def test_no_aws_error_text_quoted_for_a_local_check(self):
+        """The span and time-filter checks run here, so AWS's wording never reaches a caller."""
+        description = _served_tool().description
+
+        assert 'TimePeriod cannot last more than a month' not in description
+        assert 'cannot both be null' not in description
+        assert 'validation_error' in description
+        assert 'suggested_date_ranges' in description
+
+    @pytest.mark.asyncio
+    async def test_unlisted_fields_pass_through_unchanged(self, mock_context, sample_summary):
+        """A field the description does not name still reaches the caller untouched."""
+        row = dict(
+            sample_summary,
+            BillSourceAccounts=['123456789012'],
+            BillSourceAccountsTotalCount=1,
+            ReceiverRole='BUYER',
+            TaxAuthorityStatus='ISSUED',
+            Entity={'InvoicingEntity': 'Amazon Web Services, Inc.', 'BillingEntity': 'AWS'},
+        )
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [row]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, MagicMock())
+            result = await list_invoice_summaries(
+                mock_context, account_id='123456789012', billing_period='2026-09'
+            )
+
+        returned = result['data']['invoice_summaries'][0]
+        assert returned['BillSourceAccounts'] == ['123456789012']
+        assert returned['BillSourceAccountsTotalCount'] == 1
+        assert returned['ReceiverRole'] == 'BUYER'
+        assert returned['TaxAuthorityStatus'] == 'ISSUED'
+        assert returned['Entity']['BillingEntity'] == 'AWS'

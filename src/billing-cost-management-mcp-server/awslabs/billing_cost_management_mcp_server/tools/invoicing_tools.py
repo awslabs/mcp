@@ -107,12 +107,12 @@ async def _invoicing(
 1) list_invoice_summaries - invoice-level summaries (no line items) for an account or a single invoice
    Required: operation="list_invoice_summaries"
    Selector (choose one; the account is auto-detected if neither is given):
-     - account_id: 12-digit AWS account ID; lists all invoices for that account. Auto-detected via STS GetCallerIdentity when omitted.
+     - account_id: 12-digit AWS account ID; lists the invoices billed to that account. This includes invoices issued to invoice-unit receivers billed from it, whose rows carry a different AccountId, so the result is not necessarily "this account's own invoices". Auto-detected via STS GetCallerIdentity when omitted.
      - invoice_id: retrieve one specific invoice's summary. Mutually exclusive with account_id.
    Time filter — REQUIRED when selecting by account_id, optional for invoice_id. Provide exactly one:
      - billing_period: a single calendar month "YYYY-MM" (e.g. "2026-05")
      - start_date + end_date: a UTC range "YYYY-MM-DD" (or "YYYY-MM-DDTHH:MM:SS"); required together and mutually exclusive with billing_period. A date-only bound means 00:00:00 UTC, so end_date must be the day AFTER the last day you want: all of June 2026 is start_date "2026-06-01" with end_date "2026-07-01". Using "2026-06-30" silently drops invoices issued during June 30.
-   IMPORTANT — ONE MONTH MAXIMUM per call. A start_date/end_date range may span at most the number of days in the START date's month (31 from a January start, 28 from a February start); longer is rejected with "TimePeriod cannot last more than a month". Calendar alignment is NOT required: "2026-05-14" to "2026-06-13" is valid. For a longer period issue ONE CALL PER MONTH and combine the results yourself — never widen the range. A rejection returns `data.suggested_date_ranges`: the exact per-month calls to make. Setting receiver_role raises this cap to five years, but it also changes which invoices come back, so it is not a way to widen an unrestricted query.
+   IMPORTANT — ONE MONTH MAXIMUM per call. A start_date/end_date range may span at most the number of days in the START date's month (31 from a January start, 28 from a February start). A longer range is rejected by this tool before any AWS call: status "error", error_type "validation_error", with `data.suggested_date_ranges` naming the exact per-month calls to make. Calendar alignment is NOT required: "2026-05-14" to "2026-06-13" is valid. For a longer period issue ONE CALL PER MONTH and combine the results yourself — never widen the range — and de-duplicate on InvoiceId, since an invoice issued exactly on a boundary midnight can appear in two adjacent sub-ranges. Setting receiver_role raises this cap to five years, but it also changes which invoices come back, so it is not a way to widen an unrestricted query.
    NOTE — the two time filters are not interchangeable: billing_period selects by BILLING MONTH, start_date/end_date select by ISSUED DATE. Pick whichever the question asks for, and keep using that same one when splitting a multi-month request.
    Other filters (optional):
      - invoicing_entity: filter by the AWS legal selling entity (seller of record) name. Examples: "Amazon Web Services, Inc." (US), "Amazon Web Services EMEA SARL" (Europe/Middle East/Africa), "Amazon Web Services Australia Pty Ltd" (Australia), "Amazon Web Services Japan G.K." (Japan).
@@ -121,13 +121,19 @@ async def _invoicing(
      - max_items: total invoice summaries returned. Omit it to fetch every page (no limit). Pass it, or narrow the filters, for queries that can be large.
      - next_token: the `pagination.next_token` from a previous response, to continue where it stopped. Send every other parameter unchanged.
      - A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token, or state in the answer that the result is partial. `pagination.items_returned` counts only this response, and a continuation call does not repeat earlier items.
-   Returns: `data.selector`, the account or invoice this result was read for, as {type: "ACCOUNT_ID" | "INVOICE_ID", value, auto_detected}. `auto_detected` is true when account_id was omitted and resolved from the caller's identity. Take the queried account from here, never from a row's AccountId: an account query also returns invoices issued to invoice-unit receivers billed from that account, and those rows carry a different AccountId.
-   Returns: `data.invoice_summaries`, a list where each item contains:
-     - AccountId; InvoiceId; InvoiceType ("INVOICE" or "CREDIT_MEMO"); OriginalInvoiceId (the invoice a CREDIT_MEMO adjusts); PurchaseOrderNumber
+   Returns `data.selector` and `data.invoice_summaries`.
+   `data.selector` — the account or invoice this result was read for, as {type: "ACCOUNT_ID" | "INVOICE_ID", value, auto_detected}. `auto_detected` is true when account_id was omitted and resolved from the caller's identity. Take the queried account from here, never from a row's AccountId: an account query also returns invoices issued to invoice-unit receivers billed from that account, and those rows carry a different AccountId.
+   `data.invoice_summaries` — a list where each item contains:
+     - AccountId (the account the invoice was issued to, which need not be the account queried); InvoiceId; CommercialInvoiceId; PurchaseOrderNumber
+     - InvoiceType ("INVOICE", "CREDIT_MEMO" or "PAYMENT_RECEIPT"); OriginalInvoiceId (the invoice a CREDIT_MEMO adjusts); BillType ("ANNIVERSARY", "PURCHASE" or "REFUND"); InvoiceFrequency ("ONE_TIME" or "RECURRING")
      - IssuedDate / DueDate: ISO 8601 UTC timestamps (converted from epoch)
-     - BillingPeriod {Month, Year}; Entity {InvoicingEntity}
+     - BillingPeriod {Month, Year}; Entity {InvoicingEntity, BillingEntity ("AWS" or "AWS_MARKETPLACE")}
+     - ReceiverRole: the role AccountId holds for this invoice. BillSourceAccounts and BillSourceAccountsTotalCount: the accounts the invoice was billed from, which is how a row issued to an invoice-unit receiver names the account that paid for it.
+     - EinvoiceDeliveryStatus ("DELIVERED" or "NOT_DELIVERED"); TaxAuthorityStatus ("ISSUED" or "CANCELLED")
      - BaseCurrencyAmount, PaymentCurrencyAmount, TaxCurrencyAmount: the invoice total in the product-and-service currency, the customer's configured payment currency, and the tax currency respectively. For single-currency accounts (e.g. USD-only) these coincide; when they differ, an amount carries CurrencyExchangeDetails describing the conversion. Each contains CurrencyCode (ISO 4217), TotalAmount, TotalAmountBeforeTax, AmountBreakdown { SubTotalAmount, Discounts, Taxes, Fees (each a TotalAmount plus a Breakdown[] of {Description, Amount, Rate}) }, and CurrencyExchangeDetails { SourceCurrencyCode, TargetCurrencyCode, Rate }.
+   Fields the API returns but this list does not name are passed through unchanged.
    IMPORTANT: monetary amounts are strings to preserve decimal precision — parse as decimals, never floats.
+   IMPORTANT — InvoiceType decides whether a row is money owed. Only "INVOICE" is. A "CREDIT_MEMO" is a credit against the invoice named in OriginalInvoiceId, and its TotalAmount is reported POSITIVE, so adding it to a total overstates what is due — subtract it, or report it separately. A CREDIT_MEMO can also carry a DueDate, so filtering by due date does not exclude it. A "PAYMENT_RECEIPT" records a payment rather than a charge and belongs in no amount-due total either. Check InvoiceType before summing anything.
 
 EXAMPLES
 - {"operation": "list_invoice_summaries", "billing_period": "2026-05"}
