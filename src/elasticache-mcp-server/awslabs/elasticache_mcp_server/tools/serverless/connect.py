@@ -41,7 +41,7 @@ def _ensure_vpc_cache(serverless_cache: Dict[str, Any], serverless_cache_name: s
             f'Serverless cache {serverless_cache_name} has a public endpoint '
             f'(ConnectionType=public), so a jump host or SSH tunnel is not needed and cannot '
             f'be configured. Connect directly to {endpoint} over TLS 1.3 using IAM '
-            f'authentication, for example with the Valkey MCP server and VALKEY_IAM_AUTH=true.'
+            'authentication; see the ElastiCache connection guide of the Valkey MCP server.'
         )
 
 

@@ -75,7 +75,7 @@ All tools support an optional `region_name` parameter to specify which AWS regio
 2. Install Python using `uv python install 3.10`
 3. Set up AWS credentials with access to AWS services
    - Consider setting up Read-only permission if you don't want the LLM to modify any resources
-4. Creating serverless caches with a public endpoint (`connection_type='public'`) requires `boto3` 1.43.105 or later, which is the minimum version this server declares.
+   - To keep the LLM from creating caches with a public endpoint, deny `elasticache:CreateServerlessCache` when the `elasticache:ConnectionType` condition key is `public`. See [Using condition keys](https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/IAM.ConditionKeys.html#IAM.ExamplePolicies).
 
 ## Installation
 
