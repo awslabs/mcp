@@ -446,16 +446,17 @@ Operations:
      requires every condition, Or any. threshold is a deprecated absolute-USD field and can be
      null: read threshold_expression.
    - frequency DAILY or WEEKLY sends an email digest; IMMEDIATE sends to an SNS topic.
-     subscribers holds email addresses or SNS topic ARNs; a subscriber with status DECLINED does
-     not receive the alerts.
+     subscribers holds email addresses or SNS topic ARNs; status DECLINED means the subscriber has
+     declined (unsubscribed from) the alerts.
    - Subscriptions decide who is alerted, not what is detected: cost-anomaly also returns
      anomalies below every threshold.
    - An empty monitor_arn_list means the subscription is attached to no monitor, so it sends
      no alerts.
 
 monitor_arn (optional): list_monitors returns only that monitor; list_subscriptions returns
-only the subscriptions attached to it. On either operation, an ARN that matches no monitor
-returns an empty list, not an error.
+only the subscriptions attached to it. On either operation, a monitor ARN in this account that
+matches no monitor returns an empty list, not an error; a malformed ARN is a ValidationException
+and another account's ARN is an AccessDeniedException.
 
 Pagination:
 - max_items: total monitors or subscriptions returned. Omit it to fetch every page.

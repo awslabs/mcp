@@ -393,8 +393,10 @@ async def test_description_documents_monitors_and_subscriptions():
         'not what is detected',
         'monitor_arn_list',
         'read-only',
-        'On either operation, an ARN that matches no monitor returns an empty list',
-        'DECLINED',
+        'On either operation, a monitor ARN in this account that matches no monitor returns an empty list',
+        'a malformed ARN is a ValidationException',
+        "another account's ARN is an AccessDeniedException",
+        'status DECLINED means the subscriber has declined',
         'read threshold_expression',
     ):
         assert text in description, text
