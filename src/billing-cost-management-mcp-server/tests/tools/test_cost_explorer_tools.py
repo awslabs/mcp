@@ -1919,6 +1919,7 @@ class TestCostExplorerDescriptionContract:
         """The getSavingsPlansUtilization notes flag partial MONTHLY entries and period_note."""
         notes = tool.description.split('8. getSavingsPlansUtilization')[1].split('Returns:')[0]
         assert "each entry's TimePeriod is its whole calendar month" in notes
+        assert "the current month's entry ends at the first day without data" in notes
         assert 'cover only the requested days' in notes
         assert '`period_note`' in notes
 

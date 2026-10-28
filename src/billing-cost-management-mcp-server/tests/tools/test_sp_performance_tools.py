@@ -1667,6 +1667,8 @@ class TestSpPerformanceDescription:
         assert 'figures cover only the requested days' in flat
         assert 'holding only the days before 2026-09-10' in flat
         assert '`period_note` says when this happened' in flat
+        assert "the current month's entry ends at the first day without data" in flat
+        assert 'from the requested start to the requested end' not in flat
         assert 'they are not snapped' in description
         assert 'covers only the Savings Plans on its own page' in description
         assert 'Coverage has no `total`' in description

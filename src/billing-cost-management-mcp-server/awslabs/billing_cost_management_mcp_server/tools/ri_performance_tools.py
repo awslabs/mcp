@@ -101,12 +101,13 @@ the question allows it.
 RESPONSE PERIODS (both operations; dates are YYYY-MM-DD, end exclusive):
 - `requested_time_period` echoes the start_date/end_date that were sent.
 - get_reservation_utilization with MONTHLY granularity labels each entry's `time_period`
-  with its whole calendar month, but the figures cover only the requested days. A
+  with its whole calendar month (the current month's entry ends at the first day without
+  data instead), but the figures cover only the requested days. A
   2026-01-24 to 2026-03-10 request returns a first entry labelled 2026-01-01 to 2026-02-01
   holding only 2026-01-24 onward, and a last entry labelled 2026-03-01 to 2026-04-01
-  holding only the days before 2026-03-10. `period_note` says when this happened. Report
-  those months as partial, from the requested start to the requested end, not as whole
-  months; `total` also covers only the requested days.
+  holding only the days before 2026-03-10. `period_note` says when this happened and the
+  range the figures cover. Report those months as partial, not as whole months; `total`
+  also covers only that range.
 - With group_by, get_reservation_utilization returns one entry labelled with the requested
   period.
 - get_reservation_coverage entries are not snapped: the first starts at the requested start
@@ -526,7 +527,10 @@ async def get_reservation_utilization(
             'utilizations_by_time': [],
             'requested_time_period': {'start': start, 'end': end},
             **monthly_period_note(
-                start, end, [entry.get('TimePeriod') for entry in all_utilizations]
+                start,
+                end,
+                [entry.get('TimePeriod') for entry in all_utilizations],
+                None if group_by else granularity,
             ),
         }
 

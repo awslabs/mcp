@@ -163,6 +163,7 @@ def monthly_period_note(
     requested_start: str,
     requested_end: str,
     periods: Sequence[Optional[Mapping[str, Any]]],
+    granularity: Optional[str] = None,
 ) -> Dict[str, str]:
     """Say when MONTHLY entries are labelled with more of the month than their figures cover.
 
@@ -170,16 +171,22 @@ def monthly_period_note(
     each entry with its whole calendar month, while the figures cover only the requested
     days: a request for 2026-01-24 to 2026-03-10 returns a first entry labelled 2026-01-01
     to 2026-02-01 holding only 2026-01-24 onward, and a last entry labelled 2026-03-01 to
-    2026-04-01 holding only the days before 2026-03-10.
+    2026-04-01 holding only the days before 2026-03-10. The current month's entry is the
+    exception: its label, and its data, end at the first day without data, which in the
+    processing lag is before the requested end; the note then says so, and the covered
+    range ends there.
 
     Args:
         requested_start: Requested start date (YYYY-MM-DD, inclusive)
         requested_end: Requested end date (YYYY-MM-DD, exclusive)
         periods: Each returned entry's TimePeriod (``{'Start': ..., 'End': ...}``), in order
+        granularity: The Granularity sent. The data lag is flagged only for MONTHLY, since a
+            DAILY entry also ends inside its month.
 
     Returns:
-        ``{'period_note': ...}`` when the first label starts before the requested start or
-        the last label ends after the requested end, otherwise an empty dict.
+        ``{'period_note': ...}`` when the first label starts before the requested start,
+        the last label ends after the requested end, or the last label stops inside its
+        month before the requested end (the data lag); otherwise an empty dict.
     """
     if not periods:
         return {}
@@ -188,15 +195,25 @@ def monthly_period_note(
     last_start, last_end = last.get('Start'), last.get('End')
     start_snapped = bool(first_start and first_end and first_start < requested_start)
     end_snapped = bool(last_start and last_end and last_end > requested_end)
-    if not (start_snapped or end_snapped):
+    # Only the current month's label ends inside its own month: at the first day without
+    # data. A past month's label always ends on the 1st of the next month.
+    lagged = bool(
+        (granularity or '').upper() == 'MONTHLY'
+        and last_start
+        and last_end
+        and last_end < requested_end
+        and last_end < _first_of_next_month(last_start)
+    )
+    if not (start_snapped or end_snapped or lagged):
         return {}
-    if len(periods) == 1:
-        details = (
+    data_end = last_end if lagged and last_end else requested_end
+    parts = []
+    if len(periods) == 1 and (start_snapped or end_snapped):
+        parts.append(
             f'The entry labelled {first_start} to {first_end} covers only {requested_start} '
-            f'to {requested_end}.'
+            f'to {data_end}.'
         )
     else:
-        parts = []
         if start_snapped:
             parts.append(
                 f'The first entry, labelled {first_start} to {first_end}, covers only '
@@ -207,12 +224,25 @@ def monthly_period_note(
                 f'The last entry, labelled {last_start} to {last_end}, covers only the days '
                 f'before {requested_end}.'
             )
-        details = ' '.join(parts)
+    if lagged:
+        parts.append(f'Data from {data_end} is not available yet and is not included.')
+    intro = ''
+    if start_snapped or end_snapped:
+        current = " (the current month's ends at the first day without data)" if lagged else ''
+        intro = (
+            f'Cost Explorer labels each MONTHLY entry with its whole calendar month{current}, '
+            'but the figures cover only the requested days. '
+        )
+    partial = 'those months' if start_snapped or end_snapped else 'the last month'
     return {
         'period_note': (
-            'Cost Explorer labels each MONTHLY entry with its whole calendar month, but the '
-            f'figures cover only the requested days. {details} Report those months as partial: '
-            f'the figures, and total, cover {requested_start} to {requested_end} (end '
-            'exclusive) only.'
+            f'{intro}{" ".join(parts)} Report {partial} as partial: the figures, and '
+            f'total, cover {requested_start} to {data_end} (end exclusive) only.'
         )
     }
+
+
+def _first_of_next_month(day: str) -> str:
+    """Return the 1st of the month after ``day`` (YYYY-MM-DD) as YYYY-MM-DD."""
+    year, month = int(day[:4]), int(day[5:7])
+    return f'{year + month // 12:04d}-{month % 12 + 1:02d}-01'

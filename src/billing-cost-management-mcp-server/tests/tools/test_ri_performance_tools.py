@@ -1435,6 +1435,35 @@ class TestResponsePeriods:
         )
         assert 'first entry' not in note
 
+    async def test_monthly_utilization_in_the_data_lag_ends_the_note_there(self, mock_context):
+        """The current month's label stops at the first day without data; the note says so."""
+        client = MagicMock()
+        client.get_reservation_utilization.return_value = {
+            'UtilizationsByTime': [
+                _utilization_entry('2026-09-01', '2026-10-01', '264'),
+                _utilization_entry('2026-10-01', '2026-10-27', '624'),
+            ],
+        }
+
+        data = (await _utilization(mock_context, client, '2026-09-20', '2026-10-28'))['data']
+
+        note = data['period_note']
+        assert 'Data from 2026-10-27 is not available yet and is not included.' in note
+        assert 'cover 2026-09-20 to 2026-10-27 (end exclusive) only' in note
+
+    async def test_daily_utilization_in_the_data_lag_has_no_note(self, mock_context):
+        """DAILY entries are not labelled with their month, so the lag gets no note."""
+        client = MagicMock()
+        client.get_reservation_utilization.return_value = {
+            'UtilizationsByTime': [_utilization_entry('2026-10-26', '2026-10-27', '24')],
+        }
+
+        data = (await _utilization(mock_context, client, '2026-10-26', '2026-10-28', 'DAILY'))[
+            'data'
+        ]
+
+        assert 'period_note' not in data
+
     async def test_whole_month_utilization_has_no_note(self, mock_context):
         """Labels that match the request need no note."""
         client = MagicMock()
@@ -1500,7 +1529,8 @@ class TestResponsePeriods:
         assert 'RESPONSE PERIODS' in description
         assert '`requested_time_period`' in description
         assert '`period_note`' in description
-        assert 'with its whole calendar month, but the figures cover only the requested days' in (
-            description
-        )
+        assert 'with its whole calendar month' in description
+        assert "the current month's entry ends at the first day without data" in description
+        assert 'but the figures cover only the requested days' in description
+        assert 'from the requested start to the requested end' not in description
         assert 'get_reservation_coverage entries are not snapped' in description

@@ -90,13 +90,13 @@ UTILIZATION DETAILS filters (get_savings_plans_utilization_details):
 
 RESPONSE PERIODS (all three operations):
 - `requested_time_period` echoes the start_date/end_date that were sent.
-- MONTHLY utilization labels each entry's TimePeriod with its whole calendar month, but
-  the figures cover only the requested days. A 2026-08-17 to 2026-09-10 request returns
+- MONTHLY utilization labels each entry's TimePeriod with its whole calendar month (the
+  current month's entry ends at the first day without data instead), but the figures
+  cover only the requested days. A 2026-08-17 to 2026-09-10 request returns
   a first entry labelled 2026-08-01 to 2026-09-01 holding only 2026-08-17 onward, and a
   last entry labelled 2026-09-01 to 2026-10-01 holding only the days before 2026-09-10.
-  `period_note` says when this happened. Report those months as partial, from the
-  requested start to the requested end, not as whole months; `total` also covers only
-  the requested days.
+  `period_note` says when this happened and the range the figures cover. Report those
+  months as partial, not as whole months; `total` also covers only that range.
 - MONTHLY coverage entries start at the requested start; they are not snapped.
 - Utilization details returns `time_period`: the requested start, and an end the API
   may move earlier to the first day without complete data. Report that period.
@@ -342,7 +342,10 @@ async def get_savings_plans_utilization(
             'requested_time_period': {'start': start, 'end': end},
             'granularity': granularity,
             **monthly_period_note(
-                start, end, [entry.get('TimePeriod') for entry in utilizations_by_time]
+                start,
+                end,
+                [entry.get('TimePeriod') for entry in utilizations_by_time],
+                granularity,
             ),
         }
 

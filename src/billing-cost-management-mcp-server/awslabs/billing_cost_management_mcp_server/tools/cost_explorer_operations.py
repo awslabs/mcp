@@ -825,6 +825,7 @@ async def get_savings_plans_utilization(
                 entry.get('TimePeriod')
                 for entry in response.get('SavingsPlansUtilizationsByTime') or []
             ],
+            granularity,
         )
 
         return format_response('success', {**period_note, **response})
