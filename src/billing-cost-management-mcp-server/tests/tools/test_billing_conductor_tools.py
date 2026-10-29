@@ -125,8 +125,8 @@ def test_list_billing_groups_describes_filter_limits():
     assert 'Names: exactly one name search, a case-sensitive prefix match' in description
     assert 'Statuses: at most 2 of ACTIVE, PRIMARY_ACCOUNT_MISSING, PENDING' in description
     assert 'PricingPlan: a full pricing plan ARN' in description
-    assert 'fails with validation_error before any AWS call' in description
     assert 'supports STARTS_WITH search' not in description
+    assert 'validation_error' not in description
 
 
 def test_list_account_associations_describes_filter_rules():
@@ -134,8 +134,9 @@ def test_list_account_associations_describes_filter_rules():
     description = _description('list-account-associations')
     assert 'Use AccountId or AccountIds, not both' in description
     assert 'A full billing group ARN' in description
-    assert 'Not a bare billing group ID: without AccountId or AccountIds' in description
-    assert 'fail with validation_error before any AWS call' in description
+    assert 'MONITORED and UNMONITORED are upper case' in description
+    assert 'bare billing group ID' not in description
+    assert 'validation_error' not in description
 
 
 def test_get_billing_group_cost_report_describes_period_defaults():

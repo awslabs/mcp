@@ -94,8 +94,6 @@ You can filter billing groups by:
   not a bare ID
 - Auto-associate: Filter by auto-associate setting
 - Responsibility transfer ARNs: Filter by responsibility transfer ARNs
-A Names value that is not a list of exactly one entry, more than 2 Statuses, or a PricingPlan
-that is not an ARN fails with validation_error before any AWS call.
 
 Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
 (no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
@@ -161,11 +159,10 @@ You can filter account associations by:
   - MONITORED: linked accounts associated to billing groups
   - UNMONITORED: linked accounts not associated to billing groups
   - A full billing group ARN (arn:aws:billingconductor::<account>:billinggroup/<id>): linked
-    accounts associated to that billing group. Not a bare billing group ID: without AccountId
-    or AccountIds the service rejects it, and with either it returns nothing.
+    accounts associated to that billing group
+  MONITORED and UNMONITORED are upper case.
 Use AccountId or AccountIds, not both. Either can be combined with Association to narrow the
-result. Both AccountId and AccountIds, or an Association that is not MONITORED, UNMONITORED or
-an ARN, fail with validation_error before any AWS call.
+result.
 
 Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
 (no limit); pass it, or narrow the filters, when the result can be large. A partial result leads

@@ -27,8 +27,6 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operatio
     _format_linked_accounts,
     _format_pricing_plans,
     _format_pricing_rules,
-    _validate_account_association_filters,
-    _validate_billing_group_filters,
     get_billing_group_cost_report,
     get_billing_transfer_preference,
     list_account_associations,
@@ -391,63 +389,6 @@ class TestListBillingGroups:
 
         assert result['status'] == STATUS_ERROR
         assert result['error_type'] == ERROR_ACCESS_DENIED
-
-
-@pytest.mark.asyncio
-class TestListBillingGroupsFilterLimits:
-    """Filters ListBillingGroups would reject fail locally with validation_error."""
-
-    @pytest.mark.parametrize(
-        'filters,needle',
-        [
-            ({'Statuses': ['ACTIVE', 'PRIMARY_ACCOUNT_MISSING', 'PENDING']}, 'at most 2'),
-            (
-                {
-                    'Names': [
-                        {'SearchOption': 'STARTS_WITH', 'SearchValue': 'a'},
-                        {'SearchOption': 'STARTS_WITH', 'SearchValue': 'b'},
-                    ]
-                },
-                'exactly one name search',
-            ),
-            ({'Names': []}, 'exactly one name search'),
-            (
-                {'Names': {'SearchOption': 'STARTS_WITH', 'SearchValue': 'a'}},
-                'exactly one name search',
-            ),
-            ({'PricingPlan': PRICING_PLAN_ARN_1.rsplit('/', 1)[1]}, 'full pricing plan ARN'),
-        ],
-    )
-    @patch(PATCH_BC_CLIENT)
-    async def test_rejected_without_aws_call(self, mock_create_client, mock_ctx, filters, needle):
-        """Each limit names the rule in the message and makes no AWS call."""
-        result = await list_billing_groups(mock_ctx, None, json.dumps(filters), None, None)
-
-        assert result['status'] == STATUS_ERROR
-        assert result['error_type'] == 'validation_error'
-        assert needle in result['message']
-        mock_create_client.assert_not_called()
-
-    @pytest.mark.parametrize(
-        'filters',
-        [
-            {'Statuses': ['ACTIVE', 'PENDING']},
-            {'Names': [{'SearchOption': 'STARTS_WITH', 'SearchValue': 'Team'}]},
-            {'PricingPlan': PRICING_PLAN_ARN_1},
-            {'PricingPlan': 'arn:aws-cn:billingconductor::123456789012:pricingplan/abcdef1234'},
-        ],
-    )
-    @patch(PATCH_BC_CLIENT)
-    async def test_within_limits_reaches_aws(self, mock_create_client, mock_ctx, filters):
-        """Filters inside the limits are sent unchanged."""
-        mock_client = MagicMock()
-        mock_client.list_billing_groups.return_value = {'BillingGroups': []}
-        mock_create_client.return_value = mock_client
-
-        result = await list_billing_groups(mock_ctx, None, json.dumps(filters), None, None)
-
-        assert result['status'] == STATUS_SUCCESS
-        assert mock_client.list_billing_groups.call_args[1]['Filters'] == filters
 
 
 # --- Custom Line Item Fixtures ---
@@ -1862,71 +1803,6 @@ class TestListAccountAssociations:
 
         assert result['status'] == STATUS_ERROR
         assert result['error_type'] == ERROR_ACCESS_DENIED
-
-
-@pytest.mark.asyncio
-class TestListAccountAssociationsFilterLimits:
-    """Filters ListAccountAssociations would reject fail locally with validation_error."""
-
-    @pytest.mark.parametrize(
-        'filters,needle',
-        [
-            (
-                {'AccountId': ACCOUNT_ID_LINKED_1, 'AccountIds': [ACCOUNT_ID_LINKED_2]},
-                'AccountId or AccountIds, not both',
-            ),
-            ({'Association': BILLING_GROUP_ARN_1.rsplit('/', 1)[1]}, 'full billing group ARN'),
-            ({'Association': 'monitored'}, 'UNMONITORED (upper case)'),
-            ({'Association': 'unmonitored'}, 'UNMONITORED (upper case)'),
-        ],
-    )
-    @patch(PATCH_BC_CLIENT)
-    async def test_rejected_without_aws_call(self, mock_create_client, mock_ctx, filters, needle):
-        """Each rule names itself in the message and makes no AWS call."""
-        result = await list_account_associations(mock_ctx, None, json.dumps(filters), None, None)
-
-        assert result['status'] == STATUS_ERROR
-        assert result['error_type'] == 'validation_error'
-        assert needle in result['message']
-        mock_create_client.assert_not_called()
-
-    @pytest.mark.parametrize(
-        'filters',
-        [
-            {'Association': 'MONITORED'},
-            {'Association': 'UNMONITORED'},
-            {'Association': BILLING_GROUP_ARN_1, 'AccountIds': [ACCOUNT_ID_LINKED_1]},
-            {'AccountId': ACCOUNT_ID_LINKED_1, 'Association': 'MONITORED'},
-            {'Association': 'arn:aws-cn:billingconductor::123456789012:billinggroup/abcdef1234'},
-        ],
-    )
-    @patch(PATCH_BC_CLIENT)
-    async def test_valid_filters_reach_aws(self, mock_create_client, mock_ctx, filters):
-        """Valid filters, alone or combined with Association, are sent unchanged."""
-        mock_client = MagicMock()
-        mock_client.list_account_associations.return_value = {'LinkedAccounts': []}
-        mock_create_client.return_value = mock_client
-
-        result = await list_account_associations(mock_ctx, None, json.dumps(filters), None, None)
-
-        assert result['status'] == STATUS_SUCCESS
-        assert mock_client.list_account_associations.call_args[1]['Filters'] == filters
-
-
-@pytest.mark.parametrize(
-    'validate,filters',
-    [
-        (_validate_billing_group_filters, {'Statuses': None, 'Names': None, 'PricingPlan': None}),
-        (
-            _validate_account_association_filters,
-            {'AccountId': None, 'AccountIds': ['111111111111']},
-        ),
-        (_validate_account_association_filters, {'Association': None}),
-    ],
-)
-def test_filter_rules_ignore_none_values(validate, filters):
-    """A None value breaks none of these rules; botocore rejects it on its own type check."""
-    validate(filters)
 
 
 # --- Billing Transfer Preference Tests ---
