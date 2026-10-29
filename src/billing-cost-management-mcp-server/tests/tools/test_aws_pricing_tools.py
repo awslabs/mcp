@@ -2086,3 +2086,35 @@ def test_many_products_guidance_on_a_sample_says_so():
     assert 'The first 2 have the same attributes; query the rest.' in sampled_same['hint']
     partial = _many_products_guidance(_decode_products([_product('A')]), total=3)
     assert 'same attributes' not in partial['hint']
+
+
+def test_many_products_guidance_skips_products_whose_attributes_are_not_a_dict():
+    """A product whose attributes are null or a list is not counted, so no attribute claim is made."""
+    guidance = _guidance(
+        [
+            _product('A', tenancy='Shared'),
+            json.dumps({'product': {'sku': 'B', 'attributes': None}}),
+            json.dumps({'product': {'sku': 'C', 'attributes': ['tenancy']}}),
+        ]
+    )
+
+    assert guidance['varying_attributes'] == []
+    assert 'This response has 3 products, each priced separately.' in guidance['hint']
+    assert 'same attributes' not in guidance['hint']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('filters', ['{}', 'null'])
+@patch('awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client')
+async def test_empty_or_null_filters_are_skipped(mock_create_client, filters, mock_context):
+    """Filters that parse to {} or None send none, log no filter count, and make no check."""
+    mock_client = MagicMock()
+    mock_create_client.return_value = mock_client
+    mock_client.get_products.return_value = {'PriceList': []}
+
+    result = await get_pricing_from_api(mock_context, 'AmazonEC99', filters=filters)
+
+    assert mock_client.get_products.call_count == 1
+    assert mock_client.get_products.call_args.kwargs['Filters'] == []
+    assert not any('Applied' in str(c) for c in mock_context.info.await_args_list)
+    assert result['error_type'] == 'no_results'
