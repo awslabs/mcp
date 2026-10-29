@@ -415,6 +415,19 @@ Or group by a tag's values with 'TagKey:<tag key>' (e.g. 'TagKey:Environment'). 
 key is case-sensitive; recommendations without the tag, or for a key that does not exist,
 are grouped under 'NoTagKey'.
 
+SAVINGS TOTALS:
+- For a portfolio total, use list_recommendation_summaries estimated_total_deduped_savings
+  with no filter, or with only accountIds and/or regions. Never add up list_recommendations
+  estimated_monthly_savings: items overlap (commitment purchases and rightsizing or idle
+  actions on the same usage, Auto Scaling groups and their instances, Payer and Linked copies).
+- Filters other than accountIds and regions (actionTypes, resourceTypes, implementationEfforts,
+  restartNeeded, rollbackPossible) change how overlap is netted out, so a filtered total is
+  not that slice's share of the portfolio total, and filtered totals do not sum to it.
+- Commitment (Savings Plans/Reserved Instance) savings assume current usage; implementing
+  rightsizing or idle recommendations reduces them.
+- With include_all_recommendations=true, the same purchase appears once per term, payment
+  option, and Payer/Linked scope, so a sum is inflated further.
+
 CRITICAL PARAMETER REQUIREMENTS:
 - 'filters' parameter must be passed as JSON string format
 - 'max_items' must be integer (not string)
@@ -514,7 +527,9 @@ async def cost_optimization_hub(
         group_by: Optional grouping parameter. For list_recommendation_summaries any
             of the recommendation dimensions, or 'TagKey:<tag key>'; for
             list_efficiency_metrics only AccountId or Region.
-        include_all_recommendations: Whether to include all recommendations
+        include_all_recommendations: Whether to include all recommendations. Returns one row
+            per term, payment option, and Payer/Linked scope for the same purchase, so do not
+            sum its estimated_monthly_savings to get a total.
         next_token: Pagination token to resume from a previous response.
             Applies to list_recommendations, list_recommendation_summaries, and
             list_efficiency_metrics.

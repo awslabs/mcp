@@ -1700,6 +1700,27 @@ async def test_coh_validation_exception_adds_valid_filter_values(mock_context, o
     assert 'Ec2Instance' in res['valid_filter_values']['resourceTypes']
 
 
+@pytest.mark.asyncio
+async def test_description_warns_that_summing_recommendation_savings_double_counts():
+    """The description names the one de-duplicated total and the filters that change it."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    # Other tests reload the module with an identity decorator, which leaves no tool registered.
+    importlib.reload(coh_mod)
+    tool = await coh_mod.cost_optimization_hub_server.get_tool('cost-optimization')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert 'SAVINGS TOTALS:' in description
+    assert 'estimated_total_deduped_savings' in description
+    assert 'Never add up list_recommendations estimated_monthly_savings' in description
+    for filter_name in ('actionTypes', 'resourceTypes', 'implementationEfforts'):
+        assert filter_name in description.split('SAVINGS TOTALS:')[1].split('CRITICAL')[0]
+    assert 'include_all_recommendations=true' in description
+
+
 @pytest.mark.parametrize(
     'filters,expected',
     [
