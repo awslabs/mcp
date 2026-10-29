@@ -298,7 +298,7 @@ Compute Optimizer Automation:
 - ec2:DescribeVolumes (required by ListRecommendedActions and ListAutomationRulePreview)
 
 AWS Budgets:
-- budgets:ViewBudget (also covers budget notifications, per-budget and account-wide)
+- budgets:ViewBudget (also covers budget notifications, per-budget and account-wide, and budget performance history)
 - budgets:DescribeBudgetActionsForBudget (required for budget actions by budget name)
 - budgets:DescribeBudgetActionsForAccount (required for account-wide budget actions)
 
@@ -461,6 +461,7 @@ The server currently supports the following AWS services
    - describe_budgets
    - describe_budget_actions (DescribeBudgetActionsForBudget / DescribeBudgetActionsForAccount)
    - describe_budget_notifications (DescribeNotificationsForBudget / DescribeBudgetNotificationsForAccount)
+   - describe_budget_performance_history
 
 3. **AWS Free Tier**
    - get_free_tier_usage
