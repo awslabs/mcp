@@ -16,6 +16,7 @@
 
 import datetime
 import json
+import re
 import time
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
@@ -24,54 +25,6 @@ from mcp.server.mcpserver import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Optional, Union
-
-
-# CloudWatch Logs Insights query commands that may legally start a query stage
-# (the text that follows a '|'). See:
-# https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html
-INSIGHTS_STAGE_COMMANDS = frozenset(
-    {
-        'fields',
-        'display',
-        'filter',
-        'stats',
-        'sort',
-        'limit',
-        'parse',
-        'dedup',
-        'diff',
-        'unmask',
-        'pattern',
-    }
-)
-
-
-def _normalize_filter_pattern(filter_pattern: str) -> str:
-    """Turn a user-supplied filter_pattern into a valid Insights query stage.
-
-    The value is appended to the query after a '|', so it must begin with a
-    CloudWatch Logs Insights command. If the caller already provided a full
-    command (e.g. ``filter @message like /ERROR/``) it is used unchanged.
-    Otherwise the value is treated as a plain search term (e.g. ``ERROR``) and
-    wrapped in a case-insensitive substring filter on @message, which avoids
-    the ``unexpected symbol`` error raised when a bare term is pasted after a
-    pipe.
-
-    Args:
-        filter_pattern: The raw filter_pattern value from the tool caller.
-
-    Returns:
-        A valid Insights stage, or an empty string if the input is blank.
-    """
-    stripped = filter_pattern.strip().lstrip('|').strip()
-    if not stripped:
-        return ''
-    first_token = stripped.split(None, 1)[0].lower()
-    if first_token in INSIGHTS_STAGE_COMMANDS:
-        return stripped
-    # Bare term: escape forward slashes so they do not terminate the regex.
-    escaped = stripped.replace('/', r'\/')
-    return f'filter @message like /{escaped}/'
 
 
 class CloudWatchHandler:
@@ -173,11 +126,15 @@ class CloudWatchHandler:
         ),
         filter_pattern: Optional[str] = Field(
             None,
-            description='Additional filter to narrow results, given as a full CloudWatch Logs Insights command, e.g. "filter @message like /ERROR/" or "filter level=\\"error\\"". A plain search term such as "ERROR" is also accepted and is automatically wrapped as a case-insensitive @message substring filter. Do NOT pass a bare term expecting Logs Insights filter-pattern syntax; it must be (or become) a valid query command.',
+            description='A full CloudWatch Logs Insights command added to the query, e.g. \'filter level = "ERROR"\' or \'filter status >= 500\'. It must start with a command such as "filter". Matching is case-sensitive unless a /regex/ starts with (?i). To find plain text such as "ERROR", use search_text instead. Syntax: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-Filter.html',
         ),
         fields: Optional[str] = Field(
             None,
             description='Custom fields to include in the query results (defaults to "@timestamp, @message"). Use CloudWatch Logs Insights field syntax. IMPORTANT: Only specify if you need fields beyond the default timestamp and message.',
+        ),
+        search_text: Optional[str] = Field(
+            None,
+            description='Plain text to find in log messages, e.g. "ERROR", "OOMKilled", "retry(3)". Matched literally and ignoring case; no query syntax is needed.',
         ),
     ) -> CallToolResult:
         """Get logs from CloudWatch for a specific resource.
@@ -201,9 +158,8 @@ class CloudWatchHandler:
 
         ## Usage Tips
         - Start with a small time range (15-30 minutes) and expand if needed
-        - Use filter_pattern to narrow down results. Pass a full Insights command
-          (e.g. "filter @message like /ERROR/") or a plain term (e.g. "ERROR"),
-          which is wrapped into a valid @message filter automatically.
+        - Use search_text to find text in log messages (e.g., "ERROR", "exception")
+        - Use filter_pattern for field conditions (e.g., 'filter status >= 500')
         - For JSON logs, the tool automatically parses nested structures
         - Combine with get_k8s_events for comprehensive troubleshooting
         - Use resource_type="cluster" when querying cluster-level logs to avoid filtering by cluster name twice
@@ -218,12 +174,14 @@ class CloudWatchHandler:
             start_time: Start time in ISO format (overrides minutes)
             end_time: End time in ISO format (defaults to now)
             limit: Maximum number of log entries to return
-            filter_pattern: Additional CloudWatch Logs filter pattern
+            filter_pattern: A full CloudWatch Logs Insights command, e.g. 'filter status >= 500'
             fields: Custom fields to include in the query results
+            search_text: Plain text to find in log messages, matched literally and ignoring case
 
         Returns:
             CloudWatchLogsResponse with log entries and resource information
         """
+        query = ''
         try:
             # Check if sensitive data access is allowed
             if not self.allow_sensitive_data_access:
@@ -262,15 +220,19 @@ class CloudWatchHandler:
             if resource_type != 'cluster' and resource_name is not None:
                 query += f"\n| filter @message like '{resource_name}'"
 
-            # Add additional filter pattern if provided. A full Insights
-            # command is used as-is; a bare term (e.g. "ERROR") is wrapped in a
-            # valid filter stage so it does not break the query. The isinstance
-            # guard skips the unset-default sentinel (a pydantic FieldInfo) when
-            # the method is invoked directly rather than through the MCP layer.
-            if isinstance(filter_pattern, str) and filter_pattern:
-                normalized_filter = _normalize_filter_pattern(filter_pattern)
-                if normalized_filter:
-                    query += f'\n| {normalized_filter}'
+            # Plain text search, built by the server so it is always valid.
+            # isinstance skips the pydantic FieldInfo default when called directly.
+            if isinstance(search_text, str) and search_text.strip():
+                # Line breaks become spaces, so the text stays in one query step.
+                text = ' '.join(search_text.splitlines()).strip()
+                # re.escape makes symbols like ( . [ match literally; '/' ends the
+                # /regex/, so it is escaped too. (?i) ignores case.
+                pattern = re.escape(text).replace('/', r'\/')
+                query += f'\n| filter @message like /(?i){pattern}/'
+
+            # Add additional filter pattern if provided
+            if filter_pattern:
+                query += f'\n| {filter_pattern}'
 
             # Add sorting and limit
             query += f'\n| sort @timestamp desc\n| limit {limit}'
@@ -346,6 +308,9 @@ class CloudWatchHandler:
         except Exception as e:
             resource_name_str = f' {resource_name}' if resource_name is not None else ''
             error_message = f'Failed to get logs for {resource_type}{resource_name_str}: {str(e)}'
+            if query:
+                # The agent cannot see the query it caused; show it so it can fix its input.
+                error_message += f'\nQuery sent to CloudWatch Logs Insights:\n{query.strip()}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CallToolResult(
