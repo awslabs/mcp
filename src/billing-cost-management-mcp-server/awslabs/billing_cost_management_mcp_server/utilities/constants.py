@@ -221,6 +221,7 @@ PAYMENT_OPTION_MAP = {
 ACCOUNT_SCOPE_MAP = {'Linked': 'LINKED', 'Payer': 'PAYER'}
 
 # EC2 RI offering class mapping (Cost Optimization Hub -> Cost Explorer)
+# Cost Explorer accepts only the upper-case request value; its responses echo 'Standard'.
 OFFERING_CLASS_MAP = {'Standard': 'STANDARD', 'Convertible': 'CONVERTIBLE'}
 
 # Lookback period mapping

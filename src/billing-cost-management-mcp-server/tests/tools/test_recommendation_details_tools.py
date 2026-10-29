@@ -1832,6 +1832,68 @@ class TestCommitmentRecommendationScope:
         assert result['SavingsPlansPurchaseRecommendationDetails'] == []
         assert MEMBER in result['warning']
 
+    async def test_sp_no_match_warning_mentions_unread_pages(self, mock_context):
+        """The SP NextPageToken is a top-level response key; it still reaches the warning."""
+        ce = MagicMock()
+        response: Dict[str, Any] = {**_sp_response([PAYER]), 'NextPageToken': 'page-2'}
+        ce.get_savings_plans_purchase_recommendation.return_value = response
+
+        result = await _ce_data(mock_context, _sp_rec(), ce)
+
+        assert result['NextPageToken'] == 'page-2'
+        assert 'Only the first page was read' in result['warning']
+
+    async def test_non_ec2_ri_rows_are_noted_as_matched_on_account_only(self, mock_context):
+        """Non-EC2 RI rows can span other instance types and regions, and the note says so."""
+        rec = _ec2_ri_rec('Payer', PAYER)
+        rec['recommendedResourceDetails'] = {
+            'rdsReservedInstances': {
+                'configuration': {
+                    'accountScope': 'Payer',
+                    'term': 'OneYear',
+                    'paymentOption': 'AllUpfront',
+                    'instanceType': 'db.r6g.large',
+                    'reservedInstancesRegion': 'us-east-2',
+                }
+            }
+        }
+        rows = [
+            {'AccountId': PAYER, 'InstanceDetails': {'RDSInstanceDetails': {'InstanceType': t}}}
+            for t in ('db.r6g.large', 'db.t4g.micro')
+        ]
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(rows, 'Payer')
+
+        result = await _ce_data(mock_context, rec, ce)
+
+        assert result['Recommendations'][0]['RecommendationDetails'] == rows
+        assert 'matched on account only' in result['note']
+        assert 'warning' not in result
+
+    async def test_non_ec2_ri_note_follows_the_dropped_rows_note(self, mock_context):
+        """A Linked non-EC2 RI note counts the dropped rows and says the rest are unmatched."""
+        rec = _ec2_ri_rec()
+        rec['recommendedResourceDetails'] = {
+            'rdsReservedInstances': {
+                'configuration': {
+                    'accountScope': 'Linked',
+                    'term': 'OneYear',
+                    'paymentOption': 'AllUpfront',
+                }
+            }
+        }
+        rows = [
+            {'AccountId': a, 'InstanceDetails': {'RDSInstanceDetails': {}}}
+            for a in (MEMBER, PAYER)
+        ]
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(rows)
+
+        result = await _ce_data(mock_context, rec, ce)
+
+        assert result['note'].startswith('RecommendationDetails keeps only the 1 row(s)')
+        assert result['note'].endswith("match the recommendation's configuration.")
+
     async def test_error_results_pass_through_unscoped(self, mock_context):
         """An error from the lookup is returned unchanged."""
         ce = MagicMock()
@@ -1850,6 +1912,7 @@ async def test_rec_details_description_states_commitment_scope():
     assert "keep only the rows for the recommendation's own account" in description
     assert 'The summary is not recomputed from the kept rows' in description
     assert 'It may list several instance types and regions' not in description
+    assert 'Non-EC2 RI rows are matched on account only' in description
 
 
 def test_offering_class_enum_matches_botocore_model():

@@ -71,8 +71,9 @@ COMMITMENT PURCHASE DETAILS:
   SavingsPlansPurchaseRecommendationDetails then keep only the rows for the recommendation's
   own account (and, for EC2 RIs, its instance type and region). The summary is not recomputed
   from the kept rows: it totals every row Cost Explorer returned, which for RIs spans other
-  instance types and regions, so use the kept row(s) for this recommendation. A top-level "note"
-  key in additional_details counts dropped rows; "warning" means none matched.
+  instance types and regions, so use the kept row(s) for this recommendation. Non-EC2 RI rows are
+  matched on account only and can still span instance types and regions. A top-level "note" key
+  in additional_details counts dropped rows; "warning" means none matched.
 - Savings Plans recommendations carry no break-even. They return EstimatedROI (estimated savings /
   Savings Plan cost x 100 over the lookback period), which is not a payback period.
 
@@ -287,7 +288,15 @@ def scope_reserved_instances_details(
         ri['RecommendationDetails'] = rows
         dropped += removed
         kept += len(rows)
-    return add_scope_notes(response, criteria, kept, dropped, 'RecommendationDetails')
+    result = add_scope_notes(response, criteria, kept, dropped, 'RecommendationDetails')
+    if kept and ri_key != 'ec2ReservedInstances':
+        unmatched = (
+            'Rows for this service are matched on account only, so they can include other '
+            'instance types and regions: use the row whose InstanceDetails match the '
+            "recommendation's configuration."
+        )
+        result['note'] = f'{result["note"]} {unmatched}' if 'note' in result else unmatched
+    return result
 
 
 def scope_savings_plans_details(
@@ -412,7 +421,11 @@ async def get_savings_plans_recommendation(
     try:
         # Call Cost Explorer API
         response = ce_client.get_savings_plans_purchase_recommendation(**params)
-        return response.get('SavingsPlansPurchaseRecommendation', {})
+        details = response.get('SavingsPlansPurchaseRecommendation', {})
+        # NextPageToken sits beside the recommendation, not inside it.
+        if response.get('NextPageToken'):
+            details['NextPageToken'] = response['NextPageToken']
+        return details
     except Exception as e:
         await ctx.error(f'Error getting Savings Plans recommendation: {str(e)}')
         return {'error': f'Error getting Savings Plans recommendation: {str(e)}'}
