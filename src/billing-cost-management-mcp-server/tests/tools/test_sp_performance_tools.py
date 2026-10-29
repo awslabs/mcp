@@ -23,7 +23,9 @@ These tests verify the functionality of AWS Savings Plans performance monitoring
 """
 
 import botocore.session
+import json
 import pytest
+import re
 from awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools import (
     get_savings_plans_coverage,
     get_savings_plans_utilization,
@@ -1226,7 +1228,7 @@ SP_PAGED_OPERATIONS = [
 ]
 
 
-async def _call_paged(function, client, ctx, max_items=None, next_token=None):
+async def _call_paged(function, client, ctx, max_items=None, next_token=None, sort_by=None):
     if function is get_savings_plans_coverage:
         return await function(
             ctx,
@@ -1239,8 +1241,11 @@ async def _call_paged(function, client, ctx, max_items=None, next_token=None):
             None,
             max_items,
             next_token,
+            sort_by,
         )
-    return await function(ctx, client, '2023-01-01', '2023-01-31', None, max_items, next_token)
+    return await function(
+        ctx, client, '2023-01-01', '2023-01-31', None, max_items, next_token, sort_by
+    )
 
 
 @pytest.mark.asyncio
@@ -1304,6 +1309,24 @@ class TestSpPerformancePagination:
 
         assert second.pop('NextToken') == 'caller-token'
         assert second == first
+
+    async def test_sort_by_is_sent_on_every_page(
+        self, mock_context, function, method, result_key, response_key
+    ):
+        """The API sorts across pages only if every page request carries the same SortBy."""
+        client = MagicMock()
+        getattr(client, method).side_effect = [
+            {result_key: [{'n': 1}], 'NextToken': 't1'},
+            {result_key: [{'n': 2}]},
+        ]
+        key = 'CoveragePercentage' if function is get_savings_plans_coverage else 'NetSavings'
+        sort = {'Key': key, 'SortOrder': 'DESCENDING'}
+
+        await _call_paged(function, client, mock_context, sort_by=json.dumps(sort))
+
+        calls = getattr(client, method).call_args_list
+        assert len(calls) == 2
+        assert all(call.kwargs['SortBy'] == sort for call in calls)
 
 
 API_DETAILS_TOTAL = {
@@ -1619,3 +1642,209 @@ class TestSpPerformanceDescription:
         assert 'they are not snapped' in description
         assert 'covers only the Savings Plans on its own page' in description
         assert 'Coverage has no `total`' in description
+
+
+@pytest.mark.asyncio
+class TestSpPerformanceDimensionsAndSort:
+    """Coverage names INSTANCE_TYPE_FAMILY, utilization filters are listed, sort_by passes through."""
+
+    @staticmethod
+    async def _tool():
+        tool = await sp_performance_server.get_tool('sp-performance')
+        assert isinstance(tool, FunctionTool) and tool.description
+        return tool
+
+    async def test_no_instance_family_anywhere(self):
+        """INSTANCE_FAMILY is not a Cost Explorer dimension; only INSTANCE_TYPE_FAMILY is."""
+        tool = await self._tool()
+        description = tool.description or ''
+        params = tool.parameters['properties']
+        for text in (
+            description,
+            params['group_by']['description'],
+            params['filter']['description'],
+            params['sort_by']['description'],
+        ):
+            assert re.search(r'\bINSTANCE_FAMILY\b', text) is None
+
+    async def test_coverage_names_instance_type_family(self):
+        """The coverage group_by and filter lists, and their arg docs, name INSTANCE_TYPE_FAMILY."""
+        tool = await self._tool()
+        flat = ' '.join((tool.description or '').split())
+        assert 'group_by accepts ONLY INSTANCE_TYPE_FAMILY, REGION, or SERVICE' in flat
+        assert 'filter accepts LINKED_ACCOUNT, REGION, SERVICE, INSTANCE_TYPE_FAMILY' in flat
+        assert 'coverage are SERVICE, REGION, or INSTANCE_TYPE_FAMILY' in flat
+        assert 'SAVINGS_PLANS_TYPE is not a coverage dimension' in flat
+        params = tool.parameters['properties']
+        assert 'SERVICE, REGION, or INSTANCE_TYPE_FAMILY' in params['group_by']['description']
+        assert 'SERVICE, INSTANCE_TYPE_FAMILY' in params['filter']['description']
+
+    async def test_and_is_the_only_compound_expression_named(self):
+        """Or is not a supported SP filter expression, so no text implies it works."""
+        tool = await self._tool()
+        assert 'And/Or' not in (tool.description or '')
+        assert 'And/Or' not in tool.parameters['properties']['filter']['description']
+
+    async def test_lists_utilization_filters_and_grammar(self):
+        """Utilization filter dimensions are listed, with the expressions it rejects."""
+        flat = ' '.join(((await self._tool()).description or '').split())
+        section = flat.split('UTILIZATION filters (get_savings_plans_utilization):')[1]
+        section = section.split('UTILIZATION DETAILS')[0]
+        for dimension in (
+            'LINKED_ACCOUNT',
+            'SAVINGS_PLAN_ARN',
+            'SAVINGS_PLANS_TYPE',
+            'REGION',
+            'PAYMENT_OPTION',
+            'INSTANCE_TYPE_FAMILY',
+        ):
+            assert dimension in section
+        assert 'Only Dimensions, And and Not are allowed' in section
+        assert 'Or, Tags or CostCategories expression returns a ValidationException' in section
+
+    async def test_lists_utilization_details_plan_type_and_end_date_filters(self):
+        """Details also filters on SAVINGS_PLANS_TYPE and the plan end-date bounds."""
+        flat = ' '.join(((await self._tool()).description or '').split())
+        section = flat.split(
+            'UTILIZATION DETAILS filters (get_savings_plans_utilization_details):'
+        )[1]
+        section = section.split('- The filter is')[0]
+        for dimension in (
+            'LINKED_ACCOUNT',
+            'SAVINGS_PLAN_ARN',
+            'SAVINGS_PLANS_TYPE',
+            'REGION',
+            'PAYMENT_OPTION',
+            'INSTANCE_TYPE_FAMILY',
+            'AGREEMENT_END_DATE_TIME_AFTER',
+            'AGREEMENT_END_DATE_TIME_BEFORE',
+        ):
+            assert dimension in section
+        assert "one YYYY-MM-DD value each, compared with each plan's end date" in section
+        assert (
+            'SAVINGS_PLANS_TYPE (get_savings_plans_utilization and '
+            'get_savings_plans_utilization_details; not accepted by coverage)'
+        ) in flat
+
+    async def test_says_sort_happens_before_max_items(self):
+        """sort_by + max_items=N is the top N by the key, not N items sorted afterwards."""
+        tool = await self._tool()
+        flat = ' '.join((tool.description or '').split())
+        assert (
+            'Order of operations: the API sorts every matching item by the key first, then '
+            'pages; max_items=N keeps the first N of that sorted order.'
+        ) in flat
+        assert 'not N arbitrary items sorted afterwards' in flat
+        params = tool.parameters['properties']
+        sort_doc = ' '.join(params['sort_by']['description'].split())
+        max_doc = ' '.join(params['max_items']['description'].split())
+        assert 'Applied before max_items, so sort_by + max_items=N returns the top N.' in sort_doc
+        assert (
+            'With sort_by, these are the first N items in the requested SortOrder (the top N)'
+            in max_doc
+        )
+
+    async def test_coverage_dimension_sort_keys_need_group_by(self):
+        """Sorting coverage by a dimension key needs that dimension in group_by."""
+        flat = ' '.join(((await self._tool()).description or '').split())
+        assert (
+            'Sorting coverage by InstanceFamily, Region or Service needs that dimension in '
+            'group_by (INSTANCE_TYPE_FAMILY, REGION or SERVICE); otherwise the API returns a '
+            'ValidationException'
+        ) in flat
+
+    async def test_gives_value_spellings_and_the_wrong_spelling_error(self):
+        """PAYMENT_OPTION and SAVINGS_PLANS_TYPE values, and what another spelling returns."""
+        flat = ' '.join(((await self._tool()).description or '').split())
+        assert 'PAYMENT_OPTION: "No Upfront", "Partial Upfront", "All Upfront"' in flat
+        assert (
+            '"ComputeSavingsPlans", "EC2InstanceSavingsPlans", '
+            '"SageMakerSavingsPlans", "DatabaseSavingsPlans"'
+        ) in flat
+        assert (
+            'returns a DataUnavailableException, which the service sends without a message, '
+            'not a ValidationException'
+        ) in flat
+        assert 'check these spellings before changing the window' in flat
+
+    async def test_documents_sort_keys_per_operation(self):
+        """Both sortable operations list their keys; utilization says it ignores sort_by."""
+        tool = await self._tool()
+        flat = ' '.join((tool.description or '').split())
+        assert (
+            'Coverage keys: CoveragePercentage, SpendCoveredBySavingsPlan (singular, unlike the '
+            'metric), OnDemandCost, TotalCost, InstanceFamily, Region, Service'
+        ) in flat
+        assert (
+            'Utilization details keys: UtilizationPercentage, TotalCommitment, UsedCommitment, '
+            'UnusedCommitment, NetSavings, AmortizedRecurringCommitment, AmortizedUpfrontCommitment'
+        ) in flat
+        assert 'get_savings_plans_utilization ignores sort_by' in flat
+        sort_by = tool.parameters['properties']['sort_by']
+        assert sort_by.get('default') is None
+        assert 'sort_by' not in tool.parameters.get('required', [])
+        assert 'see SORTING' in sort_by['description']
+        assert 'ignored by get_savings_plans_utilization' in sort_by['description']
+        assert 'sort by InstanceFamily, group by INSTANCE_TYPE_FAMILY' in flat
+
+    @pytest.mark.parametrize(
+        'operation, api, key',
+        [
+            ('get_savings_plans_coverage', 'get_savings_plans_coverage', 'CoveragePercentage'),
+            (
+                'get_savings_plans_utilization_details',
+                'get_savings_plans_utilization_details',
+                'UtilizationPercentage',
+            ),
+        ],
+    )
+    async def test_sort_by_is_sent_as_sort_by(
+        self, operation, api, key, mock_context, mock_ce_client
+    ):
+        """sort_by reaches the API unchanged as SortBy."""
+        sort = {'Key': key, 'SortOrder': 'ASCENDING'}
+        result = await _call_tool(
+            mock_ce_client, mock_context, operation, sort_by=json.dumps(sort)
+        )
+
+        assert result['status'] == 'success'
+        assert getattr(mock_ce_client, api).call_args.kwargs['SortBy'] == sort
+
+    @pytest.mark.parametrize(
+        'operation, api',
+        [
+            ('get_savings_plans_coverage', 'get_savings_plans_coverage'),
+            ('get_savings_plans_utilization', 'get_savings_plans_utilization'),
+            ('get_savings_plans_utilization_details', 'get_savings_plans_utilization_details'),
+        ],
+    )
+    async def test_no_sort_by_sends_no_sort_by(self, operation, api, mock_context, mock_ce_client):
+        """Without sort_by the request is unchanged."""
+        result = await _call_tool(mock_ce_client, mock_context, operation)
+
+        assert result['status'] == 'success'
+        assert 'SortBy' not in getattr(mock_ce_client, api).call_args.kwargs
+
+    async def test_utilization_ignores_sort_by(self, mock_context, mock_ce_client):
+        """Utilization keeps its periods in date order, so sort_by is not sent."""
+        result = await _call_tool(
+            mock_ce_client,
+            mock_context,
+            'get_savings_plans_utilization',
+            sort_by='{"Key": "UtilizationPercentage", "SortOrder": "ASCENDING"}',
+        )
+
+        assert result['status'] == 'success'
+        assert 'SortBy' not in mock_ce_client.get_savings_plans_utilization.call_args.kwargs
+
+    async def test_malformed_sort_by_is_rejected_before_the_api(
+        self, mock_context, mock_ce_client
+    ):
+        """A sort_by that is not JSON returns an error and makes no call."""
+        result = await _call_tool(
+            mock_ce_client, mock_context, 'get_savings_plans_coverage', sort_by='{not json'
+        )
+
+        assert result['status'] == 'error'
+        assert 'sort_by' in result['message']
+        mock_ce_client.get_savings_plans_coverage.assert_not_called()
