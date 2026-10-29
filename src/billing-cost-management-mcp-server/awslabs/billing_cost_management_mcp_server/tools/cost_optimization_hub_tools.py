@@ -225,6 +225,12 @@ def _filter_item_fields() -> Dict[str, List[str]]:
     }
 
 
+# The service rejects each of these on ListRecommendationSummaries with a ValidationException
+# ("Cannot include recommendationId|resourceId|resourceArn as a filter for this operation"),
+# so they are refused locally with a hint instead of costing a call.
+SUMMARIES_UNSUPPORTED_FILTERS = frozenset({'recommendationIds', 'resourceIds', 'resourceArns'})
+
+
 def _normalize_filters(operation: str, filters: Any) -> Tuple[Any, Optional[Dict[str, Any]]]:
     """Fold filter keys and enum values onto the spelling the API expects.
 
@@ -418,6 +424,7 @@ PAGINATION (list_recommendations, list_recommendation_summaries, list_efficiency
 - Top N: pass 'order_by' with max_items=N (list_recommendations, list_efficiency_metrics). Without order_by, the first N are not the top N.
 - If the result has complete_dataset: false, it is partial: totals and counts undercount. Call again with a larger 'max_items', continue with 'next_token', or state that the result is partial. Never report the number of returned items as a total count.
 - Fields from the first page only (summary totals such as estimated_total_deduped_savings, currency_code, metrics) are not repeated on continuation calls.
+- list_recommendation_summaries returns total_recommendation_count (the sum of the groups' recommendation_count) only when every group was fetched; use it as the overall count instead of adding the groups. It is absent on a partial result, a continuation call, or when a group has no recommendation_count.
 - In ranking_mode='performance', 'max_items' only limits how many ranked groups are returned; the fetch behind the ranking is fixed. A ranking has no 'next_token'; a larger 'max_items' or a continuation does not widen it. complete_dataset: false there means only the top spenders were fetched and ranked: group_by=Region (fewer groups) for a complete ranking, or state that it covers only the top spenders.
 - list_enrollment_statuses, get_recommendation and get_preferences are not paginated.
 - 'get_recommendation' requires only 'recommendation_id' (mapped to the API's recommendationId)
@@ -456,6 +463,8 @@ Available Filter Parameters (pass as JSON string):
   required and matched exactly (case-sensitive, no wildcards). Only tags that appear on
   the recommendations can match (see 'tags' in get_recommendation).
 - rollbackPossible: boolean
+list_recommendation_summaries does not accept recommendationIds, resourceIds or resourceArns
+(rejected locally); they apply to list_recommendations only.
 Filter keys and enum values are matched case- and underscore-insensitively
 (e.g. "ec2_instance" -> "Ec2Instance"); tag keys and values are not. List filters must be non-empty: omit a filter
 to include all values rather than passing []. An empty list is rejected locally, and a
@@ -579,6 +588,24 @@ async def cost_optimization_hub(
                 parsed_filters, filter_error = _normalize_filters(operation, parsed_filters)
                 if filter_error:
                     return filter_error
+                id_filters = (
+                    sorted(set(parsed_filters) & SUMMARIES_UNSUPPORTED_FILTERS)
+                    if isinstance(parsed_filters, dict)
+                    else []
+                )
+                if id_filters:
+                    return _error_response(
+                        operation,
+                        {
+                            'submitted_filters': filters,
+                            'unsupported_filters': id_filters,
+                            'supported_filters': sorted(
+                                set(_filter_members()) - SUMMARIES_UNSUPPORTED_FILTERS
+                            ),
+                        },
+                        f'Filter {", ".join(id_filters)} is not supported by '
+                        'list_recommendation_summaries. Use one of supported_filters.',
+                    )
 
                 effective_group_by = str(group_by) if group_by else 'RESOURCE_TYPE'
                 await ctx.info(f'Using group_by: {effective_group_by}')

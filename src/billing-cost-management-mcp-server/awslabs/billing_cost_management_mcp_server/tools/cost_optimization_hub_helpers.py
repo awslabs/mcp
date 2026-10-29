@@ -352,8 +352,18 @@ async def list_recommendation_summaries(
             'group_by': first_response.get('groupBy', group_by),
             'currency_code': first_response.get('currencyCode', 'USD'),
             'estimated_total_deduped_savings': first_response.get('estimatedTotalDedupedSavings'),
-            'summaries': formatted_summaries,
         }
+        # Each recommendation falls in exactly one group, so the group counts add up to the
+        # overall count, but only over every group: a partial result or a continuation would
+        # undercount, so the field is left out there.
+        counts = [summary['recommendation_count'] for summary in formatted_summaries]
+        if (
+            next_token is None
+            and pagination['complete_dataset']
+            and all(isinstance(count, int) for count in counts)
+        ):
+            formatted_response['total_recommendation_count'] = sum(counts)
+        formatted_response['summaries'] = formatted_summaries
         if 'metrics' in first_response:
             formatted_response['metrics'] = {
                 'savings_percentage': first_response['metrics'].get('savingsPercentage')
