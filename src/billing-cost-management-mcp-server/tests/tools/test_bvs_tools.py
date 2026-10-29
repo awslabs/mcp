@@ -384,6 +384,25 @@ class TestListBillingViewsTool:
 
 
 @pytest.mark.asyncio
+async def test_list_billing_views_description_explains_source_account_id_and_name_case():
+    """source_account_id is described as a sourceAccountId match, not a membership search."""
+    from awslabs.billing_cost_management_mcp_server.tools import bvs_tools
+
+    real = importlib.reload(bvs_tools)
+    tools = {t.name: t for t in await real.bvs_server.list_tools()}
+    description = ' '.join(tools['list-billing-views'].description.split())
+    assert 'Filter by source account ID (12-digit AWS account ID)' not in description
+    assert 'Not an account membership search' in description
+    assert "billing group's primary account is this ID" in description
+    assert 'PRIMARY and CUSTOM views are never returned with it' in description
+    assert 'No filter of this tool lists the views that include a given account' in description
+    assert 'list-account-associations' in description
+    assert 'list-billing-groups' in description
+    assert 'without one it matches billing groups from all periods' in description
+    assert 'The prefix match is case-sensitive' in description
+
+
+@pytest.mark.asyncio
 class TestListSourceViewsForBillingViewTool:
     """Tests for the list_source_views_for_billing_view MCP tool wrapper."""
 
