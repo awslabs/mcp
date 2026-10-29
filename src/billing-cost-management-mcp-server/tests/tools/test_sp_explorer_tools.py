@@ -1317,6 +1317,106 @@ class TestDescribeSavingsPlansScope:
 
 
 @pytest.mark.asyncio
+class TestDescribeSavingsPlansFilterValues:
+    """A filter or state value spelled differently from the API's matches nothing.
+
+    DescribeSavingsPlans returns an empty list, not a ValidationException, for an
+    enum value such as savings-plan-type ComputeSavingsPlans or payment-option
+    PARTIAL_UPFRONT. The served filters description has to give the accepted
+    values, and the empty result has to name a filter mismatch as a cause, or the
+    caller reads the account-scope text and concludes the account owns no plans.
+    """
+
+    @staticmethod
+    async def _filters_description() -> str:
+        """The filters parameter description as published to MCP clients."""
+        async with fastmcp.Client(sp_explorer_server) as client:
+            tools = await client.list_tools()
+        tool = next(t for t in tools if t.name == 'sp-explorer')
+        description = tool.input_schema['properties']['filters'].get('description')
+        assert description, 'filters is served with no description'
+        return description
+
+    async def test_filters_description_gives_describe_savings_plans_value_formats(self):
+        """Each describe_savings_plans filter name is served with its value format."""
+        description = ' '.join((await self._filters_description()).split())
+
+        assert re.search(r'case-sensitive', description, re.I)
+        assert re.search(r'empty list, not an error', description)
+        for value in ('Compute', 'EC2Instance', 'SageMaker', 'Database'):
+            assert value in description
+        for value in ("'All Upfront'", "'Partial Upfront'", "'No Upfront'"):
+            assert value in description
+        assert re.search(r'are strings, numbers included', description)
+        assert re.search(r'term is the duration in seconds as a string, "31536000"', description)
+        assert re.search(r'decimal strings such as "4.38", with no currency sign', description)
+        assert '"2025-01-01T00:00:00.000Z"' in description
+        assert re.search(r'matched to the millisecond', description)
+
+    async def test_filters_description_gives_rate_pricing_vocabulary(self):
+        """Rate filters take pricing values; Cost Explorer's spellings match nothing.
+
+        DescribeSavingsPlanRates and DescribeSavingsPlansOfferingRates return an
+        empty list for tenancy Shared or productDescription Linux, the values a
+        caller carries over from Cost Explorer.
+        """
+        description = ' '.join((await self._filters_description()).split())
+
+        assert re.search(r'rate operations use the pricing vocabulary', description)
+        assert re.search(r'tenancy is lower case, shared or dedicated', description)
+        assert re.search(r"Cost Explorer's Shared matches nothing", description)
+        assert 'Linux/UNIX' in description
+        assert re.search(r'Linux alone matches nothing', description)
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_items')
+    async def test_empty_filtered_result_names_a_filter_mismatch(
+        self, mock_paginate, mock_context, mock_sp_client
+    ):
+        """With filters passed, the message names a mismatch and keeps the scope text."""
+        mock_paginate.return_value = ([], [], PAGINATION_COMPLETE)
+        filters = [{'name': 'savings-plan-type', 'values': ['ComputeSavingsPlans']}]
+
+        result = await describe_savings_plans(
+            mock_context, mock_sp_client, None, None, None, filters, None, None
+        )
+
+        message = result['data']['message']
+        assert re.search(r'narrowed by filters', message)
+        assert re.search(r'case-sensitive', message)
+        assert "payment-option 'Partial Upfront'" in message
+        assert re.search(r'does not mean the organization owns none', message, re.I)
+        assert result['status'] == 'success'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_items')
+    async def test_empty_result_with_only_states_has_no_filter_note(
+        self, mock_paginate, mock_context, mock_sp_client
+    ):
+        """The API rejects a misspelled state, so an empty states-only result is real."""
+        mock_paginate.return_value = ([], [], PAGINATION_COMPLETE)
+
+        result = await describe_savings_plans(
+            mock_context, mock_sp_client, None, None, ['queued'], None, None, None
+        )
+
+        assert 'narrowed by filters' not in result['data']['message']
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_items')
+    async def test_empty_unfiltered_result_has_no_filter_note(
+        self, mock_paginate, mock_context, mock_sp_client
+    ):
+        """Without filters or states only the account scope can explain the empty list."""
+        mock_paginate.return_value = ([], [], PAGINATION_COMPLETE)
+
+        result = await describe_savings_plans(
+            mock_context, mock_sp_client, None, None, None, None, None, None
+        )
+
+        message = result['data']['message']
+        assert 'narrowed by filters' not in message
+        assert message.startswith('No Savings Plans found for the calling account. This')
+
+
+@pytest.mark.asyncio
 class TestDescribeSavingsPlanRatesRequiredParameter:
     """savingsPlanId is required, so an unset one is omitted rather than sent as None."""
 
