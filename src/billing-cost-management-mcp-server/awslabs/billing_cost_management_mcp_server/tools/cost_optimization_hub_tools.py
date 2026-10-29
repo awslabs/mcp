@@ -607,7 +607,7 @@ async def cost_optimization_hub(
                         'list_recommendation_summaries. Use one of supported_filters.',
                     )
 
-                effective_group_by = str(group_by) if group_by else 'RESOURCE_TYPE'
+                effective_group_by = str(group_by)
                 await ctx.info(f'Using group_by: {effective_group_by}')
 
                 result = await list_recommendation_summaries(
