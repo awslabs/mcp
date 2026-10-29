@@ -80,6 +80,19 @@ class TestToolRegistration:
         assert 'TAKES EXACTLY ONE VALUE' in (tool.description or '')
 
     @pytest.mark.asyncio
+    async def test_description_states_the_filter_rule_for_each_feature(self):
+        """Filters are required for one credit feature, optional for the other, rejected elsewhere."""
+        tool = await _registered_tool()
+        description = ' '.join((tool.description or '').split())
+
+        assert 'accepted for CREDIT_PREFERENCE_OPTIONS alone' not in description
+        assert 'CREDIT_PREFERENCE_OPTIONS: REQUIRED' in description
+        assert 'CREDIT_LEVEL_SHARING (management account only): optional' in description
+        rejecting = 'RI_SHARING, RI_SHARING_HISTORY, CREDIT_SHARING, CREDIT_SHARING_HISTORY, BILLING_ALERTS'
+        assert f'{rejecting}: not allowed' in description
+        assert 'returns no rows, not an error' in description
+
+    @pytest.mark.asyncio
     async def test_description_distinguishes_org_wide_keys_from_accounts(self):
         """Counting `default` / `open-sharing` as accounts is the other easy mistake."""
         tool = await _registered_tool()

@@ -84,6 +84,11 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Support contract details**: Review the contract terms that govern how a billing period's charge is allocated, including the allocation method, Reserved Instance and Savings Plan treatment, and the payer accounts covered
 - **Per-account charge breakdown**: Break a billing period's charge down by linked account with prorated Support-eligible spend, subscription periods, and per-service spend
 
+### AWS Business Support
+
+- **Account charges**: Retrieve a billing month's Business Support charges per account, with the Support-eligible spend each charge was calculated from, the tiered charge breakdown, any applied discount, and the profile-wide totals. The current month is returned as an estimate
+- **Subscription history**: Review the Support plan contracts in effect for a billing month or a date range, including the plan and the contract start and end dates
+
 ### Specialized Cost Optimization Prompts
 
 - **Graviton migration analysis**: Guided analysis to identify EC2 instances suitable for AWS Graviton migration
@@ -367,6 +372,8 @@ AWS Billing:
 - billing:GetEnterpriseSupportChargeSummary
 - billing:GetEnterpriseSupportContractDetails
 - billing:ListEnterpriseSupportLinkedAccountCharges
+- billing:ListBusinessSupportAccountCharges
+- billing:ListBusinessSupportSubscriptionHistory
 - billing:ListBillingViewSegments
 
 #### Configuration
@@ -541,7 +548,10 @@ The server currently supports the following AWS services
 16. **AWS Enterprise Support**
     - `enterprise-support` tool: get_charge_summary, get_contract_details, list_linked_account_charges
 
-17. **AWS Billing Views**
+17. **AWS Business Support**
+    - `business-support` tool: list_account_charges, list_subscription_history
+
+18. **AWS Billing Views**
     - `get-billing-view`: retrieve metadata for a specific billing view
     - `list-billing-views`: list billing views available for a given time period
     - `list-source-views-for-billing-view`: list source views that a custom billing view is built from
