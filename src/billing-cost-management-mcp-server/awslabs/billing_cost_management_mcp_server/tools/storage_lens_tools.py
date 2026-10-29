@@ -23,6 +23,7 @@ import json
 import os
 import re
 import sqlglot
+import weakref
 from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
 from ..utilities.constants import (
     ATHENA_MAX_RETRIES,
@@ -372,8 +373,32 @@ class ManifestHandler:
 
 # Column names come from the manifest's schema and are written backtick-quoted into the table DDL.
 _COLUMN_NAME_PATTERN = re.compile(r'[A-Za-z_][A-Za-z0-9_]{0,254}')
+# Input formats and SerDes of a CSV table, as Athena reports them (lowercase).
+_CSV_FORMATS = ('textinputformat', 'lazysimpleserde', 'opencsvserde')
+
+
+def _table_is_parquet(table_format: str) -> Optional[bool]:
+    """True for a Parquet table, False for CSV, None when ``table_format`` is neither.
+
+    ``table_format`` is the table's lowercase input format, else its SerDe. A symlink table lists
+    data files rather than holding them, so it is neither.
+    """
+    if 'symlink' in table_format:
+        return None
+    if 'parquet' in table_format:
+        return True
+    if any(csv in table_format for csv in _CSV_FORMATS):
+        return False
+    return None
+
+
 # The column types parse_schema produces.
 _COLUMN_TYPES = frozenset({'STRING', 'BIGINT', 'DOUBLE'})
+# A single day's Storage Lens report folder, the only LOCATION this tool has ever given a table:
+# s3://<bucket>/[<prefix>/]StorageLens/<account or org>/<configuration>/V_<n>/reports/dt=<date>
+_REPORT_FOLDER_PATTERN = re.compile(
+    r's3://[^/]+/(?:.+/)?StorageLens/[^/]+/[^/]+/V_\d+/reports/dt=\d{4}-\d{2}-\d{2}/?'
+)
 
 
 def table_ddl_parts(schema_info: SchemaInfo, data_location: str) -> tuple[str, str]:
@@ -394,15 +419,42 @@ def table_ddl_parts(schema_info: SchemaInfo, data_location: str) -> tuple[str, s
                 f'Column types must be one of {", ".join(sorted(_COLUMN_TYPES))}; got '
                 f'{str(column["type"])[:64]!r}.'
             )
+    columns = ', '.join(
+        f'`{column["name"]}` {column["type"]}' for column in schema_info['columns']
+    )
+    return columns, location_literal(data_location)
+
+
+def location_literal(data_location: str) -> str:
+    """Return the quoted LOCATION literal for data_location, an s3:// URI from the manifest.
+
+    A location that is not an s3:// URI, or holds a quote or backslash, raises ValueError rather
+    than being written into the DDL.
+    """
     if not data_location.startswith('s3://') or any(c in data_location for c in "'\\"):
         raise ValueError(
             f'Manifest data location must be an s3:// URI without quotes or backslashes; got '
             f'{data_location[:128]!r}.'
         )
-    columns = ', '.join(
-        f'`{column["name"]}` {column["type"]}' for column in schema_info['columns']
-    )
-    return columns, f"'{data_location}'"
+    return f"'{data_location}'"
+
+
+# point_table_at moves a shared table's LOCATION, so two calls in this server for different days
+# must not interleave one's ALTER with the other's SELECT. One lock per table and event loop
+# serializes them; servers in separate processes that share a table are not covered.
+_TABLE_LOCKS: 'weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, Dict[str, asyncio.Lock]]' = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def table_lock(qualified_table: str) -> asyncio.Lock:
+    """Return the lock that serializes setup and SELECT on ``qualified_table`` in this loop."""
+    locks = _TABLE_LOCKS.setdefault(asyncio.get_running_loop(), {})
+    key = qualified_table.lower()
+    lock = locks.get(key)
+    if lock is None:
+        lock = locks[key] = asyncio.Lock()
+    return lock
 
 
 class AthenaHandler:
@@ -427,7 +479,7 @@ class AthenaHandler:
         """
         validate_athena_name('database_name', database_name)
         create_db_query = f'CREATE DATABASE IF NOT EXISTS {database_name}'
-        await self.execute_query(create_db_query, 'default', output_location)
+        await self.run_ddl(create_db_query, 'default', output_location)
 
     async def create_table_for_csv(
         self,
@@ -461,7 +513,7 @@ class AthenaHandler:
         TBLPROPERTIES ('skip.header.line.count'='1')
         """
 
-        await self.execute_query(create_table_query, database_name, output_location)
+        await self.run_ddl(create_table_query, database_name, output_location)
 
     async def create_table_for_parquet(
         self,
@@ -492,7 +544,7 @@ class AthenaHandler:
         LOCATION {location}
         """
 
-        await self.execute_query(create_table_query, database_name, output_location)
+        await self.run_ddl(create_table_query, database_name, output_location)
 
     async def setup_table(
         self,
@@ -540,6 +592,143 @@ class AthenaHandler:
                 database_name, table_name, schema_info, data_location, output_location
             )
 
+        # CREATE TABLE IF NOT EXISTS leaves an existing table where it was, for example on an
+        # earlier day's dt= folder, so point it at this manifest's folder when it reads another.
+        await self.point_table_at(
+            database_name, table_name, data_location, output_location, schema_info['format']
+        )
+
+    async def point_table_at(
+        self,
+        database_name: str,
+        table_name: str,
+        data_location: str,
+        output_location: str,
+        schema_format: SchemaFormat,
+    ) -> None:
+        """Set the table's LOCATION to data_location unless it already reads that folder.
+
+        Only an unpartitioned table on another day's report folder, as this tool creates, is
+        moved. Any other table (partitioned, with no location, or on a folder that is not a
+        Storage Lens report day) was set up by someone else and is left as it is. A table already
+        on the manifest's folder is still refused if it was created for the other report format.
+
+        Args:
+            database_name: Name of the database
+            table_name: Name of the table
+            data_location: S3 location of the data files the manifest describes
+            output_location: S3 location for query results
+            schema_format: Format of the manifest's report files
+
+        Raises:
+            ValueError: If the table is this tool's but the manifest's folder is not a report
+                folder, or the table was created for the other report format (CSV or Parquet)
+                or records no format
+        """
+        validate_athena_name('database_name', database_name)
+        validate_athena_name('table_name', table_name)
+        location = location_literal(data_location)
+        metadata = self.athena_client.get_table_metadata(
+            CatalogName='AwsDataCatalog', DatabaseName=database_name, TableName=table_name
+        )
+        table = metadata['TableMetadata']
+        parameters = table.get('Parameters', {})
+        current = parameters.get('location')
+        name = f'{database_name}.{table_name}'
+        # The table's SerDe stays as created, so CSV files read as Parquet (or the reverse) give
+        # garbage rows; a different table_name gets a table of the right format. The SerDe decides
+        # the format (TextInputFormat is shared by JSON, Regex and CSV tables); the input format
+        # is used only without a SerDe, and must agree with it otherwise.
+        serde = (parameters.get('serde.serialization.lib') or '').lower()
+        input_format = (parameters.get('inputformat') or '').lower()
+        table_format = serde or input_format
+        table_is_parquet = _table_is_parquet(table_format)
+        if serde and input_format and _table_is_parquet(input_format) != table_is_parquet:
+            table_is_parquet = None
+            table_format = f'{input_format} with {serde}'
+        report_is_parquet = schema_format != SchemaFormat.CSV
+
+        def format_mismatch(created_as_parquet: bool) -> ValueError:
+            formats = {True: 'Parquet', False: 'CSV'}
+            return ValueError(
+                f'Table {name} was created for {formats[created_as_parquet]} report files, but '
+                f"this manifest's report is {formats[report_is_parquet]}. Pass a different "
+                'table_name.'
+            )
+
+        if current is not None and current.rstrip('/') == data_location.rstrip('/'):
+            # Already on this report's folder; refuse only a format known to be the other one
+            if table_is_parquet is not None and table_is_parquet != report_is_parquet:
+                raise format_mismatch(table_is_parquet)
+            return
+        if table.get('PartitionKeys'):
+            await self.ctx.info(f'Table {name} is partitioned; querying it as it is')
+            return
+        if current is None:
+            await self.ctx.info(f'Table {name} has no location; querying it as it is')
+            return
+        if not _REPORT_FOLDER_PATTERN.fullmatch(current):
+            await self.ctx.info(
+                f'Table {name} reads {current}, not a Storage Lens report folder; querying it '
+                'as it is'
+            )
+            return
+        if not _REPORT_FOLDER_PATTERN.fullmatch(data_location):
+            raise ValueError(
+                f'Table {name} reads the Storage Lens report folder {current}, but the '
+                f"manifest's report files are in {data_location}, which is not one "
+                '(.../StorageLens/<id>/<configuration>/V_<n>/reports/dt=<date>). Pass a '
+                'different table_name.'
+            )
+        # A table that is neither CSV nor Parquet (or records no format) is not moved
+        if table_is_parquet is None:
+            raise ValueError(
+                f'Table {name} reads {current} but has no recognised report format (CSV or '
+                f'Parquet; found {table_format or "none"}), so it is not pointed at '
+                f'{data_location}. Pass a different table_name.'
+            )
+        if table_is_parquet != report_is_parquet:
+            raise format_mismatch(table_is_parquet)
+        await self.ctx.info(f'Table {name} reads {current}; pointing it at {data_location}')
+        await self.run_ddl(
+            f'ALTER TABLE {name} SET LOCATION {location}',
+            database_name,
+            output_location,
+        )
+
+    async def run_ddl(self, query: str, database_name: str, output_location: str) -> None:
+        """Run a DDL statement and wait for it to finish, so the next statement sees its effect.
+
+        Args:
+            query: DDL statement to execute
+            database_name: Athena database name to use
+            output_location: S3 location for Athena query results
+        """
+        execution = await self.execute_query(query, database_name, output_location)
+        # Long enough to keep an ALTER's whole target location in error messages
+        statement = ' '.join(query.split())[:300]
+        label = f'Athena table setup ({statement})'
+        try:
+            # The caller's query has not run yet, so a failed setup statement is not theirs to fix
+            details = await self.wait_for_query_completion(
+                execution['query_execution_id'],
+                failure=RuntimeError,
+                label=label,
+            )
+        except RuntimeError as e:
+            # A concurrent call created the database or table between this statement's existence
+            # check and its create, which leaves what this statement asked for.
+            # Only Athena's reason counts: the label quotes the statement, which can hold any text
+            reason = str(e).partition(f'{label} failed: ')[2]
+            if 'IF NOT EXISTS' in query and 'already exists' in reason.lower():
+                await self.ctx.info(f'{statement}: created concurrently by another query')
+                return
+            raise
+        # Defensive: wait_for_query_completion returns only a SUCCEEDED execution or raises
+        state = details.get('Status', {}).get('State')
+        if state != 'SUCCEEDED':
+            raise RuntimeError(f'Athena table setup did not succeed ({statement}): state {state}')
+
     async def execute_query(
         self, query: str, database_name: str, output_location: str
     ) -> AthenaQueryExecution:
@@ -576,13 +765,19 @@ class AthenaHandler:
             raise
 
     async def wait_for_query_completion(
-        self, query_execution_id: str, max_retries: int = ATHENA_MAX_RETRIES
+        self,
+        query_execution_id: str,
+        max_retries: int = ATHENA_MAX_RETRIES,
+        failure: type[Exception] = ValueError,
+        label: str = 'Query',
     ) -> Dict[str, Any]:
         """Wait for an Athena query to complete.
 
         Args:
             query_execution_id: Query execution ID
             max_retries: Maximum number of retries
+            failure: Exception raised when the query fails; ValueError marks the caller's query
+            label: What is waited for, at the start of failure, cancel and timeout messages
 
         Returns:
             Dict[str, Any]: Query execution status
@@ -607,7 +802,13 @@ class AthenaHandler:
                     )
                     await self.ctx.error(f'Query failed: {reason}')
                     # A failed Athena query is almost always the query itself
-                    raise ValueError(f'Query failed: {reason}')
+                    raise failure(f'{label} failed: {reason}')
+                elif state == 'CANCELLED':
+                    reason = response['QueryExecution']['Status'].get(
+                        'StateChangeReason', 'no reason given'
+                    )
+                    await self.ctx.error(f'Query cancelled: {reason}')
+                    raise RuntimeError(f'{label} cancelled: {reason}')
                 elif state == 'SUCCEEDED':
                     await self.ctx.info(f'Query succeeded after {retries} retries')
                     return response['QueryExecution']
@@ -618,7 +819,7 @@ class AthenaHandler:
 
             if retries >= max_retries:
                 await self.ctx.error(f'Query timed out after {max_retries} retries')
-                raise TimeoutError('Query timed out')
+                raise TimeoutError(f'{label} timed out')
 
             # This should never be reached due to the exception above, but return empty dict for type safety
             return {'status': 'ERROR', 'message': 'Query timed out'}
@@ -751,20 +952,20 @@ class StorageLensQueryTool:
             if not output_location:
                 output_location = self.athena_handler.determine_output_location(data_location)
 
-            # 5. Setup Athena database and table if needed
-            await self.athena_handler.setup_table(
-                database_name, table_name, schema_info, data_location, output_location
-            )
+            # 5-7. Set up the table, then run the query and wait for it, holding the table's lock
+            # so a concurrent call cannot re-point the table before this query has read it
+            async with table_lock(qualified_table):
+                await self.athena_handler.setup_table(
+                    database_name, table_name, schema_info, data_location, output_location
+                )
 
-            # 6. Execute query
-            query_result = await self.athena_handler.execute_query(
-                formatted_query, database_name, output_location
-            )
+                query_result = await self.athena_handler.execute_query(
+                    formatted_query, database_name, output_location
+                )
 
-            # 7. Wait for query to complete
-            execution_details = await self.athena_handler.wait_for_query_completion(
-                query_result['query_execution_id']
-            )
+                execution_details = await self.athena_handler.wait_for_query_completion(
+                    query_result['query_execution_id']
+                )
 
             # 8. Get query results
             results = await self.athena_handler.get_query_results(
@@ -826,6 +1027,10 @@ The Storage Lens export data has the following standard columns:
 
 IMPORTANT: Metrics are stored in rows, not columns. Each row represents one metric value for a specific combination of dimensions.
 
+IMPORTANT: record_type levels are nested. The same storage is reported once per account (ACCOUNT), again per bucket (BUCKET) and again per prefix (PREFIX), plus once per Storage Lens group, so filter to exactly one record_type before SUM; otherwise totals count the same bytes two or more times. Use record_type = 'ACCOUNT' for account, Region or storage class totals and record_type = 'BUCKET' for per-bucket figures. The record_value column is URL-encoded.
+
+The table holds one day's report: the one the manifest describes (for a folder, its newest manifest.json). Each call points the table at that report's folder, so a query reads only that day and needs no date filter. Calls through one server take turns on a table; separate server processes that share a table_name can still interleave, so give them different table_name values. A table_name whose table is partitioned, has no location, or is not on a Storage Lens report day folder is queried as it is.
+
 Environment variables:
 - STORAGE_LENS_MANIFEST_LOCATION: S3 URI to manifest file or folder (required)
 - STORAGE_LENS_OUTPUT_LOCATION: S3 location for Athena query results (optional)
@@ -837,6 +1042,7 @@ Example queries:
        SUM(CAST(metric_value AS BIGINT)) as total_size
    FROM {table}
    WHERE metric_name = 'StorageBytes'
+     AND record_type = 'BUCKET'
    GROUP BY bucket_name
    ORDER BY total_size DESC
    LIMIT 10
@@ -847,6 +1053,7 @@ Example queries:
        SUM(CAST(metric_value AS BIGINT)) as total_size
    FROM {table}
    WHERE metric_name = 'StorageBytes'
+     AND record_type = 'ACCOUNT'
    GROUP BY storage_class
    ORDER BY total_size DESC
 
@@ -856,6 +1063,7 @@ Example queries:
        SUM(CAST(metric_value AS BIGINT)) as incomplete_bytes
    FROM {table}
    WHERE metric_name = 'IncompleteMultipartUploadStorageBytes'
+     AND record_type = 'BUCKET'
      AND CAST(metric_value AS BIGINT) > 0
    GROUP BY bucket_name
    ORDER BY incomplete_bytes DESC
@@ -867,6 +1075,7 @@ Example queries:
        SUM(CAST(metric_value AS BIGINT)) as total_bytes
    FROM {table}
    WHERE metric_name = 'StorageBytes'
+     AND record_type = 'ACCOUNT'
    GROUP BY aws_region, storage_class
    ORDER BY total_bytes DESC
 
@@ -878,6 +1087,7 @@ Example queries:
        SUM(CASE WHEN metric_name = 'StorageBytes' THEN CAST(metric_value AS BIGINT) ELSE 0 END) as total_bytes
    FROM {table}
    WHERE metric_name IN ('NonCurrentVersionStorageBytes', 'StorageBytes')
+     AND record_type = 'ACCOUNT'
    GROUP BY aws_region, storage_class
    HAVING SUM(CASE WHEN metric_name = 'NonCurrentVersionStorageBytes' THEN CAST(metric_value AS BIGINT) ELSE 0 END) > 0
    ORDER BY noncurrent_bytes DESC
@@ -889,6 +1099,7 @@ Example queries:
        SUM(CASE WHEN metric_name = 'StorageBytes' THEN CAST(metric_value AS BIGINT) ELSE 0 END) as total_bytes
    FROM {table}
    WHERE metric_name IN ('TotalLifecycleRuleCount', 'StorageBytes')
+     AND record_type = 'BUCKET'
    GROUP BY bucket_name
    ORDER BY lifecycle_rule_count ASC, total_bytes DESC""",
 )
