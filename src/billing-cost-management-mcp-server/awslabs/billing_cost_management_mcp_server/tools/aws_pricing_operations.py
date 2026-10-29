@@ -401,8 +401,8 @@ def _filters_matched_nothing(
     if any(field.lower() == 'location' for field in applied):
         message += (
             ' "location" takes the Price List location name (for example "US East (N. Virginia)"'
-            ' or "EU (Ireland)"), not a region code; services with a "regionCode" attribute take'
-            ' codes such as "us-east-1" in regionCode.'
+            ' or "EU (Ireland)"), not a region code. If get_service_attributes lists "regionCode"'
+            ' for this service, filter on it with codes such as "us-east-1".'
         )
     message += (
         ' This tool matches each filter against one value; a comma-separated list is matched'

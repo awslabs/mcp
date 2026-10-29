@@ -1753,6 +1753,7 @@ class TestGetPricingFromApiFilterGuidance:
         assert '"location": "us-east-1"' in message
         assert 'get_attribute_values' in message
         assert 'regionCode' in message
+        assert 'If get_service_attributes lists "regionCode"' in message
         assert 'US East (N. Virginia)' in message
         assert result['data']['message'] == message
         assert result['data']['filters'] == {'location': 'us-east-1'}
@@ -2016,6 +2017,8 @@ async def test_aws_pricing_description_teaches_a_filter_that_resolves_to_one_pro
         assert pair in description
     assert 'about 100' in description
     assert 'not a region code' in description
+    assert "use 'regionCode' when get_service_attributes lists it" in description
+    assert 'AWSDataTransfer lists neither and uses fromRegionCode/toRegionCode' in description
     assert 'varying_attributes' in description
 
 
