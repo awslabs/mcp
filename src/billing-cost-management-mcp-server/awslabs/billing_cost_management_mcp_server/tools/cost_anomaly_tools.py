@@ -27,7 +27,6 @@ from ..utilities.aws_service_base import (
     with_pagination,
 )
 from ..utilities.logging_utils import get_context_logger
-from botocore.exceptions import ClientError
 from datetime import datetime, timedelta
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
@@ -53,6 +52,12 @@ GET_ANOMALIES = PageSpec(
 
 This tool allows you to retrieve cost anomalies detected on your AWS account during a specified time period.
 Anomalies are available for up to 90 days.
+
+Date range matching: an anomaly is returned when its end_date (the last day it was detected) falls
+within start_date..end_date. Its start_date can be earlier than the requested start_date: an
+anomaly that began before the range and was still being detected inside it is in range. When asked
+for anomalies in a period (for example "the past 7 days"), report every returned anomaly, and do
+not drop results whose start_date is before the range.
 
 You can filter anomalies by:
 - Date range (required)
@@ -248,35 +253,6 @@ async def cost_anomaly(
             operation='cost_anomaly',
             service='Cost Explorer',
         )
-    except ClientError as e:
-        # Handle AWS service-specific errors
-        error_code = e.response.get('Error', {}).get('Code')
-        error_message = e.response.get('Error', {}).get('Message')
-
-        if error_code == 'ValidationException' and '2024' in error_message:
-            # Special handling for 2024 data issues
-            return format_response(
-                'error',
-                {'error_code': error_code},
-                f'Cost Anomaly Detection validation error for 2024 data: {error_message}. '
-                f'Note that cost anomalies may not be available yet for very recent data. '
-                f'Try querying a date range that ends at least 24-48 hours in the past.',
-                error_type=error_code,
-                operation='cost_anomaly',
-                service='Cost Explorer',
-            )
-        elif error_code == 'ValidationException':
-            return format_response(
-                'error',
-                {'error_code': error_code},
-                f'Cost Anomaly Detection validation error: {error_message}',
-                error_type=error_code,
-                operation='cost_anomaly',
-                service='Cost Explorer',
-            )
-        else:
-            # Use shared error handler for other AWS errors
-            raise
     except Exception as e:
         # Use shared error handler for other exceptions
         return await handle_aws_error(ctx, e, 'cost_anomaly', 'Cost Explorer')

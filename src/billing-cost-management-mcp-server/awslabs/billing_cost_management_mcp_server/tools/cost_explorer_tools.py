@@ -212,25 +212,27 @@ Correct filter examples:
    Required: operation="getSavingsPlansUtilization", start_date, end_date
    Optional: granularity, filter
    Example: {"operation": "getSavingsPlansUtilization", "granularity": "MONTHLY"}
-   Notes: Supports only DAILY and MONTHLY granularity. start_date must be within the last 13 months, and end_date must be before the current date. Data lags ~1 day: a window ending today (an incomplete UTC day) may come back empty or as a DataUnavailableException. A DataUnavailableException here means there is no Savings Plans data for THIS window (no active plans, or the window is outside the plan period) — report none/zero and do NOT retry the identical window; change the window (e.g. set end_date to yesterday) instead.
+   Notes: Supports only DAILY and MONTHLY granularity. start_date must be within the last 13 months, and end_date is exclusive and may be today. Data for the most recent 2-3 days (counting today) is not processed yet: a start_date in those days returns a DataUnavailableException, and a window that reaches into them silently leaves them out; a start_date at least 3 days before today is usually past that delay. A DataUnavailableException here means there is no Savings Plans data for THIS window and filter (the window is too recent, no plan was active in it, or a filter value such as an unknown SAVINGS_PLANS_TYPE matches nothing) — report that no data is available for that window (not zero) and do NOT resend the identical request; correct an unknown filter value, and query an earlier window only if the question allows it.
    Returns: Savings Plans utilization for the specified time period
 
 DIMENSION REFERENCE:
 - AZ: The Availability Zone (e.g., us-east-1a)
 - BILLING_ENTITY: Who bills the charge - "AWS" for AWS services, "AWS Marketplace" for
   third-party Marketplace purchases. This is the key for Marketplace spend, NOT LEGAL_ENTITY_NAME
-- DATABASE_ENGINE: The Amazon RDS database (e.g., Aurora, MySQL)
-- DEPLOYMENT_OPTION: RDS deployment scope (SingleAZ, MultiAZ)
+- DATABASE_ENGINE: The database engine (e.g., Aurora MySQL, Aurora PostgreSQL, MySQL, PostgreSQL)
+- DEPLOYMENT_OPTION: Deployment option (e.g., Single-AZ, Multi-AZ)
 - INSTANCE_TYPE: The EC2 instance type (e.g., m4.xlarge)
-- INSTANCE_TYPE_FAMILY: Family of instances (e.g., Compute Optimized, Memory Optimized)
+- INSTANCE_TYPE_FAMILY: Instance family (e.g., m5, t3, c6g); the case can vary by service (e.g., r5
+  and R5 are separate values)
 - INVOICING_ENTITY: The AWS entity that issued the invoice (e.g., Amazon Web Services, Inc.)
 - LEGAL_ENTITY_NAME: The AWS seller of record (e.g., Amazon Web Services, Inc.); it does not
   separate Marketplace from AWS charges
 - LINKED_ACCOUNT: AWS member accounts
-- OPERATING_SYSTEM: OS type (e.g., Windows, Linux)
+- OPERATING_SYSTEM: OS type (e.g., Linux/UNIX, Windows (Amazon VPC))
 - OPERATION: The API operation behind a charge (e.g., RunInstances, PutObject; for Amazon Bedrock, model-invocation operations). The dimension is OPERATION — there is no API_OPERATION dimension.
-- PLATFORM: EC2 operating system
-- PURCHASE_TYPE: Reservation type (e.g., On-Demand, Reserved)
+- PLATFORM: EC2 operating system (e.g., Linux/UNIX, Windows (Amazon VPC))
+- PURCHASE_TYPE: Purchase option (e.g., On Demand Instances, Standard Reserved Instances, Savings
+  Plans)
 - REGION: AWS Region
 - RESOURCE_ID: Resource identifier. Only for getCostAndUsageWithResources (last 14 days)
 - SERVICE: AWS service (e.g., Amazon DynamoDB)
@@ -239,7 +241,18 @@ DIMENSION REFERENCE:
   Host (Dedicated Host)
 - USAGE_TYPE: Usage type (e.g., DataTransfer-In-Bytes)
 - USAGE_TYPE_GROUP: Group of related usage types (e.g., EC2: Running Hours)
-- RECORD_TYPE: Charge types (e.g., RI fees, usage costs)
+- RECORD_TYPE: Charge type. Values are case-sensitive: Usage, DiscountedUsage (RI-covered
+  usage), SavingsPlanCoveredUsage, SavingsPlanNegation, SavingsPlanRecurringFee,
+  SavingsPlanUpfrontFee, Recurring (RI recurring fee), Upfront (RI upfront fee), Support, Other
+  (out-of-cycle and non-RI subscription charges), Tax, Credit, Refund, and these discounts by full
+  name: Bundled Discount, Distributor Discount, Enterprise Discount Program Discount, Marketplace
+  Discount, Private Rate Card Discount, RI Volume Discount, Solution Provider Program Discount.
+  These differ from the CUR and Cost Categories line-item types: Cost Explorer reports RIFee as
+  Recurring, so a RIFee filter matches nothing, and reports most CUR Fee rows as Upfront, Other or
+  Support, so a Fee filter misses them (use Upfront for RI upfront fees, Other for other
+  subscription fees). Any other CUR line-item type, such as a Fee with no subscription that is not
+  a support charge, passes through unchanged. Call getDimensionValues with RECORD_TYPE for the
+  values present in the account.
 
 BILLING VIEW SUPPORT:
 Most Cost Explorer operations support an optional billing_view_arn parameter that allows you to scope
