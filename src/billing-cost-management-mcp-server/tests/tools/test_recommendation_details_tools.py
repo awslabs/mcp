@@ -1320,6 +1320,7 @@ class TestProcessRecommendation:
 
         assert result['base_recommendation'] == {'formatted': 'base_data'}
         assert result['additional_details'] == {'optimizer': 'data'}
+        assert 'warning' not in result
         assert result['template'] == 'Template content'
         assert 'formatting_instructions' in result
 
@@ -1354,6 +1355,7 @@ class TestProcessRecommendation:
 
         assert result['base_recommendation'] == {'formatted': 'base_data'}
         assert result['additional_details'] == {'cost_explorer': 'data'}
+        assert 'warning' not in result
         assert result['template'] == 'Template content'
         assert 'formatting_instructions' in result
 
@@ -1388,6 +1390,7 @@ class TestProcessRecommendation:
 
         assert result['base_recommendation'] == {'formatted': 'base_data'}
         assert result['additional_details'] == {'cost_explorer': 'data'}
+        assert 'warning' not in result
         assert result['template'] == 'Template content'
         assert 'formatting_instructions' in result
 
@@ -1723,13 +1726,55 @@ async def test_process_recommendation_warns_when_compute_optimizer_fails(
 
 
 @pytest.mark.asyncio
+async def test_process_recommendation_warns_on_unsupported_resource_type(mock_context):
+    """A skipped Compute Optimizer lookup (unsupported resource type) also leads with a warning."""
+    recommendation = {
+        'actionType': 'Rightsize',
+        'currentResourceType': 'SomeNewResource',
+        'resourceArn': 'arn:aws:ec2:us-east-1:123456789012:instance/i-0abc',
+    }
+
+    with patch.object(recommendation_details_tools, 'create_aws_client', return_value=MagicMock()):
+        result = await process_recommendation(mock_context, recommendation)
+
+    assert list(result)[0] == 'warning'
+    assert 'has no Compute Optimizer details;' in result['warning']
+    assert result['additional_details'] == {'error': 'Unsupported resource type: SomeNewResource'}
+
+
+@pytest.mark.asyncio
+async def test_process_recommendation_empty_lookup_has_no_warning(mock_context):
+    """A lookup that runs but finds nothing returns its empty result and no warning."""
+    client = MagicMock()
+    # Compute Optimizer's shape for an ARN it has no recommendation for.
+    client.get_ec2_instance_recommendations.return_value = {
+        'instanceRecommendations': [],
+        'errors': [],
+    }
+    recommendation = {
+        'actionType': 'Rightsize',
+        'currentResourceType': 'Ec2Instance',
+        'resourceArn': 'arn:aws:ec2:us-east-1:123456789012:instance/i-0abc',
+    }
+
+    with patch.object(recommendation_details_tools, 'create_aws_client', return_value=client):
+        result = await process_recommendation(mock_context, recommendation)
+
+    assert 'warning' not in result
+    assert result['additional_details'] == {'instanceRecommendations': [], 'errors': []}
+
+
+@pytest.mark.asyncio
 async def test_rec_details_description_documents_lookup_warning():
     """The served description says missing details lead with a warning."""
     tools = {t.name: t for t in await recommendation_details_server.list_tools()}
     description = tools['rec-details'].description or ''
 
+    assert 'lookup fails or is skipped' in description
     assert 'the response leads with a warning' in description
     assert 'base_recommendation is still valid' in description
+    assert 'returns empty results and no warning' in description
+    assert 'details are unavailable' not in description
 
 
 _RESPONSE_METADATA = {'RequestId': 'req-1', 'HTTPStatusCode': 200, 'HTTPHeaders': {}}

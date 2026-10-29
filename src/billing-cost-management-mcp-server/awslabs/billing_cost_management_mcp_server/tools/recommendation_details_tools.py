@@ -63,9 +63,10 @@ COMMITMENT PURCHASE DETAILS:
 - For PurchaseReservedInstances, additional_details is the Cost Explorer reservation purchase
   recommendation for the recommendation's service, term and payment option. It may list several
   instance types and regions; EstimatedBreakEvenInMonths is per RecommendationDetails row.
-- When Cost Explorer or Compute Optimizer details are unavailable for a recommendation,
+- When the Cost Explorer or Compute Optimizer lookup fails or is skipped,
   the response leads with a warning and additional_details holds only an error;
-  base_recommendation is still valid.
+  base_recommendation is still valid. A lookup that runs but finds nothing
+  returns empty results and no warning.
 - Savings Plans recommendations carry no break-even. They return EstimatedROI (estimated savings /
   Savings Plan cost x 100 over the lookback period), which is not a payback period.
 
