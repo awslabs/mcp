@@ -19,11 +19,14 @@ Updated to use shared utility functions.
 
 import json
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
+    with_pagination,
 )
+from ..utilities.error_contract import add_retry_guidance
 from datetime import datetime
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
@@ -40,6 +43,26 @@ VALID_OPERATIONS = [
     'list_workload_estimate_usage',
     'get_preferences',
 ]
+# ListWorkloadEstimates returns up to 25 estimates per page.
+LIST_WORKLOAD_ESTIMATES_PAGE_SPEC = PageSpec(
+    result_key='items',
+    token_param='nextToken',
+    token_key_in_response='nextToken',
+    page_max=25,
+    page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
+)
+# ListWorkloadEstimateUsage returns up to 300 usage lines per page.
+LIST_WORKLOAD_ESTIMATE_USAGE_PAGE_SPEC = PageSpec(
+    result_key='items',
+    token_param='nextToken',
+    token_key_in_response='nextToken',
+    page_max=300,
+    page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
+)
 PREFERENCES_NOT_CONFIGURED_ERROR = 'BCM Pricing Calculator preferences are not configured. Please configure preferences before using this service.'
 
 bcm_pricing_calculator_server = FastMCP(
@@ -68,6 +91,8 @@ def _preferences_error_response(preferences_result: Dict[str, Any]) -> Dict[str,
         error_type=preferences_result.get('error_type', 'PREFERENCES_NOT_CONFIGURED'),
         operation='get_preferences',
         service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+        retry_strategy=preferences_result.get('retry_strategy'),
+        hint=preferences_result.get('hint'),
     )
 
 
@@ -89,8 +114,7 @@ async def bcm_pricing_calc_core(
     location_filter: Optional[str] = None,
     usage_group_filter: Optional[str] = None,
     next_token: Optional[str] = None,
-    max_results: Optional[int] = None,
-    max_pages: Optional[int] = None,
+    max_items: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Core business logic for BCM Pricing Calculator.
 
@@ -111,9 +135,8 @@ async def bcm_pricing_calc_core(
         operation_filter: Filter by operation name
         location_filter: Filter by location/region
         usage_group_filter: Filter by usage group
-        next_token: Token for pagination
-        max_results: Maximum number of results to return
-        max_pages: Maximum number of API calls to make
+        next_token: Continuation token from a previous response (list operations only)
+        max_items: Total items to return (list operations only). None fetches every page.
 
     Returns:
         Dict containing the response data
@@ -147,8 +170,7 @@ async def bcm_pricing_calc_core(
                 name_filter,
                 name_match_option,
                 next_token,
-                max_results,
-                max_pages,
+                max_items,
             )
         elif operation == 'list_workload_estimate_usage':
             return await list_workload_estimate_usage(
@@ -161,8 +183,7 @@ async def bcm_pricing_calc_core(
                 location_filter,
                 usage_group_filter,
                 next_token,
-                max_results,
-                max_pages,
+                max_items,
             )
         elif operation == 'get_preferences':
             preferences_result = await get_preferences(ctx)
@@ -187,8 +208,10 @@ async def bcm_pricing_calc_core(
 
     except Exception as e:
         # Use shared error handler for consistent error handling
-        error_response = await handle_aws_error(
-            ctx, e, operation, BCM_PRICING_CALCULATOR_SERVICE_NAME
+        # The guidance is derived before repackaging: it can depend on fields
+        # (retry_strategy, http_status) the rebuilt response does not keep.
+        error_response = add_retry_guidance(
+            await handle_aws_error(ctx, e, operation, BCM_PRICING_CALCULATOR_SERVICE_NAME)
         )
         # handle_aws_error puts the message and classification at the top level.
         error_message = error_response.get('message', str(e))
@@ -201,6 +224,8 @@ async def bcm_pricing_calc_core(
             error_type=error_response.get('error_type', 'unknown_error'),
             operation=operation,
             service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+            retry_strategy=error_response.get('retry_strategy'),
+            hint=error_response.get('hint'),
         )
 
 
@@ -223,21 +248,26 @@ USE THIS TOOL FOR:
 
 1) list_workload_estimates - list of available workload estimates
    Required: operation="list_workload_estimates"
-   Optional: created_after, created_before, expires_after, expires_before, status_filter, name_filter, name_match_option, next_token, max_results
-   Returns: List of all workload estimates for the account.
+   Optional: created_after, created_before, expires_after, expires_before, status_filter, name_filter, name_match_option, max_items, next_token
+   Returns: List of all workload estimates for the account (see PAGINATION).
 
 2) get_workload_estimate - get details of a workload estimate
    Required: operation="get_workload_estimate", identifier
    Returns: Details of a specific workload estimate.
 
 3) list_workload_estimate_usage - list of modeled usage lines within a workload estimate
-   Required: operation="get_workload_estimate", identifier
-   Optional: usage_account_id_filter, service_code_filter, usage_type_filter, operation_filter, location_filter, usage_group_filter, next_token, max_results
-   Returns: List of usage associated with a workload estimate.
+   Required: operation="list_workload_estimate_usage", identifier
+   Optional: usage_account_id_filter, service_code_filter, usage_type_filter, operation_filter, location_filter, usage_group_filter, max_items, next_token
+   Returns: List of usage associated with a workload estimate (see PAGINATION).
 
 4) get_preferences - get the rate preferences available to an account
    Required: operation="get_preferences"
    Returns: Retrieves the current preferences for AWS Billing and Cost Management Pricing Calculator.
+
+## PAGINATION (list_workload_estimates, list_workload_estimate_usage only)
+- max_items: total items returned. Omit it to fetch every page (no limit). Pass it, or narrow the filters, when an estimate can have many usage lines.
+- A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token (the `pagination.next_token` from that response, sent with every other parameter unchanged), or state in the answer that the result is partial.
+- Counts cover only the items in that response; a continuation call does not repeat earlier items.
 """,
 )
 async def bcm_pricing_calc(
@@ -258,8 +288,7 @@ async def bcm_pricing_calc(
     location_filter: Optional[str] = None,
     usage_group_filter: Optional[str] = None,
     next_token: Optional[str] = None,
-    max_results: Optional[int] = None,
-    max_pages: Optional[int] = None,
+    max_items: Optional[int] = None,
 ) -> Dict[str, Any]:
     """FastMCP tool wrapper for BCM Pricing Calculator operations.
 
@@ -288,9 +317,8 @@ async def bcm_pricing_calc(
         operation_filter: Filter usage lines by operation name.
         location_filter: Filter usage lines by location/region.
         usage_group_filter: Filter usage lines by usage group.
-        next_token: Token for pagination.
-        max_results: Maximum number of results to return.
-        max_pages: Maximum number of API calls (pages) to make.
+        next_token: Continuation token from a previous response (list operations only).
+        max_items: Total items to return (list operations only). None fetches every page.
 
     Returns:
         Dict containing the response data.
@@ -314,8 +342,7 @@ async def bcm_pricing_calc(
         location_filter,
         usage_group_filter,
         next_token,
-        max_results,
-        max_pages,
+        max_items,
     )
 
 
@@ -362,14 +389,20 @@ async def get_preferences(ctx: Context) -> dict:
 
     except Exception as e:
         # Use shared error handler for consistent error handling
-        error_response = await handle_aws_error(
-            ctx, e, 'get_preferences', BCM_PRICING_CALCULATOR_SERVICE_NAME
+        error_response = add_retry_guidance(
+            await handle_aws_error(ctx, e, 'get_preferences', BCM_PRICING_CALCULATOR_SERVICE_NAME)
         )
         error_msg = f'Failed to check BCM Pricing Calculator preferences: {error_response.get("message", str(e))}'
         await ctx.error(error_msg)
+        # Keep the retry_strategy and hint derived from the full error response
         return {
             'error': error_msg,
             'error_type': error_response.get('error_type', 'unknown_error'),
+            **{
+                key: error_response[key]
+                for key in ('retry_strategy', 'hint')
+                if key in error_response
+            },
         }
 
 
@@ -383,8 +416,7 @@ async def list_workload_estimates(
     name_filter: Optional[str] = None,
     name_match_option: str = 'CONTAINS',
     next_token: Optional[str] = None,
-    max_results: Optional[int] = None,
-    max_pages: Optional[int] = None,
+    max_items: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Lists all workload estimates for the account.
 
@@ -397,9 +429,8 @@ async def list_workload_estimates(
         status_filter: Filter by status (UPDATING, VALID, INVALID, ACTION_NEEDED)
         name_filter: Filter by name (supports partial matching)
         name_match_option: Match option for name filter (EQUALS, STARTS_WITH, CONTAINS)
-        next_token: Token for pagination
-        max_results: Maximum number of results to return
-        max_pages: Maximum number of API calls to make
+        next_token: Continuation token from a previous response
+        max_items: Total items to return. None fetches every page.
 
     Returns:
         Dict containing the workload estimates information. This contains the following information about a workload estimate:
@@ -408,11 +439,7 @@ async def list_workload_estimates(
         status: The current status of the workload estimate. Possible values are UPDATIN, VALID, INVALID, ACTION_NEEDED
     """
     try:
-        # Log the request
-        await ctx.info(
-            f'Listing workload estimates (max_results={max_results}, '
-            f'status_filter={status_filter}, name_filter={name_filter})'
-        )
+        await ctx.info('Listing workload estimates')
 
         # Create BCM Pricing Calculator client
         bcm_client = create_aws_client('bcm-pricing-calculator')
@@ -422,13 +449,8 @@ async def list_workload_estimates(
         if 'error' in preferences_result:
             return _preferences_error_response(preferences_result)
 
+        # Build request parameters. The token and page size are added per page.
         request_params: Dict[str, Any] = {}
-        # Build request parameters
-        if max_results:
-            request_params['maxResults'] = max_results
-
-        if next_token:
-            request_params['nextToken'] = next_token
 
         # Add created at filter
         if created_after or created_before:
@@ -469,61 +491,23 @@ async def list_workload_estimates(
         if filters:
             request_params['filters'] = filters
 
-        await ctx.info(
-            f'Making API call with parameters: {json.dumps(request_params, default=str)}'
+        results, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListWorkloadEstimates',
+            bcm_client.list_workload_estimates,
+            request_params,
+            LIST_WORKLOAD_ESTIMATES_PAGE_SPEC,
+            max_items=max_items,
+            next_token=next_token,
         )
 
-        # Handle pagination using shared utility
-        if max_pages:
-            # For paginated requests, use the paginate utility
-            results, pagination_metadata = await paginate_aws_response(
-                ctx,
-                'list_workload_estimates',
-                lambda **params: bcm_client.list_workload_estimates(**params),
-                request_params,
-                'items',
-                'nextToken',
-                'nextToken',
-                max_pages,
-            )
+        formatted_estimates = [format_workload_estimate_response(estimate) for estimate in results]
 
-            # Format the response
-            formatted_estimates = [
-                format_workload_estimate_response(estimate) for estimate in results
-            ]
+        await ctx.info(f'Retrieved {len(formatted_estimates)} workload estimates')
 
-            await ctx.info(f'Retrieved {len(formatted_estimates)} workload estimates')
-
-            # Return success response with pagination metadata
-            return format_response(
-                'success',
-                {
-                    'workload_estimates': formatted_estimates,
-                    'pagination': pagination_metadata,
-                },
-            )
-        else:
-            # For single page, make direct call
-            response = bcm_client.list_workload_estimates(**request_params)
-
-            # Format the response
-            formatted_estimates = [
-                format_workload_estimate_response(estimate)
-                for estimate in response.get('items', [])
-            ]
-
-            await ctx.info(f'Retrieved {len(formatted_estimates)} workload estimates')
-
-            # Return success response using shared format_response utility
-            return format_response(
-                'success',
-                {
-                    'workload_estimates': formatted_estimates,
-                    'total_count': len(formatted_estimates),
-                    'next_token': response.get('nextToken'),
-                    'has_more_results': bool(response.get('nextToken')),
-                },
-            )
+        return format_response(
+            'success', with_pagination({'workload_estimates': formatted_estimates}, pagination)
+        )
 
     except Exception as e:
         # Use shared error handler for all exceptions (ClientError and others)
@@ -573,6 +557,7 @@ async def get_workload_estimate(
                     'error': 'Identifier is required when calling get_workload_estimate',
                     'error_code': 'MISSING_PARAMETER',
                 },
+                'Identifier is required when calling get_workload_estimate',
                 error_type='validation_error',
                 operation='get_workload_estimate',
                 service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
@@ -630,8 +615,7 @@ async def list_workload_estimate_usage(
     location_filter: Optional[str] = None,
     usage_group_filter: Optional[str] = None,
     next_token: Optional[str] = None,
-    max_results: Optional[int] = None,
-    max_pages: Optional[int] = None,
+    max_items: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Core business logic for listing usage entries for a specific workload estimate.
 
@@ -644,9 +628,8 @@ async def list_workload_estimate_usage(
         operation_filter: Filter by operation name
         location_filter: Filter by location/region
         usage_group_filter: Filter by usage group
-        next_token: Token for pagination
-        max_results: Maximum number of results to return
-        max_pages: Maximum number of API calls to make
+        next_token: Continuation token from a previous response
+        max_items: Total items to return. None fetches every page.
 
     Returns:
         Dict containing the workload estimate usage information
@@ -667,16 +650,13 @@ async def list_workload_estimate_usage(
                     'error': 'workload_estimate_id is required when calling list_workload_estimate_usage',
                     'error_code': 'MISSING_PARAMETER',
                 },
+                'workload_estimate_id is required when calling list_workload_estimate_usage',
                 error_type='validation_error',
                 operation='list_workload_estimate_usage',
                 service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
             )
 
-        # Log the request
-        await ctx.info(
-            f'Listing workload estimate usage (workload_estimate_id={workload_estimate_id}, '
-            f'max_results={max_results}, service_code_filter={service_code_filter})'
-        )
+        await ctx.info('Listing workload estimate usage')
 
         # Create BCM Pricing Calculator client
         bcm_client = create_aws_client('bcm-pricing-calculator')
@@ -686,15 +666,8 @@ async def list_workload_estimate_usage(
         if 'error' in preferences_result:
             return _preferences_error_response(preferences_result)
 
-        request_params: Dict[str, Any] = {}
-        # Build request parameters
-        request_params['workloadEstimateId'] = workload_estimate_id
-
-        if max_results:
-            request_params['maxResults'] = max_results
-
-        if next_token:
-            request_params['nextToken'] = next_token
+        # Build request parameters. The token and page size are added per page.
+        request_params: Dict[str, Any] = {'workloadEstimateId': workload_estimate_id}
 
         # Add filters
         filters = []
@@ -735,60 +708,30 @@ async def list_workload_estimate_usage(
         if filters:
             request_params['filters'] = filters
 
-        await ctx.info(
-            f'Making API call with parameters: {json.dumps(request_params, default=str)}'
+        results, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListWorkloadEstimateUsage',
+            bcm_client.list_workload_estimate_usage,
+            request_params,
+            LIST_WORKLOAD_ESTIMATE_USAGE_PAGE_SPEC,
+            max_items=max_items,
+            next_token=next_token,
         )
 
-        # Handle pagination using shared utility
-        if max_pages:
-            # For paginated requests, use the paginate utility
-            results, pagination_metadata = await paginate_aws_response(
-                ctx,
-                'list_workload_estimate_usage',
-                lambda **params: bcm_client.list_workload_estimate_usage(**params),
-                request_params,
-                'items',
-                'nextToken',
-                'nextToken',
-                max_pages,
-            )
+        formatted_usage_items = [format_usage_item_response(item) for item in results]
 
-            # Format the response
-            formatted_usage_items = [format_usage_item_response(item) for item in results]
+        await ctx.info(f'Retrieved {len(formatted_usage_items)} usage items')
 
-            await ctx.info(f'Retrieved {len(formatted_usage_items)} usage items')
-
-            # Return success response with pagination metadata
-            return format_response(
-                'success',
+        return format_response(
+            'success',
+            with_pagination(
                 {
                     'usage_items': formatted_usage_items,
-                    'pagination': pagination_metadata,
                     'workload_estimate_id': workload_estimate_id,
                 },
-            )
-        else:
-            # For single page, make direct call
-            response = bcm_client.list_workload_estimate_usage(**request_params)
-
-            # Format the response
-            formatted_usage_items = [
-                format_usage_item_response(item) for item in response.get('items', [])
-            ]
-
-            await ctx.info(f'Retrieved {len(formatted_usage_items)} usage items')
-
-            # Return success response using shared format_response utility
-            return format_response(
-                'success',
-                {
-                    'usage_items': formatted_usage_items,
-                    'total_count': len(formatted_usage_items),
-                    'next_token': response.get('nextToken'),
-                    'has_more_results': bool(response.get('nextToken')),
-                    'workload_estimate_id': workload_estimate_id,
-                },
-            )
+                pagination,
+            ),
+        )
 
     except Exception as e:
         # Use shared error handler for all exceptions (ClientError and others)

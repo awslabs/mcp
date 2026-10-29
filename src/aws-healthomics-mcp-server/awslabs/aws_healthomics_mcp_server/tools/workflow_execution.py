@@ -40,7 +40,7 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from awslabs.aws_healthomics_mcp_server.utils.s3_utils import ensure_s3_uri_ends_with_slash
 from awslabs.aws_healthomics_mcp_server.utils.validation_utils import normalize_session_policy
-from datetime import datetime
+from datetime import datetime, timezone
 from loguru import logger
 from mcp.server.mcpserver import Context
 from pydantic import Field
@@ -54,21 +54,21 @@ def parse_iso_datetime(iso_string: str) -> datetime:
         iso_string: ISO format datetime string
 
     Returns:
-        datetime object
+        Timezone-aware datetime object; a string without an offset is treated as UTC
 
     Raises:
         ValueError: If the datetime string is invalid
     """
     try:
-        # Handle both with and without timezone info
+        # Python 3.10's fromisoformat does not accept a trailing 'Z'
         if iso_string.endswith('Z'):
             iso_string = iso_string[:-1] + '+00:00'
-        elif '+' not in iso_string and iso_string.count(':') == 2:
-            # Add timezone if missing
-            iso_string += '+00:00'
-        return datetime.fromisoformat(iso_string)
+        parsed = datetime.fromisoformat(iso_string)
     except ValueError as e:
         raise ValueError(f"Invalid datetime format '{iso_string}': {str(e)}")
+    # Assume UTC when no offset is given (e.g. '2024-01-01' or '2024-01-01T10:00'),
+    # so the result can be compared with the timezone-aware run creation times
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 def filter_runs_by_creation_time(

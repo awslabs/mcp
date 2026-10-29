@@ -80,6 +80,19 @@ class TestToolRegistration:
         assert 'TAKES EXACTLY ONE VALUE' in (tool.description or '')
 
     @pytest.mark.asyncio
+    async def test_description_states_the_filter_rule_for_each_feature(self):
+        """Filters are required for one credit feature, optional for the other, rejected elsewhere."""
+        tool = await _registered_tool()
+        description = ' '.join((tool.description or '').split())
+
+        assert 'accepted for CREDIT_PREFERENCE_OPTIONS alone' not in description
+        assert 'CREDIT_PREFERENCE_OPTIONS: REQUIRED' in description
+        assert 'CREDIT_LEVEL_SHARING (management account only): optional' in description
+        rejecting = 'RI_SHARING, RI_SHARING_HISTORY, CREDIT_SHARING, CREDIT_SHARING_HISTORY, BILLING_ALERTS'
+        assert f'{rejecting}: not allowed' in description
+        assert 'returns no rows, not an error' in description
+
+    @pytest.mark.asyncio
     async def test_description_distinguishes_org_wide_keys_from_accounts(self):
         """Counting `default` / `open-sharing` as accounts is the other easy mistake."""
         tool = await _registered_tool()
@@ -100,27 +113,34 @@ class TestWrapper:
                 mock_context,
                 features='RI_SHARING',
                 filters='[{"name": "PREFERENCE_KEY", "value": ["credit/4242"]}]',
-                max_results=10,
+                max_items=10,
                 next_token='token',
-                max_pages=2,
             )
 
         assert result == SUCCESS
         assert _await_kwargs(handler) == {
             'features': 'RI_SHARING',
             'filters': '[{"name": "PREFERENCE_KEY", "value": ["credit/4242"]}]',
-            'max_results': 10,
+            'max_items': 10,
             'next_token': 'token',
-            'max_pages': 2,
         }
 
     @pytest.mark.asyncio
-    async def test_paging_defaults_are_applied(self, mock_context):
-        """The bounded paging defaults reach the operation when the caller omits them."""
+    async def test_omitted_max_items_fetches_everything(self, mock_context):
+        """An omitted max_items reaches the operation as None, which fetches every page."""
         handler = AsyncMock(return_value=SUCCESS)
 
         with patch(GET_BILLING_PREFERENCES_PATH, new=handler):
             await get_billing_preferences(mock_context, features='RI_SHARING')
 
-        assert _await_kwargs(handler)['max_results'] == 50
-        assert _await_kwargs(handler)['max_pages'] == 5
+        assert _await_kwargs(handler)['max_items'] is None
+        assert _await_kwargs(handler)['next_token'] is None
+
+    @pytest.mark.asyncio
+    async def test_schema_takes_max_items_not_page_params(self):
+        """The tool exposes max_items and next_token, not the removed page parameters."""
+        tool = await _registered_tool()
+
+        params = set(tool.parameters['properties'])
+        assert {'max_items', 'next_token'} <= params
+        assert not {'max_results', 'max_pages'} & params

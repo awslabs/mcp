@@ -21,6 +21,7 @@ from awslabs.aws_transform_mcp_server.config_store import (
     get_config,
     is_fes_available,
 )
+from awslabs.aws_transform_mcp_server.consts import GOV_REGION_PREFIX
 from awslabs.aws_transform_mcp_server.tcp_client import call_tcp
 from awslabs.aws_transform_mcp_server.tool_utils import (
     CREATE,
@@ -45,16 +46,23 @@ _NOT_CONFIGURED_CODE = 'NOT_CONFIGURED'
 _NOT_CONFIGURED_MSG = 'Transform connection not configured.'
 _NOT_CONFIGURED_ACTION = 'Call "configure" first.'
 
+_COMMERCIAL_CONSOLE_DOMAIN = 'console.aws.amazon.com'
+_GOV_CONSOLE_DOMAIN = 'console.amazonaws-us-gov.com'
+
 
 def _build_verification_link(
     connector_id: str,
     region: str,
 ) -> str:
-    """Build a console verification link for a connector."""
-    return (
-        f'https://{region}.console.aws.amazon.com/transform/connector/'
-        f'{connector_id}/configure?region={region}'
+    """Build a console verification link for a connector.
+
+    The console lives on a different domain in each partition, so the host is
+    chosen from the region rather than hardcoded.
+    """
+    host = (
+        _GOV_CONSOLE_DOMAIN if region.startswith(GOV_REGION_PREFIX) else _COMMERCIAL_CONSOLE_DOMAIN
     )
+    return f'https://{region}.{host}/transform/connector/{connector_id}/configure?region={region}'
 
 
 class ConnectorHandler:

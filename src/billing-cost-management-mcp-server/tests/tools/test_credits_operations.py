@@ -15,9 +15,12 @@
 """Unit tests for the credits_operations module."""
 
 import boto3
+import os
 import pytest
 import sqlite3
+import time
 from awslabs.billing_cost_management_mcp_server.tools.credits_operations import (
+    GET_CREDIT_ALLOCATION_HISTORY_PAGE_SPEC,
     MAX_ALLOCATION_HISTORY_SECONDS,
     MAX_CREDITS_LOOKBACK_SECONDS,
     get_credit_allocation_history,
@@ -33,6 +36,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 CREATE_CLIENT_PATH = (
     'awslabs.billing_cost_management_mcp_server.tools.credits_operations.create_aws_client'
 )
+CREDITS_MODULE = 'awslabs.billing_cost_management_mcp_server.tools.credits_operations'
 CONVERT_PATH = (
     'awslabs.billing_cost_management_mcp_server.tools.credits_operations.'
     'convert_response_if_needed'
@@ -111,29 +115,22 @@ def _get_credits_client(credits):
 
 
 def _get_credit_allocation_history_client(pages):
-    """Build a billing client mock whose paginator yields the given pages.
-
-    The mock deliberately exposes no resume token, so a test cannot assert
-    truncation reporting that the real SDK paginator would not produce.
+    """Build a billing client mock whose get_credit_allocation_history returns pages in order.
 
     Args:
-        pages: Raw API page dicts to yield in order.
+        pages: Raw API page dicts to return, one per call.
 
     Returns:
-        A client mock wired through get_paginator.
+        A client mock.
     """
-    page_iterator = MagicMock()
-    page_iterator.__iter__ = lambda self: iter(pages)
-    paginator = MagicMock()
-    paginator.paginate.return_value = page_iterator
     mock_client = MagicMock()
-    mock_client.get_paginator.return_value = paginator
+    mock_client.get_credit_allocation_history.side_effect = list(pages)
     return mock_client
 
 
-def _paginate_call(mock_client):
-    """Return the keyword arguments the paginator was invoked with."""
-    return mock_client.get_paginator.return_value.paginate.call_args.kwargs
+def _paginate_call(mock_client, index=0):
+    """Return the keyword arguments of one get_credit_allocation_history request."""
+    return mock_client.get_credit_allocation_history.call_args_list[index].kwargs
 
 
 def _offset_date(days):
@@ -284,6 +281,254 @@ class TestGetCredits:
         assert result['data']['credits'] == []
 
 
+class TestGetCreditsValidity:
+    """Each credit carries a validityStatus derived from its dates.
+
+    GetCredits returns every credit overlapping the window, including ones that
+    have expired (balance unchanged, creditStatus still ENABLED) and ones that
+    have not started yet, so the date check is done here rather than left to the
+    agent.
+    """
+
+    @staticmethod
+    def _credit(sample_credit, start_days, end_days):
+        """Return a copy of sample_credit valid between two day offsets from now."""
+        now = datetime.now(timezone.utc)
+        credit = dict(sample_credit)
+        credit['startDate'] = now + timedelta(days=start_days)
+        credit['endDate'] = now + timedelta(days=end_days) if end_days is not None else None
+        return credit
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'start_days,end_days,expected',
+        [
+            (-60, 30, 'ACTIVE'),
+            (-60, -1, 'EXPIRED'),
+            (5, 35, 'NOT_YET_ACTIVE'),
+            (-60, None, 'ACTIVE'),
+            (5, None, 'NOT_YET_ACTIVE'),
+        ],
+        ids=['active', 'expired', 'not-yet-active', 'no-end-date', 'no-end-date-not-started'],
+    )
+    async def test_validity_status_from_dates(
+        self, mock_context, sample_credit, start_days, end_days, expected
+    ):
+        """The status compares startDate and endDate with the current time."""
+        credit = self._credit(sample_credit, start_days, end_days)
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        assert result['data']['credits'][0]['validityStatus'] == expected
+
+    @pytest.mark.asyncio
+    async def test_placeholder_end_date_is_active(self, mock_context, sample_credit):
+        """A 2099-12-31 endDate classifies ACTIVE once started, so its balance counts as usable."""
+        now = datetime.now(timezone.utc)
+        credit = dict(
+            sample_credit,
+            startDate=now - timedelta(days=30),
+            endDate=datetime(2099, 12, 31, tzinfo=timezone.utc),
+        )
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        returned = result['data']['credits'][0]
+        assert returned['validityStatus'] == 'ACTIVE'
+        assert returned['endDate'] == '2099-12-31T00:00:00'
+
+    @pytest.mark.asyncio
+    async def test_expired_credit_keeps_balance_and_status(self, mock_context, sample_credit):
+        """An expired credit is flagged, not altered: amounts and creditStatus stay as returned."""
+        credit = self._credit(sample_credit, -60, -1)
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        returned = result['data']['credits'][0]
+        assert returned['validityStatus'] == 'EXPIRED'
+        assert returned['remainingAmount'] == {'currencyCode': 'USD', 'currencyAmount': '250.50'}
+        assert returned['creditStatus'] == 'ENABLED'
+
+    @staticmethod
+    async def _status_at(ctx, credit, frozen):
+        """Classify one credit with the evaluation time frozen at ``frozen``.
+
+        Only the classification clock is frozen; the request window is relative to
+        today so the window checks never age out.
+        """
+        client = _get_credits_client([credit])
+        with patch(f'{CREDITS_MODULE}._utc_now', return_value=frozen):
+            result = await _call_get_credits(ctx, client, start_date=_offset_date(-180))
+        return result['data']['credits'][0]['validityStatus']
+
+    @pytest.mark.asyncio
+    async def test_end_date_equal_to_now_is_expired(self, mock_context, sample_credit):
+        """A credit whose endDate (its expiration date) has been reached is expired."""
+        frozen = datetime.now(timezone.utc).replace(microsecond=0)
+        credit = dict(sample_credit, startDate=frozen - timedelta(days=30), endDate=frozen)
+
+        assert await self._status_at(mock_context, credit, frozen) == 'EXPIRED'
+
+    @pytest.mark.asyncio
+    async def test_start_date_equal_to_now_is_active(self, mock_context, sample_credit):
+        """A credit is active from the moment its startDate is reached."""
+        frozen = datetime.now(timezone.utc).replace(microsecond=0)
+        credit = dict(sample_credit, startDate=frozen, endDate=frozen + timedelta(days=30))
+
+        assert await self._status_at(mock_context, credit, frozen) == 'ACTIVE'
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not hasattr(time, 'tzset'), reason='time.tzset is Unix-only')
+    async def test_naive_datetime_is_read_as_utc(self, mock_context, sample_credit):
+        """A datetime without tzinfo is taken as UTC rather than the host's local time.
+
+        The host is moved to UTC-8, so reading the naive endDate as local time would
+        place it eight hours later and report the credit as ACTIVE.
+        """
+        original_tz = os.environ.get('TZ')
+        os.environ['TZ'] = 'America/Los_Angeles'
+        time.tzset()
+        try:
+            frozen = datetime.now(timezone.utc).replace(microsecond=0)
+            naive_now = frozen.replace(tzinfo=None)
+            credit = dict(
+                sample_credit,
+                startDate=naive_now - timedelta(days=10),
+                endDate=naive_now - timedelta(hours=1),
+            )
+
+            assert await self._status_at(mock_context, credit, frozen) == 'EXPIRED'
+        finally:
+            if original_tz is None:
+                os.environ.pop('TZ', None)
+            else:
+                os.environ['TZ'] = original_tz
+            time.tzset()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('scale', [1, 1000], ids=['seconds', 'milliseconds'])
+    async def test_epoch_dates_are_supported(self, mock_context, sample_credit, scale):
+        """Dates given as epoch seconds or milliseconds are classified like datetimes."""
+        now = int(datetime.now(timezone.utc).timestamp())
+        credit = dict(
+            sample_credit,
+            startDate=(now - 86400 * 40) * scale,
+            endDate=(now - 86400 * 10) * scale,
+        )
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        returned = result['data']['credits'][0]
+        assert returned['validityStatus'] == 'EXPIRED'
+        expected_end = datetime.fromtimestamp(now - 86400 * 10, tz=timezone.utc)
+        assert returned['endDate'] == expected_end.replace(tzinfo=None).isoformat()
+
+    @pytest.mark.asyncio
+    async def test_string_dates_are_normalized(self, mock_context, sample_credit):
+        """Readable string dates are formatted like every other date form."""
+        credit = dict(sample_credit, startDate='2026-01-01T00:00:00Z', endDate='1798675200000')
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        returned = result['data']['credits'][0]
+        assert returned['startDate'] == '2026-01-01T00:00:00'
+        assert returned['endDate'] == '2026-12-31T00:00:00'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('value', ['not-a-date', True], ids=['text', 'bool'])
+    async def test_unreadable_date_is_kept_as_returned(self, mock_context, sample_credit, value):
+        """An unreadable endDate is left in place, not replaced with null."""
+        credit = dict(sample_credit, endDate=value)
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        returned = result['data']['credits'][0]
+        assert returned['validityStatus'] == 'UNKNOWN'
+        assert returned['endDate'] is value
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('blank', ['', '   '], ids=['empty', 'whitespace'])
+    async def test_blank_end_date_means_none_reported(self, mock_context, sample_credit, blank):
+        """A blank endDate string is treated as no endDate, not as unreadable."""
+        now = datetime.now(timezone.utc)
+        credit = dict(sample_credit, startDate=now - timedelta(days=5), endDate=blank)
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        assert result['data']['credits'][0]['validityStatus'] == 'ACTIVE'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('field', ['endDate', 'startDate'])
+    async def test_unreadable_date_is_unknown(self, mock_context, sample_credit, field):
+        """A date that is present but unreadable gives UNKNOWN, never ACTIVE."""
+        now = datetime.now(timezone.utc)
+        dates = {'startDate': now - timedelta(days=5), 'endDate': now + timedelta(days=30)}
+        credit = dict(sample_credit, **dict(dates, **{field: 'not-a-date'}))
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        assert result['data']['credits'][0]['validityStatus'] == 'UNKNOWN'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'start,end,expected',
+        [
+            ('not-a-date', -1, 'EXPIRED'),
+            (5, 'not-a-date', 'NOT_YET_ACTIVE'),
+        ],
+        ids=['past-end-unreadable-start', 'future-start-unreadable-end'],
+    )
+    async def test_readable_date_that_decides_wins(
+        self, mock_context, sample_credit, start, end, expected
+    ):
+        """An unreadable date gives UNKNOWN only when the readable one does not decide."""
+        now = datetime.now(timezone.utc)
+        credit = dict(
+            sample_credit,
+            startDate=start if isinstance(start, str) else now + timedelta(days=start),
+            endDate=end if isinstance(end, str) else now + timedelta(days=end),
+        )
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        assert result['data']['credits'][0]['validityStatus'] == expected
+
+    @pytest.mark.asyncio
+    async def test_mixed_portfolio_is_classified_per_credit(self, mock_context, sample_credit):
+        """Each credit in one response gets its own status."""
+        credits = [
+            self._credit(sample_credit, -60, 30),
+            self._credit(sample_credit, -90, -30),
+            self._credit(sample_credit, 10, 40),
+        ]
+        client = _get_credits_client(credits)
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        statuses = [c['validityStatus'] for c in result['data']['credits']]
+        assert statuses == ['ACTIVE', 'EXPIRED', 'NOT_YET_ACTIVE']
+
+    @pytest.mark.asyncio
+    async def test_response_reports_evaluation_time(self, mock_context, sample_credit):
+        """The response states the instant the statuses were evaluated against."""
+        frozen = datetime.now(timezone.utc).replace(microsecond=0)
+        client = _get_credits_client([sample_credit])
+
+        with patch(f'{CREDITS_MODULE}._utc_now', return_value=frozen):
+            result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        assert result['data']['validity_evaluated_at'] == frozen.replace(tzinfo=None).isoformat()
+
+
 class TestGetCreditsValidation:
     """Input validation for GetCredits, before any API call."""
 
@@ -342,7 +587,7 @@ class TestGetCreditsWindow:
         sent = client.get_credits.call_args.kwargs['startDate']
         assert sent > _epoch_of(requested)
         assert abs(sent - expected_floor) <= 60
-        assert result['data']['time_range']['narrowed_from_request'] is True
+        assert result['data']['time_range']['limited_from_request'] is True
 
     @pytest.mark.asyncio
     async def test_narrowing_preserves_requested_window(self, mock_context, sample_credit):
@@ -367,7 +612,7 @@ class TestGetCreditsWindow:
         result = await _call_get_credits(mock_context, client, start_date=requested)
 
         assert client.get_credits.call_args.kwargs['startDate'] == _epoch_of(requested)
-        assert result['data']['time_range']['narrowed_from_request'] is False
+        assert result['data']['time_range']['limited_from_request'] is False
 
     @pytest.mark.asyncio
     async def test_future_end_date_is_clamped(self, mock_context, sample_credit):
@@ -380,7 +625,7 @@ class TestGetCreditsWindow:
 
         now_epoch = int(datetime.now(timezone.utc).timestamp())
         assert abs(client.get_credits.call_args.kwargs['endDate'] - now_epoch) <= 60
-        assert result['data']['time_range']['narrowed_from_request'] is True
+        assert result['data']['time_range']['limited_from_request'] is True
 
     @pytest.mark.asyncio
     async def test_window_start_never_exceeds_end(self, mock_context, sample_credit):
@@ -483,7 +728,7 @@ class TestGetCreditAllocationHistoryWindow:
 
         assert result['status'] == 'error'
         assert 'mutually exclusive' in result['data']['message']
-        client.get_paginator.assert_not_called()
+        client.get_credit_allocation_history.assert_not_called()
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize('value', ['2026-13', '2026', 'june', '2026-00', ''])
@@ -496,7 +741,8 @@ class TestGetCreditAllocationHistoryWindow:
         )
 
         assert result['status'] == 'error'
-        client.get_paginator.assert_not_called()
+        assert 'YYYY-MM' in result['message']
+        client.get_credit_allocation_history.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_both_dates_required(self, mock_context):
@@ -508,7 +754,7 @@ class TestGetCreditAllocationHistoryWindow:
         )
 
         assert result['status'] == 'error'
-        client.get_paginator.assert_not_called()
+        client.get_credit_allocation_history.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_range_over_24_months_is_narrowed(self, mock_context, sample_allocation):
@@ -523,7 +769,7 @@ class TestGetCreditAllocationHistoryWindow:
 
         call = _paginate_call(client)
         assert call['endDate'] - call['startDate'] == MAX_ALLOCATION_HISTORY_SECONDS
-        assert result['data']['time_range']['narrowed_from_request'] is True
+        assert result['data']['time_range']['limited_from_request'] is True
 
     @pytest.mark.asyncio
     async def test_narrowing_preserves_requested_window(self, mock_context, sample_allocation):
@@ -554,7 +800,7 @@ class TestGetCreditAllocationHistoryWindow:
 
         now_epoch = int(datetime.now(timezone.utc).timestamp())
         assert _paginate_call(client)['endDate'] <= now_epoch
-        assert result['data']['time_range']['narrowed_from_request'] is True
+        assert result['data']['time_range']['limited_from_request'] is True
 
     @pytest.mark.asyncio
     async def test_future_billing_period_is_rejected(self, mock_context):
@@ -567,7 +813,7 @@ class TestGetCreditAllocationHistoryWindow:
 
         assert result['status'] == 'error'
         assert 'starts in the future' in result['data']['message']
-        client.get_paginator.assert_not_called()
+        client.get_credit_allocation_history.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_future_date_pair_is_rejected(self, mock_context):
@@ -579,7 +825,7 @@ class TestGetCreditAllocationHistoryWindow:
         )
 
         assert result['status'] == 'error'
-        client.get_paginator.assert_not_called()
+        client.get_credit_allocation_history.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_window_start_never_exceeds_end(self, mock_context, sample_allocation):
@@ -606,19 +852,28 @@ class TestGetCreditAllocationHistoryWindow:
             mock_context, client, billing_period='2026-06'
         )
 
-        assert result['data']['time_range']['narrowed_from_request'] is False
+        assert result['data']['time_range']['limited_from_request'] is False
+
+
+def _ledger_page(row, token=None, **extra):
+    """Build one GetCreditAllocationHistory page."""
+    page = {'creditAllocationHistoryList': [row], **extra}
+    if token is not None:
+        page['nextToken'] = token
+    return page
 
 
 class TestGetCreditAllocationHistoryPagination:
-    """Page accumulation and pagination metadata."""
+    """Paging through the shared helper and the pagination block."""
 
     @pytest.mark.asyncio
-    async def test_accumulates_pages(self, mock_context, sample_allocation):
-        """Rows from every page are combined."""
+    async def test_no_max_items_fetches_every_page(self, mock_context, sample_allocation):
+        """Without max_items every page is fetched at the largest page size."""
         client = _get_credit_allocation_history_client(
             [
-                {'creditAllocationHistoryList': [sample_allocation], 'nextToken': 'page-2'},
-                {'creditAllocationHistoryList': [sample_allocation]},
+                _ledger_page(sample_allocation, 'page-2'),
+                _ledger_page(sample_allocation, 'page-3'),
+                _ledger_page(sample_allocation),
             ]
         )
 
@@ -626,27 +881,29 @@ class TestGetCreditAllocationHistoryPagination:
             mock_context, client, billing_period='2026-06'
         )
 
-        assert len(result['data']['credit_allocation_history']) == 2
-        assert result['data']['pagination']['pages_fetched'] == 2
-        assert result['data']['pagination']['has_more'] is False
-        assert result['data']['pagination']['complete_dataset'] is True
+        data = result['data']
+        assert len(data['credit_allocation_history']) == 3
+        assert data['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 3,
+        }
+        assert 'warning' not in data
+        assert 'complete_dataset' not in data
+        assert client.get_credit_allocation_history.call_count == 3
+        assert all(
+            call.kwargs['maxResults'] == 500
+            for call in client.get_credit_allocation_history.call_args_list
+        )
 
     @pytest.mark.asyncio
     async def test_empty_string_token_on_last_page_reports_complete(
         self, mock_context, sample_allocation
     ):
-        """An empty-string token on the last page reads as complete, not as more pages.
-
-        Some AWS APIs return ``nextToken: ""`` on the final page rather than omitting it. The
-        metadata must treat that as the end of the data rather than offering ``""`` as a resume
-        token the caller cannot use. Every page the paginator yields is consumed, so no extra
-        request is made beyond them.
-        """
+        """An empty-string token on the last page reads as complete, not as more pages."""
         client = _get_credit_allocation_history_client(
-            [
-                {'creditAllocationHistoryList': [sample_allocation], 'nextToken': 'page-2'},
-                {'creditAllocationHistoryList': [sample_allocation], 'nextToken': ''},
-            ]
+            [_ledger_page(sample_allocation, 'page-2'), _ledger_page(sample_allocation, '')]
         )
 
         result = await _call_get_credit_allocation_history(
@@ -654,65 +911,109 @@ class TestGetCreditAllocationHistoryPagination:
         )
 
         pagination = result['data']['pagination']
-        assert pagination['pages_fetched'] == 2
         assert pagination['has_more'] is False
         assert pagination['next_token'] is None
         assert pagination['complete_dataset'] is True
+        assert client.get_credit_allocation_history.call_count == 2
+
+    def test_page_max_is_the_service_clamp(self):
+        """The service clamps a page to 500 rows, so 500 is the largest page requested."""
+        assert GET_CREDIT_ALLOCATION_HISTORY_PAGE_SPEC.page_max == 500
 
     @pytest.mark.asyncio
-    async def test_paging_controls_go_to_the_paginator(self, mock_context, sample_allocation):
-        """Paging controls travel in PaginationConfig, not in the operation parameters."""
-        client = _get_credit_allocation_history_client(
-            [{'creditAllocationHistoryList': [sample_allocation]}]
-        )
-
-        await _call_get_credit_allocation_history(
-            mock_context,
-            client,
-            billing_period='2026-06',
-            max_results=50,
-            next_token='resume-here',
-        )
-
-        call = _paginate_call(client)
-        assert call['PaginationConfig'] == {'PageSize': 50, 'StartingToken': 'resume-here'}
-        assert 'maxResults' not in call
-        assert 'nextToken' not in call
-
-    @pytest.mark.asyncio
-    async def test_max_pages_stops_early(self, mock_context, sample_allocation):
-        """max_pages caps the number of requests and reports more remaining."""
+    async def test_page_past_max_results_at_a_bill_boundary_is_kept(
+        self, mock_context, sample_allocation
+    ):
+        """A page ends only at a bill boundary, so rows beyond maxResults are kept."""
         client = _get_credit_allocation_history_client(
             [
-                {'creditAllocationHistoryList': [sample_allocation], 'nextToken': 'page-2'},
-                {'creditAllocationHistoryList': [sample_allocation], 'nextToken': 'page-3'},
+                {
+                    'creditAllocationHistoryList': [sample_allocation] * 520,
+                    'nextToken': 'page-2',
+                }
             ]
         )
 
         result = await _call_get_credit_allocation_history(
-            mock_context, client, billing_period='2026-06', max_pages=2
+            mock_context, client, billing_period='2026-06', max_items=500
         )
 
-        pagination = result['data']['pagination']
-        assert pagination['pages_fetched'] == 2
-        assert pagination['has_more'] is True
-        assert pagination['next_token'] == 'page-3'
-        assert pagination['complete_dataset'] is False
+        assert _paginate_call(client)['maxResults'] == 500
+        data = result['data']
+        assert data['pagination']['items_returned'] == 520
+        assert data['pagination']['next_token'] == 'page-2'
 
     @pytest.mark.asyncio
-    async def test_paginator_selected_by_operation_name(self, mock_context, sample_allocation):
-        """The SDK paginator for the ledger operation is used."""
-        client = _get_credit_allocation_history_client(
-            [{'creditAllocationHistoryList': [sample_allocation]}]
+    async def test_max_items_stops_before_exceeding(self, mock_context, sample_allocation):
+        """max_items sizes the page and stops once it is reached, returning the token."""
+        page = {
+            'creditAllocationHistoryList': [sample_allocation] * 5,
+            'nextToken': 'page-2',
+        }
+        client = _get_credit_allocation_history_client([page])
+
+        result = await _call_get_credit_allocation_history(
+            mock_context, client, billing_period='2026-06', max_items=5
         )
 
-        await _call_get_credit_allocation_history(mock_context, client, billing_period='2026-06')
+        data = result['data']
+        assert _paginate_call(client)['maxResults'] == 5
+        assert client.get_credit_allocation_history.call_count == 1
+        assert data['complete_dataset'] is False
+        assert 'Partial data' in data['warning']
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'page-2',
+            'items_returned': 5,
+        }
 
-        client.get_paginator.assert_called_once_with('get_credit_allocation_history')
+    @pytest.mark.asyncio
+    async def test_continuation_sends_token_and_identical_params(
+        self, mock_context, sample_allocation
+    ):
+        """A continuation sends the caller's token and otherwise the same request."""
+        first = _get_credit_allocation_history_client([_ledger_page(sample_allocation, 'page-2')])
+        await _call_get_credit_allocation_history(
+            mock_context, first, billing_period='2026-06', credit_id='42', max_items=1
+        )
+        resumed = _get_credit_allocation_history_client([_ledger_page(sample_allocation)])
+        result = await _call_get_credit_allocation_history(
+            mock_context,
+            resumed,
+            billing_period='2026-06',
+            credit_id='42',
+            max_items=1,
+            next_token='page-2',
+        )
+
+        first_call = _paginate_call(first)
+        resumed_call = _paginate_call(resumed)
+        assert resumed_call['nextToken'] == 'page-2'
+        assert 'nextToken' not in first_call
+        assert {k: v for k, v in resumed_call.items() if k != 'nextToken'} == first_call
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    @pytest.mark.asyncio
+    async def test_rejected_token_is_invalid_next_token(self, mock_context):
+        """A token the service rejects maps to invalid_next_token."""
+        client = MagicMock()
+        client.get_credit_allocation_history.side_effect = ClientError(
+            {'Error': {'Code': 'InvalidNextTokenException', 'Message': 'bad token'}},
+            'GetCreditAllocationHistory',
+        )
+
+        result = await _call_get_credit_allocation_history(
+            mock_context, client, billing_period='2026-06', next_token='stale'
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'invalid_next_token'
 
 
-class TestGetCreditAllocationHistoryRealPaginator:
-    """Truncation reporting verified against the real SDK paginator, not a mock."""
+class TestGetCreditAllocationHistoryRealClient:
+    """Request shape verified against a real billing client with stubbed responses."""
 
     @staticmethod
     def _stubbed_client(page_tokens):
@@ -737,7 +1038,12 @@ class TestGetCreditAllocationHistoryRealPaginator:
             'billingMonth': '2026-06',
             'isEstimatedBill': False,
         }
-        expected = {'accountId': '123456789012', 'startDate': ANY, 'endDate': ANY}
+        expected = {
+            'accountId': '123456789012',
+            'startDate': ANY,
+            'endDate': ANY,
+            'maxResults': 500,
+        }
         previous = None
         for token in page_tokens:
             response = {'creditAllocationHistoryList': [row], 'partialResults': False}
@@ -751,41 +1057,20 @@ class TestGetCreditAllocationHistoryRealPaginator:
         return client, stubber
 
     @pytest.mark.asyncio
-    async def test_truncated_run_reports_more_available(self, mock_context):
-        """Stopping early reports has_more with a usable resume token."""
-        client, stubber = self._stubbed_client(['P2', 'P3', None])
-
-        try:
-            result = await _call_get_credit_allocation_history(
-                mock_context,
-                client,
-                account_id='123456789012',
-                billing_period='2026-06',
-                max_pages=2,
-            )
-        finally:
-            stubber.deactivate()
-
-        pagination = result['data']['pagination']
-        assert pagination['pages_fetched'] == 2
-        assert pagination['has_more'] is True
-        assert pagination['next_token'] == 'P3'
-        assert pagination['complete_dataset'] is False
-
-    @pytest.mark.asyncio
     async def test_exhausted_run_reports_complete(self, mock_context):
         """Consuming every page reports a complete dataset with no token."""
-        client, stubber = self._stubbed_client(['P2', None])
+        client, stubber = self._stubbed_client(['P2', 'P3', None])
 
         try:
             result = await _call_get_credit_allocation_history(
                 mock_context, client, account_id='123456789012', billing_period='2026-06'
             )
+            stubber.assert_no_pending_responses()
         finally:
             stubber.deactivate()
 
         pagination = result['data']['pagination']
-        assert pagination['pages_fetched'] == 2
+        assert pagination['items_returned'] == 3
         assert pagination['has_more'] is False
         assert pagination['next_token'] is None
         assert pagination['complete_dataset'] is True
@@ -915,7 +1200,7 @@ class TestCreditIdConversion:
         assert result['status'] == 'error'
         assert 'must be numeric' in result['data']['message']
         assert 'get_credits' in result['data']['message']
-        client.get_paginator.assert_not_called()
+        client.get_credit_allocation_history.assert_not_called()
 
 
 class TestAccessDenied:
@@ -945,7 +1230,7 @@ class TestAccessDenied:
     async def test_get_credit_allocation_history_names_permission(self, mock_context):
         """A denied allocation-history call names its own action."""
         client = _get_credit_allocation_history_client([])
-        client.get_paginator.return_value.paginate.side_effect = ClientError(
+        client.get_credit_allocation_history.side_effect = ClientError(
             {
                 'Error': {'Code': 'AccessDeniedException', 'Message': 'denied'},
                 'ResponseMetadata': {'RequestId': 'req-2', 'HTTPStatusCode': 403},
@@ -1046,7 +1331,8 @@ class TestSessionSqlOffload:
         data = result['data']
         assert data['completeness'] == {'partial_results': True, 'failed_months': ['2026-03']}
         assert data['time_range']['start_date'].startswith('2026-06-01')
-        assert data['pagination']['total_results'] == 40
+        assert data['pagination']['complete_dataset'] is True
+        assert data['pagination']['items_returned'] == 40
 
     @pytest.mark.asyncio
     async def test_credits_offload_preserves_time_range(self, mock_context, sample_credit):
@@ -1061,6 +1347,45 @@ class TestSessionSqlOffload:
         data = result['data']
         assert data['data_stored'] is True
         assert data['time_range']['start_date'].startswith(start)
+
+    @pytest.mark.asyncio
+    async def test_credits_offload_keeps_validity(self, mock_context, sample_credit):
+        """An offloaded credit table keeps validity_evaluated_at and a filterable validityStatus.
+
+        The SQL is the recipe the tool description gives for totalling the usable
+        balance from an offloaded table.
+        """
+        now = datetime.now(timezone.utc)
+        active = dict(
+            sample_credit, startDate=now - timedelta(days=30), endDate=now + timedelta(days=30)
+        )
+        expired = dict(
+            sample_credit, startDate=now - timedelta(days=60), endDate=now - timedelta(days=1)
+        )
+        credits = [dict(active, creditId=str(i)) for i in range(20)]
+        credits += [dict(expired, creditId=str(100 + i)) for i in range(20)]
+        client = _get_credits_client(credits)
+
+        with patch.object(sql_utils, 'SQL_CONVERSION_THRESHOLD', 1):
+            result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        data = result['data']
+        assert data['data_stored'] is True
+        assert data['validity_evaluated_at']
+        connection = sqlite3.connect(data['session_db'])
+        try:
+            rows = connection.execute(
+                "SELECT json_extract(remainingAmount, '$.currencyCode') AS currency, "
+                "SUM(CAST(json_extract(remainingAmount, '$.currencyAmount') AS REAL)) "
+                f'FROM {data["table_name"]} '
+                "WHERE validityStatus = 'ACTIVE' "
+                "AND COALESCE(creditStatus, 'ENABLED') != 'DISABLED' "
+                'GROUP BY currency'
+            ).fetchall()
+        finally:
+            connection.close()
+
+        assert rows == [('USD', pytest.approx(20 * 250.50))]
 
     @pytest.mark.asyncio
     async def test_small_response_stays_inline(self, mock_context, sample_allocation):

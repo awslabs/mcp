@@ -23,18 +23,28 @@ File layout:
 """
 
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
+    with_pagination,
 )
 from ..utilities.sql_utils import convert_response_if_needed
+from botocore.exceptions import ClientError
 from datetime import datetime
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
 
 
 budget_server = FastMCP(name='budget-tools', instructions='Tools for working with AWS Budgets API')
+
+
+_PAGINATION_DESCRIPTION = """Pagination: `max_items` is the total number of items to return. Omit it to fetch every
+page (no limit); pass it when the account can have many budgets. A partial result leads with
+`complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by passing
+`pagination.next_token` back as `next_token`, or say in the answer that the result is partial.
+`pagination.items_returned` counts the items in this response, not every item that exists."""
 
 
 # =============================================================================
@@ -46,49 +56,76 @@ budget_server = FastMCP(name='budget-tools', instructions='Tools for working wit
     name='budgets',
     description="""Retrieves AWS budget information using the AWS Budgets API.
 
-This tool uses the DescribeBudgets API to retrieve all budgets for an account.
+This tool uses the DescribeBudgets API to retrieve all budgets for an account, or the
+DescribeBudget API to retrieve one budget when `budget_name` is given (an exact name match; an
+unknown name returns an empty `budgets` list).
 
 The API returns information about:
 - Budget names, types, and time periods
 - Budget limits (amount and unit)
 - Current actual spend
 - Forecasted spend
-- Cost filters applied to budgets
+- The scope each budget tracks: its filter, cost metric and billing view, and whether AWS is
+  still updating its spend
+
+A budget's filter is in `filter_expression` (an Expression of Dimensions, Tags, CostCategories and
+ProductAttributes combined with And, Or and Not) or, for budgets that use the deprecated form, in
+`cost_filters`.
+`metrics` (or the deprecated `cost_types`) says how cost is measured, and `billing_view_arn` names
+the billing view the budget reads, which can be a non-primary view such as a billing group or
+custom view. A budget with no filter tracks everything its budget type measures in its billing
+view. `calculated_spend` is computed on the budget's own filter, metric and billing view, so
+compare it only with a Cost Explorer query that applies the same ones, never with an unfiltered
+total. A `health_status` of `UNHEALTHY` means AWS has stopped updating the budget's spend, for
+example because it can no longer read its billing view (`status_reason` says why), so its
+`calculated_spend` may be stale.
 
 With this information, you can determine which budgets have been exceeded or are projected to exceed their limits.
+
+`status` (`EXCEEDED`, `FORECASTED_TO_EXCEED` or `OK`) compares actual and forecasted spend with the
+limit, and is returned only for COST and USAGE budgets. RI_UTILIZATION, RI_COVERAGE,
+SAVINGS_PLANS_UTILIZATION and SAVINGS_PLANS_COVERAGE budgets have no `status`: their limit is always
+100 PERCENTAGE, `actual_spend` is the utilization or coverage percentage (higher is better), and
+they alert when it falls below a notification threshold. For those, compare `actual_spend` with the
+thresholds from `budget-notifications`, where `notification_state` is `ALARM` once a threshold is
+crossed.
+
+"""
+    + _PAGINATION_DESCRIPTION
+    + """ `max_items` and `next_token` apply only when
+`budget_name` is omitted.
 
 The tool automatically retrieves the AWS account ID of the calling identity or uses the provided account_id.""",
 )
 async def budgets(
     ctx: Context,
     budget_name: Optional[str] = None,
-    max_results: int = 100,
     account_id: Optional[str] = None,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Retrieves AWS budget information using the AWS Budgets API.
 
     Args:
         ctx: The MCP context object
-        budget_name: Optional budget name filter. If provided, only returns information for the specified budget.
-        max_results: Maximum number of results to return. Defaults to 100.
+        budget_name: Optional exact budget name. If provided, only that budget is returned.
         account_id: Optional AWS account ID. If not provided, it will be retrieved automatically.
+        max_items: Optional total number of budgets to return. Omit it to fetch every page.
+            Ignored when budget_name is given.
+        next_token: Optional pagination token from a previous response. Ignored when
+            budget_name is given.
 
     Returns:
         Dict containing the budget information
     """
     try:
-        # Log the request
-        await ctx.info(
-            f'Retrieving budgets (budget_name={budget_name}, max_results={max_results})'
-        )
+        await ctx.info('Retrieving budgets')
 
         # Get the AWS account ID dynamically or use provided one
         if not account_id:
             account_id = await get_aws_account_id(ctx)
-        await ctx.info(f'Using AWS Account ID: {account_id}')
 
-        # Call describe_budgets
-        return await describe_budgets(ctx, account_id, budget_name, max_results)
+        return await describe_budgets(ctx, account_id, budget_name, max_items, next_token)
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
@@ -108,10 +145,10 @@ IAM or SCP policy, or run an SSM document. Read-only.
 - Pass `budget_name` to read one budget's actions directly (DescribeBudgetActionsForBudget) —
   no account-wide scan.
 
-Pagination: a management account can have thousands of budgets, so results are paginated. Use
-`max_results` to bound page size and `max_pages` to bound how many pages are fetched; a
-`next_token` in the response can be passed back to continue. Large responses are automatically
-offloaded to session SQL to save tokens.
+"""
+    + _PAGINATION_DESCRIPTION
+    + """ Large responses are automatically offloaded to
+session SQL to save tokens.
 
 An empty `actions` list is a real answer (a budget with no actions), distinct from an error
 such as AccessDenied. For a budget's spend-vs-limit status use the `budgets` tool; for its alert
@@ -121,10 +158,9 @@ thresholds use `budget-notifications`. The account ID is retrieved automatically
 async def budget_actions(
     ctx: Context,
     budget_name: Optional[str] = None,
-    max_results: int = 100,
     account_id: Optional[str] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Reads AWS Budgets enforcement actions.
 
@@ -134,24 +170,20 @@ async def budget_actions(
     Args:
         ctx: The MCP context object.
         budget_name: Optional. When provided, reads that one budget's actions directly.
-        max_results: Maximum number of results per page. Defaults to 100.
         account_id: Optional AWS account ID; retrieved automatically if not provided.
+        max_items: Optional total number of actions to return. Omit it to fetch every page.
         next_token: Optional pagination token from a previous response.
-        max_pages: Optional cap on how many pages to auto-paginate through.
 
     Returns:
         Dict containing the formatted action configuration.
     """
     try:
-        await ctx.info(f'budget-actions (budget_name={budget_name}, max_results={max_results})')
+        await ctx.info('Retrieving budget actions')
 
         if not account_id:
             account_id = await get_aws_account_id(ctx)
-        await ctx.info(f'Using AWS Account ID: {account_id}')
 
-        return await describe_budget_actions(
-            ctx, account_id, budget_name, max_results, next_token, max_pages
-        )
+        return await describe_budget_actions(ctx, account_id, budget_name, max_items, next_token)
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'budget-actions', 'AWS Budgets')
@@ -168,9 +200,11 @@ Read-only.
   (DescribeBudgetNotificationsForAccount). Each returned notification carries its `budget_name`.
 - Pass `budget_name` to read one budget's notifications directly (DescribeNotificationsForBudget).
 
-Pagination: results are paginated. Use `max_results` to bound page size and `max_pages` to bound
-how many pages are fetched; a `next_token` in the response can be passed back to continue. Large
-responses are automatically offloaded to session SQL to save tokens.
+"""
+    + _PAGINATION_DESCRIPTION
+    + """ The account-wide call returns whole budgets
+(up to 10 notifications each), so a `max_items` below 10 can still return up to 10 notifications.
+Large responses are automatically offloaded to session SQL to save tokens.
 
 For a budget's spend-vs-limit status use the `budgets` tool; for its enforcement actions use
 `budget-actions`. The account ID is retrieved automatically or you may pass `account_id`.""",
@@ -178,10 +212,9 @@ For a budget's spend-vs-limit status use the `budgets` tool; for its enforcement
 async def budget_notifications(
     ctx: Context,
     budget_name: Optional[str] = None,
-    max_results: int = 100,
     account_id: Optional[str] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Reads the notifications configured on AWS Budgets.
 
@@ -191,25 +224,22 @@ async def budget_notifications(
     Args:
         ctx: The MCP context object.
         budget_name: Optional. When provided, reads that one budget's notifications directly.
-        max_results: Maximum number of results per page. Defaults to 100.
         account_id: Optional AWS account ID; retrieved automatically if not provided.
+        max_items: Optional total number of notifications to return. Omit it to fetch every
+            page.
         next_token: Optional pagination token from a previous response.
-        max_pages: Optional cap on how many pages to auto-paginate through.
 
     Returns:
         Dict containing the formatted notification configuration.
     """
     try:
-        await ctx.info(
-            f'budget-notifications (budget_name={budget_name}, max_results={max_results})'
-        )
+        await ctx.info('Retrieving budget notifications')
 
         if not account_id:
             account_id = await get_aws_account_id(ctx)
-        await ctx.info(f'Using AWS Account ID: {account_id}')
 
         return await describe_budget_notifications(
-            ctx, account_id, budget_name, max_results, next_token, max_pages
+            ctx, account_id, budget_name, max_items, next_token
         )
 
     except Exception as e:
@@ -228,22 +258,19 @@ async def get_aws_account_id(ctx: Context) -> str:
         str: The AWS account ID.
 
     Raises:
-        Exception: If unable to retrieve the AWS account ID.
+        ClientError, BotoCoreError: If STS fails. They propagate unwrapped so
+            handle_aws_error keeps the AWS error code (e.g. throttling is retryable).
     """
-    try:
-        # Create an STS client using shared utility
-        sts_client = create_aws_client('sts')
+    # Create an STS client using shared utility
+    sts_client = create_aws_client('sts')
 
-        await ctx.info('Retrieving AWS account ID from STS')
+    await ctx.info('Retrieving AWS account ID from STS')
 
-        # Call get-caller-identity to retrieve the account ID
-        response = sts_client.get_caller_identity()
+    # Call get-caller-identity to retrieve the account ID
+    response = sts_client.get_caller_identity()
 
-        # Extract and return the account ID
-        return response['Account']
-    except Exception as e:
-        # Proper error handling - raise the exception with a clear message
-        raise Exception(f'Failed to retrieve AWS account ID: {str(e)}')
+    # Extract and return the account ID
+    return response['Account']
 
 
 # =============================================================================
@@ -251,74 +278,115 @@ async def get_aws_account_id(ctx: Context) -> str:
 # =============================================================================
 
 
+# DescribeBudgets: MaxResults 1-1000. A page can be short, or empty, while a token is still
+# returned.
+BUDGETS_DESCRIBE_BUDGETS = PageSpec(
+    result_key='Budgets',
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=1000,
+    page_size_param='MaxResults',
+)
+
+# DescribeBudgetActionsForAccount / DescribeBudgetActionsForBudget: MaxResults 1-100. The
+# account-level call can return a short or empty page with a token.
+BUDGETS_DESCRIBE_BUDGET_ACTIONS = PageSpec(
+    result_key='Actions',
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=100,
+    page_size_param='MaxResults',
+)
+
+# DescribeNotificationsForBudget: MaxResults 1-100 (a budget has at most 10 notifications).
+BUDGETS_DESCRIBE_NOTIFICATIONS_FOR_BUDGET = PageSpec(
+    result_key='Notifications',
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=100,
+    page_size_param='MaxResults',
+)
+
+
+def _count_budget_notifications(entries: List[Dict[str, Any]]) -> int:
+    """Count the notifications across one page of per-budget entries."""
+    return sum(len(entry.get('Notifications') or []) for entry in entries)
+
+
+# DescribeBudgetNotificationsForAccount: MaxResults (1-1000) counts BUDGETS, each with up to 10
+# notifications, so one unit of page size can hold 10 items. A budget can hold more than 10;
+# the helper keeps such a page and logs it.
+BUDGETS_DESCRIBE_BUDGET_NOTIFICATIONS_FOR_ACCOUNT = PageSpec(
+    result_key='BudgetNotificationsForAccount',
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=10000,
+    page_size_param='MaxResults',
+    items_per_page_unit=10,
+    count_items=_count_budget_notifications,
+)
+
+
+def _describe_budget_by_name(
+    budgets_client: Any, account_id: str, budget_name: str
+) -> List[Dict[str, Any]]:
+    """Read one budget by exact name, or an empty list when it does not exist."""
+    try:
+        response = budgets_client.describe_budget(AccountId=account_id, BudgetName=budget_name)
+    except ClientError as e:
+        if e.response.get('Error', {}).get('Code') == 'NotFoundException':
+            return []
+        raise
+    budget = response.get('Budget')
+    return [budget] if budget else []
+
+
 async def describe_budgets(
-    ctx: Context, account_id: str, budget_name: Optional[str], max_results: int
+    ctx: Context,
+    account_id: str,
+    budget_name: Optional[str],
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Retrieves budgets using the AWS Budgets API (DescribeBudgets).
+    """Retrieves budgets using the AWS Budgets API.
+
+    With ``budget_name``, reads that one budget with DescribeBudget, so the name match never
+    depends on which page the budget falls on. Otherwise pages through DescribeBudgets.
 
     Args:
         ctx: The MCP context object.
         account_id: The AWS account ID.
-        budget_name: Optional budget name filter.
-        max_results: Maximum number of results to return.
+        budget_name: Optional exact budget name.
+        max_items: Most budgets to return. None fetches every page. Ignored with budget_name.
+        next_token: Pagination token from a previous response. Ignored with budget_name.
 
     Returns:
-        Dict containing the formatted budget information.
+        Dict containing the formatted budget information and a ``pagination`` block.
     """
     try:
-        # Prepare the request parameters
-        request_params = {'AccountId': account_id, 'MaxResults': max_results}
-
-        # Initialize Budgets client using shared utility
         budgets_client = create_aws_client('budgets', region_name='us-east-1')
 
-        # Collect all budgets with internal pagination
-        all_budgets = []
-        next_token = None
-        page_count = 0
-
-        while True:
-            page_count += 1
-            if next_token:
-                request_params['NextToken'] = next_token
-
-            remaining = max_results - len(all_budgets)
-            if remaining <= 0:
-                break
-            request_params['MaxResults'] = min(100, remaining)
-
-            await ctx.info(f'Fetching budgets page {page_count}')
-            response = budgets_client.describe_budgets(**request_params)
-
-            page_budgets = response.get('Budgets', [])
-            all_budgets.extend(page_budgets)
-
-            await ctx.info(f'Retrieved {len(page_budgets)} budgets (total: {len(all_budgets)})')
-
-            next_token = response.get('NextToken')
-            if not next_token:
-                break
-
-        # Format the response for better readability
-        formatted_budgets = format_budgets(all_budgets)
-
-        # Handle budget name filtering client-side if provided
         if budget_name:
-            filtered_budgets = [
-                b for b in formatted_budgets if b.get('budget_name') == budget_name
-            ]
-            await ctx.info(f"Filtered to {len(filtered_budgets)} budgets matching '{budget_name}'")
-            formatted_budgets = filtered_budgets
+            raw_budgets = _describe_budget_by_name(budgets_client, account_id, budget_name)
+            pagination: Dict[str, Any] = {
+                'complete_dataset': True,
+                'has_more': False,
+                'next_token': None,
+                'items_returned': len(raw_budgets),
+            }
+        else:
+            raw_budgets, _, pagination = await paginate_aws_items(
+                ctx,
+                'DescribeBudgets',
+                budgets_client.describe_budgets,
+                {'AccountId': account_id},
+                BUDGETS_DESCRIBE_BUDGETS,
+                max_items=max_items,
+                next_token=next_token,
+            )
 
-        # Return success response using shared format_response utility
-        return format_response(
-            'success',
-            {
-                'budgets': formatted_budgets,
-                'total_count': len(formatted_budgets),
-                'account_id': account_id,
-            },
-        )
+        data = {'budgets': format_budgets(raw_budgets), 'account_id': account_id}
+        return format_response('success', with_pagination(data, pagination))
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
@@ -329,9 +397,8 @@ async def describe_budget_actions(
     ctx: Context,
     account_id: str,
     budget_name: Optional[str],
-    max_results: int,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Retrieves budget enforcement actions, routing by ``budget_name``.
 
@@ -345,43 +412,35 @@ async def describe_budget_actions(
     try:
         budgets_client = create_aws_client('budgets', region_name='us-east-1')
 
-        request_params: Dict[str, Any] = {
-            'AccountId': account_id,
-            'MaxResults': min(100, max_results),
-        }
-        if next_token:
-            request_params['NextToken'] = next_token
-
+        request_params: Dict[str, Any] = {'AccountId': account_id}
         if budget_name:
             request_params['BudgetName'] = budget_name
-            all_actions, pagination = await paginate_aws_response(
-                ctx,
-                'DescribeBudgetActionsForBudget',
-                lambda **p: budgets_client.describe_budget_actions_for_budget(**p),
-                request_params,
-                'Actions',
-                max_pages=max_pages,
-            )
+            operation = 'DescribeBudgetActionsForBudget'
+            api_call = budgets_client.describe_budget_actions_for_budget
         else:
-            all_actions, pagination = await paginate_aws_response(
-                ctx,
-                'DescribeBudgetActionsForAccount',
-                lambda **p: budgets_client.describe_budget_actions_for_account(**p),
-                request_params,
-                'Actions',
-                max_pages=max_pages,
-            )
+            operation = 'DescribeBudgetActionsForAccount'
+            api_call = budgets_client.describe_budget_actions_for_account
+
+        all_actions, _, pagination = await paginate_aws_items(
+            ctx,
+            operation,
+            api_call,
+            request_params,
+            BUDGETS_DESCRIBE_BUDGET_ACTIONS,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
         data: Dict[str, Any] = {
             'actions': [format_action(a) for a in all_actions],
-            'total_count': len(all_actions),
             'account_id': account_id,
-            'pagination': pagination,
         }
         if budget_name:
             data['budget_name'] = budget_name
 
-        converted = await convert_response_if_needed(ctx, data, 'budget_actions')
+        converted = await convert_response_if_needed(
+            ctx, with_pagination(data, pagination), 'budget_actions'
+        )
         return format_response('success', converted)
     except Exception as e:
         return await handle_aws_error(ctx, e, 'describe_budget_actions', 'AWS Budgets')
@@ -391,9 +450,8 @@ async def describe_budget_notifications(
     ctx: Context,
     account_id: str,
     budget_name: Optional[str],
-    max_results: int,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Retrieves budget notifications, routing by ``budget_name``.
 
@@ -405,32 +463,26 @@ async def describe_budget_notifications(
     try:
         budgets_client = create_aws_client('budgets', region_name='us-east-1')
 
-        request_params: Dict[str, Any] = {
-            'AccountId': account_id,
-            'MaxResults': min(100, max_results),
-        }
-        if next_token:
-            request_params['NextToken'] = next_token
-
         if budget_name:
-            request_params['BudgetName'] = budget_name
-            raw_notifications, pagination = await paginate_aws_response(
+            raw_notifications, _, pagination = await paginate_aws_items(
                 ctx,
                 'DescribeNotificationsForBudget',
-                lambda **p: budgets_client.describe_notifications_for_budget(**p),
-                request_params,
-                'Notifications',
-                max_pages=max_pages,
+                budgets_client.describe_notifications_for_budget,
+                {'AccountId': account_id, 'BudgetName': budget_name},
+                BUDGETS_DESCRIBE_NOTIFICATIONS_FOR_BUDGET,
+                max_items=max_items,
+                next_token=next_token,
             )
             notifications = [format_notification(n, budget_name) for n in raw_notifications]
         else:
-            per_budget, pagination = await paginate_aws_response(
+            per_budget, _, pagination = await paginate_aws_items(
                 ctx,
                 'DescribeBudgetNotificationsForAccount',
-                lambda **p: budgets_client.describe_budget_notifications_for_account(**p),
-                request_params,
-                'BudgetNotificationsForAccount',
-                max_pages=max_pages,
+                budgets_client.describe_budget_notifications_for_account,
+                {'AccountId': account_id},
+                BUDGETS_DESCRIBE_BUDGET_NOTIFICATIONS_FOR_ACCOUNT,
+                max_items=max_items,
+                next_token=next_token,
             )
             # Each entry groups one budget's notifications; flatten and stamp the budget name.
             notifications = [
@@ -441,14 +493,14 @@ async def describe_budget_notifications(
 
         data: Dict[str, Any] = {
             'notifications': notifications,
-            'total_count': len(notifications),
             'account_id': account_id,
-            'pagination': pagination,
         }
         if budget_name:
             data['budget_name'] = budget_name
 
-        converted = await convert_response_if_needed(ctx, data, 'budget_notifications')
+        converted = await convert_response_if_needed(
+            ctx, with_pagination(data, pagination), 'budget_notifications'
+        )
         return format_response('success', converted)
     except Exception as e:
         return await handle_aws_error(ctx, e, 'describe_budget_notifications', 'AWS Budgets')
@@ -457,6 +509,12 @@ async def describe_budget_notifications(
 # =============================================================================
 # Formatters (raw AWS API dict -> response shape)
 # =============================================================================
+
+
+# Budget types where more spend is worse, so actual or forecast at or above the limit is a breach.
+# Utilization and coverage budgets (limit fixed at 100 PERCENTAGE) alert when actual falls below a
+# notification threshold instead, so a spend-vs-limit status would read them inverted.
+_SPEND_BUDGET_TYPES = frozenset({'COST', 'USAGE'})
 
 
 def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -508,9 +566,22 @@ def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
             formatted_budget['calculated_spend'] = calculated_spend_dict
 
-        # Add cost filters if present
+        # Add the budget's scope if present; calculated_spend is computed on it.
         if 'CostFilters' in budget and budget['CostFilters']:
             formatted_budget['cost_filters'] = budget['CostFilters']
+        if budget.get('FilterExpression'):
+            formatted_budget['filter_expression'] = budget['FilterExpression']
+        if budget.get('Metrics'):
+            formatted_budget['metrics'] = budget['Metrics']
+        if budget.get('CostTypes'):
+            formatted_budget['cost_types'] = budget['CostTypes']
+        if budget.get('BillingViewArn'):
+            formatted_budget['billing_view_arn'] = budget['BillingViewArn']
+        if budget.get('HealthStatus'):
+            health = budget['HealthStatus']
+            formatted_budget['health_status'] = {'status': health.get('Status')}
+            if health.get('StatusReason'):
+                formatted_budget['health_status']['status_reason'] = health['StatusReason']
 
         # Add time period if present
         if 'TimePeriod' in budget:
@@ -533,12 +604,13 @@ def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
             formatted_budget['time_period'] = time_period_dict
 
-        # Add budget status (derived field)
+        # Add budget status (derived field, COST and USAGE budgets only)
         calculated_spend = formatted_budget.get('calculated_spend')
         budget_limit = formatted_budget.get('budget_limit')
 
         if (
-            calculated_spend is not None
+            budget.get('BudgetType') in _SPEND_BUDGET_TYPES
+            and calculated_spend is not None
             and isinstance(calculated_spend, dict)
             and 'actual_spend' in calculated_spend
             and budget_limit is not None

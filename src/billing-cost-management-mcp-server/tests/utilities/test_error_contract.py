@@ -19,11 +19,14 @@ from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base impor
     format_response,
 )
 from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+    _ERROR_TYPE_GUIDANCE,
+    _ERROR_TYPE_PREFIX_GUIDANCE,
     DO_NOT_RETRY,
     MODIFY_REQUEST,
     RETRY_SAME_REQUEST,
     add_retry_guidance,
     classify_error,
+    combine_guidance,
 )
 
 
@@ -37,6 +40,7 @@ class TestClassifyError:
             'Throttling',
             'TooManyRequestsException',
             'LimitExceededException',
+            'throttling_error',
         ],
     )
     def test_throttling_is_retried(self, error_type):
@@ -46,7 +50,15 @@ class TestClassifyError:
         assert hint is not None
 
     @pytest.mark.parametrize(
-        'error_type', ['aws_connection_error', 'InternalServerException', 'ServiceUnavailable']
+        'error_type',
+        [
+            'aws_connection_error',
+            'InternalServerException',
+            'InternalErrorException',
+            'ServiceUnavailable',
+            'service_unavailable',
+            'unknown_timeouterror',
+        ],
     )
     def test_connection_and_server_errors_are_retried(self, error_type):
         """Connection failures and server-side errors are transient."""
@@ -72,11 +84,20 @@ class TestClassifyError:
             'invalid_operation',
             'InvalidParameterValue',
             'InvalidParameterCombination',
+            'InvalidRequestException',
+            'ExpiredNextTokenException',
         ],
     )
     def test_validation_requires_modified_request(self, error_type):
         """Invalid arguments must change before retrying, including the InvalidParameter* family."""
         assert classify_error(error_type)[0] == MODIFY_REQUEST
+
+    @pytest.mark.parametrize(
+        'error_type', ['InvalidNextTokenException', 'ExpiredNextTokenException']
+    )
+    def test_service_next_token_codes_share_invalid_next_token_guidance(self, error_type):
+        """A token the service rejects gets the restart-without-next_token hint."""
+        assert classify_error(error_type) == classify_error('invalid_next_token')
 
     @pytest.mark.parametrize(
         'error_type',
@@ -88,12 +109,50 @@ class TestClassifyError:
         assert strategy == DO_NOT_RETRY
         assert hint is not None
 
-    @pytest.mark.parametrize('error_type', ['OptInRequiredException', 'DataUnavailableException'])
+    @pytest.mark.parametrize(
+        'error_type', ['OptInRequiredException', 'opt_in_required', 'DataUnavailableException']
+    )
     def test_account_state_is_not_retried(self, error_type):
         """Opt-in and data availability failures cannot be fixed during the run."""
         assert classify_error(error_type)[0] == DO_NOT_RETRY
 
-    @pytest.mark.parametrize('error_type', ['no_results', 'ResourceNotFoundException'])
+    def test_data_unavailable_hint_says_no_data_not_failure(self):
+        """DataUnavailableException tells the caller there is no data, and the usual causes."""
+        strategy, hint = classify_error('DataUnavailableException')
+        assert strategy == DO_NOT_RETRY
+        assert hint is not None
+        assert 'The service has no data for this request' in hint
+        assert 'too recent to have been processed yet' in hint
+        assert 'a filter value that matches nothing' in hint
+        assert 'not a failure and not a zero' in hint
+
+    def test_data_unavailable_hint_is_service_neutral(self):
+        """Pricing Calculator raises the same code, so the hint names no Cost Explorer report."""
+        hint = classify_error('DataUnavailableException')[1] or ''
+        for specific in ('Savings Plans', 'Reserved Instance', '2-3 days'):
+            assert specific not in hint
+
+    @pytest.mark.parametrize(
+        'error_type, guidance',
+        [*_ERROR_TYPE_GUIDANCE.items(), *_ERROR_TYPE_PREFIX_GUIDANCE],
+    )
+    def test_every_mapped_error_type_has_a_hint(self, error_type, guidance):
+        """A mapped error type always carries recovery guidance, not just a strategy.
+
+        Hints are keyed by error_type, so each must hold for every service that raises it.
+        """
+        assert guidance[1], f'{error_type} is mapped without a hint'
+
+    @pytest.mark.parametrize(
+        'error_type',
+        [
+            'no_results',
+            'ResourceNotFoundException',
+            'resource_not_found',
+            'NotFoundException',
+            'not_found',
+        ],
+    )
     def test_not_found_requires_modified_request(self, error_type):
         """Nothing matched, so the request must change."""
         assert classify_error(error_type)[0] == MODIFY_REQUEST
@@ -102,6 +161,37 @@ class TestClassifyError:
     def test_missing_or_unknown_defaults_to_do_not_retry(self, error_type):
         """Missing and unrecognized types get the conservative default with no hint."""
         assert classify_error(error_type) == (DO_NOT_RETRY, None)
+
+
+class TestCombineGuidance:
+    """Tests for combine_guidance."""
+
+    def test_identical_guidance_keeps_hint(self):
+        """Failures with the same guidance keep its hint."""
+        throttled = classify_error('ThrottlingException')
+        assert combine_guidance([throttled, throttled]) == throttled
+
+    def test_transient_mix_is_retried_without_hint(self):
+        """Throttling plus a 5xx is still transient, with no single hint."""
+        guidance = [classify_error('ThrottlingException'), classify_error('X', http_status=503)]
+        assert combine_guidance(guidance) == (RETRY_SAME_REQUEST, None)
+
+    def test_transient_wins_over_modify(self):
+        """A throttled region may still hold the result, so retrying is right."""
+        guidance = [
+            classify_error('ThrottlingException'),
+            classify_error('ResourceNotFoundException'),
+        ]
+        assert combine_guidance(guidance) == (RETRY_SAME_REQUEST, None)
+
+    def test_do_not_retry_wins(self):
+        """Any failure that cannot succeed during this run makes the whole not retryable."""
+        guidance = [classify_error('ThrottlingException'), classify_error('AccessDeniedException')]
+        assert combine_guidance(guidance) == (DO_NOT_RETRY, None)
+
+    def test_empty_gets_default(self):
+        """No failures gets the conservative default."""
+        assert combine_guidance([]) == (DO_NOT_RETRY, None)
 
     def test_non_int_http_status_ignored(self):
         """A malformed http_status does not raise."""
@@ -179,3 +269,26 @@ class TestFormatResponseOverrides:
 
         assert 'retry_strategy' not in response
         assert 'hint' not in response
+
+
+class TestSdkStandardRetryableCodes:
+    """Codes the AWS SDKs' standard retry mode lists as transient or throttling."""
+
+    @pytest.mark.parametrize(
+        'error_type',
+        [
+            'InternalError',
+            'IDPCommunicationError',
+            'PriorRequestNotComplete',
+            'RequestThrottled',
+            'RequestThrottledException',
+            'ProvisionedThroughputExceededException',
+            'TransactionInProgressException',
+            'EC2ThrottledException',
+            'SlowDown',
+            'BandwidthLimitExceeded',
+        ],
+    )
+    def test_retry_same_request(self, error_type):
+        """These arrive with a 4xx status too, so they need an explicit mapping."""
+        assert classify_error(error_type, 400)[0] == RETRY_SAME_REQUEST
