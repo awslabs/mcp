@@ -2053,3 +2053,14 @@ async def test_description_says_what_an_efficiency_point_covers():
     assert 'Ask only for completed months' in flat
     assert 'a current-month point would be partial' in flat
     assert 'Only completed months are returned' not in flat
+
+
+@pytest.mark.asyncio
+async def test_description_states_the_summaries_group_limit():
+    """Summaries stop at 1,000 groups with no token, so the description says what to do."""
+    flat = await _coh_served_description()
+    assert 'returns at most 1,000 groups, those with the highest estimated savings' in flat
+    assert 'A result of 1,000 groups is marked complete_dataset: false' in flat
+    assert 'group by a dimension with fewer values (such as Region)' in flat
+    assert 'its last page is not marked' in flat
+    assert '1,000 groups across all pages means the same' in flat

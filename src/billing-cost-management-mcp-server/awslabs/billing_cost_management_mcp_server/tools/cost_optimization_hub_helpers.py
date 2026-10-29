@@ -31,6 +31,7 @@ from ..utilities.constants import (
     EFFICIENCY_PARETO_PAGE_SIZE,
     EFFICIENCY_PARETO_SPEND_FRACTION,
     EFFICIENCY_RANKING_MODE_PERFORMANCE,
+    GROUP_BY_TAG_KEY_PREFIX,
     OPERATION_GET_PREFERENCES,
     OPERATION_GET_RECOMMENDATION,
     OPERATION_LIST_EFFICIENCY_METRICS,
@@ -66,6 +67,9 @@ COH_LIST_RECOMMENDATION_SUMMARIES = PageSpec(
     # The service reports a bad caller next_token as ValidationException.
     caller_token_error_codes=frozenset({'ValidationException'}),
 )
+# ListRecommendationSummaries returns at most this many groups, the ones with the highest
+# estimated savings, and no nextToken for the rest.
+COH_SUMMARIES_MAX_GROUPS = 1000
 COH_LIST_EFFICIENCY_METRICS = PageSpec(
     result_key='efficiencyMetricsByGroup',
     token_param='nextToken',
@@ -291,6 +295,26 @@ async def get_recommendation(
         )
 
 
+def _summaries_group_limit_warning(group_by: str) -> str:
+    """Warn that a summaries result reached the service's group limit and may be cut."""
+    limit = f'{COH_SUMMARIES_MAX_GROUPS:,}'
+    warning = (
+        f'Cost Optimization Hub returns at most {limit} groups, those with the highest '
+        f'estimated savings, and no next_token for the rest. This result has {limit}, so '
+        'groups may be missing and estimated_total_deduped_savings may cover only the '
+        'returned groups. For totals, group by a dimension with fewer values (such as '
+        f'Region). To cover every group, narrow filters until fewer than {limit} groups '
+        'come back, or, for rows and counts, use list_recommendations with the same filters '
+        '(its savings are not de-duplicated).'
+    )
+    if str(group_by).startswith(GROUP_BY_TAG_KEY_PREFIX):
+        warning += (
+            ' NoTagKey may be missing, or may also count recommendations whose tag value was '
+            'left out.'
+        )
+    return warning
+
+
 async def list_recommendation_summaries(
     ctx: Context,
     coh_client: Any,
@@ -303,6 +327,8 @@ async def list_recommendation_summaries(
 
     Fetches every page, or stops before exceeding ``max_items``, and returns the combined
     summaries with a ``pagination`` block so callers can see partial data and continue.
+    A result of ``COH_SUMMARIES_MAX_GROUPS`` groups is marked partial, since the service
+    drops any groups past that limit without a token.
 
     Args:
         ctx: MCP context
@@ -332,6 +358,12 @@ async def list_recommendation_summaries(
             max_items=max_items,
             next_token=next_token,
         )
+        if pagination['complete_dataset'] and len(all_summaries) >= COH_SUMMARIES_MAX_GROUPS:
+            pagination = {
+                **pagination,
+                'complete_dataset': False,
+                'warning': _summaries_group_limit_warning(group_by),
+            }
         # ``groupBy``, ``currencyCode``, ``estimatedTotalDedupedSavings`` and ``metrics`` are
         # aggregates over the whole filtered result set, so they come from the first page.
         first_response = first_page_fields(
