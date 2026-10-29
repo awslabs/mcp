@@ -2034,3 +2034,158 @@ async def test_description_states_savings_plans_data_lag():
     )
     assert 'an unknown SAVINGS_PLANS_TYPE matches nothing' in tool.description
     assert 'report that no data is available for that window (not zero)' in tool.description
+
+
+@pytest.mark.asyncio
+async def test_ce_get_savings_plans_utilization_rejects_billing_view_arn(
+    mock_context, sample_billing_view_arn
+):
+    """GetSavingsPlansUtilization has no BillingViewArn, so the tool refuses the ARN.
+
+    Dropping it would return utilization for the primary view labelled as the caller's view.
+    """
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_savings_plans_utilization', new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_create_client.return_value = MagicMock()
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getSavingsPlansUtilization',
+            start_date='2024-01-01',
+            end_date='2024-02-01',
+            granularity='MONTHLY',
+            billing_view_arn=sample_billing_view_arn,
+        )
+
+        assert res['status'] == 'error'
+        assert res['error_type'] == 'validation_error'
+        assert 'billing_view_arn' in res['message']
+        assert 'getSavingsPlansUtilization' in res['message']
+        assert 'billing_view_arn' in res['hint']
+        mock_impl.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_ce_get_savings_plans_utilization_empty_billing_view_arn_is_absent(mock_context):
+    """An empty billing_view_arn means no view, as for the operations that send it."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_savings_plans_utilization', new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_create_client.return_value = MagicMock()
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getSavingsPlansUtilization',
+            start_date='2024-01-01',
+            end_date='2024-02-01',
+            billing_view_arn='',
+        )
+
+        assert res['status'] == 'success'
+        mock_impl.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_description_names_billing_view_operations():
+    """The description names which operations take billing_view_arn and which refuse it."""
+    tool = await cost_explorer_server.get_tool('cost-explorer')
+    assert tool is not None and tool.description
+    description = ' '.join(tool.description.split())
+    assert 'Most Cost Explorer operations support an optional billing_view_arn' not in description
+    assert (
+        'billing_view_arn is accepted by getCostAndUsage, getCostAndUsageWithResources, '
+        'getDimensionValues (COST_AND_USAGE context only), getCostForecast, getUsageForecast, '
+        'getTagsOrValues and getCostCategories'
+    ) in description
+    assert (
+        'getSavingsPlansUtilization (the AWS API has no billing view parameter) and '
+        'getDimensionValues with context RESERVATIONS or SAVINGS_PLANS (AWS does not apply the '
+        'view there) do not accept billing_view_arn'
+    ) in description
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('context', ['RESERVATIONS', 'SAVINGS_PLANS'])
+async def test_ce_get_dimension_values_rejects_billing_view_arn_outside_cost_and_usage(
+    mock_context, sample_billing_view_arn, context
+):
+    """AWS does not apply a billing view to RESERVATIONS or SAVINGS_PLANS dimension values.
+
+    Sending the ARN would return unscoped values labelled as the caller's view.
+    """
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_dimension_values', new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_create_client.return_value = MagicMock()
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getDimensionValues',
+            dimension='LINKED_ACCOUNT',
+            context=context,
+            billing_view_arn=sample_billing_view_arn,
+        )
+
+        assert res['status'] == 'error'
+        assert res['error_type'] == 'validation_error'
+        assert 'billing_view_arn' in res['message']
+        assert f'context={context}' in res['message']
+        assert 'Do **NOT** retry with the same billing_view_arn' in res['hint']
+        assert context not in res['hint']  # the hint is fixed text; the context is in message
+        mock_impl.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'context, billing_view_arn',
+    [
+        ('COST_AND_USAGE', 'arn:aws:billing::123456789012:billingview/custom-abc'),
+        ('SAVINGS_PLANS', None),
+        ('RESERVATIONS', ''),
+        ('savings_plans', 'arn:aws:billing::123456789012:billingview/custom-abc'),
+    ],
+)
+async def test_ce_get_dimension_values_billing_view_arn_allowed_cases(
+    mock_context, context, billing_view_arn
+):
+    """COST_AND_USAGE still sends the ARN; the other contexts run when no ARN is set.
+
+    A lowercase context goes to AWS unchanged, which rejects the context itself.
+    """
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_dimension_values', new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_create_client.return_value = MagicMock()
+        mock_impl.return_value = {'status': 'success', 'data': {'DimensionValues': []}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getDimensionValues',
+            dimension='LINKED_ACCOUNT',
+            context=context,
+            billing_view_arn=billing_view_arn,
+        )
+
+        assert res['status'] == 'success'
+        mock_impl.assert_awaited_once()
+        await_args = mock_impl.await_args
+        assert await_args is not None
+        assert await_args.args[-2:] == (billing_view_arn, context)
