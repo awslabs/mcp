@@ -2189,3 +2189,264 @@ async def test_ce_get_dimension_values_billing_view_arn_allowed_cases(
         await_args = mock_impl.await_args
         assert await_args is not None
         assert await_args.args[-2:] == (billing_view_arn, context)
+
+
+def test_description_documents_tags_leaf_format():
+    """The Tags-leaf rules are stated: a wrong key is silent ($0, or every cost with ABSENT).
+
+    Cost Explorer adds `user:` to user-defined tag keys itself, so a `user:` key matches
+    nothing, and a TAG group_by label (`key$value`) is not a value.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    description = cost_explorer_tools.COST_EXPLORER_DESCRIPTION
+    tags = ' '.join(
+        description.split('Tags leaves in getCostAndUsage and getDimensionValues filters:')[1]
+        .split('Correct filter examples:')[0]
+        .split()
+    )
+    assert 'no `user:` prefix' in tags
+    assert '`Environment`, not `user:Environment`' in tags
+    assert '(`aws:createdBy`)' in tags
+    assert 'Keys and values are case-sensitive' in tags
+    assert '`<key>$<value>`' in tags and 'The label is not a filter value' in tags
+    assert '`"Values": [""]` matches the same costs as `ABSENT`' in tags
+    assert 'With `Values` it matches nothing ($0); with `ABSENT` it matches every cost' in tags
+    assert 'Copy the key from getTagsOrValues' in tags
+
+
+@pytest.mark.parametrize(
+    'flt',
+    [
+        {'Tags': {'Key': 'user:Environment', 'MatchOptions': ['ABSENT']}},
+        '{"Tags": {"Key": "user:Environment", "Values": ["Dev"]}}',
+        {
+            'And': [
+                {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1']}},
+                {'Not': {'Tags': {'Key': 'user:Environment', 'Values': ['Dev']}}},
+            ]
+        },
+        {'Or': [{'Tags': {'Key': 'user:Environment', 'Values': ['Dev']}}]},
+    ],
+)
+def test_tag_filter_hint_flags_user_prefixed_key(flt):
+    """A user:-prefixed Tags key anywhere in the expression gets a hint naming the bare key."""
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    hint = cost_explorer_tools._tag_filter_hint(flt)
+    assert hint is not None
+    assert "Tags key 'user:Environment' has a user: prefix" in hint
+    assert "Use 'Environment', unless getTagsOrValues lists the key with the prefix" in hint
+    assert 'Values match nothing, and ABSENT matches every cost' in hint
+
+
+def test_tag_filter_hint_flags_group_by_label_value():
+    """A Values entry copied from a TAG group_by label gets a hint naming the bare value."""
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    hint = cost_explorer_tools._tag_filter_hint(
+        {'Tags': {'Key': 'Environment', 'Values': ['Environment$Dev', 'QA']}}
+    )
+    assert hint is not None
+    assert "Tags value 'Environment$Dev' is a TAG group_by label" in hint
+    assert "Filter on 'Dev' instead" in hint
+    assert 'user:' not in hint
+
+
+@pytest.mark.parametrize(
+    'flt',
+    [
+        None,
+        '',
+        'not json',
+        '[1, 2]',
+        {'Tags': {'Key': 'Environment', 'Values': ['Dev']}},
+        {'Tags': {'Key': 'aws:createdBy', 'Values': ['IAMUser:x']}},
+        {'Tags': {'Key': 'Environment', 'MatchOptions': ['ABSENT']}},
+        {'Tags': {'Key': 'Environment', 'Values': ['']}},
+        {'Tags': {'Values': ['Dev']}},
+        {'Dimensions': {'Key': 'SERVICE', 'Values': ['user:x']}},
+        {'CostCategories': {'Key': 'user:Team', 'Values': ['Team$A']}},
+        {'Not': None, 'And': None},
+        {'Tags': {'Key': 'user:', 'Values': ['Dev']}},
+        {'Tags': {'Key': '', 'Values': ['$x']}},
+        {'Tags': {'Key': '$Dev', 'Values': ['x']}},
+    ],
+)
+def test_tag_filter_hint_ignores_filters_that_can_match(flt):
+    """Correct Tags filters, non-Tags leaves and unparsable input get no hint."""
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    assert cost_explorer_tools._tag_filter_hint(flt) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'operation, impl, extra',
+    [
+        ('getCostAndUsage', 'get_cost_and_usage', {}),
+        ('getDimensionValues', 'get_dimension_values', {'dimension': 'SERVICE'}),
+    ],
+)
+async def test_routed_response_carries_tag_filter_hint(mock_context, operation, impl, extra):
+    """The getCostAndUsage and getDimensionValues responses carry the hint on success."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    flt = '{"Tags": {"Key": "user:Environment", "MatchOptions": ["ABSENT"]}}'
+    with (
+        patch.object(ce_mod, 'create_aws_client', return_value=MagicMock()),
+        patch.object(ce_mod, impl, new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+        res = await ce_mod.cost_explorer(  # type: ignore
+            mock_context, operation=operation, filter=flt, **extra
+        )
+    assert res['status'] == 'success'
+    assert "Use 'Environment'" in res['hint']
+
+
+@pytest.mark.asyncio
+async def test_routed_response_hint_only_on_success_and_correct_filter(mock_context):
+    """Errors keep the hint the error mapping adds, and a correct Tags filter adds none."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    bad = {'Tags': {'Key': 'user:Environment', 'Values': ['Dev']}}
+    with (
+        patch.object(ce_mod, 'create_aws_client', return_value=MagicMock()),
+        patch.object(ce_mod, 'get_cost_and_usage', new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_impl.return_value = {'status': 'error', 'error_type': 'ThrottlingException'}
+        res = await ce_mod.cost_explorer(  # type: ignore
+            mock_context, operation='getCostAndUsage', filter=bad
+        )
+        assert 'hint' not in res
+
+        mock_impl.return_value = {'status': 'success', 'data': {}, 'hint': 'own hint'}
+        res = await ce_mod.cost_explorer(  # type: ignore
+            mock_context, operation='getCostAndUsage', filter=bad
+        )
+        assert res['hint'] == 'own hint'
+
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+        res = await ce_mod.cost_explorer(  # type: ignore
+            mock_context,
+            operation='getCostAndUsage',
+            filter={'Tags': {'Key': 'Environment', 'Values': ['Dev']}},
+        )
+        assert 'hint' not in res
+
+
+@pytest.mark.parametrize(
+    'flt',
+    [
+        {'And': 5},
+        {'Or': True},
+        {'Tags': {'Key': 'Environment', 'Values': 5}},
+        {'Tags': {'Key': 5, 'Values': ['Dev']}},
+        '{"Not": ' * 3000 + '{}' + '}' * 3000,
+    ],
+)
+def test_tag_filter_hint_tolerates_malformed_filters(flt):
+    """Malformed or very deep filters get no hint and raise nothing; the API rejects them."""
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    assert cost_explorer_tools._tag_filter_hint(flt) is None
+
+
+@pytest.mark.asyncio
+async def test_malformed_filter_still_routes_to_the_operation(mock_context):
+    """The hint check never stops a malformed filter from reaching the API's own validation."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    with (
+        patch.object(ce_mod, 'create_aws_client', return_value=MagicMock()),
+        patch.object(ce_mod, 'get_tags', new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+        res = await ce_mod.cost_explorer(  # type: ignore
+            mock_context, operation='getTagsOrValues', filter={'And': 5}
+        )
+    assert res == {'status': 'success', 'data': {}}
+
+
+@pytest.mark.parametrize(
+    'leaf, expected',
+    [
+        (
+            {'Key': 'user:Environment', 'Values': ['Environment$Dev']},
+            ["Use 'Environment'", "Tags value 'Environment$Dev'", "Filter on 'Dev' instead"],
+        ),
+        (
+            {'Key': 'Environment$Dev', 'Values': ['x']},
+            [
+                "Tags key 'Environment$Dev' looks like a TAG group_by label",
+                "Use Key 'Environment' with Values ['Dev']",
+            ],
+        ),
+        (
+            {'Key': 'Environment', 'Values': ['Environment$']},
+            ['Use ABSENT for the Environment$ group'],
+        ),
+        (
+            {'Key': 'User:Environment', 'Values': ['Dev']},
+            ["Tags key 'User:Environment' has a user: prefix", "Use 'Environment'"],
+        ),
+        (
+            {'Key': 'Environment$Dev', 'MatchOptions': ['ABSENT']},
+            ["Use Key 'Environment'."],
+        ),
+        (
+            {'Key': 'user:Environment$Dev', 'Values': ['x']},
+            ["Use 'Environment$Dev'", "Use Key 'Environment' with Values ['Dev']"],
+        ),
+        (
+            {'Key': 'user:Environment', 'Values': ['user:Environment$Dev']},
+            ["Tags value 'user:Environment$Dev'", "Filter on 'Dev' instead"],
+        ),
+    ],
+)
+def test_tag_filter_hint_combined_and_label_cases(leaf, expected):
+    """A prefixed key with a label value, a label as key, and the <key>$ label each get a fix."""
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    hint = cost_explorer_tools._tag_filter_hint({'And': [{'Tags': leaf}]})
+    assert hint is not None
+    for phrase in expected:
+        assert phrase in hint
+    assert "Filter on '' instead" not in hint
+
+
+def test_tag_filter_hint_is_deduplicated():
+    """The same bad key in two Or branches is reported once."""
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    leaf = {'Tags': {'Key': 'user:Environment', 'Values': ['Dev']}}
+    hint = cost_explorer_tools._tag_filter_hint({'Or': [leaf, {'Not': leaf}]})
+    assert hint is not None and hint.count("Tags key 'user:Environment'") == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'operation, impl, extra',
+    [
+        ('getCostAndUsageWithResources', 'get_cost_and_usage_with_resources', {}),
+        ('getCostForecast', 'get_cost_forecast', {'metric': 'UNBLENDED_COST'}),
+        ('getUsageForecast', 'get_usage_forecast', {'metric': 'USAGE_QUANTITY'}),
+    ],
+)
+async def test_unchecked_operations_carry_no_tag_filter_hint(mock_context, operation, impl, extra):
+    """Only operations whose Tags matching was checked get the hint.
+
+    A forecast filtered on a user:-prefixed key still returned a forecast, so the
+    "matches nothing" hint would be wrong there.
+    """
+    ce_mod = _reload_ce_with_identity_decorator()
+    with (
+        patch.object(ce_mod, 'create_aws_client', return_value=MagicMock()),
+        patch.object(ce_mod, impl, new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+        res = await ce_mod.cost_explorer(  # type: ignore
+            mock_context,
+            operation=operation,
+            filter={'Tags': {'Key': 'user:Environment', 'Values': ['Dev']}},
+            **extra,
+        )
+    assert 'hint' not in res

@@ -17,6 +17,7 @@
 Updated to use shared utility functions.
 """
 
+import json
 from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
 from .cost_explorer_operations import (
     get_cost_and_usage,
@@ -158,6 +159,18 @@ Values per leaf type:
   where the tag or cost category key is not present, so there is no value to compare against:
   omit `Values` entirely (an empty `Values` list is rejected too).
 
+Tags leaves in getCostAndUsage and getDimensionValues filters:
+- `Key` is the tag key as getTagsOrValues lists it, with no `user:` prefix even where billing
+  exports show one: `Environment`, not `user:Environment`. Tags that AWS applies itself keep
+  their `aws:` prefix (`aws:createdBy`). Keys and values are case-sensitive, and there is no
+  case-insensitive option.
+- A TAG group_by labels each group `<key>$<value>` (e.g. `Environment$Dev`), and `<key>$` for
+  costs without the key or with an empty value. The label is not a filter value: filter on
+  `Dev`, and use `ABSENT` for the `<key>$` group. `"Values": [""]` matches the same costs as
+  `ABSENT` (unlike an empty list, it is accepted).
+- A wrong key is not an error. With `Values` it matches nothing ($0); with `ABSENT` it matches
+  every cost, since no cost carries that key. Copy the key from getTagsOrValues.
+
 Correct filter examples:
 - `{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Relational Database Service"]}}`
 - `{"Tags": {"Key": "env", "Values": ["prod"]}}`
@@ -287,6 +300,98 @@ Billing view types:
   Use for showback/chargeback reporting in billing transfer scenarios.""")
 
 
+def _tags_leaves(expression: Any) -> List[Dict[str, Any]]:
+    """Return every Tags leaf in a filter expression, walking And, Or and Not."""
+    if not isinstance(expression, dict):
+        return []
+    leaves = [expression['Tags']] if isinstance(expression.get('Tags'), dict) else []
+    for key in ('And', 'Or'):
+        children = expression.get(key)
+        if isinstance(children, list):
+            for child in children:
+                leaves.extend(_tags_leaves(child))
+    leaves.extend(_tags_leaves(expression.get('Not')))
+    return leaves
+
+
+def _tag_leaf_hints(key: str, values: List[Any], absent: bool) -> List[str]:
+    """Return the hints for one Tags leaf whose key or values cannot match."""
+    hints = []
+    bare = key
+    if key.lower().startswith('user:') and len(key) > len('user:'):
+        bare = key[len('user:') :]
+        hints.append(
+            f"Tags key '{key}' has a user: prefix. This filter takes tag keys without it, so "
+            f'this key matches no tagged cost: Values match nothing, and ABSENT matches every '
+            f"cost. Use '{bare}', unless getTagsOrValues lists the key with the prefix."
+        )
+    if '$' in bare.strip('$'):
+        label_key, label_value = bare.split('$', 1)
+        fix = (
+            f"Use Key '{label_key}'."
+            if absent
+            else f"Use Key '{label_key}' with Values ['{label_value}']."
+        )
+        hints.append(
+            f"Tags key '{bare}' looks like a TAG group_by label (<key>$<value>), not a tag "
+            f'key. {fix}'
+        )
+    for value in values:
+        if not isinstance(value, str) or not bare:
+            continue
+        label_of = next((k for k in (key, bare) if value.startswith(f'{k}$')), None)
+        if label_of is None:
+            continue
+        label_value = value[len(label_of) + 1 :]
+        fix = (
+            f"Filter on '{label_value}' instead."
+            if label_value
+            else f'Use ABSENT for the {bare}$ group (costs without the key).'
+        )
+        hints.append(
+            f"Tags value '{value}' is a TAG group_by label, not a tag value, so it matches "
+            f'nothing. {fix}'
+        )
+    return hints
+
+
+def _tag_filter_hint(filter: Optional[Union[str, Dict[str, Any]]]) -> Optional[str]:
+    """Return a hint for a Tags filter that Cost Explorer accepts but that cannot match.
+
+    getCostAndUsage and getDimensionValues add the `user:` prefix to user-defined tag keys
+    themselves, so a `user:` key matches no tagged cost, and a TAG group_by label
+    (`key$value`) is not a key or value. With no error, Values then match nothing and
+    ABSENT matches every cost.
+    """
+    try:
+        if isinstance(filter, str):
+            filter = json.loads(filter)
+        hints: List[str] = []
+        for leaf in _tags_leaves(filter):
+            key, values = leaf.get('Key'), leaf.get('Values')
+            options = leaf.get('MatchOptions')
+            absent = isinstance(options, list) and 'ABSENT' in options
+            if isinstance(key, str):
+                values = values if isinstance(values, list) else []
+                for hint in _tag_leaf_hints(key, values, absent):
+                    if hint not in hints:
+                        hints.append(hint)
+    except (ValueError, RecursionError):
+        # A filter that does not parse is the API call's to reject, not the hint's.
+        return None
+    return ' '.join(hints) or None
+
+
+def _with_hint(result: Dict[str, Any], hint: Optional[str]) -> Dict[str, Any]:
+    """Add the hint to a successful response.
+
+    Error responses keep the recovery hint the error mapping adds.
+    """
+    if hint and result.get('status') == 'success' and 'hint' not in result:
+        result['hint'] = hint
+    return result
+
+
 @cost_explorer_server.tool(
     name='cost-explorer',
     description=COST_EXPLORER_DESCRIPTION,
@@ -368,21 +473,26 @@ async def cost_explorer(
 
     # Route to the appropriate operation handler
     try:
+        # A Tags filter that cannot match is not an error, so say so in the response.
+        tag_hint = _tag_filter_hint(filter)
         await ctx.info(f'Routing to operation: {operation}')
 
         if operation == 'getCostAndUsage':
-            return await get_cost_and_usage(
-                ctx,
-                ce_client,
-                start_date,
-                end_date,
-                granularity,
-                metrics,
-                group_by,
-                filter,
-                next_token,
-                max_items,
-                billing_view_arn,
+            return _with_hint(
+                await get_cost_and_usage(
+                    ctx,
+                    ce_client,
+                    start_date,
+                    end_date,
+                    granularity,
+                    metrics,
+                    group_by,
+                    filter,
+                    next_token,
+                    max_items,
+                    billing_view_arn,
+                ),
+                tag_hint,
             )
 
         elif operation == 'getCostAndUsageWithResources':
@@ -461,18 +571,21 @@ async def cost_explorer(
                     ),
                 )
 
-            return await get_dimension_values(
-                ctx,
-                ce_client,
-                dimension,
-                start_date,
-                end_date,
-                search_string,
-                filter,
-                next_token,
-                max_items,
-                billing_view_arn,
-                context,
+            return _with_hint(
+                await get_dimension_values(
+                    ctx,
+                    ce_client,
+                    dimension,
+                    start_date,
+                    end_date,
+                    search_string,
+                    filter,
+                    next_token,
+                    max_items,
+                    billing_view_arn,
+                    context,
+                ),
+                tag_hint,
             )
 
         elif operation == 'getCostForecast':
