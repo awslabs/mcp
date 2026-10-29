@@ -16,7 +16,7 @@
 
 File layout:
 - Tool entrypoints: the @budget_server.tool functions the MCP client sees
-  (`budgets`, `budget-actions`, `budget-notifications`).
+  (`budgets`, `budget-actions`, `budget-notifications`, `budget-performance-history`).
 - Account helper: `get_aws_account_id`.
 - Operation handlers: the read calls each tool delegates to.
 - Formatters: pure reshapers from raw AWS API dicts to the response shape.
@@ -32,7 +32,7 @@ from ..utilities.aws_service_base import (
 )
 from ..utilities.sql_utils import convert_response_if_needed
 from botocore.exceptions import ClientError
-from datetime import datetime
+from datetime import datetime, timezone
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
 
@@ -244,6 +244,80 @@ async def budget_notifications(
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'budget-notifications', 'AWS Budgets')
+
+
+@budget_server.tool(
+    name='budget-performance-history',
+    description="""Reads a budget's performance history using the DescribeBudgetPerformanceHistory API:
+for each period, the amount budgeted and the actual cost or usage. Use it to answer "was this
+budget over last month?" or "which months breached?"; the `budgets` tool covers only the current
+period. Read-only.
+
+- Only DAILY, MONTHLY and QUARTERLY budgets have history. A CUSTOM or ANNUALLY budget returns a
+  validation_error.
+- The tool returns the service's default window: up to 13 MONTHLY periods (this month and the
+  previous 12), 4 QUARTERLY periods or 60 DAILY periods. History starts when the budget was
+  created (or re-created), whatever its start date, so a newer budget returns fewer periods:
+  one created this period returns only the current one.
+- `periods` are oldest first. Each has `start` and `end` (UTC dates; the end is exclusive, the
+  start of the next period), `budgeted_amount` (the limit that applied in that period; null when
+  the budget had none for it) and `actual_amount` (null when no actual data is available). The
+  last period is the one containing today, so its actual amount is to date, not final.
+- Amounts are decimal strings with a `unit`: compare them as numbers. For RI and Savings Plans
+  utilization and coverage budgets they are percentages, and a period breached when
+  `actual_amount` is below `budgeted_amount`; for COST and USAGE budgets, when it is above.
+- `actual_amount` is measured with the budget's own filter and cost settings, so it can differ
+  from an unfiltered Cost Explorer total.
+- `time_unit` is often null: the service omits it for many budgets, and nothing in a budget's
+  definition shows which. Take the time unit from the `budgets` tool, which always returns it.
+- An unknown `budget_name` (an exact name) returns NotFoundException.
+
+Pagination: the whole history fits in one page (at most 60 periods), so omit `max_items`;
+passing it only trims the result, and `next_token` continues a trimmed one.
+
+The account ID is retrieved automatically or you may pass `account_id`.""",
+)
+async def budget_performance_history(
+    ctx: Context,
+    budget_name: str,
+    account_id: Optional[str] = None,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Reads a budget's budgeted and actual amounts per period.
+
+    Args:
+        ctx: The MCP context object.
+        budget_name: Exact name of the budget.
+        account_id: Optional AWS account ID; retrieved automatically if not provided.
+        max_items: Optional total number of periods to return. Omit it to fetch every page.
+        next_token: Optional pagination token from a previous response.
+
+    Returns:
+        Dict containing the budget's periods and a ``pagination`` block.
+    """
+    if not budget_name or not budget_name.strip():
+        return format_response(
+            'error',
+            {'invalid_parameter': 'budget_name'},
+            'budget_name is required: pass the exact name of a budget.',
+            error_type='validation_error',
+            operation='budget-performance-history',
+            service='AWS Budgets',
+        )
+
+    try:
+        await ctx.info('Retrieving budget performance history')
+
+        if not account_id:
+            account_id = await get_aws_account_id(ctx)
+
+        return await describe_budget_performance_history(
+            ctx, account_id, budget_name, max_items, next_token
+        )
+
+    except Exception as e:
+        return await handle_aws_error(ctx, e, 'budget-performance-history', 'AWS Budgets')
 
 
 # =============================================================================
@@ -506,6 +580,85 @@ async def describe_budget_notifications(
         return await handle_aws_error(ctx, e, 'describe_budget_notifications', 'AWS Budgets')
 
 
+# DescribeBudgetPerformanceHistory: MaxResults 1-100, each item one budget period. The periods
+# are nested under BudgetPerformanceHistory, which also carries the budget's name and type.
+BUDGETS_DESCRIBE_BUDGET_PERFORMANCE_HISTORY = PageSpec(
+    result_key=('BudgetPerformanceHistory', 'BudgetedAndActualAmountsList'),
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=100,
+    page_size_param='MaxResults',
+)
+
+# The API's InvalidParameterException text for a budget whose time unit has no history
+# (CUSTOM and ANNUALLY; a budget gets a history record when it is created).
+_UNSUPPORTED_HISTORY_MESSAGE = 'does not support custom time periods'
+
+
+def _no_history_error(budget_name: str) -> Dict[str, Any]:
+    """The validation_error for a budget whose time unit has no performance history."""
+    return format_response(
+        'error',
+        {'budget_name': budget_name},
+        f'Budget {budget_name} has no performance history: history exists only for DAILY, '
+        'MONTHLY and QUARTERLY budgets, and this budget is CUSTOM or ANNUALLY. Use the budgets '
+        'tool for its current period.',
+        error_type='validation_error',
+        operation='budget-performance-history',
+        service='AWS Budgets',
+    )
+
+
+async def describe_budget_performance_history(
+    ctx: Context,
+    account_id: str,
+    budget_name: str,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Retrieves a budget's performance history, paging through its periods.
+
+    A budget whose time unit has no history is reported as a validation_error naming the
+    supported time units; other failures go to the shared handler.
+    """
+    try:
+        budgets_client = create_aws_client('budgets', region_name='us-east-1')
+
+        periods, pages, pagination = await paginate_aws_items(
+            ctx,
+            'DescribeBudgetPerformanceHistory',
+            budgets_client.describe_budget_performance_history,
+            {'AccountId': account_id, 'BudgetName': budget_name},
+            BUDGETS_DESCRIBE_BUDGET_PERFORMANCE_HISTORY,
+            max_items=max_items,
+            next_token=next_token,
+        )
+    except ClientError as e:
+        error = e.response.get('Error', {})
+        if error.get('Code') == 'InvalidParameterException' and _UNSUPPORTED_HISTORY_MESSAGE in (
+            error.get('Message') or ''
+        ):
+            return _no_history_error(budget_name)
+        return await handle_aws_error(ctx, e, 'describe_budget_performance_history', 'AWS Budgets')
+    except Exception as e:
+        return await handle_aws_error(ctx, e, 'describe_budget_performance_history', 'AWS Budgets')
+
+    history = (pages[0] if pages else {}).get('BudgetPerformanceHistory') or {}
+    if history.get('TimeUnit') == 'ANNUALLY' and not periods:
+        # The API rejects an ANNUALLY budget only when its history query finds a record, which a
+        # budget gets on creation; a missing record (a rare data gap) returns no periods instead.
+        return _no_history_error(budget_name)
+    # At most 60 periods, so unlike budget-actions this is never offloaded to session SQL.
+    data = {
+        'budget_name': history.get('BudgetName', budget_name),
+        'budget_type': history.get('BudgetType'),
+        'time_unit': history.get('TimeUnit'),
+        'account_id': account_id,
+        'periods': [format_budget_period(period) for period in periods],
+    }
+    return format_response('success', with_pagination(data, pagination))
+
+
 # =============================================================================
 # Formatters (raw AWS API dict -> response shape)
 # =============================================================================
@@ -734,3 +887,30 @@ def format_notification(
     if budget_name is not None:
         formatted['budget_name'] = budget_name
     return formatted
+
+
+def _utc_date(value: Any) -> Any:
+    """Render a period boundary as a UTC date string; other values pass through."""
+    if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            value = value.astimezone(timezone.utc)
+        return value.strftime('%Y-%m-%d')
+    return value
+
+
+def _spend(spend: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Reshape a Spend object, or None when it is absent."""
+    if not spend:
+        return None
+    return {'amount': spend.get('Amount'), 'unit': spend.get('Unit')}
+
+
+def format_budget_period(period: Dict[str, Any]) -> Dict[str, Any]:
+    """Formats one BudgetedAndActualAmounts entry from DescribeBudgetPerformanceHistory."""
+    time_period = period.get('TimePeriod') or {}
+    return {
+        'start': _utc_date(time_period.get('Start')),
+        'end': _utc_date(time_period.get('End')),
+        'budgeted_amount': _spend(period.get('BudgetedAmount')),
+        'actual_amount': _spend(period.get('ActualAmount')),
+    }

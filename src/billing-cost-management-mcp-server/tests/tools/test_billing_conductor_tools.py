@@ -149,6 +149,23 @@ def test_get_billing_group_cost_report_describes_page_sizes():
     assert 'a `max_items` below 200 can return up to 200' in description
 
 
+@pytest.mark.parametrize(
+    'tool_name', ['list-billing-group-cost-reports', 'get-billing-group-cost-report']
+)
+def test_cost_report_descriptions_state_margin_sign_and_unit(tool_name):
+    """Margin is proforma minus AWS cost, and margin percentage is a fraction, not a percent."""
+    tool = asyncio.run(billing_conductor_server.get_tool(tool_name))
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert (
+        'Margin (proforma cost minus AWS cost; negative means the proforma cost is below'
+        in description
+    )
+    assert 'as a fraction, not a percent: -0.25 means -25%' in description
+    assert '"0.0" when the AWS cost is 0' in description
+    assert 'percentage of billing group margin' not in description
+
+
 def test_list_pricing_rules_tool_registered():
     """Test that the list_pricing_rules tool is registered."""
     tool = asyncio.run(billing_conductor_server.get_tool('list-pricing-rules'))
@@ -898,3 +915,27 @@ async def test_tool_schemas_follow_the_max_items_contract():
         else:
             assert {'max_items', 'next_token'} <= params, name
             assert 'max_items' in tool.description, name
+
+
+@pytest.mark.asyncio
+async def test_descriptions_state_future_billing_period_behavior():
+    """Each tool that takes a billing period says what a month after the current one does."""
+    from awslabs.billing_cost_management_mcp_server.tools import billing_conductor_tools as bct
+
+    # Other tests reload this module under a patched FastMCP; reload the real one here.
+    real = importlib.reload(bct)
+    tools = {t.name: t for t in await real.billing_conductor_server.list_tools()}
+    rejected = {'list-billing-group-cost-reports', 'get-billing-group-cost-report'}
+    projected = {
+        name
+        for name, tool in tools.items()
+        if 'billing_period' in tool.parameters['properties'] and name not in rejected
+    }
+    assert len(projected) == 8, 'a new tool takes billing_period: add it to the checks below'
+    for name in projected:
+        description = ' '.join((tools[name].description or '').split())
+        assert 'after the current month (UTC) is a projection, not a record' in description, name
+        assert '`billing_period_is_future: true`' in description, name
+    for name in rejected:
+        description = ' '.join((tools[name].description or '').split())
+        assert 'after the current month (UTC) fails with validation_error' in description, name

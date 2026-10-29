@@ -242,6 +242,11 @@ You can group results by dimensions such as:
 - RECORD_TYPE: Record type (e.g., Usage, Credit, Tax)
 - LEGAL_ENTITY_NAME: AWS seller of record
 
+Costs with no value for a grouped dimension come back under a placeholder such as NoRegion or
+NoTenancy, including in each comparison's cost_and_usage_selector. The placeholder is not a
+value: a filter on it matches nothing. To filter on those costs, pass the empty string:
+`{"Dimensions": {"Key": "REGION", "Values": [""]}}`.
+
 Note:
 - Time periods must start and end on the first day of a month, with a duration of exactly one month
 - The getCostComparisonDrivers operation automatically includes SERVICE and USAGE_TYPE dimensions

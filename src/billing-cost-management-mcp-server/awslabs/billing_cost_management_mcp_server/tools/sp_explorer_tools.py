@@ -134,12 +134,29 @@ async def sp_explorer(
             and a three-year term is 94608000.
         currencies: The currencies as a list. One or more of CNY, USD, and EUR.
         descriptions: The descriptions as a list.
-        service_codes: The service codes as a list. For
-            describe_savings_plans_offering_rates these are AmazonEC2, AmazonECS, AmazonEKS,
-            AWSLambda, AmazonSageMaker, AmazonRDS, AuroraDSQL, AmazonDynamoDB, AmazonElastiCache,
-            AmazonDocDB, AmazonNeptune, AmazonTimestream, AmazonMCS, AWSDatabaseMigrationSvc, and
-            AmazonES.
-        usage_types: The usage types as a list.
+        service_codes: The service codes as a list. describe_savings_plans_offerings takes
+            the plan's own code: ComputeSavingsPlans (Compute and EC2Instance plans),
+            MachineLearningSavingsPlans (SageMaker plans), or DatabaseSavingsPlans (Database
+            plans), as in the serviceCode field of a returned offering. Any other value,
+            including a rate code such as AmazonSageMaker, matches nothing and returns an empty
+            result, not an error. The exception is a value containing EC2 in upper or lower
+            case, such as AmazonEC2, ec2 or EC2InstanceSavingsPlans: it fails the whole request,
+            even alongside a valid code, with a ValidationException whose message lists
+            AmazonEC2 as allowed. For EC2Instance plans use ComputeSavingsPlans.
+            describe_savings_plans_offering_rates takes the code of the service the rate
+            applies to: AmazonEC2, AmazonECS, AmazonEKS, AWSLambda, AmazonSageMaker, AmazonRDS,
+            AuroraDSQL, AmazonDynamoDB, AmazonElastiCache, AmazonDocDB, AmazonNeptune,
+            AmazonTimestream, AmazonMCS, AWSDatabaseMigrationSvc, and AmazonES.
+        usage_types: The usage types as a list. The two offering operations use different
+            usage types, and a value from one matches nothing on the other. An offering's usage
+            type names the plan, such as ComputeSP:1yrNoUpfront, or EC2SP:m5.1yrNoUpfront for a
+            regional plan. A rate's usage type names the usage it covers, such as
+            BoxUsage:m5.large.
+            Outside us-east-1 a regional usage type carries a region prefix
+            (AFS1-EC2SP:c5.1yrAllUpfront, USW2-BoxUsage:m5.large). In us-east-1 most have none,
+            but some rates carry one (USE1-Fargate-GB-Hours). A value that matches nothing
+            returns an empty result, not an error, so copy values from the usageType field of
+            a returned offering or rate.
         operations: The operations as a list.
         filters: The filters as a list of {"name": ..., "values": [...]} objects. The
             accepted names differ per operation: describe_savings_plans takes region,

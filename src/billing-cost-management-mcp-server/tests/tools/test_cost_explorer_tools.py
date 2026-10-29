@@ -1757,6 +1757,40 @@ class TestCostExplorerDescriptionContract:
             # A wrong value only counts as a whole list item, so 'Aurora MySQL' is not 'Aurora'.
             assert not re.search(rf'[ (]{re.escape(value)}(?=[,);.]|$)', entry), value
 
+    @pytest.mark.parametrize(
+        'module_name, tool_name, server_attr',
+        [
+            ('cost_explorer_tools', 'cost-explorer', 'cost_explorer_server'),
+            ('cost_comparison_tools', 'cost-comparison', 'cost_comparison_server'),
+        ],
+    )
+    def test_empty_value_placeholder_is_filtered_as_empty_string(
+        self, module_name, tool_name, server_attr
+    ):
+        """Grouped results label an empty value NoRegion etc.; a filter must use "" instead.
+
+        Cost Explorer reports a cost with no value for a grouped dimension under a
+        placeholder key (NoRegion, NoTenancy, ...), but its filters match the stored empty
+        value, so a filter on the placeholder silently returns $0.
+        """
+        module = importlib.reload(
+            importlib.import_module(
+                f'awslabs.billing_cost_management_mcp_server.tools.{module_name}'
+            )
+        )
+        description = _registered_tool(getattr(module, server_attr), tool_name).description or ''
+        flat = ' '.join(description.split())
+        assert 'NoRegion' in flat
+        assert 'NoTenancy' in flat
+        assert 'a filter on it matches nothing' in flat
+        examples = [json.loads(m) for m in re.findall(r'`(\{"Dimensions": [^`]*\})`', description)]
+        assert {'Dimensions': {'Key': 'REGION', 'Values': ['']}} in examples
+
+    def test_filter_grammar_allows_one_empty_string_value(self, tool):
+        """The grammar's "Values must not be empty" rule does not forbid the [""] filter."""
+        grammar = tool.description.split('Values per leaf type:')[1].split('\n- Tags')[0]
+        assert '`[""]` (one empty string) is not' in grammar
+
     def test_description_prefers_monthly_for_whole_month_rankings(self, tool):
         """Whole-month totals and rankings are steered to MONTHLY; the code default stays DAILY."""
         assert 'DAILY granularity for periods <3 months' not in tool.description
@@ -1764,6 +1798,24 @@ class TestCostExplorerDescriptionContract:
             'Use MONTHLY granularity for totals or rankings over whole months' in tool.description
         )
         assert tool.input_schema['properties']['granularity']['default'] == 'DAILY'
+
+    def test_forecast_notes_say_monthly_periods_are_whole_months(self, tool):
+        """MONTHLY forecasts widen to whole months, so a partial month is steered to DAILY."""
+        cost = tool.description.split('4. getCostForecast')[1].split('5. getUsageForecast')[0]
+        usage = tool.description.split('5. getUsageForecast')[1].split('\n\n')[0]
+        assert 'each period is a whole calendar month' in cost
+        assert 'include its actual costs to date' in cost
+        assert '`period_note`' in cost
+        assert 'For part of a month, such as the rest of this month, use DAILY' in cost
+        assert 'MONTHLY periods are whole calendar months' in usage
+
+    def test_description_flags_partial_monthly_sp_utilization(self, tool):
+        """The getSavingsPlansUtilization notes flag partial MONTHLY entries and period_note."""
+        notes = tool.description.split('8. getSavingsPlansUtilization')[1].split('Returns:')[0]
+        assert "each entry's TimePeriod is its whole calendar month" in notes
+        assert "the current month's entry ends at the first day without data" in notes
+        assert 'cover only the requested days' in notes
+        assert '`period_note`' in notes
 
     def test_dimension_reference_keys_are_ce_dimensions(self, tool):
         """Every DIMENSION REFERENCE key except the TAG note is in botocore's ce Dimension enum."""
