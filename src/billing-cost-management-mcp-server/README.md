@@ -87,7 +87,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 ### AWS Business Support
 
 - **Account charges**: Retrieve a billing month's Business Support charges per account, with the Support-eligible spend each charge was calculated from, the tiered charge breakdown, any applied discount, and the profile-wide totals. The current month is returned as an estimate
-- **Subscription history**: Review the Support plan contracts in effect for a billing month or a date range, including the plan and the contract start and end dates
+- **Subscription history**: Review the Support plan contracts in effect for a billing month (one month per call), including the plan and the contract dates as reported for that month
 
 ### Specialized Cost Optimization Prompts
 

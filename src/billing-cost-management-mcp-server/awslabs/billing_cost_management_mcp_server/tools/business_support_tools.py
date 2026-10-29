@@ -128,15 +128,15 @@ async def _business_support(
 2) list_subscription_history - the Business Support subscription contract history
    Required: operation="list_subscription_history". Everything else is optional.
    Optional:
-     - billing_month: a single calendar month "YYYY-MM" to scope the history to contracts in effect that month. When omitted, the API defaults to the CURRENT month, not the full history; to cover several months pass start_date/end_date. Same 2024-01 and future-month bounds as above, applied only when supplied.
+     - billing_month: a single calendar month "YYYY-MM" to scope the history to contracts in effect that month. When omitted, the API defaults to the CURRENT month (UTC), not the full history. To cover several months, make one call per billing_month and combine the results; a month with no Business Support data returns a not_found error, not an empty list. Same 2024-01 and future-month bounds as above, applied only when supplied.
      - account_id: a 12-digit AWS account number to filter to one account. Same omit-means-no-filter rule as above.
-     - start_date, end_date: ISO-8601 dates or timestamps bounding the contract window (e.g. "2025-01-01" or "2025-01-01T00:00:00Z"). They are validated locally (format, and start_date on or before end_date) and then sent as given.
+     - start_date, end_date: do not use them for now. The API currently fails every request that carries either one with HTTP 500 InternalFailure, so they return no data. Use billing_month instead. If one is sent anyway, the error comes back with retry_strategy "modify_request": drop the window rather than retrying.
      - max_items, next_token: paging, as above.
    Paginated: the tool follows nextToken for you.
    Returns: `data.subscription_contracts`, a list where each item contains:
      - accountId: the account the contract belongs to.
      - planName: the Support plan for the contract: AWSSupportBusiness (Business), AWSSupportDeveloper (Developer) or AWSSupportEssential (Basic). Report it verbatim.
-     - contractStartDate, contractEndDate: the start and end of the contract term (normalized from timestamps). Both are required by the API, so both are always present.
+     - contractStartDate, contractEndDate: the contract period as recorded for that billing month (normalized from timestamps). It can be just that month, giving one row per month, and a contract spanning several months can appear in each month's result. When combining months, drop duplicate rows and merge back-to-back rows for the same account and plan before reporting a contract term. The API model marks both as required.
    Also returns `data.pagination`.
 
 ## READING THE RESPONSE CORRECTLY
@@ -148,7 +148,7 @@ async def _business_support(
 - TIER CHARGES ARE INCREMENTAL, not a flat rate on total spend. Report each tier charge as returned rather than multiplying a single rate across the whole eligible spend.
 - THIS TOOL NEVER RESOLVES AN ACCOUNT ID FROM CREDENTIALS, unlike some other billing tools. When account_id is omitted no account filter is sent and the results cover every account in the Support profile. NEVER state that the tool auto-detected, inferred or looked up the caller's account. An account id inside an error message is the payer the credentials belong to, reported by AWS, not a filter this tool applied.
 - CHECK `data.pagination` BEFORE TOTALLING ROWS. When `has_more` is true the walk stopped early, usually because max_items was reached, so any sum over the returned rows is partial. Report the total AND say it covers `items_returned` rows with more available. `complete_dataset` true means every row was fetched.
-- ONE BILLING PERIOD PER list_account_charges CALL. There is no date range on it. Answering "how did my Business Support charge change since March" means one call per billing period, then comparing the results. Only list_subscription_history takes a start_date/end_date window, and that window describes contract terms, not charges.
+- ONE BILLING PERIOD PER CALL, for both operations. list_account_charges has no date range, and the subscription history window (start_date/end_date) currently fails. Answering "how did my Business Support charge change since March" or "which contracts did we have this year" means one call per billing_month, then comparing or combining the results.
 - An access_denied error means the caller's IAM policy is missing the named permission, or the caller is not the payer account authorized for the Support profile. It does NOT mean the account has no Business Support charges, and a linked account cannot read these operations at all.
 
 ## SCOPE BOUNDARY
@@ -159,7 +159,6 @@ EXAMPLES
 - {"operation": "list_account_charges", "billing_month": "2026-06"}
 - {"operation": "list_account_charges", "billing_month": "2026-06", "account_id": "111122223333"}
 - {"operation": "list_subscription_history"}  (current month only)
-- {"operation": "list_subscription_history", "start_date": "2025-01-01", "end_date": "2026-06-30"}
 - {"operation": "list_subscription_history", "account_id": "111122223333", "billing_month": "2026-06"}""",
 )
 async def business_support(

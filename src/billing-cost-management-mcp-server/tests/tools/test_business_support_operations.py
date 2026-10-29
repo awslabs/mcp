@@ -1345,6 +1345,164 @@ class TestSharedErrorClassification:
         assert result.get('error_type') not in ('access_denied', 'not_found')
 
 
+def _make_server_error(error_code: str = 'InternalFailure', status: int = 500) -> ClientError:
+    """Build a botocore ClientError carrying an HTTP status, like a real 5xx."""
+    return ClientError(
+        {
+            'Error': {'Code': error_code, 'Message': 'An internal error has occurred.'},
+            'ResponseMetadata': {'HTTPStatusCode': status, 'RequestId': 'req-1'},
+        },
+        'ListBusinessSupportSubscriptionHistory',
+    )
+
+
+class TestDateWindowServerError:
+    """A 5xx on a request that carried start_date/end_date is not a transient failure.
+
+    The service fails every request that carries either bound, so retrying the same
+    request cannot succeed; the caller must drop the window and call per billing_month.
+    """
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'window',
+        [
+            {'start_date': '2026-09-01'},
+            {'end_date': '2026-10-31'},
+            {'start_date': '2026-09-01T00:00:00Z', 'end_date': '2026-10-31T00:00:00Z'},
+        ],
+    )
+    @pytest.mark.parametrize('code', ['InternalFailure', 'InternalServerException'])
+    async def test_window_server_error_says_modify_request(self, mock_context, window, code):
+        """The 500 keeps its AWS code but tells the caller to drop the window."""
+        result = await _run_with_error(
+            mock_context, list_subscription_history, _make_server_error(code), **window
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == code
+        assert result['retry_strategy'] == 'modify_request'
+        assert result['http_status'] == 500
+        assert result['request_id'] == 'req-1'
+        assert 'start_date' in result['resolution']
+        assert 'billing_month' in result['resolution']
+        assert result['aws_message'] == 'An internal error has occurred.'
+
+    @pytest.mark.asyncio
+    async def test_window_fault_code_without_status_says_modify_request(self, mock_context):
+        """The fault code alone is enough, even when no HTTP status is reported."""
+        result = await _run_with_error(
+            mock_context,
+            list_subscription_history,
+            _make_server_error(status=0),
+            start_date='2026-09-01',
+        )
+
+        assert result['retry_strategy'] == 'modify_request'
+
+    @pytest.mark.asyncio
+    async def test_window_other_5xx_stays_transient(self, mock_context):
+        """A 503 is a real transient fault, so a windowed request still retries."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            add_retry_guidance,
+        )
+
+        result = await _run_with_error(
+            mock_context,
+            list_subscription_history,
+            _make_server_error('ServiceUnavailable', status=503),
+            start_date='2026-09-01',
+        )
+
+        assert result['error_type'] == 'ServiceUnavailable'
+        assert add_retry_guidance(result)['retry_strategy'] == 'retry_same_request'
+
+    @pytest.mark.asyncio
+    async def test_window_server_error_through_real_paginator(self, mock_context):
+        """With the real paginator, a first-page 500 on a windowed resume is reclassified.
+
+        It is not mistaken for a rejected next_token.
+        """
+        client = boto3.client('billing', region_name='us-east-1')
+        stubber = Stubber(client)
+        stubber.add_client_error(
+            'list_business_support_subscription_history',
+            service_error_code='InternalFailure',
+            service_message='An internal error has occurred.',
+            http_status_code=500,
+            expected_params={'startDate': '2026-09-01', 'nextToken': 'tok', 'maxResults': 100},
+        )
+        stubber.activate()
+        with patch(CREATE_CLIENT_PATH, return_value=client):
+            result = await list_subscription_history(
+                mock_context, start_date='2026-09-01', next_token='tok'
+            )
+        stubber.assert_no_pending_responses()
+
+        assert result['error_type'] == 'InternalFailure'
+        assert result['retry_strategy'] == 'modify_request'
+        assert result['http_status'] == 500
+
+    @pytest.mark.asyncio
+    async def test_window_server_error_survives_retry_guidance(self, mock_context):
+        """The middleware's error_type mapping does not turn it back into a retry."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            add_retry_guidance,
+        )
+
+        result = await _run_with_error(
+            mock_context,
+            list_subscription_history,
+            _make_server_error(),
+            start_date='2026-09-01',
+        )
+
+        assert add_retry_guidance(result)['retry_strategy'] == 'modify_request'
+
+    @pytest.mark.asyncio
+    async def test_window_server_error_is_logged_as_warning(self, mock_context):
+        """The reclassified failure still reaches the logs."""
+        await _run_with_error(
+            mock_context,
+            list_subscription_history,
+            _make_server_error(),
+            end_date='2026-10-31',
+        )
+
+        mock_context.warning.assert_awaited_once()
+        assert 'ListBusinessSupportSubscriptionHistory' in mock_context.warning.await_args.args[0]
+
+    @pytest.mark.asyncio
+    async def test_server_error_without_window_stays_transient(self, mock_context):
+        """Without a window, a 500 is left to the shared handler (a retryable fault)."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            add_retry_guidance,
+        )
+
+        result = await _run_with_error(
+            mock_context,
+            list_subscription_history,
+            _make_server_error(),
+            billing_month=_previous_month(),
+        )
+
+        assert result['error_type'] == 'InternalFailure'
+        assert add_retry_guidance(result)['retry_strategy'] == 'retry_same_request'
+
+    @pytest.mark.asyncio
+    async def test_client_error_with_window_is_not_reclassified(self, mock_context):
+        """A 4xx on a windowed request keeps its own classification."""
+        result = await _run_with_error(
+            mock_context,
+            list_subscription_history,
+            _make_server_error('ValidationException', status=400),
+            start_date='2026-09-01',
+        )
+
+        assert result['error_type'] == 'ValidationException'
+        assert 'retry_strategy' not in result
+
+
 # ---------------------------------------------------------------------------
 # Tool schema (FastMCP registration)
 # ---------------------------------------------------------------------------
@@ -1386,6 +1544,25 @@ class TestToolRegistration:
         tool = await business_support_server.get_tool('business-support')
         assert tool is not None
         assert 'tierCharges' in (tool.description or '')
+
+    @pytest.mark.asyncio
+    async def test_description_does_not_offer_the_failing_date_window(self):
+        """start_date/end_date are not offered as the multi-month path, since the API fails them."""
+        from awslabs.billing_cost_management_mcp_server.tools.business_support_tools import (
+            business_support_server,
+        )
+
+        tool = await business_support_server.get_tool('business-support')
+        assert tool is not None
+        desc = tool.description or ''
+        examples = desc.split('EXAMPLES', 1)[1]
+        assert 'start_date' not in examples
+        assert 'end_date' not in examples
+        assert 'to cover several months pass start_date/end_date' not in desc
+        assert 'Only list_subscription_history takes a start_date/end_date window' not in desc
+        assert 'HTTP 500' in desc
+        assert 'one call per billing_month' in desc
+        assert 'merge back-to-back rows' in desc
 
 
 # ---------------------------------------------------------------------------
