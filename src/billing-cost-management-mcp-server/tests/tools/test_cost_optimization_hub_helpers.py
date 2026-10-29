@@ -30,7 +30,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.constants import (
     EFFICIENCY_PARETO_MAX_PAGES,
     EFFICIENCY_PARETO_PAGE_SIZE,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock
 
@@ -369,6 +369,79 @@ class TestGetRecommendation:
 class TestListRecommendationSummaries:
     """Tests for the list_recommendation_summaries function."""
 
+    async def test_total_recommendation_count_sums_every_group(
+        self, mock_context, mock_coh_client
+    ):
+        """A complete result carries the overall count, so the agent need not add groups."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': [
+                {'group': 'Delete', 'recommendationCount': 47, 'estimatedMonthlySavings': 1.0},
+                {'group': 'Stop', 'recommendationCount': 4, 'estimatedMonthlySavings': 1.0},
+                {'group': 'ScaleIn', 'recommendationCount': 1, 'estimatedMonthlySavings': 1.0},
+            ],
+            'groupBy': 'ActionType',
+            'estimatedTotalDedupedSavings': 3.0,
+        }
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ActionType')
+
+        assert result['data']['total_recommendation_count'] == 52
+
+    async def test_total_recommendation_count_sums_groups_across_pages(
+        self, mock_context, mock_coh_client
+    ):
+        """Groups from every page count toward the total."""
+        mock_coh_client.list_recommendation_summaries.side_effect = [
+            {'items': [{'group': 'Delete', 'recommendationCount': 47}], 'nextToken': 'p2'},
+            {'items': [{'group': 'Stop', 'recommendationCount': 4}]},
+        ]
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ActionType')
+
+        assert result['data']['total_recommendation_count'] == 51
+
+    async def test_total_recommendation_count_is_absent_on_a_partial_result(
+        self, mock_context, mock_coh_client
+    ):
+        """Groups left unfetched would make the sum an undercount."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': [{'group': 'Delete', 'recommendationCount': 47}],
+            'nextToken': 'more',
+        }
+
+        result = await list_recommendation_summaries(
+            mock_context, mock_coh_client, 'ActionType', max_items=1
+        )
+
+        assert result['data']['complete_dataset'] is False
+        assert 'total_recommendation_count' not in result['data']
+
+    async def test_total_recommendation_count_is_absent_on_a_continuation(
+        self, mock_context, mock_coh_client
+    ):
+        """A continuation holds only the later groups."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': [{'group': 'Stop', 'recommendationCount': 4}],
+        }
+
+        result = await list_recommendation_summaries(
+            mock_context, mock_coh_client, 'ActionType', next_token='page2'
+        )
+
+        assert 'total_recommendation_count' not in result['data']
+
+    async def test_total_recommendation_count_is_absent_when_a_group_has_no_count(
+        self, mock_context, mock_coh_client
+    ):
+        """A group without a count would make the sum undercount."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': [{'group': 'Stop', 'recommendationCount': 4}, {'group': 'Delete'}],
+        }
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ActionType')
+
+        assert 'total_recommendation_count' not in result['data']
+
     async def test_basic_call(self, mock_context, mock_coh_client):
         """Test basic call to list_recommendation_summaries."""
         # Setup mock response
@@ -645,23 +718,6 @@ class TestListRecommendationsErrorHandling:
 @pytest.mark.asyncio
 class TestGetRecommendationErrorHandling:
     """Test error handling scenarios for get_recommendation."""
-
-    async def test_empty_recommendation_response(self, mock_context, mock_coh_client):
-        """Test get_recommendation with empty recommendation in response."""
-        mock_coh_client.get_recommendation.return_value = {}
-
-        result = await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
-
-        assert result['status'] == 'warning'
-
-    async def test_no_recommendation_key(self, mock_context, mock_coh_client):
-        """Test get_recommendation with no recommendation key in response."""
-        mock_coh_client.get_recommendation.return_value = {}
-
-        result = await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
-
-        assert result['status'] == 'warning'
-        assert 'No recommendation found' in result['message']
 
     async def test_validation_exception(self, mock_context, mock_coh_client):
         """Test get_recommendation ValidationException handling."""
@@ -1002,6 +1058,29 @@ class TestRecommendationFormatting:
         assert rec['source'] is None
         assert rec['lookback_period_in_days'] is None
         assert rec['estimated_monthly_savings'] is None
+        assert rec['last_refresh_timestamp'] is None
+
+    async def test_last_refresh_timestamp_matches_list_recommendations(
+        self, mock_context, mock_coh_client
+    ):
+        """get_recommendation formats lastRefreshTimestamp the same way list_recommendations does."""
+        refreshed = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        mock_coh_client.get_recommendation.return_value = {
+            'recommendationId': 'rec-1',
+            'lastRefreshTimestamp': refreshed,
+        }
+        mock_coh_client.list_recommendations.return_value = {
+            'items': [{'recommendationId': 'rec-1', 'lastRefreshTimestamp': refreshed}]
+        }
+
+        got = await get_recommendation(mock_context, mock_coh_client, 'rec-1')
+        listed = await list_recommendations(mock_context, mock_coh_client)
+
+        assert got['data']['last_refresh_timestamp'] == '2026-06-01T00:00:00'
+        assert (
+            listed['data']['recommendations'][0]['last_refresh_timestamp']
+            == got['data']['last_refresh_timestamp']
+        )
 
     async def test_recommendation_with_cost_breakdown_no_implementation(
         self, mock_context, mock_coh_client

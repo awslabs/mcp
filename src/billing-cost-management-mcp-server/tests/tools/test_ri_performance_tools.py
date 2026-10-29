@@ -23,6 +23,7 @@ These tests verify the functionality of AWS Reserved Instance performance monito
 """
 
 import botocore.session
+import json
 import pytest
 import re
 from awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools import (
@@ -482,7 +483,7 @@ class TestGetReservationCoverage:
             PAGINATION_COMPLETE,
         )
 
-        mock_metrics = ['CoverageHours', 'CoverageCost']
+        mock_metrics = ['Hour', 'Cost']
         mock_group_by = [{'Type': 'DIMENSION', 'Key': 'INSTANCE_TYPE'}]
         mock_filter = {
             'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute']}
@@ -766,7 +767,7 @@ class TestRIPerformance:
     async def test_ri_performance_with_all_params(self, mock_context):
         """Test ri_performance with all parameters."""
         # Setup
-        metrics = '["CoverageHours", "CoverageCost"]'
+        metrics = '["Hour", "Cost"]'
         group_by = '[{"Type": "DIMENSION", "Key": "INSTANCE_TYPE"}]'
         filter_expr = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Elastic Compute Cloud - Compute"]}}'
         sort_by = '{"Key": "CoverageHoursPercentage", "SortOrder": "DESCENDING"}'
@@ -1182,6 +1183,21 @@ async def test_description_states_subscription_id_format_and_error():
 
 
 @pytest.mark.asyncio
+async def test_metrics_arg_lists_the_values_cost_explorer_accepts():
+    """GetReservationCoverage takes Hour, Unit and Cost; other names are a ValidationException."""
+    tool = await ri_performance_server.get_tool('ri-performance')
+    assert tool is not None
+    metrics_doc = tool.parameters['properties']['metrics']['description']
+    assert '["Hour", "Cost"]' in metrics_doc
+    assert 'Valid values are Hour, Unit and Cost; Unit is EC2 only' in metrics_doc
+    # Without Metrics, Cost Explorer returns only CoverageHours.
+    assert 'Defaults to Hour only' in metrics_doc
+    assert 'Defaults to all metrics' not in metrics_doc
+    for wrong in ('HoursCoverage', 'CostCoverage', 'CoverageHours', 'CoverageCost'):
+        assert wrong not in metrics_doc
+
+
+@pytest.mark.asyncio
 async def test_ungrouped_utilization_ignores_max_items_and_next_token(mock_context):
     """GetReservationUtilization rejects any token without GroupBy, so none is sent."""
     client = MagicMock()
@@ -1203,6 +1219,146 @@ async def _call_tool(client, ctx, **kwargs):
         return_value=client,
     ):
         return await tool.fn(ctx, start_date='2023-01-01', end_date='2023-01-31', **kwargs)
+
+
+@pytest.mark.asyncio
+class TestReservationCoverageRequest:
+    """GetReservationCoverage request construction reaches the Cost Explorer client intact."""
+
+    async def test_grouped_coverage_omits_granularity_from_api_call(self, mock_context):
+        """Cost Explorer rejects Granularity with GroupBy, so it is never sent."""
+        client = MagicMock()
+        client.get_reservation_coverage.return_value = {'CoveragesByTime': []}
+
+        await _call_tool(
+            client,
+            mock_context,
+            operation='get_reservation_coverage',
+            granularity='MONTHLY',
+            group_by='[{"Type": "DIMENSION", "Key": "INSTANCE_TYPE"}]',
+        )
+
+        kwargs = client.get_reservation_coverage.call_args.kwargs
+        assert kwargs['GroupBy'] == [{'Type': 'DIMENSION', 'Key': 'INSTANCE_TYPE'}]
+        assert 'Granularity' not in kwargs
+
+    async def test_ungrouped_coverage_sends_granularity_to_api_call(self, mock_context):
+        """Without GroupBy, the requested granularity remains part of the API call."""
+        client = MagicMock()
+        client.get_reservation_coverage.return_value = {'CoveragesByTime': []}
+
+        await _call_tool(
+            client,
+            mock_context,
+            operation='get_reservation_coverage',
+            granularity='MONTHLY',
+        )
+
+        kwargs = client.get_reservation_coverage.call_args.kwargs
+        assert 'GroupBy' not in kwargs
+        assert kwargs['Granularity'] == 'MONTHLY'
+
+
+EC2_SERVICE = 'Amazon Elastic Compute Cloud - Compute'
+RDS_SERVICE = 'Amazon Relational Database Service'
+REGION_FILTER = {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1', 'us-west-2']}}
+
+
+def _service_filter(*values):
+    return {'Dimensions': {'Key': 'SERVICE', 'Values': list(values)}}
+
+
+@pytest.mark.asyncio
+class TestCoverageServiceFilter:
+    """GetReservationCoverage takes one SERVICE value per call.
+
+    With several, the API returns one unlabeled entry per service for the same period (or,
+    grouped, groups of every service with no service attribute), so they are rejected.
+    """
+
+    @pytest.mark.parametrize(
+        'filter_expr',
+        [
+            _service_filter(EC2_SERVICE, RDS_SERVICE),
+            {'And': [_service_filter(EC2_SERVICE, RDS_SERVICE), REGION_FILTER]},
+            {'Or': [_service_filter(EC2_SERVICE), _service_filter(RDS_SERVICE)]},
+        ],
+        ids=['dimensions', 'nested_and', 'or_of_single_values'],
+    )
+    @pytest.mark.parametrize(
+        'group_by',
+        [None, '[{"Type": "DIMENSION", "Key": "REGION"}]'],
+        ids=['ungrouped', 'grouped'],
+    )
+    async def test_more_than_one_service_is_rejected_before_the_api_call(
+        self, mock_context, filter_expr, group_by
+    ):
+        """Two SERVICE values return a validation_error and Cost Explorer is never called."""
+        client = MagicMock()
+
+        result = await _call_tool(
+            client,
+            mock_context,
+            operation='get_reservation_coverage',
+            granularity='MONTHLY',
+            group_by=group_by,
+            filter=json.dumps(filter_expr),
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        message = result['message']
+        assert 'one SERVICE value per call' in message
+        assert f'"{EC2_SERVICE}"' in message and f'"{RDS_SERVICE}"' in message
+        assert 'call once per service' in message
+        client.get_reservation_coverage.assert_not_called()
+
+    @pytest.mark.parametrize(
+        'filter_expr',
+        [
+            _service_filter(EC2_SERVICE),
+            _service_filter(RDS_SERVICE, RDS_SERVICE),
+            {'Not': _service_filter(EC2_SERVICE, RDS_SERVICE)},
+            {'And': [_service_filter(RDS_SERVICE), {'Not': _service_filter(EC2_SERVICE)}]},
+            REGION_FILTER,
+            # A malformed operand is left for Cost Explorer to reject.
+            {'And': ['not-an-expression', _service_filter(EC2_SERVICE)]},
+            {'Dimensions': {'Key': 'SERVICE', 'Values': RDS_SERVICE}},
+        ],
+        ids=[
+            'one_value',
+            'repeated_value',
+            'not',
+            'one_value_and_not',
+            'no_service',
+            'malformed_operand',
+            'values_not_a_list',
+        ],
+    )
+    async def test_at_most_one_selected_service_reaches_the_api(self, mock_context, filter_expr):
+        """One distinct SERVICE value, or values only under Not, pass through unchanged."""
+        client = MagicMock()
+        client.get_reservation_coverage.return_value = {'CoveragesByTime': []}
+
+        result = await _call_tool(
+            client,
+            mock_context,
+            operation='get_reservation_coverage',
+            granularity='MONTHLY',
+            filter=json.dumps(filter_expr),
+        )
+
+        assert result['status'] == 'success'
+        assert client.get_reservation_coverage.call_args.kwargs['Filter'] == filter_expr
+
+    async def test_description_says_the_limit_is_enforced(self):
+        """The description states that more than one SERVICE value is rejected."""
+        description = ' '.join((await _ri_description()).split())
+        assert 'more than one SERVICE value is rejected' in description
+        tool = await ri_performance_server.get_tool('ri-performance')
+        assert tool is not None
+        filter_doc = tool.parameters['properties']['filter'].get('description', '')
+        assert 'coverage takes one SERVICE value per call and rejects more' in filter_doc
 
 
 @pytest.mark.asyncio
@@ -1302,3 +1458,13 @@ class TestMaxPages:
         description = tool.description or ''
         assert 'get_reservation_utilization takes max_pages (pages of 500 groups)' in description
         assert 'rounded up' not in description
+
+
+@pytest.mark.asyncio
+async def test_description_states_utilization_data_lag():
+    """Recent-day utilization windows return an empty-message DataUnavailableException."""
+    description = ' '.join((await _ri_description()).split())
+    assert 'utilization data for the most recent 2-3 days (counting today)' in description
+    assert 'which the service sends without a message' in description
+    assert 'not a failure and not zero utilization' in description
+    assert 'do not resend the identical request' in description

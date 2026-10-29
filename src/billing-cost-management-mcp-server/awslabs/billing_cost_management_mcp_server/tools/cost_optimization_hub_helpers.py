@@ -54,6 +54,8 @@ COH_LIST_RECOMMENDATIONS = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 COH_LIST_RECOMMENDATION_SUMMARIES = PageSpec(
     result_key='items',
@@ -61,6 +63,8 @@ COH_LIST_RECOMMENDATION_SUMMARIES = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 COH_LIST_EFFICIENCY_METRICS = PageSpec(
     result_key='efficiencyMetricsByGroup',
@@ -68,6 +72,8 @@ COH_LIST_EFFICIENCY_METRICS = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 # Performance ranking's internal fetch: EFFICIENCY_PARETO_PAGE_SIZE groups per page, highest
 # spend first, up to EFFICIENCY_PARETO_MAX_PAGES pages (a cap of pages x page size groups).
@@ -215,23 +221,9 @@ async def get_recommendation(
 
         # Make the API call
         await ctx_logger.info(f'Fetching recommendation {recommendation_id}')
-        response = coh_client.get_recommendation(**request_params)
-
-        # The response IS the recommendation data
-        recommendation = response
-
-        if not recommendation:
-            await ctx_logger.warning(
-                f'No recommendation found for recommendation {recommendation_id}'
-            )
-            return format_response(
-                'warning',
-                {
-                    'recommendation_id': recommendation_id,
-                    'message': 'No recommendation found for the specified recommendation.',
-                },
-                'No recommendation found. The recommendation may not have optimization opportunities, or the recommendation ID may be incorrect.',
-            )
+        # The response IS the recommendation data. A missing recommendation raises
+        # ResourceNotFoundException (handled below); boto3 never returns an empty response.
+        recommendation = coh_client.get_recommendation(**request_params)
 
         # Build response using actual API fields
         formatted_response = {
@@ -249,7 +241,7 @@ async def get_recommendation(
             'currency_code': recommendation.get('currencyCode'),
             'implementation_effort': recommendation.get('implementationEffort'),
             'source': recommendation.get('source'),
-            'last_refresh_timestamp': str(recommendation.get('lastRefreshTimestamp')),
+            'last_refresh_timestamp': format_timestamp(recommendation.get('lastRefreshTimestamp')),
             'lookback_period_in_days': recommendation.get('recommendationLookbackPeriodInDays'),
             'cost_calculation_lookback_period_in_days': recommendation.get(
                 'costCalculationLookbackPeriodInDays'
@@ -360,8 +352,18 @@ async def list_recommendation_summaries(
             'group_by': first_response.get('groupBy', group_by),
             'currency_code': first_response.get('currencyCode', 'USD'),
             'estimated_total_deduped_savings': first_response.get('estimatedTotalDedupedSavings'),
-            'summaries': formatted_summaries,
         }
+        # Each recommendation falls in exactly one group, so the group counts add up to the
+        # overall count, but only over every group: a partial result or a continuation would
+        # undercount, so the field is left out there.
+        counts = [summary['recommendation_count'] for summary in formatted_summaries]
+        if (
+            next_token is None
+            and pagination['complete_dataset']
+            and all(isinstance(count, int) for count in counts)
+        ):
+            formatted_response['total_recommendation_count'] = sum(counts)
+        formatted_response['summaries'] = formatted_summaries
         if 'metrics' in first_response:
             formatted_response['metrics'] = {
                 'savings_percentage': first_response['metrics'].get('savingsPercentage')

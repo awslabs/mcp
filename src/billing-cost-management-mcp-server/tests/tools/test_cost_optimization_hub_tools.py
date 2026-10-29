@@ -1595,6 +1595,72 @@ async def test_coh_empty_filter_rejected_before_api_call(mock_context, operation
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'filters',
+    [
+        '{"recommendationIds": ["r-1"]}',
+        '{"resource_ids": ["i-1"]}',
+        '{"resourceArns": ["arn:aws:ec2:us-east-1:111111111111:instance/i-1"]}',
+    ],
+)
+async def test_coh_summaries_reject_id_filters_before_api_call(mock_context, filters):
+    """The service rejects ID filters on summaries, so they fail locally with a hint."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(
+            coh_mod, 'list_recommendation_summaries', new_callable=AsyncMock
+        ) as mock_summaries,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendation_summaries',
+            group_by='ActionType',
+            filters=filters,
+        )
+
+    assert res['error_type'] == 'validation_error'
+    assert res['operation'] == 'list_recommendation_summaries'
+    assert len(res['data']['unsupported_filters']) == 1
+    assert res['data']['unsupported_filters'][0] in coh_mod.SUMMARIES_UNSUPPORTED_FILTERS
+    assert 'is not supported by list_recommendation_summaries' in res['message']
+    supported = res['data']['supported_filters']
+    assert 'resourceTypes' in supported and 'tags' in supported
+    assert not set(supported) & coh_mod.SUMMARIES_UNSUPPORTED_FILTERS
+    mock_summaries.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_coh_id_filters_still_reach_list_recommendations(mock_context):
+    """list_recommendations accepts the ID filters, so they pass through."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(
+            coh_mod,
+            'list_recommendations',
+            new_callable=AsyncMock,
+            return_value={'status': 'success', 'data': {}},
+        ) as mock_list,
+    ):
+        await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendations',
+            filters='{"recommendationIds": ["r-1"]}',
+        )
+
+    mock_list.assert_awaited_once()
+    assert {'recommendationIds': ['r-1']} in [
+        *mock_list.call_args.args,
+        *mock_list.call_args.kwargs.values(),
+    ]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('operation', ['list_recommendations', 'list_recommendation_summaries'])
 async def test_coh_validation_exception_adds_valid_filter_values(mock_context, operation):
     """A ValidationException from the API carries the accepted filter values."""
