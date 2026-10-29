@@ -1843,7 +1843,7 @@ class TestCommitmentRecommendationScope:
         assert result['NextPageToken'] == 'page-2'
         assert 'Only the first page was read' in result['warning']
 
-    async def test_non_ec2_ri_rows_are_noted_as_matched_on_account_only(self, mock_context):
+    async def test_non_ec2_ri_rows_are_noted_as_not_matched_on_type_or_region(self, mock_context):
         """Non-EC2 RI rows can span other instance types and regions, and the note says so."""
         rec = _ec2_ri_rec('Payer', PAYER)
         rec['recommendedResourceDetails'] = {
@@ -1867,7 +1867,8 @@ class TestCommitmentRecommendationScope:
         result = await _ce_data(mock_context, rec, ce)
 
         assert result['Recommendations'][0]['RecommendationDetails'] == rows
-        assert 'matched on account only' in result['note']
+        assert 'not matched on instance type or region' in result['note']
+        assert 'DynamoDB: ReservedCapacityDetails' in result['note']
         assert 'warning' not in result
 
     async def test_non_ec2_ri_note_follows_the_dropped_rows_note(self, mock_context):
@@ -1894,6 +1895,45 @@ class TestCommitmentRecommendationScope:
         assert result['note'].startswith('RecommendationDetails keeps only the 1 row(s)')
         assert result['note'].endswith("match the recommendation's configuration.")
 
+    async def test_ri_region_name_mismatch_keeps_rows_and_says_so(self, mock_context):
+        """A Region name that matches no row does not discard the account and type matches."""
+        ce = MagicMock()
+        row = _ri_row(MEMBER, 'm5.large', 'US East Ohio')
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(
+            [row, _ri_row(MEMBER, 't3.nano', 'US East Ohio')]
+        )
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert result['Recommendations'][0]['RecommendationDetails'] == [row]
+        assert 'warning' not in result
+        assert "No row's Region name matched us-east-2" in result['note']
+        assert 'region us-east-2' not in result['note']
+
+    async def test_ri_dropped_rows_note_mentions_unread_pages(self, mock_context):
+        """When rows were kept and more pages exist, the note says later pages were not read."""
+        ce = MagicMock()
+        rows = [
+            _ri_row(MEMBER, 'm5.large', 'US East (Ohio)'),
+            _ri_row(MEMBER, 't3.nano', 'US East (Ohio)'),
+        ]
+        response: Dict[str, Any] = {**_ri_response(rows), 'NextPageToken': 'page-2'}
+        ce.get_reservation_purchase_recommendation.return_value = response
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert result['note'].endswith('Later pages, which this tool cannot fetch, were not read.')
+
+    async def test_ri_empty_recommendations_are_reported(self, mock_context):
+        """An RI answer with no recommendation at all carries the no-row warning."""
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = {'Recommendations': []}
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert 'returned no RecommendationDetails row' in result['warning']
+        assert 'note' not in result
+
     async def test_error_results_pass_through_unscoped(self, mock_context):
         """An error from the lookup is returned unchanged."""
         ce = MagicMock()
@@ -1912,7 +1952,7 @@ async def test_rec_details_description_states_commitment_scope():
     assert "keep only the rows for the recommendation's own account" in description
     assert 'The summary is not recomputed from the kept rows' in description
     assert 'It may list several instance types and regions' not in description
-    assert 'Non-EC2 RI rows are matched on account only' in description
+    assert 'Non-EC2 RI rows are not matched on instance type or region' in description
 
 
 def test_offering_class_enum_matches_botocore_model():

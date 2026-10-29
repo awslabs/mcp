@@ -42,7 +42,7 @@ from ..utilities.constants import (
 )
 from ..utilities.time_utils import format_timestamp_to_utc_iso
 from fastmcp import Context, FastMCP
-from typing import Any, Dict, FrozenSet, List, Optional
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, Tuple
 
 
 recommendation_details_server = FastMCP(
@@ -72,8 +72,8 @@ COMMITMENT PURCHASE DETAILS:
   own account (and, for EC2 RIs, its instance type and region). The summary is not recomputed
   from the kept rows: it totals every row Cost Explorer returned, which for RIs spans other
   instance types and regions, so use the kept row(s) for this recommendation. Non-EC2 RI rows are
-  matched on account only and can still span instance types and regions. A top-level "note" key
-  in additional_details counts dropped rows; "warning" means none matched.
+  not matched on instance type or region. A top-level "note" key in additional_details counts
+  dropped rows; "warning" means none matched.
 - Savings Plans recommendations carry no break-even. They return EstimatedROI (estimated savings /
   Savings Plan cost x 100 over the lookback period), which is not a payback period.
 
@@ -208,7 +208,9 @@ async def get_cost_explorer_data(ctx: Context, recommendation: Dict[str, Any]) -
         return {'error': f'Error getting Cost Explorer data: {str(e)}'}
 
 
-def commitment_config(recommendation: Dict[str, Any], key_map: Dict[str, str]) -> tuple:
+def commitment_config(
+    recommendation: Dict[str, Any], key_map: Dict[str, str]
+) -> Tuple[Optional[str], Dict[str, Any]]:
     """Return the (key, configuration) of the recommendation's commitment details."""
     recommended_details = recommendation.get('recommendedResourceDetails', {})
     key = next((k for k in recommended_details if k in key_map), None)
@@ -249,7 +251,9 @@ def region_names(region_code: str) -> Optional[FrozenSet[str]]:
     return None
 
 
-def keep_matching_rows(rows: List[Dict[str, Any]], matches) -> tuple:
+def keep_matching_rows(
+    rows: List[Dict[str, Any]], matches: Callable[[Dict[str, Any]], bool]
+) -> Tuple[List[Dict[str, Any]], int]:
     """Return (kept rows, number of rows dropped)."""
     kept = [row for row in rows if matches(row)]
     return kept, len(rows) - len(kept)
@@ -271,31 +275,51 @@ def scope_reserved_instances_details(
     if ri_key == 'ec2ReservedInstances':
         if instance_type:
             criteria['instance type'] = instance_type
-        if names:
+        if names and region:
             criteria['region'] = region
 
-    def matches(row: Dict[str, Any]) -> bool:
+    def matches(row: Dict[str, Any], check_region: bool = True) -> bool:
         ec2 = row.get('InstanceDetails', {}).get('EC2InstanceDetails', {})
         return (
             (not account_id or row.get('AccountId') == account_id)
             and ('instance type' not in criteria or ec2.get('InstanceType') == instance_type)
-            and ('region' not in criteria or ec2.get('Region') in (names or ()))
+            and (
+                not check_region or 'region' not in criteria or ec2.get('Region') in (names or ())
+            )
+        )
+
+    def scope(match: Callable[[Dict[str, Any]], bool]) -> List[Tuple[List[Dict[str, Any]], int]]:
+        return [
+            keep_matching_rows(ri.get('RecommendationDetails', []), match)
+            for ri in response['Recommendations']
+        ]
+
+    scoped = scope(matches)
+    extra = []
+    if 'region' in criteria and not any(rows for rows, _ in scoped):
+        # A Region name Cost Explorer spells differently must not discard the matching rows.
+        without_region = scope(lambda row: matches(row, check_region=False))
+        if any(rows for rows, _ in without_region):
+            scoped = without_region
+            del criteria['region']
+            extra.append(
+                f"No row's Region name matched {region}, so the rows are not filtered by Region."
+            )
+    if ri_key != 'ec2ReservedInstances':
+        extra.append(
+            'Rows for this service are not matched on instance type or region, so they can '
+            'include other instance types and regions: use the row whose InstanceDetails '
+            "(DynamoDB: ReservedCapacityDetails) match the recommendation's configuration."
         )
 
     dropped = kept = 0
-    for ri in response['Recommendations']:
-        rows, removed = keep_matching_rows(ri.get('RecommendationDetails', []), matches)
+    for ri, (rows, removed) in zip(response['Recommendations'], scoped):
         ri['RecommendationDetails'] = rows
         dropped += removed
         kept += len(rows)
     result = add_scope_notes(response, criteria, kept, dropped, 'RecommendationDetails')
-    if kept and ri_key != 'ec2ReservedInstances':
-        unmatched = (
-            'Rows for this service are matched on account only, so they can include other '
-            'instance types and regions: use the row whose InstanceDetails match the '
-            "recommendation's configuration."
-        )
-        result['note'] = f'{result["note"]} {unmatched}' if 'note' in result else unmatched
+    if kept and extra:
+        result['note'] = ' '.join(([result['note']] if 'note' in result else []) + extra)
     return result
 
 
@@ -330,13 +354,18 @@ def add_scope_notes(
             'Hub produced this one.'
         )
         if result.get('NextPageToken'):
-            result['warning'] += ' Only the first page was read; the row may be on a later page.'
+            result['warning'] += (
+                ' Only the first page was read (this tool cannot fetch more); the row may be on '
+                'a later page.'
+            )
     elif dropped:
         result['note'] = (
             f'{rows_key} keeps only the {kept} row(s) for {wanted}; {dropped} other row(s) '
             "were dropped. Cost Explorer's summary still totals all of them, so use the kept "
             'row(s) for this recommendation.'
         )
+        if result.get('NextPageToken'):
+            result['note'] += ' Later pages, which this tool cannot fetch, were not read.'
     return result
 
 
