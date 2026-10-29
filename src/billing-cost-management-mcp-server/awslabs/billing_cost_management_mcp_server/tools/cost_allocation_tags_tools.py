@@ -118,7 +118,8 @@ You can filter tags by:
     keys (resourceTags/user:Team is the key Team); the stored key normally has no prefix. The
     tool sends a key starting with user: as given and also without the prefix, and adds a
     note when a tag matched only that way. Repeated keys are sent once.
-  - At most 100 keys, counting the unprefixed keys the tool adds.
+  - At most 100 keys. If the unprefixed keys would take the total over 100, the keys are sent
+    only as given (repeats once) and the note says so.
   - Keys are case-sensitive: Team and team are separate tags. Unknown keys are left out of
     the result without an error.
 - tag_type: AWSGenerated or UserDefined (any case). AWSGenerated is exactly the keys that
@@ -150,8 +151,8 @@ async def list_cost_allocation_tags(
     Args:
         ctx: The MCP context object
         status: Filter by tag status (Active, Inactive; any case)
-        tag_keys: JSON array of tag key strings to filter by (max 100, after adding the
-            stripped form of each user:-prefixed key)
+        tag_keys: JSON array of tag key strings to filter by (max 100). If adding the
+            stripped form of each user:-prefixed key would exceed 100, the keys are sent as given
         tag_type: Filter by tag type (AWSGenerated, UserDefined; any case)
         max_items: Total tags to return. None fetches every page.
         next_token: Pagination token from previous response
@@ -166,6 +167,7 @@ async def list_cost_allocation_tags(
         params: Dict[str, Any] = {}
 
         stripped_from: Dict[str, str] = {}
+        fallback_note = ''
 
         if status:
             params['Status'] = STATUS_VALUES.get(status.lower(), status)
@@ -180,18 +182,24 @@ async def list_cost_allocation_tags(
                 )
             if not keys:
                 return _tag_keys_error('tag_keys must list at least one key, or be omitted')
-            params['TagKeys'], stripped_from = _expand_tag_keys(keys)
+            distinct = list(dict.fromkeys(keys))
+            if len(distinct) > MAX_TAG_KEYS:
+                return _tag_keys_error(
+                    f'tag_keys has {len(distinct)} distinct keys; the API accepts at most '
+                    f'{MAX_TAG_KEYS}. Split the keys across calls.'
+                )
+            params['TagKeys'], stripped_from = _expand_tag_keys(distinct)
             count = len(params['TagKeys'])
             if count > MAX_TAG_KEYS:
-                given = len(set(keys))
-                reason = (
-                    f'tag_keys has {given} distinct keys'
-                    if given > MAX_TAG_KEYS
-                    else f'tag_keys expands to {count} keys because each key starting with '
-                    f'{USER_TAG_PREFIX} is also looked up without the prefix'
-                )
-                return _tag_keys_error(
-                    f'{reason}; the API accepts at most {MAX_TAG_KEYS}. Split the keys across calls.'
+                # The caller's own keys are a valid request; send them rather than fail.
+                params['TagKeys'], stripped_from = distinct, {}
+                prefixed = sum(1 for k in distinct if k.startswith(USER_TAG_PREFIX))
+                fallback_note = (
+                    f'The {prefixed} keys starting with {USER_TAG_PREFIX} were looked up only as '
+                    f'given: adding their unprefixed forms would make {count} keys, over the '
+                    f"API's limit of {MAX_TAG_KEYS}. Stored keys normally have no "
+                    f'{USER_TAG_PREFIX} prefix, so pass the keys without it, or split tag_keys '
+                    'across calls.'
                 )
         if tag_type:
             params['Type'] = TAG_TYPE_VALUES.get(tag_type.lower(), tag_type)
@@ -217,6 +225,8 @@ async def list_cost_allocation_tags(
                 f'columns add {USER_TAG_PREFIX} to user-defined tag keys; the stored key '
                 'normally has no prefix.'
             )
+        elif fallback_note:
+            data['note'] = fallback_note
         return format_response('success', with_pagination(data, pagination))
 
     except Exception as e:
