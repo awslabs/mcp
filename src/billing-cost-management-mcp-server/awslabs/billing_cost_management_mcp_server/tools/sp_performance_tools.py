@@ -30,6 +30,7 @@ from ..utilities.aws_service_base import (
     with_pagination,
 )
 from ..utilities.logging_utils import get_context_logger
+from ..utilities.time_utils import monthly_period_note
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
 
@@ -69,8 +70,9 @@ DATES AND DATA FRESHNESS (all three operations):
   yet: yesterday is usually still missing, so excluding only today is not enough. A
   start_date inside those days returns a DataUnavailableException, which the service
   sends without a message. A window that only reaches into those days succeeds but
-  silently leaves them out, so the last entry can end before end_date. A start_date at
-  least 3 days before today is usually past that delay.
+  silently leaves them out, so the last DAILY entry can end before end_date (MONTHLY
+  labels: see RESPONSE PERIODS). A start_date at least 3 days before today is usually
+  past that delay.
 - A DataUnavailableException means there is no data for THIS window and filter: the
   window is too recent, no plan was active in it, or a filter value matches nothing
   (an unknown SAVINGS_PLANS_TYPE, for example, returns this error, not a
@@ -121,9 +123,13 @@ SORTING (sort_by; get_savings_plans_coverage and get_savings_plans_utilization_d
 
 RESPONSE PERIODS (all three operations):
 - `requested_time_period` echoes the start_date/end_date that were sent.
-- MONTHLY utilization labels each entry with its calendar month: a 2026-08-17 start
-  returns a first entry whose TimePeriod starts 2026-08-01, but its figures cover
-  only 2026-08-17 onward. Report that month as starting at the requested start.
+- MONTHLY utilization labels each entry's TimePeriod with its whole calendar month (the
+  current month's entry ends at the first day without data instead), but the figures
+  cover only the requested days. A 2026-08-17 to 2026-09-10 request returns
+  a first entry labelled 2026-08-01 to 2026-09-01 holding only 2026-08-17 onward, and a
+  last entry labelled 2026-09-01 to 2026-10-01 holding only the days before 2026-09-10.
+  `period_note` says when this happened and the range the figures cover. Report those
+  months as partial, not as whole months; `total` also covers only that range.
 - MONTHLY coverage entries start at the requested start; they are not snapped.
 - Utilization details returns `time_period`: the requested start, and an end the API
   may move earlier to the first day without complete data. Report that period.
@@ -377,9 +383,15 @@ async def get_savings_plans_utilization(
         formatted_response: Dict[str, Any] = {
             'savings_plans_utilizations': utilizations_by_time,
             # The API has no top-level period. A MONTHLY entry's TimePeriod is labelled with its
-            # calendar month even when the requested start falls later in that month.
+            # whole calendar month even when the requested start or end falls inside that month.
             'requested_time_period': {'start': start, 'end': end},
             'granularity': granularity,
+            **monthly_period_note(
+                start,
+                end,
+                [entry.get('TimePeriod') for entry in utilizations_by_time],
+                granularity,
+            ),
         }
 
         if total is not None:

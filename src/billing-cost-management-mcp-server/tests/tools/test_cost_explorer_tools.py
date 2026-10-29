@@ -1765,6 +1765,24 @@ class TestCostExplorerDescriptionContract:
         )
         assert tool.input_schema['properties']['granularity']['default'] == 'DAILY'
 
+    def test_forecast_notes_say_monthly_periods_are_whole_months(self, tool):
+        """MONTHLY forecasts widen to whole months, so a partial month is steered to DAILY."""
+        cost = tool.description.split('4. getCostForecast')[1].split('5. getUsageForecast')[0]
+        usage = tool.description.split('5. getUsageForecast')[1].split('\n\n')[0]
+        assert 'each period is a whole calendar month' in cost
+        assert 'include its actual costs to date' in cost
+        assert '`period_note`' in cost
+        assert 'For part of a month, such as the rest of this month, use DAILY' in cost
+        assert 'MONTHLY periods are whole calendar months' in usage
+
+    def test_description_flags_partial_monthly_sp_utilization(self, tool):
+        """The getSavingsPlansUtilization notes flag partial MONTHLY entries and period_note."""
+        notes = tool.description.split('8. getSavingsPlansUtilization')[1].split('Returns:')[0]
+        assert "each entry's TimePeriod is its whole calendar month" in notes
+        assert "the current month's entry ends at the first day without data" in notes
+        assert 'cover only the requested days' in notes
+        assert '`period_note`' in notes
+
     def test_dimension_reference_keys_are_ce_dimensions(self, tool):
         """Every DIMENSION REFERENCE key except the TAG note is in botocore's ce Dimension enum."""
         enum = set(
