@@ -1454,6 +1454,23 @@ class TestToolRegistration:
         assert tool is not None
         assert 'tierCharges' in (tool.description or '')
 
+    @pytest.mark.asyncio
+    async def test_description_documents_subscription_history_per_month(self):
+        """The UTC default month, not_found for an empty month, and per-month contract rows are stated."""
+        from awslabs.billing_cost_management_mcp_server.tools.business_support_tools import (
+            business_support_server,
+        )
+
+        tool = await business_support_server.get_tool('business-support')
+        assert tool is not None
+        desc = tool.description or ''
+        assert 'the API defaults to the CURRENT month (UTC)' in desc
+        assert 'returns a not_found error, not an empty list' in desc
+        assert 'the contract period as recorded for that billing month' in desc
+        assert 'merge back-to-back rows for the same account and plan' in desc
+        assert 'Both are required by the API, so both are always present' not in desc
+        assert 'HTTP 500' not in desc
+
 
 # ---------------------------------------------------------------------------
 # Router (_business_support) — operation routing
