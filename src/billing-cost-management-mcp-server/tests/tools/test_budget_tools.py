@@ -22,13 +22,19 @@ These tests verify the functionality of the AWS Budgets API tools, including:
 - Formatting budget data for display and analysis
 """
 
+import boto3
+import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import (
+    _describe_budget_by_name,
     budget_server,
+    budgets,
     describe_budgets,
     format_budgets,
     get_aws_account_id,
 )
+from botocore.awsrequest import AWSResponse
+from botocore.exceptions import ClientError
 from datetime import datetime
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -148,17 +154,18 @@ class TestGetAwsAccountId:
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
     async def test_get_aws_account_id_error(self, mock_create_aws_client, mock_context):
-        """Test get_aws_account_id handles errors properly."""
+        """STS errors propagate unwrapped so handle_aws_error keeps the AWS error code."""
         # Setup
-        error = Exception('Failed to get caller identity')
-        mock_create_aws_client.side_effect = error
+        error = ClientError(
+            {'Error': {'Code': 'Throttling', 'Message': 'Rate exceeded'}}, 'GetCallerIdentity'
+        )
+        mock_create_aws_client.return_value.get_caller_identity.side_effect = error
 
         # Execute and Assert
-        with pytest.raises(Exception) as excinfo:
+        with pytest.raises(ClientError) as excinfo:
             await get_aws_account_id(mock_context)
 
-        assert 'Failed to retrieve AWS account ID' in str(excinfo.value)
-        assert str(error) in str(excinfo.value)
+        assert excinfo.value is error
 
 
 class TestFormatBudgets:
@@ -430,6 +437,74 @@ class TestFormatBudgets:
             f'Budget with actual={actual_amount}, forecast={forecast_amount}, limit={budget_limit} should have status {expected_status}'
         )
 
+    def test_format_budgets_status_usage_budget(self):
+        """A USAGE budget gets a status, since more usage is worse, as it is for COST."""
+        budgets_list = [
+            {
+                'BudgetName': 'Usage Budget',
+                'BudgetType': 'USAGE',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '1000.0', 'Unit': 'GB'},
+                'CalculatedSpend': {'ActualSpend': {'Amount': '1200.0', 'Unit': 'GB'}},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['status'] == 'EXCEEDED'
+
+    @pytest.mark.parametrize(
+        'budget_type',
+        [
+            'RI_UTILIZATION',
+            'RI_COVERAGE',
+            'SAVINGS_PLANS_UTILIZATION',
+            'SAVINGS_PLANS_COVERAGE',
+        ],
+    )
+    @pytest.mark.parametrize('actual_amount', ['100.0', '20.0'])
+    def test_format_budgets_no_status_for_utilization_and_coverage(
+        self, budget_type, actual_amount
+    ):
+        """Utilization and coverage budgets get no status.
+
+        Their limit is always 100 PERCENTAGE and a higher actual is better, so a
+        spend-vs-limit status read 100% as EXCEEDED and 20% as OK.
+        """
+        budgets_list = [
+            {
+                'BudgetName': 'Commitment Budget',
+                'BudgetType': budget_type,
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '100.0', 'Unit': 'PERCENTAGE'},
+                'CalculatedSpend': {
+                    'ActualSpend': {'Amount': actual_amount, 'Unit': 'PERCENTAGE'}
+                },
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert 'status' not in result[0]
+        assert result[0]['calculated_spend']['actual_spend']['amount'] == actual_amount
+        assert result[0]['budget_limit']['amount'] == '100.0'
+
+    def test_format_budgets_no_status_for_unknown_budget_type(self):
+        """Status is derived only for known spend types, so a new budget type gets none."""
+        budgets_list = [
+            {
+                'BudgetName': 'Future Budget',
+                'BudgetType': 'SOME_FUTURE_TYPE',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '100.0', 'Unit': 'PERCENTAGE'},
+                'CalculatedSpend': {'ActualSpend': {'Amount': '100.0', 'Unit': 'PERCENTAGE'}},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert 'status' not in result[0]
+
 
 @pytest.mark.asyncio
 class TestDescribeBudgets:
@@ -456,7 +531,7 @@ class TestDescribeBudgets:
         assert result['status'] == 'success'
         assert 'budgets' in result['data']
         assert len(result['data']['budgets']) == 2
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert result['data']['account_id'] == '123456789012'
 
         # Check budget details
@@ -471,20 +546,67 @@ class TestDescribeBudgets:
     async def test_describe_budgets_with_name_filter(
         self, mock_create_aws_client, mock_context, mock_budgets_client
     ):
-        """Test describe_budgets filters by budget name."""
+        """A budget name is read with DescribeBudget, so no page cut can hide it."""
         # Setup
         mock_create_aws_client.return_value = mock_budgets_client
+        s3_budget = mock_budgets_client.describe_budgets.return_value['Budgets'][1]
+        mock_budgets_client.describe_budget.return_value = {'Budget': s3_budget}
         account_id = '123456789012'
         budget_name = 'S3 Budget'
 
         # Execute
-        result = await describe_budgets(mock_context, account_id, budget_name, 100)
+        result = await describe_budgets(mock_context, account_id, budget_name, 1)
 
         # Assert
+        mock_budgets_client.describe_budget.assert_called_once_with(
+            AccountId=account_id, BudgetName=budget_name
+        )
+        mock_budgets_client.describe_budgets.assert_not_called()
         assert result['status'] == 'success'
         assert len(result['data']['budgets']) == 1
-        assert result['data']['total_count'] == 1
+        assert result['data']['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 1,
+        }
         assert result['data']['budgets'][0]['budget_name'] == 'S3 Budget'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_describe_budgets_unknown_name_returns_empty_list(
+        self, mock_create_aws_client, mock_context
+    ):
+        """An unknown budget name is an empty result, not an error."""
+        from botocore.exceptions import ClientError
+
+        client = MagicMock()
+        client.describe_budget.side_effect = ClientError(
+            {'Error': {'Code': 'NotFoundException', 'Message': 'not found'}}, 'DescribeBudget'
+        )
+        mock_create_aws_client.return_value = client
+
+        result = await describe_budgets(mock_context, '123456789012', 'missing')
+
+        assert result['status'] == 'success'
+        assert result['data']['budgets'] == []
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_describe_budget_other_error_is_an_error(
+        self, mock_create_aws_client, mock_context
+    ):
+        """A failure other than not-found is reported as an error."""
+        from botocore.exceptions import ClientError
+
+        client = MagicMock()
+        client.describe_budget.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'denied'}}, 'DescribeBudget'
+        )
+        mock_create_aws_client.return_value = client
+
+        result = await describe_budgets(mock_context, '123456789012', 'b1')
+
+        assert result['status'] == 'error'
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
     async def test_describe_budgets_with_pagination(
@@ -535,6 +657,77 @@ class TestDescribeBudgets:
         )
         assert result['status'] == 'error'
         assert result['message'] == 'API error'
+
+
+class _WireBody:
+    """Raw HTTP body for botocore's AWSResponse."""
+
+    def __init__(self, body: bytes):
+        self._body = body
+
+    def stream(self, **kwargs):
+        yield self._body
+
+
+class TestBudgetFilterExpressionParsing:
+    """The installed botocore must parse every FilterExpression member the service returns.
+
+    botocore silently drops a response member its service model does not define. Before
+    botocore 1.43.110 the budgets model had no ProductAttributes, so a budget scoped by a
+    product attribute came back with that filter node as an empty dict.
+
+    Stubber would bypass the response parser, so these tests stub the HTTP send instead and let
+    botocore parse the wire JSON.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _no_ambient_profile(self, monkeypatch):
+        monkeypatch.delenv('AWS_PROFILE', raising=False)
+        monkeypatch.delenv('AWS_DEFAULT_PROFILE', raising=False)
+
+    FILTER_EXPRESSION = {
+        'And': [
+            {'ProductAttributes': {'Key': 'feature', 'Values': ['On-demand Inference']}},
+            {'Not': {'Dimensions': {'Key': 'RECORD_TYPE', 'Values': ['Credit', 'Refund']}}},
+        ]
+    }
+
+    def _client_returning(self, payload):
+        """A real budgets client whose HTTP send returns ``payload`` as the wire response."""
+        client = boto3.Session(
+            aws_access_key_id='a', aws_secret_access_key='b', region_name='us-east-1'
+        ).client('budgets')
+        body = json.dumps(payload).encode()
+
+        def send(request, **kwargs):
+            return AWSResponse(request.url, 200, {}, _WireBody(body))
+
+        client.meta.events.register('before-send.budgets', send)
+        return client
+
+    def _budget(self):
+        return {
+            'BudgetName': 'Feature Budget',
+            'BudgetType': 'COST',
+            'TimeUnit': 'MONTHLY',
+            'FilterExpression': self.FILTER_EXPRESSION,
+        }
+
+    def test_describe_budget_keeps_product_attributes(self):
+        """DescribeBudget (the budget_name path) keeps the ProductAttributes leaf."""
+        client = self._client_returning({'Budget': self._budget()})
+
+        result = _describe_budget_by_name(client, '123456789012', 'Feature Budget')
+
+        assert result[0]['FilterExpression'] == self.FILTER_EXPRESSION
+
+    def test_describe_budgets_keeps_product_attributes(self):
+        """DescribeBudgets (the listing path) keeps the ProductAttributes leaf."""
+        client = self._client_returning({'Budgets': [self._budget()]})
+
+        response = client.describe_budgets(AccountId='123456789012')
+
+        assert response['Budgets'][0]['FilterExpression'] == self.FILTER_EXPRESSION
 
 
 def test_budget_server_initialization():
@@ -682,7 +875,7 @@ class TestBudgetActionsTool:
         ]
         result = await describe_budget_actions(mock_context, '123456789012', None, 100)
         assert [a['budget_name'] for a in result['data']['actions']] == ['b1', 'b2']
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert client.describe_budget_actions_for_account.call_count == 2
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
@@ -733,9 +926,7 @@ class TestBudgetActionsTool:
         client = MagicMock()
         mock_create.return_value = client
         client.describe_budget_actions_for_account.return_value = {'Actions': []}
-        await describe_budget_actions(
-            mock_context, '123456789012', None, 100, next_token='tok', max_pages=1
-        )
+        await describe_budget_actions(mock_context, '123456789012', None, 100, next_token='tok')
         assert client.describe_budget_actions_for_account.call_args.kwargs['NextToken'] == 'tok'
 
     @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_db_connection')
@@ -801,7 +992,7 @@ class TestBudgetNotificationsTool:
         }
         result = await budget_notifications(mock_context)
         assert result['status'] == 'success'
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         # Each flattened notification is stamped with its owning budget.
         assert {n['budget_name'] for n in result['data']['notifications']} == {'b1', 'b2'}
         client.describe_notifications_for_budget.assert_not_called()
@@ -820,7 +1011,7 @@ class TestBudgetNotificationsTool:
         assert result['status'] == 'success'
         assert result['data']['notifications'][0]['threshold'] == 80.0
         assert result['data']['notifications'][0]['budget_name'] == 'b1'
-        assert result['data']['total_count'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
         client.describe_budget_notifications_for_account.assert_not_called()
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
@@ -846,6 +1037,245 @@ class TestBudgetNotificationsTool:
         mock_create.return_value = client
         client.describe_notifications_for_budget.return_value = {'Notifications': []}
         await describe_budget_notifications(
-            mock_context, '123456789012', 'b1', 100, next_token='tok', max_pages=1
+            mock_context, '123456789012', 'b1', 100, next_token='tok'
         )
         assert client.describe_notifications_for_budget.call_args.kwargs['NextToken'] == 'tok'
+
+
+# ---------------------------------------------------------------------------
+# Pagination contract: max_items / next_token
+# ---------------------------------------------------------------------------
+
+PATCH_BUDGETS_CLIENT = (
+    'awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client'
+)
+ACCOUNT = '123456789012'
+
+
+def _budgets_page(count, token=None, start=0):
+    page = {'Budgets': [{'BudgetName': f'b{i}'} for i in range(start, start + count)]}
+    if token:
+        page['NextToken'] = token
+    return page
+
+
+def _actions_page(count, token=None, start=0):
+    page = {
+        'Actions': [{'ActionId': f'a{i}', 'BudgetName': 'b'} for i in range(start, start + count)]
+    }
+    if token:
+        page['NextToken'] = token
+    return page
+
+
+def _account_notifications_page(per_budget, token=None):
+    """One DescribeBudgetNotificationsForAccount page: one entry per budget."""
+    page = {
+        'BudgetNotificationsForAccount': [
+            {
+                'BudgetName': f'b{i}',
+                'Notifications': [
+                    {'NotificationType': 'ACTUAL', 'Threshold': t} for t in range(n)
+                ],
+            }
+            for i, n in enumerate(per_budget)
+        ]
+    }
+    if token:
+        page['NextToken'] = token
+    return page
+
+
+def _strip_paging(kwargs):
+    return {k: v for k, v in kwargs.items() if k not in ('NextToken', 'MaxResults')}
+
+
+@pytest.mark.asyncio
+class TestBudgetsPaginationContract:
+    """budgets / budget-actions / budget-notifications follow the max_items contract."""
+
+    @patch(PATCH_BUDGETS_CLIENT)
+    async def test_budgets_without_max_items_fetches_every_page(self, mock_create, mock_context):
+        """Short and empty pages with a token keep paging at MaxResults=1000."""
+        client = MagicMock()
+        client.describe_budgets.side_effect = [
+            _budgets_page(2, token='t2'),
+            _budgets_page(0, token='t3'),  # an empty page that still carries a token
+            _budgets_page(1, start=2),
+        ]
+        mock_create.return_value = client
+
+        result = await describe_budgets(mock_context, ACCOUNT, None)
+
+        sizes = [c.kwargs['MaxResults'] for c in client.describe_budgets.call_args_list]
+        assert sizes == [1000, 1000, 1000]
+        assert len(result['data']['budgets']) == 3
+        assert result['data']['pagination']['complete_dataset'] is True
+        assert 'warning' not in result['data']
+
+    @patch(PATCH_BUDGETS_CLIENT)
+    async def test_budgets_max_items_stops_with_service_token(self, mock_create, mock_context):
+        """max_items asks for the remainder and returns the service token when it stops."""
+        client = MagicMock()
+        client.describe_budgets.side_effect = [
+            _budgets_page(3, token='t2'),
+            _budgets_page(2, token='t3', start=3),
+        ]
+        mock_create.return_value = client
+
+        result = await describe_budgets(mock_context, ACCOUNT, None, max_items=5)
+
+        sizes = [c.kwargs['MaxResults'] for c in client.describe_budgets.call_args_list]
+        assert sizes == [5, 2]
+        data = result['data']
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 't3',
+            'items_returned': 5,
+        }
+
+    @patch(PATCH_BUDGETS_CLIENT)
+    async def test_budgets_continuation_sends_caller_token(self, mock_create, mock_context):
+        """A continuation starts from the caller's token with otherwise identical params."""
+        client = MagicMock()
+        client.describe_budgets.side_effect = [
+            _budgets_page(1, token='t2'),
+            _budgets_page(1, start=1),
+        ]
+        mock_create.return_value = client
+
+        await describe_budgets(mock_context, ACCOUNT, None, next_token='caller-token')
+
+        first, second = (c.kwargs for c in client.describe_budgets.call_args_list)
+        assert first['NextToken'] == 'caller-token'
+        assert second['NextToken'] == 't2'
+        assert _strip_paging(first) == _strip_paging(second) == {'AccountId': ACCOUNT}
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.get_aws_account_id')
+    @patch(PATCH_BUDGETS_CLIENT)
+    async def test_budgets_tool_resolves_account_and_forwards_paging(
+        self, mock_create, mock_get_id, mock_context
+    ):
+        """The budgets tool resolves the account and passes max_items and next_token through."""
+        mock_get_id.return_value = ACCOUNT
+        client = MagicMock()
+        client.describe_budgets.return_value = _budgets_page(2, token='t3')
+        mock_create.return_value = client
+
+        result = await budgets(mock_context, max_items=2, next_token='caller-token')
+
+        client.describe_budgets.assert_called_once_with(
+            AccountId=ACCOUNT, NextToken='caller-token', MaxResults=2
+        )
+        assert [b['budget_name'] for b in result['data']['budgets']] == ['b0', 'b1']
+        assert result['data']['complete_dataset'] is False
+        assert result['data']['pagination']['next_token'] == 't3'
+
+    @pytest.mark.parametrize(
+        'budget_name,method',
+        [
+            (None, 'describe_budget_actions_for_account'),
+            ('b1', 'describe_budget_actions_for_budget'),
+        ],
+    )
+    @patch(PATCH_BUDGETS_CLIENT)
+    async def test_actions_contract(self, mock_create, mock_context, budget_name, method):
+        """Both action APIs page fully without max_items, stop at it, and resend params."""
+        client = MagicMock()
+        getattr(client, method).side_effect = [
+            _actions_page(1, token='t2'),
+            _actions_page(0, token='t3'),
+            _actions_page(1, start=1),
+        ]
+        mock_create.return_value = client
+
+        result = await describe_budget_actions(
+            mock_context, ACCOUNT, budget_name, next_token='caller-token'
+        )
+
+        calls = [c.kwargs for c in getattr(client, method).call_args_list]
+        assert [c['MaxResults'] for c in calls] == [100, 100, 100]
+        assert [c['NextToken'] for c in calls] == ['caller-token', 't2', 't3']
+        assert all(_strip_paging(c) == _strip_paging(calls[0]) for c in calls)
+        assert result['data']['pagination']['items_returned'] == 2
+        assert result['data']['pagination']['complete_dataset'] is True
+
+        getattr(client, method).side_effect = [_actions_page(2, token='more')]
+        result = await describe_budget_actions(mock_context, ACCOUNT, budget_name, max_items=2)
+        assert getattr(client, method).call_args.kwargs['MaxResults'] == 2
+        assert result['data']['pagination']['next_token'] == 'more'
+        assert result['data']['complete_dataset'] is False
+
+    @patch(PATCH_BUDGETS_CLIENT)
+    async def test_per_budget_notifications_contract(self, mock_create, mock_context):
+        """DescribeNotificationsForBudget pages at 100 and resends the budget name."""
+        client = MagicMock()
+        client.describe_notifications_for_budget.side_effect = [
+            {'Notifications': [{'NotificationType': 'ACTUAL'}], 'NextToken': 't2'},
+            {'Notifications': [{'NotificationType': 'FORECASTED'}]},
+        ]
+        mock_create.return_value = client
+
+        result = await describe_budget_notifications(
+            mock_context, ACCOUNT, 'b1', next_token='caller-token'
+        )
+
+        calls = [c.kwargs for c in client.describe_notifications_for_budget.call_args_list]
+        assert [c['NextToken'] for c in calls] == ['caller-token', 't2']
+        assert [c['MaxResults'] for c in calls] == [100, 100]
+        assert _strip_paging(calls[0]) == _strip_paging(calls[1])
+        assert calls[0]['BudgetName'] == 'b1'
+        assert result['data']['pagination']['items_returned'] == 2
+
+    @patch(PATCH_BUDGETS_CLIENT)
+    async def test_account_notifications_count_notifications_not_budgets(
+        self, mock_create, mock_context
+    ):
+        """Account-level pages count budgets, so MaxResults is the remainder over 10."""
+        client = MagicMock()
+        client.describe_budget_notifications_for_account.side_effect = [
+            _account_notifications_page([10, 10, 5], token='t2'),
+            _account_notifications_page([3], token='t3'),
+            _account_notifications_page([3], token='t4'),
+        ]
+        mock_create.return_value = client
+
+        result = await describe_budget_notifications(mock_context, ACCOUNT, None, max_items=40)
+
+        calls = [c.kwargs for c in client.describe_budget_notifications_for_account.call_args_list]
+        # 40 notifications fit 4 budgets of 10. After 25 and then 28, one more budget of up to
+        # 10 still fits; after 31 it would not (31 + 10 > 40), so the call stops.
+        assert [c['MaxResults'] for c in calls] == [4, 1, 1]
+        assert len(result['data']['notifications']) == 31
+        assert result['data']['pagination']['items_returned'] == 31
+        assert result['data']['pagination']['next_token'] == 't4'
+        assert result['data']['pagination']['has_more'] is True
+
+    @patch(PATCH_BUDGETS_CLIENT)
+    async def test_account_notifications_without_max_items_fetch_every_page(
+        self, mock_create, mock_context
+    ):
+        """Without max_items every page is fetched at the 1000-budget page size."""
+        client = MagicMock()
+        client.describe_budget_notifications_for_account.side_effect = [
+            _account_notifications_page([2], token='t2'),
+            _account_notifications_page([1]),
+        ]
+        mock_create.return_value = client
+
+        result = await describe_budget_notifications(mock_context, ACCOUNT, None)
+
+        calls = [c.kwargs for c in client.describe_budget_notifications_for_account.call_args_list]
+        assert [c['MaxResults'] for c in calls] == [1000, 1000]
+        assert len(result['data']['notifications']) == 3
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    async def test_tool_schemas_follow_the_max_items_contract(self):
+        """All three budget tools take max_items + next_token and no page parameters."""
+        tools = {t.name: t for t in await budget_server.list_tools()}
+        for name in ('budgets', 'budget-actions', 'budget-notifications'):
+            params = set(tools[name].parameters['properties'])
+            assert {'max_items', 'next_token'} <= params, name
+            assert not {'max_results', 'max_pages'} & params, name

@@ -23,7 +23,11 @@ These tests verify the functionality of detailed recommendation processing tools
 - Error handling for missing recommendation IDs and template processing failures
 """
 
+import botocore.session
+import builtins
+import io
 import pytest
+from awslabs.billing_cost_management_mcp_server.tools import recommendation_details_tools
 from awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools import (
     format_base_recommendation,
     format_timestamp,
@@ -35,8 +39,13 @@ from awslabs.billing_cost_management_mcp_server.tools.recommendation_details_too
     process_recommendation,
     recommendation_details_server,
 )
+from awslabs.billing_cost_management_mcp_server.utilities.constants import (
+    SAVINGS_PLANS_TYPE_MAP,
+    SERVICE_MAP,
+)
 from datetime import datetime, timezone
 from fastmcp import Context
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 
@@ -100,7 +109,7 @@ def mock_ce_client():
             'SavingsPlansType': 'COMPUTE_SP',
             'TermInYears': 'ONE_YEAR',
             'PaymentOption': 'ALL_UPFRONT',
-            'SavingsPlansRecommendationSummary': {
+            'SavingsPlansPurchaseRecommendationSummary': {
                 'EstimatedROI': '20.0',
                 'EstimatedTotalCost': '10000.0',
                 'EstimatedSavingsAmount': '2000.0',
@@ -116,11 +125,11 @@ def mock_ce_client():
                     'AccountId': '123456789012',
                     'UpfrontCost': '8000.0',
                     'EstimatedROI': '20.0',
+                    'EstimatedSPCost': '10000.0',
                     'EstimatedSavingsAmount': '2000.0',
                     'EstimatedSavingsPercentage': '20.0',
                     'EstimatedMonthlySavingsAmount': '166.67',
                     'EstimatedOnDemandCost': '10000.0',
-                    'EstimatedBreakEvenInMonths': '10.0',
                 }
             ],
         }
@@ -135,9 +144,9 @@ def mock_ce_client():
                 'TermInYears': 'ONE_YEAR',
                 'PaymentOption': 'ALL_UPFRONT',
                 'RecommendationSummary': {
-                    'EstimatedTotalCost': '10000.0',
-                    'EstimatedSavingsAmount': '2000.0',
-                    'EstimatedSavingsPercentage': '20.0',
+                    'TotalEstimatedMonthlySavingsAmount': '166.67',
+                    'TotalEstimatedMonthlySavingsPercentage': '20.0',
+                    'CurrencyCode': 'USD',
                 },
                 'RecommendationDetails': [
                     {
@@ -146,14 +155,13 @@ def mock_ce_client():
                             'EC2InstanceDetails': {
                                 'Family': 'm5',
                                 'InstanceType': 'm5.large',
+                                'Region': 'US East (N. Virginia)',
                             }
                         },
                         'UpfrontCost': '8000.0',
-                        'EstimatedROI': '20.0',
-                        'EstimatedSavingsAmount': '2000.0',
-                        'EstimatedSavingsPercentage': '20.0',
                         'EstimatedMonthlySavingsAmount': '166.67',
-                        'EstimatedOnDemandCost': '10000.0',
+                        'EstimatedMonthlySavingsPercentage': '20.0',
+                        'EstimatedMonthlyOnDemandCost': '833.33',
                         'EstimatedBreakEvenInMonths': '10.0',
                     }
                 ],
@@ -456,8 +464,11 @@ class TestGetSavingsPlansRecommendation:
         assert call_kwargs['PaymentOption'] == 'ALL_UPFRONT'
         assert call_kwargs['AccountScope'] == 'PAYER'
 
-        assert 'SavingsPlansRecommendationSummary' in result
-        assert result['SavingsPlansRecommendationSummary']['EstimatedSavingsAmount'] == '2000.0'
+        summary = result['SavingsPlansPurchaseRecommendationSummary']
+        assert summary['EstimatedSavingsAmount'] == '2000.0'
+        assert summary['EstimatedROI'] == '20.0'
+        detail = result['SavingsPlansPurchaseRecommendationDetails'][0]
+        assert 'EstimatedBreakEvenInMonths' not in detail
 
     async def test_get_savings_plans_recommendation_missing_key(
         self, mock_context, mock_ce_client
@@ -504,6 +515,46 @@ class TestGetSavingsPlansRecommendation:
         # Assert
         assert 'error' in result
         assert 'Missing required parameters' in result['error']
+
+    async def test_get_savings_plans_recommendation_database_savings_plans(
+        self, mock_context, mock_ce_client
+    ):
+        """A databaseSavingsPlans recommendation maps to Cost Explorer's DATABASE_SP."""
+        recommendation = {
+            'recommendationId': 'rec-12345',
+            'recommendedResourceDetails': {
+                'databaseSavingsPlans': {
+                    'configuration': {
+                        'term': 'OneYear',
+                        'paymentOption': 'NoUpfront',
+                        'accountScope': 'Payer',
+                    }
+                }
+            },
+        }
+
+        await get_savings_plans_recommendation(mock_context, recommendation, mock_ce_client)
+
+        call_kwargs = mock_ce_client.get_savings_plans_purchase_recommendation.call_args[1]
+        assert call_kwargs['SavingsPlansType'] == 'DATABASE_SP'
+
+    async def test_get_savings_plans_recommendation_sdk_unknown_member(
+        self, mock_context, mock_ce_client
+    ):
+        """An SDK too old to parse databaseSavingsPlans gets a clear error, not the raw key."""
+        recommendation = {
+            'recommendationId': 'rec-12345',
+            'recommendedResourceDetails': {'SDK_UNKNOWN_MEMBER': {'name': 'databaseSavingsPlans'}},
+        }
+
+        result = await get_savings_plans_recommendation(
+            mock_context, recommendation, mock_ce_client
+        )
+
+        assert "'databaseSavingsPlans'" in result['error']
+        assert 'Savings Plans purchase details are unavailable' in result['error']
+        assert 'SDK_UNKNOWN_MEMBER' not in result['error']
+        mock_ce_client.get_savings_plans_purchase_recommendation.assert_not_called()
 
     async def test_get_savings_plans_recommendation_api_error(self, mock_context, mock_ce_client):
         """Test get_savings_plans_recommendation handles API errors."""
@@ -579,10 +630,52 @@ class TestGetReservedInstancesRecommendation:
         assert call_kwargs['PaymentOption'] == 'ALL_UPFRONT'
 
         assert 'Recommendations' in result
-        assert (
-            result['Recommendations'][0]['RecommendationSummary']['EstimatedSavingsAmount']
-            == '2000.0'
+        ri_rec = result['Recommendations'][0]
+        assert ri_rec['RecommendationSummary']['TotalEstimatedMonthlySavingsAmount'] == '166.67'
+        assert ri_rec['RecommendationDetails'][0]['EstimatedBreakEvenInMonths'] == '10.0'
+
+    @pytest.mark.parametrize(
+        'ri_key, service',
+        [
+            ('dynamoDbReservedCapacity', 'Amazon DynamoDB Service'),
+            ('memoryDbReservedInstances', 'Amazon MemoryDB Service'),
+        ],
+    )
+    async def test_get_reserved_instances_recommendation_service_names(
+        self, mock_context, mock_ce_client, ri_key, service
+    ):
+        """DynamoDB reserved capacity and MemoryDB use Cost Explorer's '... Service' names."""
+        recommendation = {
+            'recommendationId': 'rec-12345',
+            'actionType': 'PurchaseReservedInstances',
+            'recommendedResourceDetails': {
+                ri_key: {'configuration': {'term': 'OneYear', 'paymentOption': 'NoUpfront'}}
+            },
+        }
+
+        await get_reserved_instances_recommendation(mock_context, recommendation, mock_ce_client)
+
+        call_kwargs = mock_ce_client.get_reservation_purchase_recommendation.call_args[1]
+        assert call_kwargs['Service'] == service
+        assert call_kwargs['PaymentOption'] == 'NO_UPFRONT'
+
+    async def test_get_reserved_instances_recommendation_sdk_unknown_member(
+        self, mock_context, mock_ce_client
+    ):
+        """A COH type the SDK cannot parse yields a clear error and no Cost Explorer call."""
+        recommendation = {
+            'recommendationId': 'rec-12345',
+            'recommendedResourceDetails': {'SDK_UNKNOWN_MEMBER': {'name': 'newReservedThing'}},
+        }
+
+        result = await get_reserved_instances_recommendation(
+            mock_context, recommendation, mock_ce_client
         )
+
+        assert "'newReservedThing'" in result['error']
+        assert 'cannot parse' in result['error']
+        assert 'SDK_UNKNOWN_MEMBER' not in result['error']
+        mock_ce_client.get_reservation_purchase_recommendation.assert_not_called()
 
     async def test_get_reserved_instances_recommendation_missing_key(
         self, mock_context, mock_ce_client
@@ -1114,6 +1207,80 @@ class TestGetTemplateForRecommendation:
         assert result is None
 
 
+TEMPLATES_DIR = (
+    Path(recommendation_details_tools.__file__).parent.parent
+    / 'templates'
+    / 'recommendation_templates'
+)
+
+# Recommendation that selects each bundled template
+TEMPLATE_CASES = {
+    'savings_plans': {'actionType': 'PurchaseSavingsPlans'},
+    'reserved_instances': {'actionType': 'PurchaseReservedInstances'},
+    'idle': {'actionType': 'Stop'},
+    'ec2_instance': {'currentResourceType': 'Ec2Instance'},
+    'ec2_asg': {'currentResourceType': 'Ec2AutoScalingGroup'},
+    'ebs_volume': {'currentResourceType': 'EbsVolume'},
+    'ecs_service': {'currentResourceType': 'EcsService'},
+    'lambda_function': {'currentResourceType': 'LambdaFunction'},
+    'rds_database': {'currentResourceType': 'RdsDbInstance'},
+}
+
+
+@pytest.fixture
+def legacy_default_encoding(monkeypatch):
+    """Make text-mode file I/O behave like a Windows host whose default encoding is cp1252.
+
+    ``open()`` called without an ``encoding`` uses cp1252 (and, on Python 3.11+,
+    ``Path.read_text()`` too; on 3.10 ``pathlib`` binds ``io.open`` at import time, so only
+    the builtin ``open()`` is affected, which is what the code under test uses). This
+    reproduces such a host on any platform, including when the test run itself has
+    UTF-8 mode enabled.
+    """
+    real_open = io.open
+
+    def legacy_open(
+        file,
+        mode='r',
+        buffering=-1,
+        encoding=None,
+        errors=None,
+        newline=None,
+        closefd=True,
+        opener=None,
+    ):
+        if 'b' not in mode and encoding in (None, 'locale'):
+            encoding = 'cp1252'
+        return real_open(file, mode, buffering, encoding, errors, newline, closefd, opener)
+
+    def legacy_text_encoding(encoding, stacklevel=2):
+        return 'locale' if encoding is None else encoding
+
+    monkeypatch.setattr(builtins, 'open', legacy_open)
+    monkeypatch.setattr(io, 'open', legacy_open)
+    monkeypatch.setattr(io, 'text_encoding', legacy_text_encoding)
+
+
+class TestGetTemplateForRecommendationEncoding:
+    """The bundled templates are UTF-8 and must read the same whatever the host's default is."""
+
+    def test_every_bundled_template_has_a_case(self):
+        """Guard: a new template file must be added to TEMPLATE_CASES."""
+        assert {path.stem for path in TEMPLATES_DIR.glob('*.template')} == set(TEMPLATE_CASES)
+
+    @pytest.mark.parametrize('name', sorted(TEMPLATE_CASES))
+    def test_template_is_read_as_utf8(self, name, legacy_default_encoding):
+        """Each template is returned exactly as stored, not as None or mojibake."""
+        expected = (TEMPLATES_DIR / f'{name}.template').read_text(encoding='utf-8')
+
+        result = get_template_for_recommendation(TEMPLATE_CASES[name], {})
+
+        assert result == expected
+        # Every bundled template has non-ASCII characters; make sure the comparison above
+        # is exercising a decoding difference.
+        assert not expected.isascii()
+
+
 @pytest.mark.asyncio
 class TestProcessRecommendation:
     """Tests for process_recommendation function."""
@@ -1263,3 +1430,74 @@ def test_recommendation_details_server_initialization():
         'Tools for working with AWS Cost Optimization Hub enhanced recommendation details'
         in recommendation_details_server.instructions
     )
+
+
+async def test_rec_details_description_documents_commitment_metrics():
+    """The schema the agent sees names break-even as RI-only and ROI as the SP metric."""
+    tools = {t.name: t for t in await recommendation_details_server.list_tools()}
+    description = tools['rec-details'].description or ''
+
+    assert 'EstimatedBreakEvenInMonths is per RecommendationDetails row' in description
+    assert 'Savings Plans recommendations carry no break-even' in description
+    assert 'EstimatedROI' in description and 'not a payback period' in description
+
+
+def _ce_model():
+    return botocore.session.get_session().get_service_model('ce')
+
+
+def test_break_even_is_ri_only_in_botocore_model():
+    """Pin the Cost Explorer shape asymmetry the tool description relies on."""
+    ce = _ce_model()
+    ri_detail = ce.shape_for('ReservationPurchaseRecommendationDetail').members
+    sp_detail = ce.shape_for('SavingsPlansPurchaseRecommendationDetail').members
+
+    assert 'EstimatedBreakEvenInMonths' in ri_detail
+    assert 'EstimatedBreakEvenInMonths' not in sp_detail
+    assert 'EstimatedROI' in sp_detail and 'EstimatedROI' not in ri_detail
+
+
+def _keys_outside_shape(value, shape, path=''):
+    """Yield every dict key in value that the botocore shape does not declare."""
+    if shape.type_name == 'structure':
+        for key, child in value.items():
+            if key not in shape.members:
+                yield f'{path}{key}'
+            else:
+                yield from _keys_outside_shape(child, shape.members[key], f'{path}{key}.')
+    elif shape.type_name == 'list':
+        for item in value:
+            yield from _keys_outside_shape(item, shape.member, f'{path}[].')
+
+
+@pytest.mark.parametrize(
+    'method, operation',
+    [
+        ('get_savings_plans_purchase_recommendation', 'GetSavingsPlansPurchaseRecommendation'),
+        ('get_reservation_purchase_recommendation', 'GetReservationPurchaseRecommendation'),
+    ],
+)
+def test_ce_mocks_match_botocore_output_shapes(mock_ce_client, method, operation):
+    """The Cost Explorer mocks use only keys the real API can return."""
+    response = getattr(mock_ce_client, method).return_value
+    output_shape = _ce_model().operation_model(operation).output_shape
+
+    assert list(_keys_outside_shape(response, output_shape)) == []
+
+
+def test_every_coh_commitment_type_is_mapped():
+    """Every COH commitment ResourceDetails member reaches a Cost Explorer lookup."""
+    coh = botocore.session.get_session().get_service_model('cost-optimization-hub')
+    members = coh.shape_for('ResourceDetails').members
+    commitment_suffixes = ('ReservedInstances', 'ReservedCapacity', 'SavingsPlans')
+    commitment_members = {m for m in members if m.endswith(commitment_suffixes)}
+
+    unmapped = commitment_members - set(SERVICE_MAP) - set(SAVINGS_PLANS_TYPE_MAP)
+    assert unmapped == set()
+
+
+def test_every_ce_savings_plans_type_is_mapped():
+    """Every Savings Plans type Cost Explorer supports has a COH key mapped to it."""
+    supported = set(_ce_model().shape_for('SupportedSavingsPlansType').enum)
+
+    assert supported - set(SAVINGS_PLANS_TYPE_MAP.values()) == set()

@@ -697,6 +697,48 @@ async def test_list_runs_with_date_filters():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'created_after,created_before,expected_ids',
+    [
+        ('2023-06-10', None, ['run-2', 'run-3']),
+        ('2023-06-10T00:00', None, ['run-2', 'run-3']),
+        (None, '2023-06-20', ['run-1', 'run-2']),
+        ('2023-06-10', '2023-06-20T00:00', ['run-2']),
+    ],
+)
+async def test_list_runs_date_filters_without_utc_offset(
+    created_after, created_before, expected_ids
+):
+    """Date filters without a UTC offset are treated as UTC instead of failing."""
+    base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    mock_client = MagicMock()
+    mock_client.list_runs.return_value = {
+        'items': [
+            {'id': 'run-1', 'creationTime': base_time - timedelta(days=10)},  # 2023-06-05
+            {'id': 'run-2', 'creationTime': base_time},  # 2023-06-15
+            {'id': 'run-3', 'creationTime': base_time + timedelta(days=10)},  # 2023-06-25
+        ]
+    }
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await list_runs(
+            ctx=AsyncMock(),
+            max_results=10,
+            next_token=None,
+            status=None,
+            created_after=created_after,
+            created_before=created_before,
+            run_group_id=None,
+        )
+
+    assert 'error' not in result
+    assert [run['id'] for run in result['runs']] == expected_ids
+
+
+@pytest.mark.asyncio
 async def test_list_runs_with_created_before_filter():
     """Test listing runs with created_before filter."""
     base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
@@ -1058,6 +1100,14 @@ async def test_parse_iso_datetime_various_formats():
 
     dt3 = parse_iso_datetime('2023-06-15T12:00:00')
     assert dt3.year == 2023
+
+    # Inputs without an offset are treated as UTC
+    assert parse_iso_datetime('2023-06-15') == datetime(2023, 6, 15, tzinfo=timezone.utc)
+    assert parse_iso_datetime('2023-06-15T12:00') == datetime(2023, 6, 15, 12, tzinfo=timezone.utc)
+    # An explicit offset is kept, not overwritten with UTC
+    assert parse_iso_datetime('2023-06-15T12:00:00-05:00') == datetime(
+        2023, 6, 15, 17, tzinfo=timezone.utc
+    )
 
     # Test invalid format
     try:

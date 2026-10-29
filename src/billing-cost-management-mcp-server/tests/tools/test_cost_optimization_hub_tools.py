@@ -315,7 +315,7 @@ async def test_coh_real_summaries_reload_identity_decorator(mock_context):
             mock_context,
             operation='list_recommendation_summaries',
             group_by='ResourceType',
-            max_results=50,
+            max_items=50,
             filters=filters_str,
         )
 
@@ -328,11 +328,10 @@ async def test_coh_real_summaries_reload_identity_decorator(mock_context):
             mock_context,
             fake_client,
             group_by='ResourceType',
-            max_results=50,
+            max_items=50,
             # Key and enum value are folded onto the API's spelling.
             filters={'implementationEfforts': ['Low'], 'savingsPct': {'gte': 10}},
             next_token=None,
-            max_pages=None,
         )
 
 
@@ -358,7 +357,7 @@ async def test_coh_real_list_recommendations_reload_identity_decorator(mock_cont
         res = await real_fn(  # type: ignore
             mock_context,
             operation='list_recommendations',
-            max_results=25,
+            max_items=25,
             filters=filters_str,
             include_all_recommendations=True,
         )
@@ -375,7 +374,6 @@ async def test_coh_real_list_recommendations_reload_identity_decorator(mock_cont
             parsed,
             True,
             next_token=None,
-            max_pages=None,
             order_by=None,
         )
 
@@ -473,7 +471,7 @@ async def test_coh_real_list_recommendations_no_filters_reload_identity_decorato
         res = await real_fn(  # type: ignore
             mock_context,
             operation='list_recommendations',
-            # No filters, no max_results, no next_token, no include_all_recommendations
+            # No filters, no max_items, no next_token, no include_all_recommendations
         )
 
         assert res['status'] == 'success'
@@ -485,11 +483,10 @@ async def test_coh_real_list_recommendations_no_filters_reload_identity_decorato
         mock_list_recs.assert_awaited_once_with(
             mock_context,
             fake_client,
-            None,  # max_results
+            None,  # max_items
             None,  # filters
             None,  # include_all_recommendations
             next_token=None,
-            max_pages=None,
             order_by=None,
         )
 
@@ -637,7 +634,6 @@ async def test_coh_real_list_recommendations_order_by_reload_identity_decorator(
             None,
             None,
             next_token=None,
-            max_pages=None,
             order_by=parsed_order_by,
         )
 
@@ -694,7 +690,7 @@ async def test_coh_real_efficiency_metrics_reload_identity_decorator(mock_contex
             end_date='2026-08',
             group_by='Region',
             order_by=order_by_str,
-            max_results=25,
+            max_items=25,
         )
 
         assert res['status'] == 'success'
@@ -710,9 +706,8 @@ async def test_coh_real_efficiency_metrics_reload_identity_decorator(mock_contex
             end_date='2026-08',
             group_by='Region',
             order_by=parsed_order_by,
-            max_results=25,
+            max_items=25,
             next_token=None,
-            max_pages=None,
             ranking_mode=None,
         )
 
@@ -753,9 +748,8 @@ async def test_coh_real_efficiency_metrics_defaults_reload_identity_decorator(mo
             end_date='2026-08',
             group_by=None,
             order_by=None,
-            max_results=None,
+            max_items=None,
             next_token=None,
-            max_pages=None,
             ranking_mode=None,
         )
 
@@ -897,9 +891,8 @@ async def test_coh_real_efficiency_metrics_daily_passthrough_reload_identity_dec
             end_date='2026-05-31',
             group_by=None,
             order_by=None,
-            max_results=None,
+            max_items=None,
             next_token=None,
-            max_pages=None,
             ranking_mode=None,
         )
 
@@ -1012,9 +1005,8 @@ async def test_coh_real_efficiency_metrics_monthly_truncates_daily_format_date(m
         end_date='2026-08',
         group_by=None,
         order_by=None,
-        max_results=None,
+        max_items=None,
         next_token=None,
-        max_pages=None,
         ranking_mode=None,
     )
 
@@ -1600,6 +1592,72 @@ async def test_coh_empty_filter_rejected_before_api_call(mock_context, operation
     assert res['data']['empty_filters'] == ['resourceTypes']
     mock_list.assert_not_awaited()
     mock_summaries.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'filters',
+    [
+        '{"recommendationIds": ["r-1"]}',
+        '{"resource_ids": ["i-1"]}',
+        '{"resourceArns": ["arn:aws:ec2:us-east-1:111111111111:instance/i-1"]}',
+    ],
+)
+async def test_coh_summaries_reject_id_filters_before_api_call(mock_context, filters):
+    """The service rejects ID filters on summaries, so they fail locally with a hint."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(
+            coh_mod, 'list_recommendation_summaries', new_callable=AsyncMock
+        ) as mock_summaries,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendation_summaries',
+            group_by='ActionType',
+            filters=filters,
+        )
+
+    assert res['error_type'] == 'validation_error'
+    assert res['operation'] == 'list_recommendation_summaries'
+    assert len(res['data']['unsupported_filters']) == 1
+    assert res['data']['unsupported_filters'][0] in coh_mod.SUMMARIES_UNSUPPORTED_FILTERS
+    assert 'is not supported by list_recommendation_summaries' in res['message']
+    supported = res['data']['supported_filters']
+    assert 'resourceTypes' in supported and 'tags' in supported
+    assert not set(supported) & coh_mod.SUMMARIES_UNSUPPORTED_FILTERS
+    mock_summaries.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_coh_id_filters_still_reach_list_recommendations(mock_context):
+    """list_recommendations accepts the ID filters, so they pass through."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(
+            coh_mod,
+            'list_recommendations',
+            new_callable=AsyncMock,
+            return_value={'status': 'success', 'data': {}},
+        ) as mock_list,
+    ):
+        await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendations',
+            filters='{"recommendationIds": ["r-1"]}',
+        )
+
+    mock_list.assert_awaited_once()
+    assert {'recommendationIds': ['r-1']} in [
+        *mock_list.call_args.args,
+        *mock_list.call_args.kwargs.values(),
+    ]
 
 
 @pytest.mark.asyncio

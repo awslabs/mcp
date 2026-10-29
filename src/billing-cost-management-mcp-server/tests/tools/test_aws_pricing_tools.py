@@ -37,6 +37,7 @@ from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations imp
 from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_tools import (
     aws_pricing_server,
 )
+from botocore.exceptions import ClientError
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -53,7 +54,7 @@ async def aws_pricing(ctx, operation, **kwargs):
             get_service_codes,
         )
 
-        return await get_service_codes(ctx, max_results=kwargs.get('max_results'))
+        return await get_service_codes(ctx, max_items=kwargs.get('max_items'))
 
     elif operation == 'get_service_attributes':
         if not kwargs.get('service_code'):
@@ -84,7 +85,7 @@ async def aws_pricing(ctx, operation, **kwargs):
 
         service_code = kwargs.get('service_code')
         attribute_name = kwargs.get('attribute_name')
-        max_results = kwargs.get('max_results')
+        max_items = kwargs.get('max_items')
 
         if service_code is None or attribute_name is None:
             raise ValueError('service_code and attribute_name are required')
@@ -93,7 +94,7 @@ async def aws_pricing(ctx, operation, **kwargs):
             ctx,
             str(service_code),
             str(attribute_name),
-            int(max_results) if max_results is not None else None,
+            int(max_items) if max_items is not None else None,
         )
 
     elif operation == 'get_pricing_from_api':
@@ -110,7 +111,7 @@ async def aws_pricing(ctx, operation, **kwargs):
 
         service_code = kwargs.get('service_code')
         filters = kwargs.get('filters')
-        max_results = kwargs.get('max_results')
+        max_items = kwargs.get('max_items')
 
         if service_code is None:
             raise ValueError('service_code is required')
@@ -119,7 +120,7 @@ async def aws_pricing(ctx, operation, **kwargs):
             ctx,
             str(service_code),
             filters,
-            max_results=int(max_results) if max_results is not None else None,
+            max_items=int(max_items) if max_items is not None else None,
         )
 
     else:
@@ -209,13 +210,12 @@ class TestAwsPricing:
             'status': 'success',
             'data': {
                 'service_codes': ['AmazonEC2', 'AmazonS3'],
-                'total_count': 2,
                 'message': 'Successfully retrieved 2 AWS service codes',
             },
         }
 
         # Execute
-        result = await aws_pricing(mock_context, operation='get_service_codes', max_results=100)
+        result = await aws_pricing(mock_context, operation='get_service_codes', max_items=100)
 
         # Assert
         # Check results directly instead of mocks
@@ -636,17 +636,17 @@ async def test_aws_pricing_get_attribute_values_passes_all_args_extra(mock_conte
             operation='get_attribute_values',
             service_code='AmazonEC2',
             attribute_name='instanceType',
-            max_results=25,
+            max_items=25,
         )
         assert res['status'] == 'success'
         mock_impl.assert_awaited_once_with(mock_context, 'AmazonEC2', 'instanceType', 25)
 
 
 @pytest.mark.asyncio
-async def test_aws_pricing_get_pricing_from_api_passes_filters_string_and_max_results_extra(
+async def test_aws_pricing_get_pricing_from_api_passes_filters_string_and_max_items_extra(
     mock_context,
 ):
-    """Test aws_pricing passes filters string and max_results to get_pricing_from_api."""
+    """Test aws_pricing passes filters string and max_items to get_pricing_from_api."""
     with patch(
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.get_pricing_from_api'
     ) as mock_impl:
@@ -657,10 +657,10 @@ async def test_aws_pricing_get_pricing_from_api_passes_filters_string_and_max_re
             operation='get_pricing_from_api',
             service_code='AmazonEC2',
             filters=filters,
-            max_results=100,
+            max_items=100,
         )
         assert res['status'] == 'success'
-        mock_impl.assert_awaited_once_with(mock_context, 'AmazonEC2', filters, max_results=100)
+        mock_impl.assert_awaited_once_with(mock_context, 'AmazonEC2', filters, max_items=100)
 
 
 @pytest.mark.asyncio
@@ -678,7 +678,7 @@ async def test_aws_pricing_get_pricing_from_api_passes_filters_dict_too_extra(mo
             filters=filters,
         )
         assert res['status'] == 'success'
-        mock_impl.assert_awaited_once_with(mock_context, 'AmazonEC2', filters, max_results=None)
+        mock_impl.assert_awaited_once_with(mock_context, 'AmazonEC2', filters, max_items=None)
 
 
 def _reload_pricing_with_identity_decorator():
@@ -708,10 +708,10 @@ async def test_ap_real_get_service_codes_reload_identity_decorator(mock_context)
     with patch.object(ap_mod, 'get_service_codes', new_callable=AsyncMock) as mock_get:
         mock_get.return_value = {'status': 'success', 'data': {'service_codes': []}}
         res = await real_fn(  # type: ignore  # type: ignore
-            mock_context, operation='get_service_codes', max_results=200
+            mock_context, operation='get_service_codes', max_items=200, next_token='tok'
         )  # type: ignore
         assert res['status'] == 'success'
-        mock_get.assert_awaited_once_with(mock_context, max_results=200)
+        mock_get.assert_awaited_once_with(mock_context, max_items=200, next_token='tok')
 
 
 @pytest.mark.asyncio
@@ -848,11 +848,12 @@ async def test_ap_real_get_attribute_values_reload_identity_decorator(mock_conte
             operation='get_attribute_values',
             service_code='AmazonEC2',
             attribute_name='instanceType',
-            max_results=25,
+            max_items=25,
+            next_token='tok',
         )
         assert res['status'] == 'success'
         mock_impl.assert_awaited_once_with(
-            mock_context, 'AmazonEC2', 'instanceType', max_results=25
+            mock_context, 'AmazonEC2', 'instanceType', max_items=25, next_token='tok'
         )
 
     # missing params → error
@@ -880,10 +881,13 @@ async def test_ap_real_get_pricing_from_api_reload_identity_decorator(mock_conte
             operation='get_pricing_from_api',
             service_code='AmazonEC2',
             filters=filters,  # type: ignore
-            max_results=100,
+            max_items=100,
+            next_token='tok',
         )
         assert res['status'] == 'success'
-        mock_impl.assert_awaited_once_with(mock_context, 'AmazonEC2', filters, max_results=100)
+        mock_impl.assert_awaited_once_with(
+            mock_context, 'AmazonEC2', filters, max_items=100, next_token='tok'
+        )
 
     # missing service_code -> error
     res2 = await real_fn(  # type: ignore  # type: ignore
@@ -943,46 +947,99 @@ class TestGetServiceCodesAdditional:
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
     )
     async def test_get_service_codes_pagination(self, mock_create_client, mock_context):
-        """Test get_service_codes with pagination."""
+        """Without max_items every page is fetched at the largest page size."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
 
-        # Setup multi-page response
         mock_client.describe_services.side_effect = [
             {
                 'Services': [{'ServiceCode': 'AmazonEC2'}, {'ServiceCode': 'AmazonS3'}],
                 'NextToken': 'page2token',
             },
-            {
-                'Services': [{'ServiceCode': 'AmazonRDS'}, {'ServiceCode': 'AWSLambda'}],
-                # No NextToken - end of pagination
-            },
+            {'Services': [{'ServiceCode': 'AmazonRDS'}, {'ServiceCode': 'AWSLambda'}]},
         ]
 
-        result = await get_service_codes(mock_context, max_results=10)
+        result = await get_service_codes(mock_context)
 
         assert result['status'] == 'success'
-        assert len(result['data']['service_codes']) == 4
-        assert 'AmazonEC2' in result['data']['service_codes']
-        assert 'AWSLambda' in result['data']['service_codes']
-        # Verify two API calls were made
-        assert mock_client.describe_services.call_count == 2
+        # The service's order is kept across pages, not re-sorted.
+        assert result['data']['service_codes'] == [
+            'AmazonEC2',
+            'AmazonS3',
+            'AmazonRDS',
+            'AWSLambda',
+        ]
+        calls = mock_client.describe_services.call_args_list
+        assert [call.kwargs for call in calls] == [
+            {'MaxResults': 100},
+            {'MaxResults': 100, 'NextToken': 'page2token'},
+        ]
+        assert result['data']['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 4,
+        }
+        assert 'total_count' not in result['data']
+        assert 'warning' not in result['data']
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
     )
-    async def test_get_service_codes_with_max_results(self, mock_create_client, mock_context):
-        """Test get_service_codes with max_results parameter."""
+    async def test_get_service_codes_with_max_items(self, mock_create_client, mock_context):
+        """max_items stops the walk, returns the service token and keeps the service order."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
+        mock_client.describe_services.return_value = {
+            'Services': [{'ServiceCode': 'ZService'}, {'ServiceCode': 'AService'}],
+            'NextToken': 'page2token',
+        }
 
-        mock_client.describe_services.return_value = {'Services': [{'ServiceCode': 'AmazonEC2'}]}
+        result = await get_service_codes(mock_context, max_items=2)
 
-        await get_service_codes(mock_context, max_results=50)
+        assert mock_client.describe_services.call_count == 1
+        assert mock_client.describe_services.call_args.kwargs == {'MaxResults': 2}
+        data = result['data']
+        assert data['service_codes'] == ['ZService', 'AService']
+        assert 'total_count' not in data
+        assert data['pagination']['items_returned'] == 2
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['pagination']['next_token'] == 'page2token'
+        assert data['pagination']['has_more'] is True
 
-        # Verify max_results was passed to API
-        call_kwargs = mock_client.describe_services.call_args[1]
-        assert call_kwargs['MaxResults'] == 50
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+    )
+    async def test_get_service_codes_continuation(self, mock_create_client, mock_context):
+        """A continuation sends the caller's token with the same page size."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.describe_services.return_value = {'Services': [{'ServiceCode': 'AmazonS3'}]}
+
+        result = await get_service_codes(mock_context, max_items=2, next_token='page2token')
+
+        assert mock_client.describe_services.call_args.kwargs == {
+            'MaxResults': 2,
+            'NextToken': 'page2token',
+        }
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+    )
+    async def test_get_service_codes_rejected_token(self, mock_create_client, mock_context):
+        """A token the service rejects maps to invalid_next_token."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.describe_services.side_effect = ClientError(
+            {'Error': {'Code': 'InvalidNextTokenException', 'Message': 'bad'}},
+            'DescribeServices',
+        )
+
+        result = await get_service_codes(mock_context, next_token='stale')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'invalid_next_token'
 
 
 @pytest.mark.asyncio
@@ -1005,7 +1062,7 @@ class TestGetServiceAttributesAdditional:
 
         assert result['status'] == 'success'
         assert result['data']['attributes'] == []
-        assert result['data']['total_count'] == 0
+        assert 'total_count' not in result['data']
 
 
 @pytest.mark.asyncio
@@ -1015,53 +1072,75 @@ class TestGetAttributeValuesAdditional:
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
     )
-    async def test_get_attribute_values_pagination_with_max_results_limit(
-        self, mock_create_client, mock_context
-    ):
-        """Test get_attribute_values pagination that hits max_results limit."""
+    async def test_get_attribute_values_fetches_every_page(self, mock_create_client, mock_context):
+        """Without max_items every page is fetched at the largest page size."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
-
-        # Setup multi-page response
         mock_client.get_attribute_values.side_effect = [
             {
-                'AttributeValues': [{'Value': f'value-{i}'} for i in range(50)],
+                'AttributeValues': [{'Value': f'value-{i:03d}'} for i in range(50)],
                 'NextToken': 'page2token',
             },
-            {
-                'AttributeValues': [{'Value': f'value-{i}'} for i in range(50, 100)],
-                # No NextToken - end of pagination
-            },
+            {'AttributeValues': [{'Value': f'value-{i:03d}'} for i in range(50, 100)]},
         ]
 
-        result = await get_attribute_values(
-            mock_context, 'AmazonEC2', 'instanceType', max_results=75
-        )
+        result = await get_attribute_values(mock_context, 'AmazonEC2', 'instanceType')
 
         assert result['status'] == 'success'
         assert len(result['data']['values']) == 100
-        # Should make both API calls to get all pages
-        assert mock_client.get_attribute_values.call_count == 2
+        assert 'total_count' not in result['data']
+        assert result['data']['pagination']['items_returned'] == 100
+        calls = mock_client.get_attribute_values.call_args_list
+        base = {'ServiceCode': 'AmazonEC2', 'AttributeName': 'instanceType', 'MaxResults': 10000}
+        assert [call.kwargs for call in calls] == [base, {**base, 'NextToken': 'page2token'}]
+        assert result['data']['pagination']['complete_dataset'] is True
+        assert 'warning' not in result['data']
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
     )
-    async def test_get_attribute_values_with_max_results_none(
-        self, mock_create_client, mock_context
-    ):
-        """Test get_attribute_values with max_results=None."""
+    async def test_get_attribute_values_max_items_stops(self, mock_create_client, mock_context):
+        """max_items sizes the page, stops when reached and keeps the service order."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
-
         mock_client.get_attribute_values.return_value = {
-            'AttributeValues': [{'Value': 't3.micro'}]
+            'AttributeValues': [{'Value': 'us-east-1-x'}, {'Value': 'us-east-1'}, {'Value': 'a'}],
+            'NextToken': 'page2token',
         }
 
-        await get_attribute_values(mock_context, 'AmazonEC2', 'instanceType', max_results=None)
+        result = await get_attribute_values(mock_context, 'AmazonEC2', 'instanceType', max_items=3)
 
-        # Verify max_results was not passed to API when None
-        call_kwargs = mock_client.get_attribute_values.call_args[1]
-        assert 'MaxResults' not in call_kwargs
+        assert mock_client.get_attribute_values.call_count == 1
+        assert mock_client.get_attribute_values.call_args.kwargs['MaxResults'] == 3
+        data = result['data']
+        # A value that is a prefix of another is not moved ahead of it, as sorted() would.
+        assert data['values'] == ['us-east-1-x', 'us-east-1', 'a']
+        assert 'total_count' not in data
+        assert data['pagination']['items_returned'] == 3
+        assert data['complete_dataset'] is False
+        assert data['pagination']['next_token'] == 'page2token'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+    )
+    async def test_get_attribute_values_continuation(self, mock_create_client, mock_context):
+        """A continuation sends the caller's token and otherwise the same request."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_attribute_values.side_effect = [
+            {'AttributeValues': [{'Value': 'a'}], 'NextToken': 'page2token'},
+            {'AttributeValues': [{'Value': 'b'}]},
+        ]
+
+        await get_attribute_values(mock_context, 'AmazonEC2', 'instanceType', max_items=1)
+        result = await get_attribute_values(
+            mock_context, 'AmazonEC2', 'instanceType', max_items=1, next_token='page2token'
+        )
+
+        first, resumed = (c.kwargs for c in mock_client.get_attribute_values.call_args_list)
+        assert resumed == {**first, 'NextToken': 'page2token'}
+        assert result['data']['values'] == ['b']
+        assert result['data']['pagination']['complete_dataset'] is True
 
 
 @pytest.mark.asyncio
@@ -1125,6 +1204,23 @@ class TestGetPricingFromApiAdditional:
         assert 'did not return any pricing data' in result['message']
         assert 'did not return any pricing data' in result['data']['message']
         assert 'examples' in result['data']
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+    )
+    async def test_get_pricing_from_api_empty_continuation_is_not_no_results(
+        self, mock_create_client, mock_context
+    ):
+        """A next_token continuation that reaches an empty last page is a success, not a bad code."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {'PriceList': []}
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2', next_token='tok')
+
+        assert result['status'] == 'success'
+        assert result['data']['pagination']['complete_dataset'] is True
+        assert mock_client.get_products.call_args.kwargs['NextToken'] == 'tok'
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
@@ -1212,34 +1308,123 @@ class TestGetPricingFromApiAdditional:
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
     )
-    async def test_get_pricing_from_api_pagination_with_max_results_limit(
+    async def test_get_pricing_from_api_max_items_stops_with_token(
         self, mock_convert_table, mock_create_client, mock_context
     ):
-        """Test get_pricing_from_api pagination that hits max_results limit."""
+        """max_items stops before the next page and returns the service token."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
-
-        # Setup multi-page response
-        mock_client.get_products.side_effect = [
-            {
-                'PriceList': [f'{{"product": {{"sku": "sku-{i}"}}}}' for i in range(50)],
-                'NextToken': 'page2token',
-            },
-            {
-                'PriceList': [f'{{"product": {{"sku": "sku-{i}"}}}}' for i in range(50, 100)],
-                # No NextToken - end of pagination
-            },
-        ]
-
+        mock_client.get_products.return_value = {
+            'PriceList': [f'{{"product": {{"sku": "sku-{i}"}}}}' for i in range(75)],
+            'NextToken': 'page2token',
+        }
         mock_convert_table.return_value = None
 
-        result = await get_pricing_from_api(mock_context, 'AmazonEC2', max_results=75)
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2', max_items=75)
 
         assert result['status'] == 'success'
-        # Should stop at max_results despite having more pages
-        assert len(result['data']['products']) >= 75  # May be limited by display_limit
-        # Should make multiple API calls to get the data
-        assert mock_client.get_products.call_count == 2
+        assert mock_client.get_products.call_count == 1
+        assert mock_client.get_products.call_args.kwargs['MaxResults'] == 75
+        data = result['data']
+        assert len(data['products']) == 75
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'page2token',
+            'items_returned': 75,
+        }
+        # The offload check sees the same pagination block.
+        offered = mock_convert_table.call_args.args[1]
+        assert offered['pagination']['next_token'] == 'page2token'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
+    )
+    async def test_get_pricing_from_api_without_max_items_returns_every_product(
+        self, mock_convert_table, mock_create_client, mock_context
+    ):
+        """Without max_items every page is fetched and no product is dropped from display."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.side_effect = [
+            {
+                'PriceList': [f'{{"product": {{"sku": "sku-{i}"}}}}' for i in range(100)],
+                'NextToken': 'page2token',
+            },
+            {'PriceList': [f'{{"product": {{"sku": "sku-{i}"}}}}' for i in range(100, 150)]},
+        ]
+        mock_convert_table.return_value = None
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2')
+
+        calls = mock_client.get_products.call_args_list
+        assert [call.kwargs.get('NextToken') for call in calls] == [None, 'page2token']
+        assert all(call.kwargs['MaxResults'] == 100 for call in calls)
+        data = result['data']
+        assert data['products_returned'] == 150
+        assert len(data['products']) == 150
+        assert data['pagination']['complete_dataset'] is True
+        assert 'warning' not in data
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
+    )
+    async def test_get_pricing_from_api_continuation_keeps_filters(
+        self, mock_convert_table, mock_create_client, mock_context
+    ):
+        """A continuation sends the caller's token and the same filters and page size."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.side_effect = [
+            {'PriceList': ['{"product": {"sku": "a"}}'], 'NextToken': 'page2token'},
+            {'PriceList': ['{"product": {"sku": "b"}}']},
+        ]
+        mock_convert_table.return_value = None
+        filters = '{"instanceType": "t3.micro"}'
+
+        await get_pricing_from_api(mock_context, 'AmazonEC2', filters, max_items=1)
+        result = await get_pricing_from_api(
+            mock_context, 'AmazonEC2', filters, max_items=1, next_token='page2token'
+        )
+
+        first, resumed = (c.kwargs for c in mock_client.get_products.call_args_list)
+        assert resumed == {**first, 'NextToken': 'page2token'}
+        assert first['Filters'] == [
+            {'Field': 'instanceType', 'Type': 'TERM_MATCH', 'Value': 't3.micro'}
+        ]
+        assert result['data']['products'][0]['sku'] == 'b'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
+    )
+    async def test_get_pricing_from_api_failed_later_page_is_partial_not_no_results(
+        self, mock_convert_table, mock_create_client, mock_context
+    ):
+        """An empty first page followed by a failure is partial, not "no pricing data"."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.side_effect = [
+            {'PriceList': [], 'NextToken': 'page2token'},
+            ClientError({'Error': {'Code': 'ThrottlingException'}}, 'GetProducts'),
+        ]
+        mock_convert_table.return_value = None
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2')
+
+        assert result['status'] == 'success'
+        assert result['data']['complete_dataset'] is False
+        assert result['data']['pagination']['next_token'] == 'page2token'
+        assert result['data']['products'] == []
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
@@ -1330,3 +1515,209 @@ class TestGetPricingFromApiAdditional:
 
         # Defaults to us-east-1 when AWS_REGION is not set
         mock_create_client.assert_called_once_with('pricing', 'us-east-1')
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
+    )
+    async def test_get_pricing_from_api_inline_keeps_tiered_terms(
+        self, mock_convert_table, mock_create_client, mock_context
+    ):
+        """Inline results keep the tier bounds of a tiered OnDemand price."""
+        terms = {
+            'OnDemand': {
+                'S3SKU.JRTCKXETXF': {
+                    'offerTermCode': 'JRTCKXETXF',
+                    'sku': 'S3SKU',
+                    'effectiveDate': '2026-10-01T00:00:00Z',
+                    'priceDimensions': {
+                        'S3SKU.JRTCKXETXF.PGHJ3S3EYE': {
+                            'rateCode': 'S3SKU.JRTCKXETXF.PGHJ3S3EYE',
+                            'description': '$0.023 per GB - first 50 TB / month',
+                            'beginRange': '0',
+                            'endRange': '51200',
+                            'unit': 'GB-Mo',
+                            'pricePerUnit': {'USD': '0.0230000000'},
+                            'appliesTo': [],
+                        },
+                        'S3SKU.JRTCKXETXF.D42MF2PVJS': {
+                            'rateCode': 'S3SKU.JRTCKXETXF.D42MF2PVJS',
+                            'description': '$0.022 per GB - next 450 TB / month',
+                            'beginRange': '51200',
+                            'endRange': '512000',
+                            'unit': 'GB-Mo',
+                            'pricePerUnit': {'USD': '0.0220000000'},
+                            'appliesTo': [],
+                        },
+                    },
+                    'termAttributes': {},
+                }
+            },
+        }
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {
+            'PriceList': [
+                json.dumps(
+                    {
+                        'product': {
+                            'sku': 'S3SKU',
+                            'productFamily': 'Storage',
+                            'attributes': {'storageClass': 'General Purpose'},
+                        },
+                        'terms': terms,
+                    }
+                )
+            ]
+        }
+        mock_convert_table.return_value = None
+
+        result = await get_pricing_from_api(mock_context, 'AmazonS3')
+
+        assert result['status'] == 'success'
+        assert len(result['data']['products']) == 1
+        product = result['data']['products'][0]
+        assert product['sku'] == 'S3SKU'
+        assert product['productFamily'] == 'Storage'
+        assert product['attributes'] == {'storageClass': 'General Purpose'}
+        assert product['terms'] == terms
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
+    )
+    async def test_get_pricing_from_api_inline_keeps_reserved_term_attributes(
+        self, mock_convert_table, mock_create_client, mock_context
+    ):
+        """Inline results keep the term attributes that tell Reserved terms apart."""
+        terms = {
+            'OnDemand': {
+                'EC2SKU.JRTCKXETXF': {
+                    'offerTermCode': 'JRTCKXETXF',
+                    'sku': 'EC2SKU',
+                    'effectiveDate': '2026-10-01T00:00:00Z',
+                    'priceDimensions': {
+                        'EC2SKU.JRTCKXETXF.6YS6EN2CT7': {
+                            'rateCode': 'EC2SKU.JRTCKXETXF.6YS6EN2CT7',
+                            'description': '$0.0104 per On Demand Linux t3.micro Instance Hour',
+                            'beginRange': '0',
+                            'endRange': 'Inf',
+                            'unit': 'Hrs',
+                            'pricePerUnit': {'USD': '0.0104000000'},
+                            'appliesTo': [],
+                        }
+                    },
+                    'termAttributes': {},
+                }
+            },
+            'Reserved': {
+                'EC2SKU.4NA7Y494T4': {
+                    'offerTermCode': '4NA7Y494T4',
+                    'sku': 'EC2SKU',
+                    'effectiveDate': '2026-10-01T00:00:00Z',
+                    'priceDimensions': {
+                        'EC2SKU.4NA7Y494T4.6YS6EN2CT7': {
+                            'rateCode': 'EC2SKU.4NA7Y494T4.6YS6EN2CT7',
+                            'description': 'Linux/UNIX (Amazon VPC), t3.micro reserved instance',
+                            'beginRange': '0',
+                            'endRange': 'Inf',
+                            'unit': 'Hrs',
+                            'pricePerUnit': {'USD': '0.0065000000'},
+                            'appliesTo': [],
+                        }
+                    },
+                    'termAttributes': {
+                        'LeaseContractLength': '1yr',
+                        'OfferingClass': 'standard',
+                        'PurchaseOption': 'No Upfront',
+                    },
+                },
+                'EC2SKU.38NPMPTW36': {
+                    'offerTermCode': '38NPMPTW36',
+                    'sku': 'EC2SKU',
+                    'effectiveDate': '2026-10-01T00:00:00Z',
+                    'priceDimensions': {
+                        'EC2SKU.38NPMPTW36.6YS6EN2CT7': {
+                            'rateCode': 'EC2SKU.38NPMPTW36.6YS6EN2CT7',
+                            'description': 'Linux/UNIX (Amazon VPC), t3.micro reserved instance',
+                            'beginRange': '0',
+                            'endRange': 'Inf',
+                            'unit': 'Hrs',
+                            'pricePerUnit': {'USD': '0.0045000000'},
+                            'appliesTo': [],
+                        }
+                    },
+                    'termAttributes': {
+                        'LeaseContractLength': '3yr',
+                        'OfferingClass': 'convertible',
+                        'PurchaseOption': 'Partial Upfront',
+                    },
+                },
+            },
+        }
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {
+            'PriceList': [
+                json.dumps(
+                    {
+                        'product': {
+                            'sku': 'EC2SKU',
+                            'productFamily': 'Compute Instance',
+                            'attributes': {'instanceType': 't3.micro'},
+                        },
+                        'terms': terms,
+                    }
+                )
+            ]
+        }
+        mock_convert_table.return_value = None
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2')
+
+        assert result['status'] == 'success'
+        assert len(result['data']['products']) == 1
+        product = result['data']['products'][0]
+        assert product['sku'] == 'EC2SKU'
+        assert product['productFamily'] == 'Compute Instance'
+        assert product['attributes'] == {'instanceType': 't3.micro'}
+        assert product['terms'] == terms
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
+    )
+    async def test_get_pricing_from_api_inline_product_without_terms(
+        self, mock_convert_table, mock_create_client, mock_context
+    ):
+        """A product with no terms object is returned with empty terms."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {'PriceList': ['{"product": {"sku": "NOTERMS"}}']}
+        mock_convert_table.return_value = None
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2')
+
+        assert result['status'] == 'success'
+        assert result['data']['products'][0]['terms'] == {}
+
+
+@pytest.mark.asyncio
+async def test_aws_pricing_tool_takes_max_items_and_next_token():
+    """The tool exposes max_items/next_token and no longer exposes max_results."""
+    tool = await aws_pricing_server.get_tool('aws-pricing')
+    assert tool is not None
+    properties = tool.parameters['properties']
+    description = tool.description or ''
+
+    assert 'max_items' in properties
+    assert 'next_token' in properties
+    assert 'max_results' not in properties
+    assert 'max_items' in description
+    assert 'complete_dataset' in description

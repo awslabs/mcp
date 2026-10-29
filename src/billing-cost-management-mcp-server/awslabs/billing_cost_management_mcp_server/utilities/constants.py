@@ -18,6 +18,7 @@ This module centralizes constant definitions to ensure consistency
 and make maintenance easier across the codebase.
 """
 
+import os
 from typing import List, Tuple
 
 
@@ -31,6 +32,27 @@ ColumnSpec = Tuple[str, str]
 
 # ===== AWS Regions =====
 REGION_US_EAST_1 = 'us-east-1'
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    """Read a positive int from the environment, or ``default`` when unset or invalid.
+
+    Evaluated at import, so a malformed override must not raise.
+    """
+    raw = os.getenv(name, '').strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+# Time limit on one paginate_aws_items call. Omitting max_items fetches every page, so this
+# keeps a call within the agent's tool timeout. A call that reaches it stops on a page boundary
+# and returns a partial result with the service's own next_token, so the caller can continue.
+# The first page is always returned. There is no size limit: large results are stored for SQL
+# queries rather than returned into the agent's context.
+PAGINATION_MAX_SECONDS = _positive_int_env('BCM_MCP_PAGINATION_MAX_SECONDS', 300)
 
 # ===== Cost Optimization Hub =====
 # Service name reported in error responses (top-level ``service``).
@@ -215,7 +237,8 @@ SERVICE_MAP = {
     'redshiftReservedInstances': 'Amazon Redshift',
     'elastiCacheReservedInstances': 'Amazon ElastiCache',
     'openSearchReservedInstances': 'Amazon OpenSearch Service',
-    'memoryDbReservedInstances': 'Amazon MemoryDB',
+    'memoryDbReservedInstances': 'Amazon MemoryDB Service',
+    'dynamoDbReservedCapacity': 'Amazon DynamoDB Service',
 }
 
 # Savings Plans type mapping
@@ -223,6 +246,7 @@ SAVINGS_PLANS_TYPE_MAP = {
     'ec2InstanceSavingsPlans': 'EC2_INSTANCE_SP',
     'computeSavingsPlans': 'COMPUTE_SP',
     'sageMakerSavingsPlans': 'SAGEMAKER_SP',
+    'databaseSavingsPlans': 'DATABASE_SP',
 }
 
 

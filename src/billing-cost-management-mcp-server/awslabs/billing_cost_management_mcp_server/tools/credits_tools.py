@@ -43,9 +43,8 @@ async def _credits(
     account_id: Optional[str] = None,
     payer_account_flag: Optional[bool] = None,
     credit_id: Optional[Any] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Route an AWS credits ``operation`` to its handler.
 
@@ -62,9 +61,10 @@ async def _credits(
         account_id: 12-digit AWS account ID. Auto-detected via STS when omitted.
         payer_account_flag: Query at the payer-account level (get_credits only).
         credit_id: Restrict the ledger to one credit (allocation history only).
-        max_results: Maximum results per page (allocation history only).
-        next_token: Pagination token from a previous response.
-        max_pages: Maximum pages to auto-paginate through (default: all).
+        max_items: Most ledger rows to return (allocation history only; get_credits
+            ignores it). None fetches every page.
+        next_token: Pagination token from a previous allocation-history response
+            (get_credits ignores it).
 
     Returns:
         The operation's response, or a standardized error for an unknown
@@ -89,9 +89,8 @@ async def _credits(
             billing_period=billing_period,
             account_id=account_id,
             credit_id=credit_id,
-            max_results=max_results,
+            max_items=max_items,
             next_token=next_token,
-            max_pages=max_pages,
         )
 
     return format_response(
@@ -112,12 +111,12 @@ async def _credits(
 ## OPERATIONS
 
 1) get_credits - the credits objects held by an account: balance, expiration, applicability and sharing
-   Required: operation="get_credits", start_date. start_date is accepted only within one year before today; a request reaching further back is narrowed to that limit.
+   Required: operation="get_credits", start_date. start_date is accepted only within one year before today; a request reaching further back is limited to that boundary.
    Optional:
-     - end_date: inclusive range end. Cannot be in the future. Omit it to use the API default of today.
+     - end_date: inclusive range end. A future end is limited to now; check `data.time_range`. Omit it to use the API default of today.
      - account_id: 12-digit AWS account ID. Auto-detected via STS GetCallerIdentity when omitted.
      - payer_account_flag: set true only when the caller is the management account (the payer account of a consolidated billing family). When true and the caller is the management account, the response aggregates credits across the entire family; use this for "credits across my organization" questions. When false, omitted, or when the caller is a member account, the response covers only the account in `account_id`. Setting it true from a member account does NOT error: the call succeeds and returns just that account's credits, so an empty or small result must not be read as the organization having no credits, only as the caller not being the management account.
-   Not paginated: the API returns the complete set in one call.
+   Not paginated: the API returns the complete set in one call, and max_items / next_token are ignored.
    Returns: `data.credits`, a list where each item contains:
      - creditId; accountId; creditType; description
      - initialAmount, remainingAmount, estimatedAmount: each {currencyCode, currencyAmount}. remainingAmount is the unused balance. estimatedAmount is the estimated remaining balance including in-flight (open) bills not yet finalized, so the two can differ. For "how much credit do I have left", report remainingAmount, and name estimatedAmount only alongside what it includes.
@@ -135,17 +134,19 @@ async def _credits(
    Optional:
      - account_id: as above.
      - credit_id: restrict the ledger to one credit. Pass the `creditId` string from get_credits unchanged; the tool converts it to the numeric type this API requires.
-     - max_results: items per page. max_pages: pages to fetch (default: all). next_token: resume from a previous response.
+     - max_items: total ledger rows returned. Omit it to fetch every page (no limit). Pass it, or narrow the window (billing_period, credit_id), when the ledger can be large.
+     - next_token: the `pagination.next_token` from a previous allocation-history response, to continue where it stopped. Send every other parameter unchanged, and continue within the same billing month: the token is a position in a newest-first list of bills, so once a new month's bill appears the positions shift. After a month boundary, call again without next_token.
    Returns: `data.credit_allocation_history`, sorted by billingMonth descending, a list where each item contains creditId, creditAmount {currencyCode, currencyAmount} where a negative value means the credit reduced that bill, description, accountId, appliedServiceName, billingMonth (YYYY-MM), and isEstimatedBill (true when the entry applied to an in-flight bill that is not yet finalized).
-   Also returns `data.completeness` and `data.time_range`, both of which must be read before summarizing (see below).
+   Also returns `data.completeness`, `data.time_range` and `data.pagination`, all of which must be read before summarizing (see below).
 
 ## READING THE RESPONSE CORRECTLY
 
 - MONETARY AMOUNTS ARE STRINGS to preserve decimal precision. Parse as decimals, never floats. Report them exactly as returned.
 - CHECK `data.completeness` BEFORE TOTALLING. When `partial_results` is true, some months failed and are listed in `failed_months`. Any sum over the returned rows is incomplete: report the total AND name the months missing from it. Never present a partial total as the full picture.
-- CHECK `data.time_range` BEFORE STATING A PERIOD. Both operations narrow a window they cannot serve, and neither queries the future. The limits differ: get_credit_allocation_history caps the range at 24 months, while get_credits caps the lookback at one year before today. When `narrowed_from_request` is true, the answer covers `start_date` to `end_date`, NOT `requested_start_date` to `requested_end_date`. Say which window was actually used. A window with no answerable overlap at all, entirely in the future or entirely before the lookback limit, returns an error rather than a narrowed result.
+- CHECK `complete_dataset` BEFORE TOTALLING THE LEDGER. When it is false (with a warning), the call stopped at max_items or a page failed, so any sum over the returned rows is partial. Call again with a larger max_items, continue with next_token, or state in the answer that the result is partial. `completeness` and every count cover only the rows in that response; a continuation call does not repeat earlier rows.
+- CHECK `data.time_range` BEFORE STATING A PERIOD. Both operations limit a window they cannot serve, and neither queries the future. The limits differ: get_credit_allocation_history caps the range at 24 months, while get_credits caps the lookback at one year before today. When `limited_from_request` is true, the answer covers `start_date` to `end_date`, NOT `requested_start_date` to `requested_end_date`. Say which window was actually used. A window with no answerable overlap at all, entirely in the future or entirely before the lookback limit, returns an error rather than a limited result.
 - Dates go in as YYYY-MM-DD. Never compute an epoch timestamp yourself; the tool converts.
-- A LARGE LEDGER IS OFFLOADED TO SQL. When the response carries `data_stored: true` and a `table_name` instead of an inline list, query it with the session-sql tool. Nested values are stored as JSON text, so aggregate money with json_extract, not directly: `SELECT appliedServiceName, SUM(CAST(json_extract(creditAmount, '$.currencyAmount') AS REAL)) FROM <table_name> GROUP BY appliedServiceName`. A bare `SUM(creditAmount)` returns 0, silently. The `time_range`, `completeness` and `pagination` blocks are still present alongside the table reference.
+- A LARGE LEDGER IS OFFLOADED TO SQL. When the response carries `data_stored: true` and a `table_name` instead of an inline list, query it with the session-sql tool. Nested values are stored as JSON text, so aggregate money with json_extract, not directly: `SELECT appliedServiceName, SUM(CAST(json_extract(creditAmount, '$.currencyAmount') AS REAL)) FROM <table_name> GROUP BY appliedServiceName`. A bare `SUM(creditAmount)` returns 0, silently. The `time_range` and `completeness` blocks and the pagination fields (`complete_dataset`, `has_more`, `next_token`, `items_returned`) are still present alongside the table reference.
 - An empty result is a real answer. Zero allocation rows for a month means no credits were applied in that month, which is different from having no credits.
 - An access_denied error means the caller's IAM policy is missing the named permission. It does NOT mean the account has no credits, and it must not be reported as an absence of data or worked around with Cost Explorer.
 
@@ -169,9 +170,8 @@ async def credits(
     account_id: Optional[str] = None,
     payer_account_flag: Optional[bool] = None,
     credit_id: Optional[Any] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """FastMCP wrapper for AWS credits operations.
 
@@ -188,9 +188,10 @@ async def credits(
         account_id: 12-digit AWS account ID. Auto-detected via STS when omitted.
         payer_account_flag: Query at the payer-account level (get_credits only).
         credit_id: Restrict the ledger to one credit (allocation history only).
-        max_results: Maximum results per page (allocation history only).
-        next_token: Pagination token from a previous response.
-        max_pages: Maximum pages to auto-paginate through (default: all).
+        max_items: Most ledger rows to return (allocation history only; get_credits
+            ignores it). None fetches every page.
+        next_token: Pagination token from a previous allocation-history response
+            (get_credits ignores it).
 
     Returns:
         Dict containing the operation result.
@@ -204,7 +205,6 @@ async def credits(
         account_id=account_id,
         payer_account_flag=payer_account_flag,
         credit_id=credit_id,
-        max_results=max_results,
+        max_items=max_items,
         next_token=next_token,
-        max_pages=max_pages,
     )

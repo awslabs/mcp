@@ -225,6 +225,12 @@ def _filter_item_fields() -> Dict[str, List[str]]:
     }
 
 
+# The service rejects each of these on ListRecommendationSummaries with a ValidationException
+# ("Cannot include recommendationId|resourceId|resourceArn as a filter for this operation"),
+# so they are refused locally with a hint instead of costing a call.
+SUMMARIES_UNSUPPORTED_FILTERS = frozenset({'recommendationIds', 'resourceIds', 'resourceArns'})
+
+
 def _normalize_filters(operation: str, filters: Any) -> Tuple[Any, Optional[Dict[str, Any]]]:
     """Fold filter keys and enum values onto the spelling the API expects.
 
@@ -411,7 +417,16 @@ are grouped under 'NoTagKey'.
 
 CRITICAL PARAMETER REQUIREMENTS:
 - 'filters' parameter must be passed as JSON string format
-- 'max_results' must be integer (not string)
+- 'max_items' must be integer (not string)
+
+PAGINATION (list_recommendations, list_recommendation_summaries, list_efficiency_metrics):
+- 'max_items' is the total number of items returned. Omit it to fetch every page (no limit). Pass it, or narrow 'filters', for queries that can be large (e.g. list_recommendations across an organization).
+- Top N: pass 'order_by' with max_items=N (list_recommendations, list_efficiency_metrics). Without order_by, the first N are not the top N.
+- If the result has complete_dataset: false, it is partial: totals and counts undercount. Call again with a larger 'max_items', continue with 'next_token', or state that the result is partial. Never report the number of returned items as a total count.
+- Fields from the first page only (summary totals such as estimated_total_deduped_savings, currency_code, metrics) are not repeated on continuation calls.
+- list_recommendation_summaries returns total_recommendation_count (the sum of the groups' recommendation_count) only when every group was fetched; use it as the overall count instead of adding the groups. It is absent on a partial result, a continuation call, or when a group has no recommendation_count.
+- In ranking_mode='performance', 'max_items' only limits how many ranked groups are returned; the fetch behind the ranking is fixed. A ranking has no 'next_token'; a larger 'max_items' or a continuation does not widen it. complete_dataset: false there means only the top spenders were fetched and ranked: group_by=Region (fewer groups) for a complete ranking, or state that it covers only the top spenders.
+- list_enrollment_statuses, get_recommendation and get_preferences are not paginated.
 - 'get_recommendation' requires only 'recommendation_id' (mapped to the API's recommendationId)
 - Service only available in us-east-1 region
 
@@ -448,6 +463,8 @@ Available Filter Parameters (pass as JSON string):
   required and matched exactly (case-sensitive, no wildcards). Only tags that appear on
   the recommendations can match (see 'tags' in get_recommendation).
 - rollbackPossible: boolean
+list_recommendation_summaries does not accept recommendationIds, resourceIds or resourceArns
+(rejected locally); they apply to list_recommendations only.
 Filter keys and enum values are matched case- and underscore-insensitively
 (e.g. "ec2_instance" -> "Ec2Instance"); tag keys and values are not. List filters must be non-empty: omit a filter
 to include all values rather than passing []. An empty list is rejected locally, and a
@@ -472,12 +489,11 @@ async def cost_optimization_hub(
     ctx: Context,
     operation: str,
     recommendation_id: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     filters: Optional[str] = None,
     group_by: Optional[str] = None,
     include_all_recommendations: Optional[bool] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
     granularity: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
@@ -491,8 +507,9 @@ async def cost_optimization_hub(
         ctx: The MCP context
         operation: The operation to perform ('list_recommendations', 'get_recommendation', 'list_recommendation_summaries', 'list_efficiency_metrics', 'list_enrollment_statuses', or 'get_preferences')
         recommendation_id: Recommendation ID for get_recommendation operation (mapped to the API's recommendationId)
-        max_results: Per-page result count (boto3 ``maxResults``). NOT a total
-            cap. Combine with ``max_pages`` to bound total fetched results.
+        max_items: Total items to return for list_recommendations,
+            list_recommendation_summaries and list_efficiency_metrics. Omit to fetch every
+            page. In ranking_mode='performance', the most ranked groups to return.
         filters: Optional filter expression as JSON string (not supported by list_efficiency_metrics)
         group_by: Optional grouping parameter. For list_recommendation_summaries any
             of the recommendation dimensions, or 'TagKey:<tag key>'; for
@@ -501,10 +518,6 @@ async def cost_optimization_hub(
         next_token: Pagination token to resume from a previous response.
             Applies to list_recommendations, list_recommendation_summaries, and
             list_efficiency_metrics.
-        max_pages: Maximum number of pages to fetch when paginating
-            list_recommendations, list_recommendation_summaries, or
-            list_efficiency_metrics. Use with ``next_token`` to walk results
-            incrementally.
         granularity: Time granularity for list_efficiency_metrics ('Daily' or
             'Monthly'). Defaults to 'Monthly' when omitted.
         start_date: Inclusive window start for list_efficiency_metrics
@@ -535,11 +548,8 @@ async def cost_optimization_hub(
         Dict containing the Cost Optimization Hub recommendations
 
     Note:
-        list_recommendations and list_recommendation_summaries follow the Cost
-        Explorer pagination pattern: pass ``next_token`` and/or ``max_pages``
-        to walk pages explicitly. Omit both to get a single boto3 page (the
-        response's ``next_token``/``Pagination`` field can then drive the next
-        call).
+        The paginated operations fetch every page unless ``max_items`` is passed, and
+        report ``complete_dataset``/``has_more``/``next_token`` in the ``pagination`` block.
     """
     try:
         # Log the request
@@ -578,6 +588,24 @@ async def cost_optimization_hub(
                 parsed_filters, filter_error = _normalize_filters(operation, parsed_filters)
                 if filter_error:
                     return filter_error
+                id_filters = (
+                    sorted(set(parsed_filters) & SUMMARIES_UNSUPPORTED_FILTERS)
+                    if isinstance(parsed_filters, dict)
+                    else []
+                )
+                if id_filters:
+                    return _error_response(
+                        operation,
+                        {
+                            'submitted_filters': filters,
+                            'unsupported_filters': id_filters,
+                            'supported_filters': sorted(
+                                set(_filter_members()) - SUMMARIES_UNSUPPORTED_FILTERS
+                            ),
+                        },
+                        f'Filter {", ".join(id_filters)} is not supported by '
+                        'list_recommendation_summaries. Use one of supported_filters.',
+                    )
 
                 effective_group_by = str(group_by) if group_by else 'RESOURCE_TYPE'
                 await ctx.info(f'Using group_by: {effective_group_by}')
@@ -586,10 +614,9 @@ async def cost_optimization_hub(
                     ctx,
                     coh_client,
                     group_by=effective_group_by,
-                    max_results=int(max_results) if max_results else None,
+                    max_items=max_items,
                     filters=parsed_filters,
                     next_token=next_token,
-                    max_pages=max_pages,
                 )
 
                 result = _add_valid_filter_values(result, parsed_filters)
@@ -598,10 +625,9 @@ async def cost_optimization_hub(
                 if result.get('status') == 'success' and isinstance(result.get('data'), dict):
                     result['data']['operation_parameters'] = {
                         'group_by': effective_group_by,
-                        'max_results': max_results,
+                        'max_items': max_items,
                         'filters': filters,
                         'next_token': next_token,
-                        'max_pages': max_pages,
                     }
 
                 return result
@@ -634,11 +660,10 @@ async def cost_optimization_hub(
                 result = await list_recommendations(
                     ctx,
                     coh_client,
-                    max_results,
+                    max_items,
                     parsed_filters,
                     include_all_recommendations,
                     next_token=next_token,
-                    max_pages=max_pages,
                     order_by=parsed_order_by,
                 )
 
@@ -647,11 +672,10 @@ async def cost_optimization_hub(
                 # Add the operation parameters to the response for diagnostics
                 if result.get('status') == 'success' and isinstance(result.get('data'), dict):
                     result['data']['operation_parameters'] = {
-                        'max_results': max_results,
+                        'max_items': max_items,
                         'filters': filters,
                         'include_all_recommendations': include_all_recommendations,
                         'next_token': next_token,
-                        'max_pages': max_pages,
                         'order_by': order_by,
                     }
 
@@ -784,9 +808,8 @@ async def cost_optimization_hub(
                     end_date=effective_end,
                     group_by=group_by,
                     order_by=parsed_order_by,
-                    max_results=int(max_results) if max_results else None,
+                    max_items=max_items,
                     next_token=next_token,
-                    max_pages=max_pages,
                     ranking_mode=ranking_mode,
                 )
 
@@ -798,9 +821,8 @@ async def cost_optimization_hub(
                         'end_date': effective_end,
                         'group_by': group_by,
                         'order_by': order_by,
-                        'max_results': max_results,
+                        'max_items': max_items,
                         'next_token': next_token,
-                        'max_pages': max_pages,
                         'ranking_mode': ranking_mode,
                     }
 
@@ -839,5 +861,4 @@ async def cost_optimization_hub(
             )
 
     except Exception as e:
-        await ctx.error(f'Error in Cost Optimization Hub operation {operation}: {str(e)}')
         return await handle_aws_error(ctx, e, operation, COST_OPTIMIZATION_HUB_SERVICE_NAME)
