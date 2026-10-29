@@ -71,7 +71,9 @@ that service (from the SERVICE filter, EC2 when omitted); others return a Valida
 SERVICE, INVOICING_ENTITY and OPERATING_SYSTEM are NOT valid group_by attributes here —
 grouping coverage by them returns a ValidationException. SERVICE is a FILTER dimension instead: pass it in
 `filter` (one SERVICE value per call; if you omit a SERVICE filter, Cost Explorer
-defaults to EC2), and call once per service to compare across services.
+defaults to EC2), and call once per service to compare across services. A filter
+with more than one SERVICE value is rejected, because Cost Explorer returns each
+service's figures without saying which service they belong to.
 Reservation coverage applies only to reservable services. The valid SERVICE
 filter values are "Amazon Elastic Compute Cloud - Compute" (the default when
 omitted), "Amazon Relational Database Service", "Amazon ElastiCache",
@@ -147,7 +149,7 @@ async def ri_performance(
         granularity: Time granularity of the data (DAILY or MONTHLY). Defaults to DAILY. Ignored when group_by is provided (granularity and group_by are mutually exclusive).
         metrics: List of metrics to retrieve for coverage as a JSON string (e.g., '["Hour", "Cost"]'). Valid values are Hour, Unit and Cost; Unit is EC2 only. Defaults to Hour only.
         group_by: Optional grouping as a JSON string. For coverage: AZ, CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION, INSTANCE_TYPE, INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PLATFORM, REGION, or TENANCY, depending on the service (see the tool description) (SERVICE is NOT valid — filter on it instead). For utilization: SUBSCRIPTION_ID only.
-        filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE defaults to EC2 when omitted; valid coverage SERVICE values are "Amazon Elastic Compute Cloud - Compute", "Amazon Relational Database Service", "Amazon ElastiCache", "Amazon MemoryDB", "Amazon Redshift", "Amazon OpenSearch Service", and "Amazon Elasticsearch Service" (use the full display name, not "EC2"/"RDS"). SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
+        filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE defaults to EC2 when omitted; valid coverage SERVICE values are "Amazon Elastic Compute Cloud - Compute", "Amazon Relational Database Service", "Amazon ElastiCache", "Amazon MemoryDB", "Amazon Redshift", "Amazon OpenSearch Service", and "Amazon Elasticsearch Service" (use the full display name, not "EC2"/"RDS"); coverage takes one SERVICE value per call and rejects more. SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
         sort_by: Optional sorting configuration as a JSON string with key and direction (ASCENDING or DESCENDING).
         max_items: Total number of groups to return across all pages. Omit it to fetch every
             page. Applies only to get_reservation_coverage with group_by set.
@@ -204,6 +206,28 @@ async def ri_performance(
     except Exception as e:
         # Use shared error handler for consistent error reporting
         return await handle_aws_error(ctx, e, 'ri_performance', 'Cost Explorer')
+
+
+def _selected_services(expression: Any) -> List[str]:
+    """Return the distinct SERVICE values a filter expression selects, in order.
+
+    Walks Dimensions and nested And / Or. Values under Not are not counted: Cost Explorer
+    does not split coverage by them (a Not on SERVICE matches no usage).
+    """
+    if not isinstance(expression, dict):
+        return []
+    services: List[str] = []
+    dimension = expression.get('Dimensions')
+    if isinstance(dimension, dict) and dimension.get('Key') == 'SERVICE':
+        values = dimension.get('Values')
+        if isinstance(values, list):
+            services.extend(v for v in values if isinstance(v, str))
+    for operator in ('And', 'Or'):
+        operands = expression.get(operator)
+        if isinstance(operands, list):
+            for operand in operands:
+                services.extend(_selected_services(operand))
+    return list(dict.fromkeys(services))
 
 
 def _count_groups(entries: List[Dict[str, Any]]) -> int:
@@ -316,6 +340,17 @@ async def get_reservation_coverage(
 
         if filter_expr:
             request_params['Filter'] = parse_json(filter_expr, 'filter')
+            # With several SERVICE values the API returns one entry per service for the same
+            # period (grouped: groups of every service), none saying which service it holds.
+            services = _selected_services(request_params['Filter'])
+            if len(services) > 1:
+                named = ', '.join(f'"{service}"' for service in services)
+                raise ValueError(
+                    'get_reservation_coverage takes one SERVICE value per call, but the filter '
+                    f'names {len(services)}: {named}. Cost Explorer would return their figures '
+                    'without saying which service each belongs to; call once per service and '
+                    'combine the results.'
+                )
 
         if sort_by:
             request_params['SortBy'] = parse_json(sort_by, 'sort_by')

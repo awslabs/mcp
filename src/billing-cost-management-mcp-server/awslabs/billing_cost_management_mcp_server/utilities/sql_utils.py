@@ -142,7 +142,7 @@ def cleanup_session_db() -> None:
 def _session_authorizer(action, arg1, arg2, db_name, trigger_name):
     """SQLite authorizer callback: deny cross-DB attach/detach.
 
-    Belt-and-suspenders with the regex blacklist in
+    Belt-and-suspenders with the regex denylist in
     :func:`validate_sql_query`. The regex catches the query text
     before SQLite parses it; this authorizer catches every SQL parser
     action the connection actually attempts, including anything the
@@ -419,6 +419,8 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
         'budget_actions': 'records',
         'budget_notifications': 'records',
         'enterprise_support_list_linked_account_charges': 'records',
+        'business_support_list_account_charges': 'records',
+        'business_support_list_subscription_history': 'records',
         'sp_explorer_describe_savings_plans': 'records',
         'sp_explorer_describe_savings_plan_rates': 'records',
         'sp_explorer_describe_savings_plans_offerings': 'records',

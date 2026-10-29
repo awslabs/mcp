@@ -65,7 +65,20 @@ The API returns information about:
 - Budget limits (amount and unit)
 - Current actual spend
 - Forecasted spend
-- Cost filters applied to budgets
+- The scope each budget tracks: its filter, cost metric and billing view, and whether AWS is
+  still updating its spend
+
+A budget's filter is in `filter_expression` (an Expression of Dimensions, Tags, CostCategories and
+ProductAttributes combined with And, Or and Not) or, for budgets that use the deprecated form, in
+`cost_filters`.
+`metrics` (or the deprecated `cost_types`) says how cost is measured, and `billing_view_arn` names
+the billing view the budget reads, which can be a non-primary view such as a billing group or
+custom view. A budget with no filter tracks everything its budget type measures in its billing
+view. `calculated_spend` is computed on the budget's own filter, metric and billing view, so
+compare it only with a Cost Explorer query that applies the same ones, never with an unfiltered
+total. A `health_status` of `UNHEALTHY` means AWS has stopped updating the budget's spend, for
+example because it can no longer read its billing view (`status_reason` says why), so its
+`calculated_spend` may be stale.
 
 With this information, you can determine which budgets have been exceeded or are projected to exceed their limits.
 
@@ -553,9 +566,22 @@ def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
             formatted_budget['calculated_spend'] = calculated_spend_dict
 
-        # Add cost filters if present
+        # Add the budget's scope if present; calculated_spend is computed on it.
         if 'CostFilters' in budget and budget['CostFilters']:
             formatted_budget['cost_filters'] = budget['CostFilters']
+        if budget.get('FilterExpression'):
+            formatted_budget['filter_expression'] = budget['FilterExpression']
+        if budget.get('Metrics'):
+            formatted_budget['metrics'] = budget['Metrics']
+        if budget.get('CostTypes'):
+            formatted_budget['cost_types'] = budget['CostTypes']
+        if budget.get('BillingViewArn'):
+            formatted_budget['billing_view_arn'] = budget['BillingViewArn']
+        if budget.get('HealthStatus'):
+            health = budget['HealthStatus']
+            formatted_budget['health_status'] = {'status': health.get('Status')}
+            if health.get('StatusReason'):
+                formatted_budget['health_status']['status_reason'] = health['StatusReason']
 
         # Add time period if present
         if 'TimePeriod' in budget:
