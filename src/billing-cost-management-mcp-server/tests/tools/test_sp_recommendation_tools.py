@@ -20,6 +20,7 @@ contract, and the pagination token spelling, which is NextPageToken here and
 lowercase nextToken on the Savings Plans service.
 """
 
+import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools import (
     get_savings_plan_purchase_recommendation_details,
@@ -707,6 +708,21 @@ class TestSpRecommendationDispatch:
         )
 
         assert result['status'] == 'error'
+
+
+@pytest.mark.asyncio
+async def test_filter_doc_states_not_is_supported():
+    """The filter arg doc says Not is accepted around the LINKED_ACCOUNT dimension, with an example."""
+    tool = await sp_recommendation_server.get_tool('sp-recommendation')
+    assert tool is not None
+    filter_doc = ' '.join(tool.parameters['properties']['filter'].get('description', '').split())
+    assert 'optionally wrapped in a single Not to exclude those accounts' in filter_doc
+    example = json.JSONDecoder().raw_decode(filter_doc, filter_doc.index('{"Not"'))[0]
+    assert example == {
+        'Not': {'Dimensions': {'Key': 'LINKED_ACCOUNT', 'Values': ['111122223333']}}
+    }
+    assert 'MatchOptions, if given, must be EQUALS' in filter_doc
+    assert 'And, Or, and a Not inside another Not are not supported' in filter_doc
 
 
 def test_sp_recommendation_server_initialization():
