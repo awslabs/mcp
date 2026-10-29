@@ -1357,6 +1357,8 @@ async def test_description_states_filter_expression_shapes():
     assert 'Or anywhere, an And inside an And, or a Not around anything but a leaf' in section
     assert 'Each dimension (tags excepted) may appear only once per filter' in section
     assert 'within the limits above for SERVICE and the SUBSCRIPTION_END keys' in section
+    assert 'MatchOptions are rejected' in section
+    assert 'a miscased value (e.g. "US-EAST-1", "linux/unix") returns zeros or no RIs' in section
     # The old text said only AND was supported; Not is accepted too.
     assert 'supports only AND' not in section
 

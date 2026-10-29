@@ -130,7 +130,9 @@ CostCategories), Not of one leaf, or an And of leaves and Not-leaves. Or anywher
 inside an And, or a Not around anything but a leaf is a ValidationException ("Invalid
 expression"). Each dimension (tags excepted) may appear only once per filter ("filtered
 more than once"); put several values in one leaf instead, and they are OR'd, within the
-limits above for SERVICE and the SUBSCRIPTION_END keys.
+limits above for SERVICE and the SUBSCRIPTION_END keys. MatchOptions are rejected
+("MatchOptions contain not allowed match option"). Values are exact and case-sensitive:
+a miscased value (e.g. "US-EAST-1", "linux/unix") returns zeros or no RIs, not an error.
 The SERVICE filter defaults to Amazon Elastic Compute Cloud - Compute when omitted.
 
 DATA FRESHNESS: Reserved Instance utilization data for the most recent 2-3 days
