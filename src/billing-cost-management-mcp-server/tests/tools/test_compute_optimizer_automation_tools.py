@@ -1103,6 +1103,124 @@ class TestFilterValidation:
             assert result['status'] == STATUS_SUCCESS
             mock_op.assert_awaited_once()
 
+    @pytest.mark.parametrize(
+        'operation,filters,expected',
+        [
+            (
+                'list_recommended_actions',
+                [{'name': 'ResourceType', 'values': ['ebsvolume']}],
+                [{'name': 'ResourceType', 'values': ['EbsVolume']}],
+            ),
+            (
+                'list_automation_events',
+                [{'name': 'EventStatus', 'values': ['complete', 'ROLLBACK_READY']}],
+                [{'name': 'EventStatus', 'values': ['Complete', 'RollbackReady']}],
+            ),
+            (
+                'list_automation_events',
+                [{'name': 'EventType', 'values': ['upgrade_ebs_volume_type']}],
+                [{'name': 'EventType', 'values': ['UpgradeEbsVolumeType']}],
+            ),
+            (
+                'list_automation_rules',
+                [
+                    {'name': 'Status', 'values': ['active']},
+                    {'name': 'RuleType', 'values': ['account_rule']},
+                ],
+                [
+                    {'name': 'Status', 'values': ['Active']},
+                    {'name': 'RuleType', 'values': ['AccountRule']},
+                ],
+            ),
+            (
+                'list_recommended_actions',
+                [
+                    {'name': 'RestartNeeded', 'values': ['True']},
+                    {'name': 'LookBackPeriodInDays', 'values': ['032', 14]},
+                ],
+                [
+                    {'name': 'RestartNeeded', 'values': ['true']},
+                    {'name': 'LookBackPeriodInDays', 'values': ['32', '14']},
+                ],
+            ),
+            (
+                'list_recommended_actions',
+                [{'name': 'CurrentResourceDetailsEbsVolumeType', 'values': ['IO1']}],
+                [{'name': 'CurrentResourceDetailsEbsVolumeType', 'values': ['io1']}],
+            ),
+            # The API names the valid values for these itself, so an unknown one passes through.
+            (
+                'list_automation_events',
+                [{'name': 'EventType', 'values': ['Upgrade']}],
+                [{'name': 'EventType', 'values': ['Upgrade']}],
+            ),
+        ],
+    )
+    async def test_filter_values_are_folded_before_the_call(
+        self, mock_ctx, operation, filters, expected
+    ):
+        """Filter values reach the handler in the spelling the API matches."""
+        with (
+            patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client'),
+            patch(f'{_TOOLS_MODULE}.{operation}', new_callable=AsyncMock) as mock_op,
+        ):
+            mock_op.return_value = {'status': STATUS_SUCCESS, 'data': {}}
+
+            result = await automation_fn(
+                mock_ctx, operation=operation, filters=json.dumps(filters)
+            )
+
+            assert result['status'] == STATUS_SUCCESS
+            sent = mock_op.await_args
+            assert sent is not None
+            assert json.loads(sent.args[2]) == expected
+
+    async def test_canonical_filters_are_forwarded_as_given(self, mock_ctx):
+        """Filters that need no change are forwarded as the original string."""
+        filters = '[ {"name": "EventStatus",  "values": ["Complete"]} ]'
+        with (
+            patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client'),
+            patch(f'{_TOOLS_MODULE}.list_automation_events', new_callable=AsyncMock) as mock_op,
+        ):
+            mock_op.return_value = {'status': STATUS_SUCCESS, 'data': {}}
+
+            await automation_fn(mock_ctx, operation='list_automation_events', filters=filters)
+
+            sent = mock_op.await_args
+            assert sent is not None
+            assert sent.args[2] == filters
+
+    @pytest.mark.parametrize(
+        'operation,name,value',
+        [
+            ('list_recommended_actions', 'ResourceType', 'S3'),
+            ('list_automation_events', 'EventStatus', 'complet'),
+            ('list_recommended_actions', 'RestartNeeded', 'yes'),
+            ('list_recommended_actions', 'LookBackPeriodInDays', 'abc'),
+            ('list_recommended_actions', 'LookBackPeriodInDays', '32.0'),
+        ],
+    )
+    async def test_unusable_filter_values_are_rejected_locally(
+        self, mock_ctx, operation, name, value
+    ):
+        """A value the API would turn into an empty result or an internal error is rejected."""
+        with (
+            patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create,
+            patch(f'{_TOOLS_MODULE}.{operation}', new_callable=AsyncMock) as mock_op,
+        ):
+            result = await automation_fn(
+                mock_ctx,
+                operation=operation,
+                filters=json.dumps([{'name': name, 'values': [value]}]),
+            )
+
+            _assert_classified_error(result, 'validation_error', operation)
+            assert result['data']['invalid_filter_values'] == {name: [value]}
+            assert name in result['data']['valid_filter_values']
+            assert value in result['message']
+            mock_create.assert_not_called()
+            mock_op.assert_not_awaited()
+
     async def test_validation_skipped_when_model_unavailable(self, mock_ctx):
         """If the boto model can't be loaded, filter validation is skipped (AWS validates)."""
         with (
@@ -1197,6 +1315,47 @@ class TestFilterNamesFromModel:
         with patch('botocore.session.Session.get_service_model', return_value=service_model):
             assert mod._valid_filter_names_by_operation() == {}
         mod._valid_filter_names_by_operation.cache_clear()
+
+
+class TestFilterValuesFromModel:
+    """Tests that the accepted filter values come from the botocore response enums."""
+
+    def test_values_match_boto_response_enums(self):
+        """Filter values are read from the response enums of the matching list call."""
+        mod = automation_tools
+        mod._filter_values_by_operation.cache_clear()
+        mapping = mod._filter_values_by_operation()
+
+        assert mapping['list_recommended_actions']['ResourceType'] == ['EbsVolume']
+        assert 'Complete' in mapping['list_automation_events']['EventStatus']
+        assert mapping['list_automation_rules']['Status'] == ['Active', 'Inactive']
+        # A list call and its summaries call take the same values.
+        assert mapping['list_automation_events'] == mapping['list_automation_event_summaries']
+        assert mapping['list_recommended_actions'] == mapping['list_recommended_action_summaries']
+
+    def test_returns_empty_when_model_load_fails(self):
+        """If the botocore model can't be loaded, no values are known (and none are enforced)."""
+        mod = automation_tools
+        mod._filter_values_by_operation.cache_clear()
+        with patch('botocore.session.Session.get_service_model', side_effect=RuntimeError('boom')):
+            assert mod._filter_values_by_operation() == {}
+        mod._filter_values_by_operation.cache_clear()
+
+    async def test_description_lists_every_model_value(self):
+        """The tool description names every value the model accepts for the enum filters."""
+        automation_tools._filter_values_by_operation.cache_clear()
+        tool = await compute_optimizer_automation_server.get_tool('compute-optimizer-automation')
+        assert tool is not None
+        description = ' '.join((tool.description or '').split())
+        values = {
+            value
+            for by_filter in automation_tools._filter_values_by_operation().values()
+            for filter_values in by_filter.values()
+            for value in filter_values
+        }
+
+        assert values
+        assert {value for value in values if value not in description} == set()
 
 
 @pytest.mark.asyncio
