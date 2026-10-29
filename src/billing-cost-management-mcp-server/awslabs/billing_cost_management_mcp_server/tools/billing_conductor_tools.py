@@ -73,7 +73,7 @@ billing_conductor_server = FastMCP(
 This tool retrieve billing groups for a given billing period.
 If no billing period is provided, the current billing period is used.
 A billing_period after the current month (UTC) is a projection, not a record: the response sets
-`billing_period_is_future: true` and lists today's configuration that has no end date.
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about:
 - Billing group ARN, name, and description
@@ -146,7 +146,7 @@ async def list_billing_groups(
 This tool retrieve linked accounts for a given billing period.
 If no billing period is provided, the current billing period is used.
 A billing_period after the current month (UTC) is a projection, not a record: the response sets
-`billing_period_is_future: true` and lists today's configuration that has no end date.
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about each linked account:
 - Account ID
@@ -343,7 +343,7 @@ service fees, taxes, credits, and distributing RI/Savings Plans savings.
 This tool retrieve custom line items for a given billing period.
 If no billing period is provided, the current billing period is used.
 A billing_period after the current month (UTC) is a projection, not a record: the response sets
-`billing_period_is_future: true` and lists today's configuration that has no end date.
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about:
 - Custom line item ARN, name, and description
@@ -448,7 +448,7 @@ async def list_custom_line_item_versions(
 This tool retrieve resources associated with a specific custom line item.
 If no billing period is provided, the current billing period is used.
 A billing_period after the current month (UTC) is a projection, not a record: the response sets
-`billing_period_is_future: true` and lists today's configuration that has no end date.
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about each associated resource:
 - Resource ARN (can be a billing group or custom line item)
@@ -505,7 +505,7 @@ async def list_resources_associated_to_custom_line_item(
 
 This tool retrieve pricing rules for a given billing period.
 A billing_period after the current month (UTC) is a projection, not a record: the response sets
-`billing_period_is_future: true` and lists today's configuration that has no end date.
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about:
 - Pricing rule ARN, name, and description
@@ -560,7 +560,7 @@ async def list_pricing_rules(
 This tool retrieve pricing plans for a given billing period.
 If no billing period is provided, the current billing period is used.
 A billing_period after the current month (UTC) is a projection, not a record: the response sets
-`billing_period_is_future: true` and lists today's configuration that has no end date.
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about:
 - Pricing plan ARN, name, and description
@@ -612,7 +612,7 @@ async def list_pricing_plans(
 This tool retrieve pricing rules associated with a specific pricing plan
 If no billing period is provided, the current billing period is used.
 A billing_period after the current month (UTC) is a projection, not a record: the response sets
-`billing_period_is_future: true` and lists today's configuration that has no end date.
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about:
 - The billing period for which the pricing rule associations are listed.
@@ -665,7 +665,7 @@ async def list_pricing_rules_associated_to_pricing_plan(
 This tool retrieve pricing plans associated with a specific pricing rule
 If no billing period is provided, the current billing period is used.
 A billing_period after the current month (UTC) is a projection, not a record: the response sets
-`billing_period_is_future: true` and lists today's configuration that has no end date.
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about:
 - The billing period for which the pricing rule associations are listed.

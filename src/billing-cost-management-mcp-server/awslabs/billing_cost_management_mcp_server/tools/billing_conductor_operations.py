@@ -91,7 +91,7 @@ _BILLING_PERIOD_PATTERN = re.compile(r'([0-9]{4})-(0?[1-9]|1[012])')
 
 FUTURE_BILLING_PERIOD_NOTE = (
     'billing_period is after the current month (UTC), so this is a projection, not a record: '
-    "Billing Conductor lists today's configuration that has no end date and leaves out items "
+    'Billing Conductor lists what is recorded today as in effect that month and leaves out items '
     'already set to end before then, such as a billing group whose primary (paying) account has '
     'left. Changes made between now and the start of that month are not shown.'
 )
