@@ -240,6 +240,8 @@ Cost Explorer:
 - ce:GetCostAndUsageComparisons
 - ce:GetCostComparisonDrivers
 - ce:GetAnomalies
+- ce:GetAnomalyMonitors
+- ce:GetAnomalySubscriptions
 - ce:GetCostAndUsage
 - ce:GetCostAndUsageComparisons
 - ce:GetCostAndUsageWithResources
@@ -449,6 +451,8 @@ The server currently supports the following AWS services
    - get_cost_comparison_drivers
    - get_cost_and_usage_comparisons
    - get_anomalies
+   - get_anomaly_monitors
+   - get_anomaly_subscriptions
    - get_cost_and_usage
    - get_cost_and_usage_with_resources
    - get_dimension_values
