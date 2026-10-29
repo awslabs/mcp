@@ -121,7 +121,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "python-dotenv", specifier = ">=0.9.9" },
     { name = "urllib3", specifier = ">=2.6.3" },
-    { name = "valkey-glide", specifier = ">=2.0.0" },
+    { name = "valkey-glide", specifier = ">=2.2.0" },
 ]
 
 [package.metadata.requires-dev]

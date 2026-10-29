@@ -35,7 +35,8 @@ from ..utilities.constants import (
 from datetime import datetime
 from enum import Enum
 from fastmcp import Context, FastMCP
-from sqlglot.errors import ParseError as SqlglotParseError
+from sqlglot import exp
+from sqlglot.errors import SqlglotError
 from typing import Any, Dict, List, Optional, TypedDict
 from urllib.parse import urlparse
 
@@ -55,7 +56,7 @@ def validate_query_is_readonly_select(query: str) -> str | None:
     parseable = query.replace('{table}', '__placeholder_table__')
     try:
         statements = sqlglot.parse(parseable, read='trino')
-    except SqlglotParseError as e:
+    except SqlglotError as e:
         return f'Query validation failed: unable to parse SQL: {e}'
     if not statements:
         return 'Query validation failed: empty query.'
@@ -83,6 +84,43 @@ def validate_query_is_readonly_select(query: str) -> str | None:
         if node.key in _FORBIDDEN:
             return f'Query validation failed: {node.key.upper()} statements are not allowed.'
     return None
+
+
+# Database and table names are written unquoted into Athena DDL and queries, so only a plain
+# identifier is accepted: a letter, then letters, digits or underscores, at most 255 characters.
+_ATHENA_NAME_PATTERN = re.compile(r'[A-Za-z][A-Za-z0-9_]{0,254}')
+
+
+def validate_athena_name(arg_name: str, value: str) -> None:
+    """Raise ValueError unless ``value`` is a plain Athena identifier."""
+    if not isinstance(value, str) or not _ATHENA_NAME_PATTERN.fullmatch(value):
+        shown = value[:64] if isinstance(value, str) else value
+        raise ValueError(
+            f'{arg_name} must start with a letter and contain only letters, digits and '
+            f'underscores, at most 255 characters; got {shown!r}.'
+        )
+
+
+def references_qualified_table(query: str, database_name: str, table_name: str) -> bool:
+    """Return True if the query reads the table as ``<database_name>.<table_name>``.
+
+    Table references are read from the parsed SQL, so a name inside a string literal or a
+    comment does not count, quoted identifiers do, and names are compared case-insensitively
+    as Athena does. A catalog prefix other than Athena's default ``AwsDataCatalog`` names a
+    different table and does not count.
+    """
+    try:
+        statements = sqlglot.parse(query, read='trino')
+    except SqlglotError:
+        return False
+    return any(
+        table.name.lower() == table_name.lower()
+        and table.db.lower() == database_name.lower()
+        and table.catalog.lower() in ('', 'awsdatacatalog')
+        for stmt in statements
+        if stmt is not None
+        for table in stmt.find_all(exp.Table)
+    )
 
 
 # Using constants from centralized constants.py file
@@ -332,6 +370,41 @@ class ManifestHandler:
             )
 
 
+# Column names come from the manifest's schema and are written backtick-quoted into the table DDL.
+_COLUMN_NAME_PATTERN = re.compile(r'[A-Za-z_][A-Za-z0-9_]{0,254}')
+# The column types parse_schema produces.
+_COLUMN_TYPES = frozenset({'STRING', 'BIGINT', 'DOUBLE'})
+
+
+def table_ddl_parts(schema_info: SchemaInfo, data_location: str) -> tuple[str, str]:
+    """Return the column definitions and LOCATION literal for a CREATE TABLE statement.
+
+    Both come from the manifest, which the caller chooses, so a column name must be a plain
+    identifier, its type one of STRING, BIGINT or DOUBLE, and the location an s3:// URI with no
+    quote or backslash; anything else raises ValueError rather than being written into the DDL.
+    """
+    for column in schema_info['columns']:
+        if not _COLUMN_NAME_PATTERN.fullmatch(column['name']):
+            raise ValueError(
+                'Manifest schema column names must be letters, digits or underscores; got '
+                f'{column["name"][:64]!r}.'
+            )
+        if column['type'] not in _COLUMN_TYPES:
+            raise ValueError(
+                f'Column types must be one of {", ".join(sorted(_COLUMN_TYPES))}; got '
+                f'{str(column["type"])[:64]!r}.'
+            )
+    if not data_location.startswith('s3://') or any(c in data_location for c in "'\\"):
+        raise ValueError(
+            f'Manifest data location must be an s3:// URI without quotes or backslashes; got '
+            f'{data_location[:128]!r}.'
+        )
+    columns = ', '.join(
+        f'`{column["name"]}` {column["type"]}' for column in schema_info['columns']
+    )
+    return columns, f"'{data_location}'"
+
+
 class AthenaHandler:
     """Handler for Athena operations on S3 Storage Lens data."""
 
@@ -352,6 +425,7 @@ class AthenaHandler:
             database_name: Name of the database to create
             output_location: S3 location for query results
         """
+        validate_athena_name('database_name', database_name)
         create_db_query = f'CREATE DATABASE IF NOT EXISTS {database_name}'
         await self.execute_query(create_db_query, 'default', output_location)
 
@@ -372,18 +446,18 @@ class AthenaHandler:
             data_location: S3 location of the data files
             output_location: S3 location for query results
         """
-        column_definitions = []
-        for column in schema_info['columns']:
-            column_definitions.append(f'`{column["name"]}` {column["type"]}')
+        validate_athena_name('database_name', database_name)
+        validate_athena_name('table_name', table_name)
+        columns, location = table_ddl_parts(schema_info, data_location)
 
         create_table_query = f"""
         CREATE EXTERNAL TABLE IF NOT EXISTS {database_name}.{table_name} (
-            {', '.join(column_definitions)}
+            {columns}
         )
         ROW FORMAT DELIMITED
         FIELDS TERMINATED BY ','
         STORED AS TEXTFILE
-        LOCATION '{data_location}'
+        LOCATION {location}
         TBLPROPERTIES ('skip.header.line.count'='1')
         """
 
@@ -406,16 +480,16 @@ class AthenaHandler:
             data_location: S3 location of the data files
             output_location: S3 location for query results
         """
-        column_definitions = []
-        for column in schema_info['columns']:
-            column_definitions.append(f'`{column["name"]}` {column["type"]}')
+        validate_athena_name('database_name', database_name)
+        validate_athena_name('table_name', table_name)
+        columns, location = table_ddl_parts(schema_info, data_location)
 
         create_table_query = f"""
         CREATE EXTERNAL TABLE IF NOT EXISTS {database_name}.{table_name} (
-            {', '.join(column_definitions)}
+            {columns}
         )
         STORED AS PARQUET
-        LOCATION '{data_location}'
+        LOCATION {location}
         """
 
         await self.execute_query(create_table_query, database_name, output_location)
@@ -436,7 +510,16 @@ class AthenaHandler:
             schema_info: Schema information from manifest
             data_location: S3 location of the data files
             output_location: S3 location for query results
+
+        Raises:
+            ValueError: If database_name or table_name is not a plain Athena identifier, or a
+                manifest column name or the data location is unsafe to write into DDL
         """
+        # Check everything written into the CREATE DATABASE / CREATE TABLE statements before
+        # either is sent.
+        validate_athena_name('database_name', database_name)
+        validate_athena_name('table_name', table_name)
+        table_ddl_parts(schema_info, data_location)
         await self.ctx.info(f'Setting up Athena table {database_name}.{table_name}')
         await self.ctx.info(f'Data location: {data_location}')
         await self.ctx.info(f'Schema format: {schema_info["format"]}')
@@ -633,45 +716,45 @@ class StorageLensQueryTool:
         Args:
             query: SQL query to execute against Storage Lens data
             manifest_location: S3 URI to manifest file or folder
-            database_name: Athena database name (defaults to 'storage_lens_db')
-            table_name: Athena table name (defaults to 'storage_lens_metrics')
+            database_name: Athena database name (defaults to 'storage_lens_db'); a letter, then
+                letters, digits or underscores, at most 255 characters
+            table_name: Athena table name (defaults to 'storage_lens_metrics'); same rule
             output_location: S3 location for query results (optional)
 
         Returns:
-            Dict[str, Any]: Query results and metadata
+            Dict[str, Any]: Query results and metadata; a validation_error if a name or the
+            table reference is invalid
         """
         try:
-            # 1. Locate and parse manifest file
+            # 1. Check the names, replace the {table} placeholder, then require that the query
+            # reads the qualified table. Anything else is rejected before AWS is called; nothing
+            # but {table} is rewritten.
+            validate_athena_name('database_name', database_name)
+            validate_athena_name('table_name', table_name)
+            qualified_table = f'{database_name}.{table_name}'
+            formatted_query = query.replace('{table}', qualified_table)
+            if not references_qualified_table(formatted_query, database_name, table_name):
+                raise ValueError(
+                    'Query must reference the table with the {table} placeholder (as in '
+                    f'"FROM {{table}}") or by its qualified name {qualified_table}, and must '
+                    'parse as SQL once {table} is replaced.'
+                )
+
+            # 2. Locate and parse manifest file
             manifest = await self.manifest_handler.get_manifest(manifest_location)
 
-            # 2. Extract data location and schema information
+            # 3. Extract data location and schema information
             data_location = self.manifest_handler.extract_data_location(manifest)
             schema_info = self.manifest_handler.parse_schema(manifest)
 
-            # 3. Determine output location if not provided
+            # 4. Determine output location if not provided
             if not output_location:
                 output_location = self.athena_handler.determine_output_location(data_location)
 
-            # 4. Setup Athena database and table if needed
+            # 5. Setup Athena database and table if needed
             await self.athena_handler.setup_table(
                 database_name, table_name, schema_info, data_location, output_location
             )
-
-            # 5. Replace {table} placeholder in query with actual table name
-            formatted_query = query
-            if '{table}' in query:
-                formatted_query = query.replace('{table}', f'{database_name}.{table_name}')
-            elif f'{database_name}.{table_name}' not in query:
-                # If query doesn't contain the full table name and doesn't have the placeholder
-                # then prepend the database and table name to the FROM clause
-                if ' from ' in query.lower():
-                    formatted_query = query.lower().replace(
-                        ' from ', f' FROM {database_name}.{table_name} '
-                    )
-                else:
-                    raise ValueError(
-                        'Query must either contain {table} placeholder or explicitly reference the table.'
-                    )
 
             # 6. Execute query
             query_result = await self.athena_handler.execute_query(
@@ -715,7 +798,8 @@ class StorageLensQueryTool:
 IMPORTANT USAGE GUIDELINES:
 - Before using this tool, provide a 1-3 sentence explanation starting with "EXPLANATION:"
 - Use standard SQL syntax for Athena queries
-- Use {table} as a placeholder for the Storage Lens metrics table name
+- Reference the Storage Lens metrics table with the {table} placeholder (or its qualified <database>.<table> name). A query that does neither is rejected with a validation_error. Every {table} is replaced; nothing else in the query is changed
+- database_name and table_name, if given, must start with a letter and contain only letters, digits and underscores (at most 255 characters); other values are rejected with a validation_error
 - Perform aggregations (GROUP BY) when analyzing data across multiple dimensions
 
 This tool allows you to analyze S3 Storage Lens metrics data using SQL queries.
@@ -820,11 +904,14 @@ async def storage_lens_run_query(
 
     Args:
         ctx: The MCP context
-        query: SQL query to execute against the data (use {table} as a placeholder for the table name)
+        query: SQL query to execute against the data. Reference the table with the {table}
+            placeholder or its qualified <database>.<table> name; other queries are rejected.
         manifest_location: S3 URI to manifest file or folder (overrides environment variable)
         output_location: S3 location for Athena query results (overrides environment variable)
-        database_name: Athena database name (defaults to 'storage_lens_db')
-        table_name: Athena table name (defaults to 'storage_lens_metrics')
+        database_name: Athena database name (defaults to 'storage_lens_db'; empty also means the
+            default). A letter, then letters, digits or underscores, at most 255 characters.
+        table_name: Athena table name (defaults to 'storage_lens_metrics'; empty also means the
+            default). Same rule as database_name.
 
     Returns:
         Dict containing the query results and metadata

@@ -26,6 +26,7 @@ from ..utilities.aws_service_base import (
     paginate_aws_items,
     with_pagination,
 )
+from ..utilities.error_contract import add_retry_guidance
 from datetime import datetime
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
@@ -90,6 +91,8 @@ def _preferences_error_response(preferences_result: Dict[str, Any]) -> Dict[str,
         error_type=preferences_result.get('error_type', 'PREFERENCES_NOT_CONFIGURED'),
         operation='get_preferences',
         service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+        retry_strategy=preferences_result.get('retry_strategy'),
+        hint=preferences_result.get('hint'),
     )
 
 
@@ -205,8 +208,10 @@ async def bcm_pricing_calc_core(
 
     except Exception as e:
         # Use shared error handler for consistent error handling
-        error_response = await handle_aws_error(
-            ctx, e, operation, BCM_PRICING_CALCULATOR_SERVICE_NAME
+        # The guidance is derived before repackaging: it can depend on fields
+        # (retry_strategy, http_status) the rebuilt response does not keep.
+        error_response = add_retry_guidance(
+            await handle_aws_error(ctx, e, operation, BCM_PRICING_CALCULATOR_SERVICE_NAME)
         )
         # handle_aws_error puts the message and classification at the top level.
         error_message = error_response.get('message', str(e))
@@ -219,6 +224,8 @@ async def bcm_pricing_calc_core(
             error_type=error_response.get('error_type', 'unknown_error'),
             operation=operation,
             service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+            retry_strategy=error_response.get('retry_strategy'),
+            hint=error_response.get('hint'),
         )
 
 
@@ -382,14 +389,20 @@ async def get_preferences(ctx: Context) -> dict:
 
     except Exception as e:
         # Use shared error handler for consistent error handling
-        error_response = await handle_aws_error(
-            ctx, e, 'get_preferences', BCM_PRICING_CALCULATOR_SERVICE_NAME
+        error_response = add_retry_guidance(
+            await handle_aws_error(ctx, e, 'get_preferences', BCM_PRICING_CALCULATOR_SERVICE_NAME)
         )
         error_msg = f'Failed to check BCM Pricing Calculator preferences: {error_response.get("message", str(e))}'
         await ctx.error(error_msg)
+        # Keep the retry_strategy and hint derived from the full error response
         return {
             'error': error_msg,
             'error_type': error_response.get('error_type', 'unknown_error'),
+            **{
+                key: error_response[key]
+                for key in ('retry_strategy', 'hint')
+                if key in error_response
+            },
         }
 
 
