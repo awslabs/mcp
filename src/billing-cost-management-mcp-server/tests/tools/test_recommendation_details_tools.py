@@ -1730,3 +1730,91 @@ async def test_rec_details_description_documents_lookup_warning():
 
     assert 'the response leads with a warning' in description
     assert 'base_recommendation is still valid' in description
+
+
+_RESPONSE_METADATA = {'RequestId': 'req-1', 'HTTPStatusCode': 200, 'HTTPHeaders': {}}
+
+
+@pytest.mark.asyncio
+class TestResponseMetadataIsDropped:
+    """The detail helpers return the API payload without botocore's ResponseMetadata."""
+
+    async def test_reserved_instances_recommendation(self, mock_context):
+        """The Cost Explorer RI response loses ResponseMetadata and keeps its payload."""
+        ce_client = MagicMock()
+        ce_client.get_reservation_purchase_recommendation.return_value = {
+            'Recommendations': [],
+            'ResponseMetadata': dict(_RESPONSE_METADATA),
+        }
+        recommendation = {
+            'recommendedResourceDetails': {
+                'ec2ReservedInstances': {
+                    'configuration': {'term': 'OneYear', 'paymentOption': 'AllUpfront'}
+                }
+            },
+        }
+
+        result = await get_reserved_instances_recommendation(
+            mock_context, recommendation, ce_client
+        )
+
+        assert result == {'Recommendations': []}
+
+    @pytest.mark.parametrize(
+        'action_type, resource_type, method, payload_key',
+        [
+            ('Stop', 'Ec2Instance', 'get_idle_recommendations', 'idleRecommendations'),
+            (
+                'Rightsize',
+                'EcsService',
+                'get_ecs_service_recommendations',
+                'ecsServiceRecommendations',
+            ),
+            (
+                'Rightsize',
+                'LambdaFunction',
+                'get_lambda_function_recommendations',
+                'lambdaFunctionRecommendations',
+            ),
+            ('Rightsize', 'EbsVolume', 'get_ebs_volume_recommendations', 'volumeRecommendations'),
+            (
+                'Rightsize',
+                'Ec2Instance',
+                'get_ec2_instance_recommendations',
+                'instanceRecommendations',
+            ),
+            (
+                'Rightsize',
+                'Ec2AutoScalingGroup',
+                'get_auto_scaling_group_recommendations',
+                'autoScalingGroupRecommendations',
+            ),
+            (
+                'Rightsize',
+                'RdsDbInstance',
+                'get_rds_database_recommendations',
+                'rdsDBRecommendations',
+            ),
+        ],
+    )
+    async def test_compute_optimizer_data(
+        self, mock_context, action_type, resource_type, method, payload_key
+    ):
+        """Every Compute Optimizer branch drops ResponseMetadata and keeps its payload."""
+        client = MagicMock()
+        getattr(client, method).return_value = {
+            payload_key: [],
+            'ResponseMetadata': dict(_RESPONSE_METADATA),
+        }
+        recommendation = {
+            'actionType': action_type,
+            'currentResourceType': resource_type,
+            'resourceArn': 'arn:aws:ec2:us-east-1:123456789012:instance/i-0abc',
+            'region': 'us-east-1',
+        }
+
+        with patch.object(recommendation_details_tools, 'create_aws_client', return_value=client):
+            result = await get_compute_optimizer_data(mock_context, recommendation)
+
+        getattr(client, method).assert_called_once()
+        assert result == {payload_key: []}

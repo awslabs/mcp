@@ -185,6 +185,10 @@ async def format_regional_aws_error(
         'boto_error_type',
         'exception_type',
         'details',
+        # Set by handle_aws_error when error_type alone would misclassify the failure
+        # (e.g. a non-transient botocore error, which keeps error_type aws_connection_error)
+        'retry_strategy',
+        'hint',
     )
     return {field: classified[field] for field in useful_fields if field in classified}
 
