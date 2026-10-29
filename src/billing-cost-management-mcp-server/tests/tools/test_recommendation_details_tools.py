@@ -1895,8 +1895,8 @@ class TestCommitmentRecommendationScope:
         assert result['note'].startswith('RecommendationDetails keeps only the 1 row(s)')
         assert result['note'].endswith("match the recommendation's configuration.")
 
-    async def test_ri_region_name_mismatch_keeps_rows_and_says_so(self, mock_context):
-        """A Region name that matches no row does not discard the account and type matches."""
+    async def test_ri_unknown_region_name_keeps_rows_and_says_so(self, mock_context):
+        """A row whose Region name is no known Region's is kept, and the note names it."""
         ce = MagicMock()
         row = _ri_row(MEMBER, 'm5.large', 'US East Ohio')
         ce.get_reservation_purchase_recommendation.return_value = _ri_response(
@@ -1907,8 +1907,46 @@ class TestCommitmentRecommendationScope:
 
         assert result['Recommendations'][0]['RecommendationDetails'] == [row]
         assert 'warning' not in result
-        assert "No row's Region name matched us-east-2" in result['note']
-        assert 'region us-east-2' not in result['note']
+        assert (
+            'not a known Region (US East Ohio) were kept, not matched to us-east-2'
+            in (result['note'])
+        )
+
+    async def test_ri_row_for_another_known_region_is_still_dropped(self, mock_context):
+        """A row for a different, known Region is dropped, so a stale rec still gets the warning."""
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(
+            [_ri_row(MEMBER, 'm5.large', 'US East (N. Virginia)')]
+        )
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert result['Recommendations'][0]['RecommendationDetails'] == []
+        assert 'region us-east-2' in result['warning']
+        assert 'note' not in result
+
+    async def test_ri_unknown_region_name_with_other_type_is_still_reported(self, mock_context):
+        """The unknown-name rule does not override the instance type match."""
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(
+            [_ri_row(MEMBER, 't3.nano', 'US East Ohio')]
+        )
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert 'instance type m5.large, region us-east-2' in result['warning']
+        assert 'note' not in result
+
+    async def test_ri_page_hint_when_rows_kept_and_none_dropped(self, mock_context):
+        """A kept row with more pages unread still gets the page hint."""
+        ce = MagicMock()
+        rows = [_ri_row(MEMBER, 'm5.large', 'US East (Ohio)')]
+        response: Dict[str, Any] = {**_ri_response(rows), 'NextPageToken': 'page-2'}
+        ce.get_reservation_purchase_recommendation.return_value = response
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert result['note'] == 'Later pages, which this tool cannot fetch, were not read.'
 
     async def test_ri_dropped_rows_note_mentions_unread_pages(self, mock_context):
         """When rows were kept and more pages exist, the note says later pages were not read."""
@@ -1953,6 +1991,7 @@ async def test_rec_details_description_states_commitment_scope():
     assert 'The summary is not recomputed from the kept rows' in description
     assert 'It may list several instance types and regions' not in description
     assert 'Non-EC2 RI rows are not matched on instance type or region' in description
+    assert 'whose Region name is not a known Region is kept and the note names it' in description
 
 
 def test_offering_class_enum_matches_botocore_model():

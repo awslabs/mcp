@@ -72,8 +72,9 @@ COMMITMENT PURCHASE DETAILS:
   own account (and, for EC2 RIs, its instance type and region). The summary is not recomputed
   from the kept rows: it totals every row Cost Explorer returned, which for RIs spans other
   instance types and regions, so use the kept row(s) for this recommendation. Non-EC2 RI rows are
-  not matched on instance type or region. A top-level "note" key in additional_details counts
-  dropped rows; "warning" means none matched.
+  not matched on instance type or region; an EC2 row whose Region name is not a known Region is
+  kept and the note names it. A top-level "note" key in additional_details counts dropped rows;
+  "warning" means none matched.
 - Savings Plans recommendations carry no break-even. They return EstimatedROI (estimated savings /
   Savings Plan cost x 100 over the lookback period), which is not a payback period.
 
@@ -251,6 +252,17 @@ def region_names(region_code: str) -> Optional[FrozenSet[str]]:
     return None
 
 
+@functools.lru_cache(maxsize=None)
+def known_region_names() -> FrozenSet[str]:
+    """Every name region_names() gives any Region botocore knows."""
+    codes = {
+        code
+        for partition in botocore.session.get_session().get_data('endpoints').get('partitions', [])
+        for code in partition.get('regions', {})
+    }
+    return frozenset(name for code in codes for name in region_names(code) or ())
+
+
 def keep_matching_rows(
     rows: List[Dict[str, Any]], matches: Callable[[Dict[str, Any]], bool]
 ) -> Tuple[List[Dict[str, Any]], int]:
@@ -278,33 +290,36 @@ def scope_reserved_instances_details(
         if names and region:
             criteria['region'] = region
 
-    def matches(row: Dict[str, Any], check_region: bool = True) -> bool:
+    unknown_regions = set()
+
+    def region_matches(row_region: Any) -> bool:
+        if row_region in (names or ()):
+            return True
+        # A name that is no known Region's (a new spelling) is kept rather than discarded;
+        # a row for another known Region is dropped.
+        if isinstance(row_region, str) and row_region and row_region not in known_region_names():
+            unknown_regions.add(row_region)
+            return True
+        return False
+
+    def matches(row: Dict[str, Any]) -> bool:
         ec2 = row.get('InstanceDetails', {}).get('EC2InstanceDetails', {})
         return (
             (not account_id or row.get('AccountId') == account_id)
             and ('instance type' not in criteria or ec2.get('InstanceType') == instance_type)
-            and (
-                not check_region or 'region' not in criteria or ec2.get('Region') in (names or ())
-            )
+            and ('region' not in criteria or region_matches(ec2.get('Region')))
         )
 
-    def scope(match: Callable[[Dict[str, Any]], bool]) -> List[Tuple[List[Dict[str, Any]], int]]:
-        return [
-            keep_matching_rows(ri.get('RecommendationDetails', []), match)
-            for ri in response['Recommendations']
-        ]
-
-    scoped = scope(matches)
+    scoped = [
+        keep_matching_rows(ri.get('RecommendationDetails', []), matches)
+        for ri in response['Recommendations']
+    ]
     extra = []
-    if 'region' in criteria and not any(rows for rows, _ in scoped):
-        # A Region name Cost Explorer spells differently must not discard the matching rows.
-        without_region = scope(lambda row: matches(row, check_region=False))
-        if any(rows for rows, _ in without_region):
-            scoped = without_region
-            del criteria['region']
-            extra.append(
-                f"No row's Region name matched {region}, so the rows are not filtered by Region."
-            )
+    if unknown_regions:
+        extra.append(
+            f'Rows whose Region name is not a known Region ({", ".join(sorted(unknown_regions))}) '
+            f'were kept, not matched to {region}: check their Region.'
+        )
     if ri_key != 'ec2ReservedInstances':
         extra.append(
             'Rows for this service are not matched on instance type or region, so they can '
@@ -364,8 +379,9 @@ def add_scope_notes(
             "were dropped. Cost Explorer's summary still totals all of them, so use the kept "
             'row(s) for this recommendation.'
         )
-        if result.get('NextPageToken'):
-            result['note'] += ' Later pages, which this tool cannot fetch, were not read.'
+    if kept and result.get('NextPageToken'):
+        page_hint = 'Later pages, which this tool cannot fetch, were not read.'
+        result['note'] = f'{result["note"]} {page_hint}' if 'note' in result else page_hint
     return result
 
 
