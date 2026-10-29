@@ -32,19 +32,37 @@ import os
 import re
 import time
 from . import constants
-from .error_contract import DO_NOT_RETRY, InvalidNextTokenError
+from .error_contract import DO_NOT_RETRY, MODIFY_REQUEST, InvalidNextTokenError
 from .logging_utils import get_context_logger, get_logger
 from botocore.config import Config
 from botocore.exceptions import (
     BotoCoreError,
+    CapacityNotAvailableError,
+    ChecksumError,
     ClientError,
+    ConfigNotFound,
+    ConfigParseError,
+    CredentialRetrievalError,
+    FlexibleChecksumError,
+    HTTPClientError,
+    IncompleteReadError,
+    InvalidConfigError,
+    LoginError,
+    MetadataRetrievalError,
+    NoAuthTokenError,
     NoCredentialsError,
     NoRegionError,
     ParamValidationError,
     PartialCredentialsError,
     ProfileNotFound,
+    RefreshWithMFAUnsupportedError,
+    SSOError,
+    TokenRetrievalError,
+    UnknownCredentialError,
     UnknownServiceError,
 )
+from botocore.exceptions import ConnectionError as BotoConnectionError
+from botocore.exceptions import ValidationError as BotoValidationError
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from fastmcp import Context
@@ -54,23 +72,66 @@ from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Tup
 # Configure logger for this module
 logger = get_logger(__name__)
 
-# BotoCoreError subclasses that report a credential or configuration problem rather
-# than a connection failure. Retrying the same request cannot fix them during the run,
-# so handle_aws_error keeps error_type='aws_connection_error' (stable for callers) but
-# sets retry_strategy='do_not_retry' explicitly; ErrorSignalingMiddleware keeps a
-# retry_strategy that is already set. Real connection failures (EndpointConnectionError,
-# ConnectTimeoutError, ReadTimeoutError, ConnectionClosedError) stay retryable.
-_NON_RETRYABLE_BOTOCORE_ERRORS = (
+# The only BotoCoreError subclasses that are transient: the classes botocore's own
+# standard retry mode retries (ConnectionError: endpoint, connect timeout, proxy, SSL;
+# HTTPClientError: read timeout, connection closed, response streaming),
+# CapacityNotAvailableError (botocore's client-side token bucket on a non-blocking
+# acquire; botocore does not raise it in the standard retry mode this server uses, so it
+# is kept retryable defensively), and a response body cut short or corrupted in transit
+# (raised while reading the body, after botocore's retries; FlexibleChecksumError is
+# also raised for request checksum settings, which no tool sets). botocore's
+# ValidationError family is modify_request. Every other BotoCoreError is raised the
+# same way on every attempt (credentials, configuration, an SDK-side check), so
+# handle_aws_error keeps error_type='aws_connection_error' (stable for callers) but sets
+# retry_strategy explicitly; ErrorSignalingMiddleware keeps a retry_strategy that is
+# already set. botocore tries a container-metadata credential fetch 3 times (2 retries)
+# before it raises CredentialRetrievalError; an instance-metadata fetch is tried once by
+# default (metadata_service_num_attempts) and a failure usually ends as
+# NoCredentialsError.
+_TRANSIENT_BOTOCORE_ERRORS = (
+    BotoConnectionError,
+    HTTPClientError,
+    CapacityNotAvailableError,
+    IncompleteReadError,
+    ChecksumError,
+    FlexibleChecksumError,
+)
+
+# Non-transient BotoCoreErrors the user can fix in their AWS setup: the credential source
+# (e.g. a credential_process or SSO session that expired), the region, or an outdated
+# botocore that does not know the service.
+_CONFIGURATION_BOTOCORE_ERRORS = (
     NoCredentialsError,
     PartialCredentialsError,
+    CredentialRetrievalError,
+    TokenRetrievalError,
+    SSOError,
+    LoginError,
+    MetadataRetrievalError,
+    NoAuthTokenError,
+    RefreshWithMFAUnsupportedError,
+    UnknownCredentialError,
     NoRegionError,
     ProfileNotFound,
+    ConfigNotFound,
+    ConfigParseError,
+    InvalidConfigError,
     UnknownServiceError,
 )
 
 _HINT_AWS_CONFIGURATION = (
     'AWS credentials or client configuration are missing or invalid. Do not retry; '
-    'ask the user to fix the AWS profile, credentials, or region.'
+    'ask the user to check the credential source (profile, SSO session, credential_process, '
+    'or instance/container role) or the region, or to upgrade boto3/botocore if the '
+    'service is unknown.'
+)
+_HINT_BOTO_VALIDATION = (
+    'The AWS SDK rejected the request arguments before sending them. Correct them using '
+    'details, then retry.'
+)
+_HINT_AWS_SDK = (
+    'The AWS SDK raised a client-side error; this is not a network failure, and the same '
+    'request fails the same way. Do not retry; report the details to the user.'
 )
 
 
@@ -344,7 +405,12 @@ async def handle_aws_error(
     elif isinstance(error, BotoCoreError):
         error_type = 'aws_connection_error'
         error_code = error.__class__.__name__
-        user_message = f'AWS service connection error: {error_code}'
+        transient = isinstance(error, _TRANSIENT_BOTOCORE_ERRORS)
+        user_message = (
+            f'AWS service connection error: {error_code}'
+            if transient
+            else f'AWS SDK error (not a connection failure): {error_code}'
+        )
         await ctx_logger.error(f'Connection error: {error_context}', exc_info=True)
 
         error_response.update(
@@ -356,10 +422,18 @@ async def handle_aws_error(
             }
         )
 
-        if isinstance(error, _NON_RETRYABLE_BOTOCORE_ERRORS):
-            # Credential/configuration failure: same error_type, but not retryable.
+        if isinstance(error, BotoValidationError):
+            # botocore's ValidationError family (UnknownParameterError, RangeError, ...):
+            # the arguments are wrong, as for ParamValidationError above.
+            error_response['retry_strategy'] = MODIFY_REQUEST
+            error_response['hint'] = _HINT_BOTO_VALIDATION
+        elif not transient:
             error_response['retry_strategy'] = DO_NOT_RETRY
-            error_response['hint'] = _HINT_AWS_CONFIGURATION
+            error_response['hint'] = (
+                _HINT_AWS_CONFIGURATION
+                if isinstance(error, _CONFIGURATION_BOTOCORE_ERRORS)
+                else _HINT_AWS_SDK
+            )
 
     else:
         error_type = 'unknown_error'

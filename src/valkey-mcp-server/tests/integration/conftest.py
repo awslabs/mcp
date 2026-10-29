@@ -29,14 +29,28 @@ async def client():
     """
     if not os.environ.get('VALKEY_HOST'):
         pytest.skip('VALKEY_HOST not set')
-    from glide import GlideClient, GlideClientConfiguration, NodeAddress
-
-    host = os.environ['VALKEY_HOST']
-    port = int(os.environ.get('VALKEY_PORT', '6379'))
-    config = GlideClientConfiguration(
-        addresses=[NodeAddress(host, port)],
-        request_timeout=5000,
+    from awslabs.valkey_mcp_server.common.connection import VALKEY_CFG, _build_config
+    from glide import (
+        GlideClient,
+        GlideClientConfiguration,
+        GlideClusterClient,
+        GlideClusterClientConfiguration,
+        NodeAddress,
     )
-    c = await asyncio.wait_for(GlideClient.create(config), timeout=10)
+
+    if VALKEY_CFG.get('iam_auth'):
+        config = _build_config()
+        if isinstance(config, GlideClusterClientConfiguration):
+            c = await asyncio.wait_for(GlideClusterClient.create(config), timeout=20)
+        else:
+            c = await asyncio.wait_for(GlideClient.create(config), timeout=20)
+    else:
+        host = os.environ['VALKEY_HOST']
+        port = int(os.environ.get('VALKEY_PORT', '6379'))
+        config = GlideClientConfiguration(
+            addresses=[NodeAddress(host, port)],
+            request_timeout=5000,
+        )
+        c = await asyncio.wait_for(GlideClient.create(config), timeout=10)
     yield c
     await c.close()
