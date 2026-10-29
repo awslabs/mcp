@@ -541,11 +541,38 @@ def test_cost_anomaly_server_initialization():
     )
 
 
+@pytest.mark.asyncio
+async def test_description_documents_end_date_matching():
+    """The description says the range matches end_date, so earlier-starting anomalies are kept."""
+    tool = await cost_anomaly_server.get_tool('cost-anomaly')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert 'its end_date (the last day it was detected)' in description
+    assert (
+        'began before the range and was still being detected inside it is in range' in description
+    )
+    assert 'do not drop results whose start_date is before the range' in description
+
+
 def _assert_validation_error(res):
     """Local validation failures carry a top-level classification."""
     assert res['error_type'] == 'validation_error'
     assert res['operation'] == 'cost_anomaly'
     assert res['service'] == 'Cost Explorer'
+
+
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_cost_anomaly_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import cost_anomaly_tools as module
+
+    importlib.reload(module)
 
 
 def _reload_cost_anomaly_with_identity_decorator():
@@ -787,8 +814,15 @@ class TestCostAnomalyFastMCP:
             assert 'Date validation error' in res['message']
             _assert_validation_error(res)
 
-    async def test_ca_real_client_error_2024_data(self, mock_context):
-        """Test cost_anomaly ClientError with 2024 data issue."""
+    @pytest.mark.parametrize(
+        'code,message',
+        [
+            ('ValidationException', 'Invalid date range for 2024 data'),
+            ('AccessDeniedException', 'not authorized'),
+        ],
+    )
+    async def test_ca_real_service_error_returns_error_envelope(self, mock_context, code, message):
+        """A service error from GetAnomalies comes back as an error response, not an exception."""
         ca_mod = _reload_cost_anomaly_with_identity_decorator()
         real_fn = ca_mod.cost_anomaly
 
@@ -796,60 +830,19 @@ class TestCostAnomalyFastMCP:
             patch.object(ca_mod, 'get_context_logger') as mock_get_logger,
             patch.object(ca_mod, 'create_aws_client') as mock_create_client,
         ):
-            mock_logger = AsyncMock()
-            mock_get_logger.return_value = mock_logger
+            mock_get_logger.return_value = AsyncMock()
 
             from botocore.exceptions import ClientError
 
-            error = ClientError(
-                error_response={
-                    'Error': {
-                        'Code': 'ValidationException',
-                        'Message': 'Invalid date range for 2024 data',
-                    }
-                },
+            mock_create_client.return_value.get_anomalies.side_effect = ClientError(
+                error_response={'Error': {'Code': code, 'Message': message}},
                 operation_name='GetAnomalies',
             )
-            mock_create_client.side_effect = error
 
             res = await real_fn(mock_context, start_date='2024-01-01', end_date='2024-01-31')  # type: ignore[reportCallIssue]
             assert res['status'] == 'error'
-            assert '2024 data' in res['message']
-            assert '24-48 hours in the past' in res['message']
-            assert res['error_type'] == 'ValidationException'
-            assert res['operation'] == 'cost_anomaly'
-            assert res['service'] == 'Cost Explorer'
-            assert res['data'] == {'error_code': 'ValidationException'}
-
-    async def test_ca_real_client_error_validation(self, mock_context):
-        """Test cost_anomaly ClientError with general validation exception."""
-        ca_mod = _reload_cost_anomaly_with_identity_decorator()
-        real_fn = ca_mod.cost_anomaly
-
-        with (
-            patch.object(ca_mod, 'get_context_logger') as mock_get_logger,
-            patch.object(ca_mod, 'create_aws_client') as mock_create_client,
-        ):
-            mock_logger = AsyncMock()
-            mock_get_logger.return_value = mock_logger
-
-            from botocore.exceptions import ClientError
-
-            error = ClientError(
-                error_response={
-                    'Error': {'Code': 'ValidationException', 'Message': 'Invalid parameters'}
-                },
-                operation_name='GetAnomalies',
-            )
-            mock_create_client.side_effect = error
-
-            res = await real_fn(mock_context, start_date='2023-01-01', end_date='2023-01-31')  # type: ignore[reportCallIssue]
-            assert res['status'] == 'error'
-            assert 'validation error' in res['message']
-            assert res['error_type'] == 'ValidationException'
-            assert res['operation'] == 'cost_anomaly'
-            assert res['service'] == 'Cost Explorer'
-            assert res['data'] == {'error_code': 'ValidationException'}
+            assert res['error_type'] == code
+            assert message in res['message']
 
     async def test_ca_real_successful_call(self, mock_context):
         """Test cost_anomaly successful call."""

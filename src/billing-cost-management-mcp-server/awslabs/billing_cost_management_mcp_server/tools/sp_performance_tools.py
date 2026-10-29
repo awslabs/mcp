@@ -65,12 +65,18 @@ COVERAGE grouping and filtering (get_savings_plans_coverage):
 DATES AND DATA FRESHNESS (all three operations):
 - start_date must be within the last 13 months (the Cost Explorer lookback); an
   older start_date returns a ValidationException.
-- Savings Plans data lags roughly one day. A window whose end_date is today (an
-  incomplete UTC day) commonly comes back as a DataUnavailableException with an
-  empty message. Set end_date to exclude today (end_date is exclusive), then the
-  window resolves. A DataUnavailableException means there is no data for THIS
-  window (no active plans, or the window is outside the plan period); report none
-  and do NOT retry the identical request — change the window instead.
+- Savings Plans data for the most recent 2-3 days (counting today) is not processed
+  yet: yesterday is usually still missing, so excluding only today is not enough. A
+  start_date inside those days returns a DataUnavailableException, which the service
+  sends without a message. A window that only reaches into those days succeeds but
+  silently leaves them out, so the last entry can end before end_date. A start_date at
+  least 3 days before today is usually past that delay.
+- A DataUnavailableException means there is no data for THIS window and filter: the
+  window is too recent, no plan was active in it, or a filter value matches nothing
+  (an unknown SAVINGS_PLANS_TYPE, for example, returns this error, not a
+  ValidationException). Report that no data is available for that window (not zero
+  utilization or coverage) and do NOT resend the identical request. Correct an unknown
+  filter value; query an earlier window only if the question allows it.
 
 UTILIZATION filters (get_savings_plans_utilization):
 - filter accepts LINKED_ACCOUNT, SAVINGS_PLAN_ARN, SAVINGS_PLANS_TYPE, REGION,
@@ -160,7 +166,7 @@ async def sp_performance(
         ctx: The MCP context object
         operation: The operation to perform: 'get_savings_plans_coverage', 'get_savings_plans_utilization', or 'get_savings_plans_utilization_details'
         start_date: Start date in YYYY-MM-DD format (inclusive). Defaults to 30 days ago if not provided. Must be within the last 13 months.
-        end_date: End date in YYYY-MM-DD format (exclusive). Defaults to today if not provided. Savings Plans data lags ~1 day; a window ending today may return an empty-message DataUnavailableException, so set end_date to exclude today.
+        end_date: End date in YYYY-MM-DD format (exclusive). Defaults to today if not provided. Savings Plans data for the last 2-3 days (counting today) is not processed yet: a start_date in those days returns a DataUnavailableException, and a window reaching into them leaves them out.
         granularity: Time granularity of the data (DAILY or MONTHLY). Defaults to DAILY. For coverage, ignored when group_by is provided (granularity and group_by are mutually exclusive).
         metrics: List of metrics to retrieve as a JSON string. For coverage, only 'SpendCoveredBySavingsPlans' is valid.
         group_by: Optional grouping of results as a JSON string. For coverage, supports SERVICE, REGION, or INSTANCE_TYPE_FAMILY (NOT LINKED_ACCOUNT). Each entry is {"Type": ..., "Key": ...}; there is no "Value" field.
