@@ -22,7 +22,9 @@ from awslabs.aws_documentation_mcp_server.models import (
 from awslabs.aws_documentation_mcp_server.util import (
     DocumentationToolError,
     UnreadablePageError,
+    anchor_section,
     enforce_redirect_allowlist,
+    extract_content_and_anchors,
     extract_content_from_html,
     extract_sections_from_html,
     format_documentation_result,
@@ -126,8 +128,14 @@ async def read_documentation_impl(
     start_index: int,
     session_uuid: str,
     allowed_domain_regexes: Sequence[str] = COMMERCIAL_ALLOWED_DOMAIN_REGEXES,
+    *,
+    fragment: str = '',
 ) -> str:
-    """The implementation of the read_documentation tool."""
+    """The implementation of the read_documentation tool.
+
+    ``url_str`` must already have any fragment split off; pass it as ``fragment`` to return
+    only the section it addresses. An unresolvable fragment serves the whole page with a note.
+    """
     logger.debug(f'Fetching documentation from {url_str}')
 
     url_with_session = f'{url_str}?session={session_uuid}'
@@ -168,9 +176,14 @@ async def read_documentation_impl(
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
 
+    anchor_note = ''
     if is_html_content(page_raw, content_type):
         try:
-            content = extract_content_from_html(page_raw)
+            # Indexing the anchors walks every tag, so only do it when a fragment asked for it.
+            if fragment:
+                content, anchors = extract_content_and_anchors(page_raw)
+            else:
+                content, anchors = extract_content_from_html(page_raw), None
         except UnreadablePageError as e:
             error_msg = page.message(
                 f'{page.served} could not be read: {e}',
@@ -179,13 +192,25 @@ async def read_documentation_impl(
             logger.error(error_msg)
             await ctx.error(error_msg)
             raise DocumentationToolError(error_msg) from e
+        if anchors is not None:
+            # Trim before truncating tables: shortening a table moves every offset after it.
+            section = anchor_section(content, anchors, fragment)
+            if section is None:
+                anchor_note = f'Section "#{fragment}" was not found on {page.served}, so the whole page follows.'
+                logger.debug(f'Anchor #{fragment} did not resolve on {page.served}')
+            else:
+                content = section
         content = truncate_large_tables(content, url=page.served)
     else:
         content = page_raw
+        if fragment:
+            anchor_note = (
+                f'{page.served} is not an HTML page, so section "#{fragment}" was not applied.'
+            )
 
     result = format_documentation_result(page.served, content, start_index, max_length)
-    if note := page.message():
-        result = f'<e>{note}</e>\n\n{result}'
+    if notes := ' '.join(note for note in (page.message(), anchor_note) if note):
+        result = f'<e>{notes}</e>\n\n{result}'
 
     # Log if content was truncated
     if len(content) > start_index + max_length:
@@ -296,7 +321,9 @@ async def read_sections_impl(
         raise DocumentationToolError(error_msg)
 
     try:
-        filtered_content = extract_sections_from_html(page_raw, section_titles)
+        # Returns markdown: sections are cut out of the converted page rather than converted
+        # separately, so a title and an anchor bound a section identically.
+        markdown = extract_sections_from_html(page_raw, section_titles)
     except UnreadablePageError as e:
         error_msg = page.message(
             f'{page.served} could not be read: {e}',
@@ -312,7 +339,6 @@ async def read_sections_impl(
         raise DocumentationToolError(error_msg) from e
 
     try:
-        markdown = extract_content_from_html(filtered_content)
         markdown = truncate_large_tables(markdown, url=page.served)
     except UnreadablePageError as e:
         error_msg = page.message(

@@ -33,6 +33,7 @@ from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
 from pydantic import AnyUrl, Field
 from typing import Union
+from urllib.parse import urldefrag
 
 
 SESSION_UUID = str(uuid.uuid4())
@@ -71,7 +72,9 @@ mcp = MCPServer(
 @mcp.tool()
 async def read_documentation(
     ctx: Context,
-    url: Union[AnyUrl, str] = Field(description='URL of the AWS China documentation page to read'),
+    url: Union[AnyUrl, str] = Field(
+        description='URL of the AWS China documentation page to read. May end with a #section-anchor to read only that section.'
+    ),
     max_length: int = Field(
         default=5000,
         description='Maximum number of characters to return.',
@@ -80,7 +83,7 @@ async def read_documentation(
     ),
     start_index: int = Field(
         default=0,
-        description='On return output starting at this character index, useful if a previous fetch was truncated and more content is required.',
+        description='On return output starting at this character index, useful if a previous fetch was truncated and more content is required. Counts from the start of the page, or from the start of the section when the URL carries a #section-anchor.',
         ge=0,
     ),
 ) -> str:
@@ -95,12 +98,22 @@ async def read_documentation(
     ## URL Requirements
 
     - Must be from the docs.amazonaws.cn domain
-    - Must end with .html
+    - The page must end with .html, optionally followed by a #section-anchor
 
     ## Example URLs
 
     - https://docs.amazonaws.cn/en_us/AmazonS3/latest/userguide/bucketnamingrules.html
     - https://docs.amazonaws.cn/en_us/lambda/latest/dg/lambda-invocation.html
+
+    ## Section Anchors
+
+    If the URL carries a fragment, only that section is returned, ending where the next section
+    of the same or higher level begins. Pass anchors through as you find them, since reading one
+    section costs far fewer tokens than reading the page around it. If the anchor matches nothing
+    the whole page is returned with a note, so an anchor is never worse than omitting it.
+
+    `start_index` and `max_length` apply to the section, not the page, whenever an anchor
+    resolves. Keep the anchor on the URL when calling back for more of a truncated section.
 
     ## Output Format
 
@@ -118,15 +131,16 @@ async def read_documentation(
 
     Args:
         ctx: MCP context for logging and error handling
-        url: URL of the AWS China documentation page to read
+        url: URL of the AWS China documentation page to read, optionally with a #section-anchor
         max_length: Maximum number of characters to return
         start_index: On return output starting at this character index
 
     Returns:
         Markdown content of the AWS China documentation
     """
-    # Validate that URL is from docs.amazonaws.cn and ends with .html
-    url_str = str(url)
+    # Validate that URL is from docs.amazonaws.cn and ends with .html. Split the fragment off
+    # first: it would fail that check, and '?session=' has to land before the '#'.
+    url_str, fragment = urldefrag(str(url))
     if not url_matches_allowlist(url_str, CN_ALLOWED_DOMAIN_REGEXES):
         error_msg = f'Invalid URL: {url_str}. URL must be from the docs.amazonaws.cn domain'
         await ctx.error(error_msg)
@@ -137,7 +151,13 @@ async def read_documentation(
         return error_msg
 
     return await read_documentation_impl(
-        ctx, url_str, max_length, start_index, SESSION_UUID, CN_ALLOWED_DOMAIN_REGEXES
+        ctx,
+        url_str,
+        max_length,
+        start_index,
+        SESSION_UUID,
+        CN_ALLOWED_DOMAIN_REGEXES,
+        fragment=fragment,
     )
 
 
