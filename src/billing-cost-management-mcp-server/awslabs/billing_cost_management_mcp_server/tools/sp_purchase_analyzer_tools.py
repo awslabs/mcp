@@ -15,7 +15,6 @@
 """AWS Savings Plans Purchase Analyzer tools for the AWS Billing and Cost Management MCP server."""
 
 import asyncio
-import functools
 import random
 import re
 import time
@@ -29,7 +28,6 @@ from ..utilities.aws_service_base import (
 )
 from ..utilities.logging_utils import get_context_logger
 from botocore.exceptions import ClientError
-from concurrent.futures import ThreadPoolExecutor
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
 
@@ -317,10 +315,6 @@ LAST_CHECK_LEAD_SECONDS = 3
 TERMINAL_ANALYSIS_STATUSES = ('SUCCEEDED', 'FAILED')
 THROTTLING_ERROR_CODES = ('ThrottlingException', 'LimitExceededException')
 
-# Status checks run on their own small pool: a check cut off at the deadline keeps its thread
-# until botocore returns, and must not tie up the event loop's default executor other tools use.
-_POLL_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix='sp-purchase-analysis-poll')
-
 # The wait's clock and sleep, named here so tests can drive them without patching the stdlib
 # functions the event loop itself uses.
 _monotonic = time.monotonic
@@ -396,19 +390,16 @@ async def _await_analysis(
     ``latest`` holds the last response and the last throttle, for the caller to report if the
     deadline cuts off a check in flight. A check that is still throttled after the SDK's own
     retries does not end the wait; it is raised only if no check answered before the wait ran
-    out. Any other error is raised. A check cut off at the deadline keeps its _POLL_EXECUTOR thread
-    until botocore returns.
+    out. Any other error is raised. A check cut off at the deadline keeps its worker thread until
+    botocore returns (bounded by the client's timeouts).
     """
     deadline = _monotonic() + wait
     interval: float = POLL_INTERVAL_SECONDS
     while True:
         try:
             # In a worker thread: botocore's retry backoff sleeps inside the call.
-            current = await asyncio.get_running_loop().run_in_executor(
-                _POLL_EXECUTOR,
-                functools.partial(
-                    ce_client.get_commitment_purchase_analysis, AnalysisId=analysis_id
-                ),
+            current = await asyncio.to_thread(
+                ce_client.get_commitment_purchase_analysis, AnalysisId=analysis_id
             )
         except ClientError as error:
             if error.response.get('Error', {}).get('Code') not in THROTTLING_ERROR_CODES:

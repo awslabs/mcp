@@ -452,10 +452,8 @@ class TestGetCommitmentPurchaseAnalysis:
 
         release = threading.Event()
         replies = list(answered)
-        threads = []
 
         def check(**_):
-            threads.append(threading.current_thread().name)
             if replies:
                 reply = replies.pop(0)
                 if reply == 'THROTTLED':
@@ -484,8 +482,6 @@ class TestGetCommitmentPurchaseAnalysis:
         assert real_time.monotonic() - started < 2.5
         # Every answered check, then the one cut off in flight.
         assert mock_ce_client.get_commitment_purchase_analysis.call_count == len(answered) + 1
-        # On the tool's own pool, so a stuck check cannot starve the default executor.
-        assert all(name.startswith('sp-purchase-analysis-poll') for name in threads)
         if expected == 'PROCESSING':
             assert result['status'] == 'success'
             assert result['data']['AnalysisStatus'] == 'PROCESSING'
