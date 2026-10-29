@@ -50,7 +50,7 @@ bvs_server = FastMCP(
     description="""Returns the metadata associated to the specified billing view ARN.
 
 A billing view is an AWS resource that defines a segment of AWS cost management data.
-There are four types of billing views:
+Billing view types:
 - PRIMARY: The default billing view containing all cost management data for an account.
   For management accounts in an organization, this includes all data across the organization.
 - BILLING_GROUP: Billing views corresponding to billing groups created in AWS Billing Conductor.
@@ -64,10 +64,20 @@ The tool returns information about:
 - Billing view ARN, name, and description
 - Billing view type (PRIMARY, BILLING_GROUP, CUSTOM, BILLING_TRANSFER, BILLING_TRANSFER_SHOWBACK)
 - Owner account ID and source account ID
-- Data filter expression (dimensions, tags, cost categories, time range)
+- Data filter expression (see below)
 - Health status (status code and reasons)
 - Derived view count and source view count
 - Creation, update, and view definition last updated timestamps
+
+data_filter_expression is the filter a CUSTOM view applies to its source views' data.
+It holds at most one of:
+- dimensions: key LINKED_ACCOUNT and a list of account IDs
+- tags: one tag key and a list of its values
+- cost_categories: one cost category name and a list of its values
+plus an optional time_range (begin_date_inclusive, end_date_inclusive; one of them can
+be absent, meaning open-ended on that side). There are no match options and no
+And/Or/Not. An empty or missing expression means the view is unfiltered: it shows all
+data of its source views.
 
 Example: {"arn": "arn:aws:billing::123456789012:billingview/custom-view-abc123"}""",
 )
@@ -109,9 +119,12 @@ The tool returns a list of billing views with information about:
 - Health status (status code and reasons)
 
 You can filter billing views by:
-- active_after_inclusive / active_before_inclusive: UTC time range for listing billing views
-  (must be within one calendar month, both must be provided together).
+- active_after_inclusive / active_before_inclusive: UTC time range for listing billing views.
+  Both must be provided together, both are inclusive, the end must be later than the start,
+  and both must fall in the same UTC calendar month (make one call per month).
   Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (all times are in UTC).
+  A date-only active_before_inclusive means 00:00:00 of that day, so to cover a whole
+  month end it with YYYY-MM-DDT23:59:59 (for example 2024-01-31T23:59:59).
   PRIMARY billing views are always listed. BILLING_GROUP billing views are listed for time
   ranges when the associated billing group resource in AWS Billing Conductor is active.
 - arns: Filter by specific billing view ARNs (maximum 10 items)
@@ -131,9 +144,8 @@ Example 1: {}
 Example 2 (filter by type): {"billing_view_types": "[\"PRIMARY\", \"CUSTOM\"]"}
 Example 3 (filter by owner): {"owner_account_id": "123456789012"}
 Example 4 (filter by name): {"names": "[{\"searchOption\": \"STARTS_WITH\", \"searchValue\": \"MyView\"}]"}
-Example 5 (with time range, date only): {"active_after_inclusive": "2024-01-01", "active_before_inclusive": "2024-01-31"}
-Example 6 (with time range, second precision): {"active_after_inclusive": "2024-01-01T00:00:00", "active_before_inclusive": "2024-01-31T23:59:59"}
-Example 7 (filter by ARNs): {"arns": "[\"arn:aws:billing::123456789012:billingview/custom-view-abc123\"]"}""",
+Example 5 (time range covering all of January 2024): {"active_after_inclusive": "2024-01-01", "active_before_inclusive": "2024-01-31T23:59:59"}
+Example 6 (filter by ARNs): {"arns": "[\"arn:aws:billing::123456789012:billingview/custom-view-abc123\"]"}""",
 )
 async def list_billing_views(
     ctx: Context,
@@ -154,11 +166,12 @@ async def list_billing_views(
         active_after_inclusive: Optional inclusive start of the active time range in UTC.
             Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (UTC).
             Must be provided together with active_before_inclusive.
-            The time range must be within one calendar month.
+            The time range must be within one UTC calendar month.
         active_before_inclusive: Optional inclusive end of the active time range in UTC.
             Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (UTC).
-            Must be provided together with active_after_inclusive.
-            The time range must be within one calendar month.
+            Must be provided together with active_after_inclusive, later than it and in
+            the same UTC calendar month. A date-only value means 00:00:00 of that day;
+            use YYYY-MM-DDT23:59:59 to include the whole day.
         arns: Optional JSON string containing a list of billing view ARNs to filter by.
             Maximum 10 items.
         billing_view_types: Optional JSON string containing a list of billing view types.
