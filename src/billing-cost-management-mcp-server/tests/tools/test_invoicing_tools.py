@@ -143,6 +143,20 @@ class TestListInvoiceSummariesSelector:
         _assert_validation_error(result)
 
     @pytest.mark.asyncio
+    async def test_selector_conflict_reported_before_time_filter(self, mock_context):
+        """account_id plus invoice_id plus a time filter reports the selector conflict first."""
+        result = await list_invoice_summaries(
+            mock_context,
+            account_id='123456789012',
+            invoice_id='INV-001',
+            billing_period='2026-05',
+        )
+
+        assert result['status'] == 'error'
+        assert 'not both' in result['data']['message']
+        _assert_validation_error(result)
+
+    @pytest.mark.asyncio
     async def test_sts_exception_returns_error(self, mock_context):
         """When account_id is omitted and STS get_caller_identity raises, status is error."""
         mock_sts = MagicMock()
@@ -294,6 +308,54 @@ class TestListInvoiceSummariesFilter:
             result = await list_invoice_summaries(mock_context, invoice_id='INV-001')
 
         assert result['status'] == 'success'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'time_filter',
+        [
+            {'billing_period': '2026-01'},
+            {'start_date': '2026-01-01', 'end_date': '2026-02-01'},
+            {'start_date': '2026-01-01'},
+            {'end_date': '2026-02-01'},
+        ],
+    )
+    async def test_invoice_id_with_time_filter_is_rejected(self, mock_context, time_filter):
+        """invoice_id plus any time filter errors before calling the API.
+
+        The INVOICE_ID selector returns that one invoice whatever its billing
+        period or issued date, so forwarding the filter would hand back an
+        invoice for a period the caller did not ask for.
+        """
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            result = await list_invoice_summaries(
+                mock_context, invoice_id='INV-001', **time_filter
+            )
+
+        assert result['status'] == 'error'
+        _assert_validation_error(result)
+        message = result['data']['message']
+        assert 'invoice_id cannot be combined' in message
+        assert 'BillingPeriod' in message
+        mock_create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_invoice_id_with_invoicing_entity_is_forwarded(
+        self, mock_context, sample_summary
+    ):
+        """invoicing_entity still applies with invoice_id, so it is sent unchanged."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await list_invoice_summaries(
+                mock_context, invoice_id='INV-001', invoicing_entity='Amazon Web Services, Inc.'
+            )
+
+        assert result['status'] == 'success'
+        call = mock_client.list_invoice_summaries.call_args.kwargs
+        assert call['Selector'] == {'ResourceType': 'INVOICE_ID', 'Value': 'INV-001'}
+        assert call['Filter'] == {'InvoicingEntity': 'Amazon Web Services, Inc.'}
 
     @pytest.mark.asyncio
     async def test_range_longer_than_a_month_is_rejected(self, mock_context):
