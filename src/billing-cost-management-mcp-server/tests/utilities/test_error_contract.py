@@ -93,6 +93,13 @@ class TestClassifyError:
         assert classify_error(error_type)[0] == MODIFY_REQUEST
 
     @pytest.mark.parametrize(
+        'error_type', ['InvalidNextTokenException', 'ExpiredNextTokenException']
+    )
+    def test_service_next_token_codes_share_invalid_next_token_guidance(self, error_type):
+        """A token the service rejects gets the restart-without-next_token hint."""
+        assert classify_error(error_type) == classify_error('invalid_next_token')
+
+    @pytest.mark.parametrize(
         'error_type',
         ['AccessDenied', 'AccessDeniedException', 'access_denied', 'UnauthorizedOperation'],
     )
