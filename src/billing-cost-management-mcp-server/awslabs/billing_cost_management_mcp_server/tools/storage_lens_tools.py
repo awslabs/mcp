@@ -15,7 +15,7 @@
 """AWS S3 Storage Lens tools for the AWS Billing and Cost Management MCP server.
 
 This module provides functionality to create and query Athena tables for S3 Storage Lens data.
-See the resources/storage_lens_metrics_reference.md file for detailed metrics information and sample queries.
+The storage-lens tool description lists the export columns and sample queries.
 """
 
 import asyncio
@@ -797,7 +797,7 @@ class StorageLensQueryTool:
 
 IMPORTANT USAGE GUIDELINES:
 - Before using this tool, provide a 1-3 sentence explanation starting with "EXPLANATION:"
-- Use standard SQL syntax for Athena queries
+- Dialect: Athena engine version 3 (Trino SQL). In CSV exports every column is a string, so cast before math or numeric comparison, e.g. SUM(CAST(metric_value AS BIGINT))
 - Reference the Storage Lens metrics table with the {table} placeholder (or its qualified <database>.<table> name). A query that does neither is rejected with a validation_error. Every {table} is replaced; nothing else in the query is changed
 - database_name and table_name, if given, must start with a letter and contain only letters, digits and underscores (at most 255 characters); other values are rejected with a validation_error
 - Perform aggregations (GROUP BY) when analyzing data across multiple dimensions
@@ -923,7 +923,14 @@ async def storage_lens_run_query(
         # Validate user-supplied query is a read-only SELECT
         validation_error = validate_query_is_readonly_select(query)
         if validation_error:
-            return format_response('error', {}, validation_error)
+            return format_response(
+                'error',
+                {},
+                validation_error,
+                error_type='validation_error',
+                operation='storage_lens_run_query',
+                service='Storage Lens',
+            )
 
         # Get manifest location from args or environment variable
         manifest_loc = manifest_location or os.environ.get(ENV_STORAGE_LENS_MANIFEST_LOCATION, '')
@@ -932,6 +939,9 @@ async def storage_lens_run_query(
                 'error',
                 {},
                 f"Missing manifest location. Provide 'manifest_location' parameter or set {ENV_STORAGE_LENS_MANIFEST_LOCATION} environment variable.",
+                error_type='validation_error',
+                operation='storage_lens_run_query',
+                service='Storage Lens',
             )
 
         # Get output location from args or environment variable (optional)

@@ -1443,6 +1443,71 @@ class TestQueryValidation:
             mock_instance.query_storage_lens.assert_not_awaited()
 
 
+# --- Local validation errors carry error_type, operation and service ---
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'query',
+    [
+        'DROP TABLE x',
+        'INSERT INTO t VALUES (1)',
+        'SELECT 1; DROP TABLE t',
+        '',
+        'SELECT FROM WHERE (',
+    ],
+)
+async def test_rejected_query_is_validation_error(mock_context, monkeypatch, query):
+    """A query rejected by the read-only check is a validation_error the caller must modify."""
+    monkeypatch.setenv('STORAGE_LENS_MANIFEST_LOCATION', 's3://bucket/prefix/')
+    stl_mod = _reload_storage_lens_with_identity_decorator()
+    with patch.object(stl_mod, 'StorageLensQueryTool') as MockTool:
+        res = await stl_mod.storage_lens_run_query(mock_context, query=query)  # type: ignore
+        MockTool.assert_not_called()
+    assert res['status'] == 'error'
+    assert res['message'].startswith('Query validation failed')
+    assert res['error_type'] == 'validation_error'
+    assert res['operation'] == 'storage_lens_run_query'
+    assert res['service'] == 'Storage Lens'
+    assert add_retry_guidance(res)['retry_strategy'] == 'modify_request'
+
+
+@pytest.mark.asyncio
+async def test_missing_manifest_location_is_validation_error(mock_context, monkeypatch):
+    """No manifest_location argument and no environment variable is a validation_error."""
+    monkeypatch.delenv('STORAGE_LENS_MANIFEST_LOCATION', raising=False)
+    stl_mod = _reload_storage_lens_with_identity_decorator()
+    res = await stl_mod.storage_lens_run_query(mock_context, query='SELECT 1')  # type: ignore
+    assert res['status'] == 'error'
+    assert 'Missing manifest location' in res['message']
+    assert res['error_type'] == 'validation_error'
+    assert res['operation'] == 'storage_lens_run_query'
+    assert res['service'] == 'Storage Lens'
+    assert add_retry_guidance(res)['retry_strategy'] == 'modify_request'
+
+
+@pytest.mark.asyncio
+async def test_description_states_dialect_and_csv_string_columns():
+    """The served description names the Trino dialect and that CSV export columns are strings."""
+    from awslabs.billing_cost_management_mcp_server.tools import storage_lens_tools as stl_mod
+
+    importlib.reload(stl_mod)
+    tool = await stl_mod.storage_lens_server.get_tool('storage-lens')
+    assert tool is not None
+    description = tool.description or ''
+    assert 'Athena engine version 3 (Trino SQL)' in description
+    assert 'In CSV exports every column is a string' in description
+    assert 'SUM(CAST(metric_value AS BIGINT))' in description
+    assert 'standard SQL' not in description
+
+
+def test_module_docstring_has_no_missing_file_pointer():
+    """The module docstring does not point at a reference file the package does not ship."""
+    from awslabs.billing_cost_management_mcp_server.tools import storage_lens_tools as stl_mod
+
+    assert 'storage_lens_metrics_reference.md' not in (stl_mod.__doc__ or '')
+
+
 # --- Direct unit tests for validate_query_is_readonly_select ---
 
 
