@@ -1719,6 +1719,7 @@ async def test_description_warns_that_summing_recommendation_savings_double_coun
     for filter_name in ('actionTypes', 'resourceTypes', 'implementationEfforts'):
         assert filter_name in description.split('SAVINGS TOTALS:')[1].split('CRITICAL')[0]
     assert 'include_all_recommendations=true' in description
+    assert 'do not include DatabaseSavingsPlans' in description
 
 
 @pytest.mark.parametrize(

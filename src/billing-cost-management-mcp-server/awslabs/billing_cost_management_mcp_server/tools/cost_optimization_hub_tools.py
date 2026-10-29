@@ -423,6 +423,9 @@ SAVINGS TOTALS:
 - Filters other than accountIds and regions (actionTypes, resourceTypes, implementationEfforts,
   restartNeeded, rollbackPossible) change how overlap is netted out, so a filtered total is
   not that slice's share of the portfolio total, and filtered totals do not sum to it.
+- list_recommendation_summaries totals and groups do not include DatabaseSavingsPlans
+  recommendations. list_recommendations returns them, so add their estimated_monthly_savings
+  to the summary total and say that the total was built that way.
 - Commitment (Savings Plans/Reserved Instance) savings assume current usage; implementing
   rightsizing or idle recommendations reduces them.
 - With include_all_recommendations=true, the same purchase appears once per term, payment
