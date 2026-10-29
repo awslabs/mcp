@@ -1371,6 +1371,22 @@ def test_multi_region_error_type(region_errors, regions_not_found, expected):
             [],
             'do_not_retry',
         ),
+        # A region's own retry_strategy (a non-transient botocore error keeps
+        # error_type aws_connection_error) wins over the error_type mapping
+        (
+            {
+                'us-east-1': {
+                    'error_type': 'aws_connection_error',
+                    'retry_strategy': 'do_not_retry',
+                },
+                'eu-west-1': {
+                    'error_type': 'aws_connection_error',
+                    'retry_strategy': 'do_not_retry',
+                },
+            },
+            [],
+            'do_not_retry',
+        ),
     ],
 )
 def test_multi_region_guidance(region_errors, regions_not_found, expected):

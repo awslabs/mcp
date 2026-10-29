@@ -394,22 +394,6 @@ class TestAwsPricing:
         assert 'message' in result
         assert 'Unknown operation' in result['message']
 
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.get_service_codes'
-    )
-    async def test_aws_pricing_error_handling(self, mock_get_service_codes, mock_context):
-        """Test aws_pricing error handling."""
-        # Setup
-        error = Exception('API error')
-        mock_get_service_codes.side_effect = error
-
-        # Execute
-        result = {'status': 'error', 'message': 'API error'}
-
-        # Assert
-        assert result['status'] == 'error'
-        assert result['message'] == 'API error'
-
 
 def test_aws_pricing_server_initialization():
     """Test that the aws_pricing_server is properly initialized."""
@@ -679,6 +663,19 @@ async def test_aws_pricing_get_pricing_from_api_passes_filters_dict_too_extra(mo
         )
         assert res['status'] == 'success'
         mock_impl.assert_awaited_once_with(mock_context, 'AmazonEC2', filters, max_items=None)
+
+
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_pricing_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import aws_pricing_tools as module
+
+    importlib.reload(module)
 
 
 def _reload_pricing_with_identity_decorator():
