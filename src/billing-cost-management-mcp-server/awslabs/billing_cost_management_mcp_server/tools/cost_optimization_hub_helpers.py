@@ -261,6 +261,16 @@ async def get_recommendation(
                 'recommendedResourceDetails'
             )
 
+        # An EBS Delete recommendation covers both idle (attached) and unattached volumes, and
+        # list rows carry no attachment state, so surface the volume's state at the top level.
+        attachment_state = recommendation.get('currentResourceDetails')
+        for key in ('ebsVolume', 'configuration', 'attachmentState'):
+            attachment_state = (
+                attachment_state.get(key) if isinstance(attachment_state, dict) else None
+            )
+        if attachment_state is not None:
+            formatted_response['attachment_state'] = attachment_state
+
         if 'tags' in recommendation:
             formatted_response['tags'] = recommendation.get('tags')
 
