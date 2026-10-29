@@ -72,6 +72,8 @@ billing_conductor_server = FastMCP(
 
 This tool retrieve billing groups for a given billing period.
 If no billing period is provided, the current billing period is used.
+A billing_period after the current month (UTC) is a projection, not a record: the response sets
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about:
 - Billing group ARN, name, and description
@@ -115,6 +117,7 @@ async def list_billing_groups(
         ctx: The MCP context object
         billing_period: Optional billing period in YYYY-MM format (e.g., "2025-01").
             If not provided, the current billing period is used.
+            A month after the current month (UTC) returns a projection (billing_period_is_future).
         filters: Optional JSON string containing filter criteria. Supported filters:
             - Arns: List of billing group ARNs to retrieve
             - Names: List of name search objects with SearchOption and SearchValue
@@ -142,6 +145,8 @@ async def list_billing_groups(
 
 This tool retrieve linked accounts for a given billing period.
 If no billing period is provided, the current billing period is used.
+A billing_period after the current month (UTC) is a projection, not a record: the response sets
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about each linked account:
 - Account ID
@@ -182,6 +187,7 @@ async def list_account_associations(
         ctx: The MCP context object
         billing_period: Optional billing period in YYYY-MM format (e.g., "2025-01").
             If not provided, the current billing period is used.
+            A month after the current month (UTC) returns a projection (billing_period_is_future).
         filters: Optional JSON string containing filter criteria. Supported filters:
             - AccountId: A single AWS account ID (12 digits)
             - AccountIds: List of AWS account IDs (up to 30, each 12 digits)
@@ -207,6 +213,8 @@ based on the associated pricing plan of a billing group.
 
 This tool retrieve cost reports for billing groups.
 If no billing period is provided, the current billing period is used.
+A billing_period after the current month (UTC) fails with validation_error before any AWS call;
+the service would return $0 for every billing group.
 
 The tool returns cost report information for each billing group:
 - Billing group ARN
@@ -242,6 +250,7 @@ async def list_billing_group_cost_reports(
         ctx: The MCP context object
         billing_period: Optional billing period in YYYY-MM format (e.g., "2025-01").
             If not provided, the current billing period is used.
+            A month after the current month (UTC) fails with validation_error.
         filters: Optional JSON string containing filter criteria. Supported filters:
             - BillingGroupArns: List of billing group ARNs (minimum 1, maximum 100)
         max_items: Optional total number of items to return. Omit it to fetch every page.
@@ -266,6 +275,8 @@ name or billing period.
 
 This tool retrieve detailed cost reports for a
 single billing group, optionally broken down by product name and/or billing period.
+A BillingPeriodRange whose InclusiveStartBillingPeriod is after the current month (UTC) fails
+with validation_error before any AWS call; the service would return no results.
 
 The tool returns margin summary report results for the billing group:
 - Billing group ARN
@@ -333,6 +344,8 @@ service fees, taxes, credits, and distributing RI/Savings Plans savings.
 
 This tool retrieve custom line items for a given billing period.
 If no billing period is provided, the current billing period is used.
+A billing_period after the current month (UTC) is a projection, not a record: the response sets
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about:
 - Custom line item ARN, name, and description
@@ -369,6 +382,7 @@ async def list_custom_line_items(
     Args:
         ctx: The MCP context object
         billing_period: Optional billing period in YYYY-MM format (e.g., "2025-01").
+            A month after the current month (UTC) returns a projection (billing_period_is_future).
         filters: Optional JSON string with filter criteria (AccountIds, Arns, BillingGroups, Names).
         max_items: Optional total number of items to return. Omit it to fetch every page.
         next_token: Optional pagination token from a previous response.
@@ -435,6 +449,8 @@ async def list_custom_line_item_versions(
 
 This tool retrieve resources associated with a specific custom line item.
 If no billing period is provided, the current billing period is used.
+A billing_period after the current month (UTC) is a projection, not a record: the response sets
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about each associated resource:
 - Resource ARN (can be a billing group or custom line item)
@@ -467,6 +483,7 @@ async def list_resources_associated_to_custom_line_item(
         ctx: The MCP context object
         arn: The ARN of the custom line item. Required.
         billing_period: Optional billing period in YYYY-MM format.
+            A month after the current month (UTC) returns a projection (billing_period_is_future).
         filters: Optional JSON string with filter criteria (Relationship).
         max_items: Optional total number of items to return. Omit it to fetch every page.
         next_token: Optional pagination token from a previous response.
@@ -489,6 +506,8 @@ async def list_resources_associated_to_custom_line_item(
     description="""Retrieves a list of pricing rules from AWS Billing Conductor.
 
 This tool retrieve pricing rules for a given billing period.
+A billing_period after the current month (UTC) is a projection, not a record: the response sets
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about:
 - Pricing rule ARN, name, and description
@@ -522,6 +541,7 @@ async def list_pricing_rules(
     Args:
         ctx: The MCP context object
         billing_period: Optional billing period in YYYY-MM format.
+            A month after the current month (UTC) returns a projection (billing_period_is_future).
         filters: Optional JSON string with filter criteria (Arns).
         max_items: Optional total number of items to return. Omit it to fetch every page.
         next_token: Optional pagination token from a previous response.
@@ -541,6 +561,8 @@ async def list_pricing_rules(
 
 This tool retrieve pricing plans for a given billing period.
 If no billing period is provided, the current billing period is used.
+A billing_period after the current month (UTC) is a projection, not a record: the response sets
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about:
 - Pricing plan ARN, name, and description
@@ -571,6 +593,7 @@ async def list_pricing_plans(
     Args:
         ctx: The MCP context object
         billing_period: Optional billing period in YYYY-MM format.
+            A month after the current month (UTC) returns a projection (billing_period_is_future).
         filters: Optional JSON string with filter criteria (Arns).
         max_items: Optional total number of items to return. Omit it to fetch every page.
         next_token: Optional pagination token from a previous response.
@@ -590,6 +613,8 @@ async def list_pricing_plans(
 
 This tool retrieve pricing rules associated with a specific pricing plan
 If no billing period is provided, the current billing period is used.
+A billing_period after the current month (UTC) is a projection, not a record: the response sets
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about:
 - The billing period for which the pricing rule associations are listed.
@@ -618,6 +643,7 @@ async def list_pricing_rules_associated_to_pricing_plan(
         ctx: The MCP context object
         pricing_plan_arn: The ARN of the pricing plan. Required.
         billing_period: Optional billing period in YYYY-MM format.
+            A month after the current month (UTC) returns a projection (billing_period_is_future).
         max_items: Optional total number of items to return. Omit it to fetch every page.
         next_token: Optional pagination token from a previous response.
 
@@ -640,6 +666,8 @@ async def list_pricing_rules_associated_to_pricing_plan(
 
 This tool retrieve pricing plans associated with a specific pricing rule
 If no billing period is provided, the current billing period is used.
+A billing_period after the current month (UTC) is a projection, not a record: the response sets
+`billing_period_is_future: true` and lists what is recorded today as in effect that month.
 
 The tool returns information about:
 - The billing period for which the pricing rule associations are listed.
@@ -668,6 +696,7 @@ async def list_pricing_plans_associated_with_pricing_rule(
         ctx: The MCP context object
         pricing_rule_arn: The ARN of the pricing rule. Required.
         billing_period: Optional billing period in YYYY-MM format.
+            A month after the current month (UTC) returns a projection (billing_period_is_future).
         max_items: Optional total number of items to return. Omit it to fetch every page.
         next_token: Optional pagination token from a previous response.
 
