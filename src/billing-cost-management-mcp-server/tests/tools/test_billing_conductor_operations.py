@@ -19,6 +19,7 @@ import inspect
 import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operations import (
+    MARGIN_NOTE,
     _format_billing_group_cost_report_results,
     _format_billing_group_cost_reports,
     _format_billing_groups,
@@ -1215,16 +1216,16 @@ def sample_cost_reports():
             'Arn': BILLING_GROUP_ARN_1,
             'AWSCost': '1000.00',
             'ProformaCost': '900.00',
-            'Margin': '100.00',
-            'MarginPercentage': '10.0',
+            'Margin': '-100.00',
+            'MarginPercentage': '-0.1',
             'Currency': 'USD',
         },
         {
             'Arn': BILLING_GROUP_ARN_2,
             'AWSCost': '500.00',
             'ProformaCost': '475.00',
-            'Margin': '25.00',
-            'MarginPercentage': '5.0',
+            'Margin': '-25.00',
+            'MarginPercentage': '-0.05',
             'Currency': 'USD',
         },
     ]
@@ -1238,8 +1239,8 @@ def sample_cost_report_results():
             'Arn': BILLING_GROUP_ARN_1,
             'AWSCost': '200.00',
             'ProformaCost': '180.00',
-            'Margin': '20.00',
-            'MarginPercentage': '10.0',
+            'Margin': '-20.00',
+            'MarginPercentage': '-0.1',
             'Currency': 'USD',
             'Attributes': [
                 {'Key': 'PRODUCT_NAME', 'Value': 'Amazon S3'},
@@ -1249,8 +1250,8 @@ def sample_cost_report_results():
             'Arn': BILLING_GROUP_ARN_1,
             'AWSCost': '800.00',
             'ProformaCost': '720.00',
-            'Margin': '80.00',
-            'MarginPercentage': '10.0',
+            'Margin': '-80.00',
+            'MarginPercentage': '-0.1',
             'Currency': 'USD',
             'Attributes': [
                 {'Key': 'PRODUCT_NAME', 'Value': 'Amazon EC2'},
@@ -1278,8 +1279,8 @@ class TestFormatBillingGroupCostReports:
         assert result[0]['arn'] == BILLING_GROUP_ARN_1
         assert result[0]['aws_cost'] == '1000.00'
         assert result[0]['proforma_cost'] == '900.00'
-        assert result[0]['margin'] == '100.00'
-        assert result[0]['margin_percentage'] == '10.0'
+        assert result[0]['margin'] == '-100.00'
+        assert result[0]['margin_percentage'] == '-0.1'
         assert result[0]['currency'] == 'USD'
 
 
@@ -1309,8 +1310,8 @@ class TestFormatBillingGroupCostReportResults:
                 'Arn': BILLING_GROUP_ARN_1,
                 'AWSCost': '100.00',
                 'ProformaCost': '90.00',
-                'Margin': '10.00',
-                'MarginPercentage': '10.0',
+                'Margin': '-10.00',
+                'MarginPercentage': '-0.1',
                 'Currency': 'USD',
             }
         ]
@@ -1318,6 +1319,14 @@ class TestFormatBillingGroupCostReportResults:
 
         assert len(result) == 1
         assert 'attributes' not in result[0]
+
+
+def test_margin_note_states_sign_and_unit():
+    """The response note gives the margin formula and says margin_percentage is a fraction."""
+    assert 'margin = proforma_cost - aws_cost' in MARGIN_NOTE
+    assert 'margin_percentage = margin / aws_cost as a fraction, not a percent' in MARGIN_NOTE
+    assert '-0.25 means -25%' in MARGIN_NOTE
+    assert 'it is 0.0 when aws_cost is 0' in MARGIN_NOTE
 
 
 # --- List Billing Group Cost Reports Operation Tests ---
@@ -1343,6 +1352,7 @@ class TestListBillingGroupCostReports:
         assert result['status'] == STATUS_SUCCESS
         assert result['data']['pagination']['items_returned'] == 2
         assert len(result['data']['billing_group_cost_reports']) == 2
+        assert result['data']['margin_note'] == MARGIN_NOTE
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_cost_reports_with_billing_period(
@@ -1416,6 +1426,7 @@ class TestListBillingGroupCostReports:
 
         assert result['status'] == STATUS_SUCCESS
         assert result['data']['pagination']['items_returned'] == 0
+        assert 'margin_note' not in result['data']
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_cost_reports_aws_error(self, mock_create_client, mock_ctx):
@@ -1456,6 +1467,23 @@ class TestGetBillingGroupCostReport:
         assert result['status'] == STATUS_SUCCESS
         assert result['data']['pagination']['items_returned'] == 2
         assert result['data']['arn'] == BILLING_GROUP_ARN_1
+        assert result['data']['margin_note'] == MARGIN_NOTE
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_get_cost_report_empty_result_has_no_margin_note(
+        self, mock_create_client, mock_ctx
+    ):
+        """No rows means no margin to read, so the note is left out."""
+        mock_client = MagicMock()
+        mock_client.get_billing_group_cost_report.return_value = {
+            'BillingGroupCostReportResults': [],
+        }
+        mock_create_client.return_value = mock_client
+
+        result = await get_billing_group_cost_report(mock_ctx, BILLING_GROUP_ARN_1)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert 'margin_note' not in result['data']
 
     @patch(PATCH_BC_CLIENT)
     async def test_get_cost_report_with_group_by(

@@ -37,6 +37,14 @@ from typing import Any, Dict, List, Optional
 # AWS Billing Conductor is a global service that operates in us-east-1
 BILLING_CONDUCTOR_DEFAULT_REGION = REGION_US_EAST_1
 
+# The service computes Margin as ProformaCost - AWSCost and MarginPercentage as Margin / AWSCost
+# (0 when AWSCost is 0). The field name says percentage, but the value is a fraction.
+MARGIN_NOTE = (
+    'margin = proforma_cost - aws_cost; negative means the proforma cost is below the AWS cost. '
+    'margin_percentage = margin / aws_cost as a fraction, not a percent: -0.25 means -25%; '
+    'it is 0.0 when aws_cost is 0.'
+)
+
 
 def _create_billing_conductor_client() -> Any:
     """Create a Billing Conductor client with the default region.
@@ -307,6 +315,8 @@ async def list_billing_group_cost_reports(
             'billing_group_cost_reports': _format_billing_group_cost_reports(cost_reports),
             'billing_period': billing_period or 'current',
         }
+        if cost_reports:
+            response_data['margin_note'] = MARGIN_NOTE
         return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
@@ -385,6 +395,8 @@ async def get_billing_group_cost_report(
             ),
             'arn': arn,
         }
+        if results:
+            response_data['margin_note'] = MARGIN_NOTE
         return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
