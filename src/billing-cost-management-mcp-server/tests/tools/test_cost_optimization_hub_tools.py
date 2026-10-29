@@ -393,6 +393,118 @@ async def test_coh_real_list_recommendations_reload_identity_decorator(mock_cont
         )
 
 
+async def _coh_tool_as_served():
+    """Return the cost-optimization tool as served (reloaded with the real decorator).
+
+    The identity-decorator reload above leaves a server with no tools, so reload it here
+    with the real one.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    coh_mod = importlib.reload(coh_mod)
+    tool = await coh_mod.cost_optimization_hub_server.get_tool('cost-optimization')
+    assert tool is not None
+    return tool
+
+
+@pytest.mark.asyncio
+async def test_description_says_default_hides_alternative_recommendations():
+    """The default deduplicated view hides alternatives; the text says so and how to see them."""
+    tool = await _coh_tool_as_served()
+    flat = ' '.join((tool.description or '').split())
+    assert 'Set include_all_recommendations=true to compare purchase options' in flat
+    assert 'do not add their estimated savings together' in flat
+    assert 'list_recommendation_summaries always deduplicates' in flat
+    assert 'need not match list_recommendations' in flat
+    assert "closest to the account's commitment preference" in flat
+    arg_doc = ' '.join(
+        (
+            tool.parameters['properties']['include_all_recommendations'].get('description') or ''
+        ).split()
+    )
+    assert arg_doc != 'Whether to include all recommendations'
+    assert 'list_recommendations only' in arg_doc
+    assert 'hides the alternatives' in arg_doc
+
+
+@pytest.mark.asyncio
+async def test_summaries_do_not_take_include_all_recommendations(mock_context):
+    """list_recommendation_summaries is always deduplicated: the arg is not forwarded."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(
+            coh_mod, 'list_recommendation_summaries', new_callable=AsyncMock
+        ) as mock_summaries,
+    ):
+        mock_summaries.return_value = {'status': 'success', 'data': {'summaries': []}}
+        await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendation_summaries',
+            group_by='ResourceType',
+            include_all_recommendations=True,
+        )
+
+    mock_summaries.assert_awaited_once_with(
+        mock_context,
+        mock_create_client.return_value,
+        group_by='ResourceType',
+        max_items=None,
+        filters=None,
+        next_token=None,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'include_all, expected_phrase',
+    [
+        (None, "chosen first by the account's commitment preference"),
+        (False, "chosen first by the account's commitment preference"),
+        (True, 'do not add their estimated savings together'),
+    ],
+)
+async def test_list_recommendations_response_carries_deduplication_note(
+    mock_context, include_all, expected_phrase
+):
+    """A successful list_recommendations result says which view it is and what that means."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(coh_mod, 'list_recommendations', new_callable=AsyncMock) as mock_list_recs,
+    ):
+        mock_list_recs.return_value = {'status': 'success', 'data': {'recommendations': []}}
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendations',
+            include_all_recommendations=include_all,
+        )
+
+    assert expected_phrase in res['data']['deduplication_note']
+
+
+@pytest.mark.asyncio
+async def test_list_recommendations_error_has_no_deduplication_note(mock_context):
+    """A failed list_recommendations result is returned without the note."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(coh_mod, 'list_recommendations', new_callable=AsyncMock) as mock_list_recs,
+    ):
+        mock_list_recs.return_value = {'status': 'error', 'data': {'error_type': 'x'}}
+        res = await real_fn(mock_context, operation='list_recommendations')  # type: ignore
+
+    assert 'deduplication_note' not in res['data']
+
+
 @pytest.mark.asyncio
 async def test_coh_real_get_recommendation_success_reload_identity_decorator(mock_context):
     """Test real cost_optimization_hub get_recommendation success with identity decorator."""
