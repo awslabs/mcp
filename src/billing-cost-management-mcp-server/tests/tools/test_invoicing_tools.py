@@ -1182,6 +1182,22 @@ class TestInvoicingDescriptionContract:
         assert 'de-duplicate on InvoiceId' in description
         assert 'ACCOUNT QUERIES ONLY' in description
 
+    def test_a_time_filter_is_documented_as_ignored_for_invoice_id(self):
+        """The word optional implied the filter narrows the result. It does not.
+
+        Verified live against a real invoice id: a TimeInterval covering
+        2019, and a BillingPeriod of 2019-01, each return the invoice issued
+        in 2026 anyway. So a caller who passes a window and gets a row back
+        cannot tell the window was ignored, and "optional" invited exactly
+        that. The tool still accepts one, so the description says it has no
+        effect rather than that it is refused.
+        """
+        description = _served_tool().description
+
+        assert 'IGNORED for invoice_id' in description
+        assert 'whatever window is passed' in description
+        assert 'optional for invoice_id' not in description
+
     def test_estimates_documented_as_indistinguishable_by_type(self):
         """The prefix is the only marker, and estimates outlive the open month.
 

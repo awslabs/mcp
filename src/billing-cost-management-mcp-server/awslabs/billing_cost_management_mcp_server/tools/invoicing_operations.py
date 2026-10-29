@@ -246,7 +246,9 @@ async def list_invoice_summaries(
             from the caller identity (STS) when omitted. Mutually exclusive with
             ``invoice_id``.
         invoice_id: Retrieve the summary for a single invoice instead of an
-            account. Mutually exclusive with ``account_id``.
+            account. Mutually exclusive with ``account_id``. A time filter has
+            no effect here: the service returns the invoice whatever window is
+            passed, so one is neither required nor useful.
         billing_period: Single calendar month in ``YYYY-MM`` format (for
             example ``"2026-05"``). Mutually exclusive with
             ``start_date``/``end_date``.
