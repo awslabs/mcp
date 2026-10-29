@@ -33,43 +33,6 @@ from fastmcp.tools import FunctionTool
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
-# Create a mock implementation for testing
-async def free_tier_usage(ctx, operation, **kwargs):
-    """Mock implementation of free_tier_usage for testing."""
-    from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base import (
-        format_response,
-    )
-
-    if operation == 'get_free_tier_usage':
-        return {
-            'status': 'success',
-            'data': {
-                'free_tier_usages': [
-                    {
-                        'service': 'Amazon EC2',
-                        'usage': {
-                            'limit': '750 hours',
-                            'used': '250 hours',
-                            'remaining': '500 hours',
-                            'percent_used': 33.33,
-                        },
-                    },
-                    {
-                        'service': 'Amazon S3',
-                        'usage': {
-                            'limit': '5 GB',
-                            'used': '1 GB',
-                            'remaining': '4 GB',
-                            'percent_used': 20.0,
-                        },
-                    },
-                ]
-            },
-        }
-    else:
-        return format_response('error', {}, f'Unsupported operation: {operation}')
-
-
 @pytest.fixture
 def mock_context():
     """Create a mock MCP context."""
@@ -303,57 +266,77 @@ class TestGetFreeTierUsageData:
         assert result['data']['freeTierUsages'][0]['service'] == 'Amazon EC2'
 
 
+_TOOLS_MODULE = 'awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools'
+
+
+async def _free_tier_usage_fn():
+    """Return the undecorated function behind the registered free-tier-usage tool."""
+    tool = await free_tier_usage_server.get_tool('free-tier-usage')
+    assert isinstance(tool, FunctionTool)
+    return tool.fn
+
+
 @pytest.mark.asyncio
 class TestFreeTierUsage:
-    """Tests for free_tier_usage function."""
+    """Tests for the free-tier-usage tool."""
 
     async def test_free_tier_usage_get_free_tier_usage(self, mock_context):
-        """Test free_tier_usage with get_free_tier_usage operation."""
-        # Execute
-        result = await free_tier_usage(
-            mock_context,
-            operation='get_free_tier_usage',
-        )
+        """The default operation returns every usage row the API reports."""
+        fn = await _free_tier_usage_fn()
+        client = MagicMock()
+        client.get_free_tier_usage.return_value = {
+            'freeTierUsages': [{'service': 'Amazon EC2'}, {'service': 'Amazon S3'}]
+        }
 
-        # Assert
+        with patch(f'{_TOOLS_MODULE}.create_aws_client', return_value=client):
+            result = await fn(mock_context, operation='get_free_tier_usage')
+
         assert result['status'] == 'success'
-        assert 'data' in result
-        assert 'free_tier_usages' in result['data']
-        assert len(result['data']['free_tier_usages']) == 2
+        assert [u['service'] for u in result['data']['freeTierUsages']] == [
+            'Amazon EC2',
+            'Amazon S3',
+        ]
 
     async def test_free_tier_usage_with_all_parameters(self, mock_context):
-        """Test free_tier_usage with all parameters."""
-        # Execute
-        result = await free_tier_usage(
-            mock_context,
-            operation='get_free_tier_usage',
-            filter='{"services":["Amazon EC2"]}',
-            max_items=10,
-        )
+        """The filter is parsed and sent with a page size sized from max_items."""
+        fn = await _free_tier_usage_fn()
+        client = MagicMock()
+        client.get_free_tier_usage.return_value = {'freeTierUsages': []}
+        filter_json = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon EC2"]}}'
 
-        # Assert
+        with patch(f'{_TOOLS_MODULE}.create_aws_client', return_value=client):
+            result = await fn(
+                mock_context, operation='get_free_tier_usage', filter=filter_json, max_items=10
+            )
+
         assert result['status'] == 'success'
+        client.get_free_tier_usage.assert_called_once_with(
+            filter={'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}}, maxResults=10
+        )
 
     async def test_free_tier_usage_unsupported_operation(self, mock_context):
-        """Test free_tier_usage with unsupported operation."""
-        # Execute
-        result = await free_tier_usage(
-            mock_context,
-            operation='unknown_operation',
-        )
+        """An unknown operation returns an error without calling the API."""
+        fn = await _free_tier_usage_fn()
+        client = MagicMock()
 
-        # Assert
+        with patch(f'{_TOOLS_MODULE}.create_aws_client', return_value=client):
+            result = await fn(mock_context, operation='unknown_operation')
+
         assert result['status'] == 'error'
         assert 'Unsupported operation' in result['message']
+        client.get_free_tier_usage.assert_not_called()
 
     async def test_free_tier_usage_error_handling(self, mock_context):
-        """Test free_tier_usage error handling."""
-        # Setup - simulate error response
-        result = {'status': 'error', 'message': 'API error'}
+        """An exception from the API comes back as an error response."""
+        fn = await _free_tier_usage_fn()
+        client = MagicMock()
+        client.get_free_tier_usage.side_effect = RuntimeError('API error')
 
-        # Assert
+        with patch(f'{_TOOLS_MODULE}.create_aws_client', return_value=client):
+            result = await fn(mock_context, operation='get_free_tier_usage')
+
         assert result['status'] == 'error'
-        assert result['message'] == 'API error'
+        assert 'API error' in result['message']
 
 
 class TestFreeTierUsageEdgeCases:

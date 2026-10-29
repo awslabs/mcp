@@ -266,6 +266,21 @@ async def test_get_recommendation_success(mock_context):
     assert result['data']['recommendation_id'] == 'rec-1'
 
 
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_coh_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as module,
+    )
+
+    importlib.reload(module)
+
+
 def _reload_coh_with_identity_decorator():
     """Reload cost_optimization_hub_tools with FastMCP.tool patched to return the original function unchanged (identity decorator).
 
@@ -1595,6 +1610,72 @@ async def test_coh_empty_filter_rejected_before_api_call(mock_context, operation
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'filters',
+    [
+        '{"recommendationIds": ["r-1"]}',
+        '{"resource_ids": ["i-1"]}',
+        '{"resourceArns": ["arn:aws:ec2:us-east-1:111111111111:instance/i-1"]}',
+    ],
+)
+async def test_coh_summaries_reject_id_filters_before_api_call(mock_context, filters):
+    """The service rejects ID filters on summaries, so they fail locally with a hint."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(
+            coh_mod, 'list_recommendation_summaries', new_callable=AsyncMock
+        ) as mock_summaries,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendation_summaries',
+            group_by='ActionType',
+            filters=filters,
+        )
+
+    assert res['error_type'] == 'validation_error'
+    assert res['operation'] == 'list_recommendation_summaries'
+    assert len(res['data']['unsupported_filters']) == 1
+    assert res['data']['unsupported_filters'][0] in coh_mod.SUMMARIES_UNSUPPORTED_FILTERS
+    assert 'is not supported by list_recommendation_summaries' in res['message']
+    supported = res['data']['supported_filters']
+    assert 'resourceTypes' in supported and 'tags' in supported
+    assert not set(supported) & coh_mod.SUMMARIES_UNSUPPORTED_FILTERS
+    mock_summaries.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_coh_id_filters_still_reach_list_recommendations(mock_context):
+    """list_recommendations accepts the ID filters, so they pass through."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(
+            coh_mod,
+            'list_recommendations',
+            new_callable=AsyncMock,
+            return_value={'status': 'success', 'data': {}},
+        ) as mock_list,
+    ):
+        await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendations',
+            filters='{"recommendationIds": ["r-1"]}',
+        )
+
+    mock_list.assert_awaited_once()
+    assert {'recommendationIds': ['r-1']} in [
+        *mock_list.call_args.args,
+        *mock_list.call_args.kwargs.values(),
+    ]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('operation', ['list_recommendations', 'list_recommendation_summaries'])
 async def test_coh_validation_exception_adds_valid_filter_values(mock_context, operation):
     """A ValidationException from the API carries the accepted filter values."""
@@ -1777,3 +1858,41 @@ async def test_coh_summaries_group_by_tag_key_without_key(mock_context):
 
     assert res['error_type'] == 'validation_error'
     mock_summaries.assert_not_awaited()
+
+
+async def _coh_served_description() -> str:
+    """Return the cost-optimization description as served (reloaded with the real decorator).
+
+    Other tests reload the module with an identity decorator, which leaves a server
+    with no tools, so reload it here with the real one.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    coh_mod = importlib.reload(coh_mod)
+    tool = await coh_mod.cost_optimization_hub_server.get_tool('cost-optimization')
+    assert tool is not None
+    return ' '.join((tool.description or '').split())
+
+
+@pytest.mark.asyncio
+async def test_description_does_not_route_trends_to_monthly_efficiency():
+    """A Monthly efficiency point is one day's snapshot, so trend questions go to Daily."""
+    flat = await _coh_served_description()
+    assert 'month-over-month change' not in flat
+    assert 'its trend over time' not in flat
+    assert 'not a monthly average or total' in flat
+    assert 'last day of the month that has data' in flat
+    assert "For a trend or a change over time, use 'Daily'" in flat
+
+
+@pytest.mark.asyncio
+async def test_description_says_what_an_efficiency_point_covers():
+    """Each point is a snapshot over trailing-30-day spend; ask Monthly only for completed months."""
+    flat = await _coh_served_description()
+    assert 'one-day snapshot, not a period total' in flat
+    assert 'the trailing 30 days of spend' in flat
+    assert 'Ask only for completed months' in flat
+    assert 'a current-month point would be partial' in flat
+    assert 'Only completed months are returned' not in flat
