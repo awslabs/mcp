@@ -31,7 +31,6 @@ from ..utilities.aws_service_base import (
     paginate_aws_items,
     with_pagination,
 )
-from ..utilities.error_contract import MODIFY_REQUEST
 from ..utilities.logging_utils import get_context_logger
 from ..utilities.sql_utils import convert_response_if_needed
 from ..utilities.time_utils import normalize_datetimes_to_iso
@@ -151,39 +150,8 @@ def _classify_business_support_error(
     return None
 
 
-# Server-fault codes ListBusinessSupportSubscriptionHistory returns for a request
-# carrying startDate or endDate. The API has been failing every such request with
-# HTTP 500 InternalFailure, so the failure is not transient. Other 5xx codes (for
-# example ServiceUnavailable) stay transient.
-_SERVER_FAULT_CODES = ('InternalFailure', 'InternalServerException')
-
-
-def _classify_date_window_error(error_code: str, api_name: str) -> Tuple[str, str, str]:
-    """Explain a server fault on a request that carried a start_date/end_date window.
-
-    Without this, the fault would be reported as transient and the caller would
-    retry a request that fails every time. The AWS code is kept as error_type so
-    the real failure stays visible.
-
-    Args:
-        error_code: The AWS error code from the client error.
-        api_name: The AWS API operation name.
-
-    Returns:
-        An (error_type, message, resolution) triple.
-    """
-    return (
-        error_code,
-        f'Billing {api_name} failed with a server error ({error_code}). This API has '
-        'been failing every request that carries start_date or end_date, so retrying '
-        'the same request is unlikely to help.',
-        'Drop start_date and end_date. To cover several months, make one call per '
-        'billing_month ("YYYY-MM") and combine the results.',
-    )
-
-
 async def _handle_business_support_error(
-    ctx: Context, error: Exception, api_name: str, date_window: bool = False
+    ctx: Context, error: Exception, api_name: str
 ) -> Dict[str, Any]:
     """Handle a Business Support API error, explaining the ones that mislead.
 
@@ -197,28 +165,16 @@ async def _handle_business_support_error(
         error: The exception that was raised.
         api_name: The AWS API operation name (for example
             ``"ListBusinessSupportAccountCharges"``).
-        date_window: Whether the request carried startDate or endDate. A server
-            fault on such a request is reported as needing a changed request.
 
     Returns:
         Dict containing the standardized error response.
     """
     if isinstance(error, ClientError):
         aws_error = error.response.get('Error', {})
-        error_code = aws_error.get('Code', '')
-        metadata = error.response.get('ResponseMetadata', {})
-        http_status = metadata.get('HTTPStatusCode', 0)
-        classified = _classify_business_support_error(error_code, api_name)
-        retry_strategy = None
-        if (
-            not classified
-            and date_window
-            and (error_code in _SERVER_FAULT_CODES or http_status == 500)
-        ):
-            classified = _classify_date_window_error(error_code, api_name)
-            retry_strategy = MODIFY_REQUEST
+        classified = _classify_business_support_error(aws_error.get('Code', ''), api_name)
         if classified:
             error_type, message, resolution = classified
+            metadata = error.response.get('ResponseMetadata', {})
             request_id = metadata.get('RequestId', 'Unknown')
             # These return before handle_aws_error, so log them here; otherwise
             # the classified failures would be the only ones missing from the logs.
@@ -231,7 +187,7 @@ async def _handle_business_support_error(
                 await ctx_logger.error(log_message)
             else:
                 await ctx_logger.warning(log_message)
-            response = {
+            return {
                 'status': 'error',
                 'service': 'Billing',
                 'operation': api_name,
@@ -240,13 +196,8 @@ async def _handle_business_support_error(
                 'resolution': resolution,
                 'aws_message': aws_error.get('Message', ''),
                 'request_id': request_id,
-                'http_status': http_status,
+                'http_status': metadata.get('HTTPStatusCode', 0),
             }
-            if retry_strategy:
-                # Set explicitly, so the error_type mapping (which treats these codes
-                # as transient) does not override it.
-                response['retry_strategy'] = retry_strategy
-            return response
 
     return await handle_aws_error(ctx, error, api_name, 'Billing')
 
@@ -528,7 +479,7 @@ def _build_subscription_history_request(
     Every input is optional for this operation. Each filter is sent only when the
     caller supplied it, so an omitted filter is never inferred from the caller
     credentials. ``startDate`` and ``endDate`` are passed through verbatim as the
-    caller provided them.
+    caller provided them; the API accepts timestamps for these bounds.
 
     Args:
         billing_month: Optional billing month in ``YYYY-MM`` format.
@@ -720,12 +671,11 @@ async def list_subscription_history(
 ) -> Dict[str, Any]:
     """List the Business Support subscription contract history.
 
-    Returns the subscription contracts that governed Business Support for the
-    requested billing month: each contract's account, plan name, and the start and end
+    Returns the subscription contracts that governed Business Support over the
+    requested window: each contract's account, plan name, and the start and end
     dates of the contract term. Every input is optional. When billing_month is
-    omitted the API defaults to the current month. To cover more than one month,
-    call once per billing_month: the API currently fails every request that
-    carries start_date or end_date with HTTP 500 InternalFailure.
+    omitted the API defaults to the current month, so pass start_date/end_date
+    to cover more than one month.
 
     Pagination goes through the shared paginator, which follows ``nextToken``
     until the results are exhausted or ``max_items`` is reached, and reports what
@@ -781,6 +731,4 @@ async def list_subscription_history(
         )
 
     except Exception as e:
-        return await _handle_business_support_error(
-            ctx, e, operation, date_window=bool(start_date or end_date)
-        )
+        return await _handle_business_support_error(ctx, e, operation)
