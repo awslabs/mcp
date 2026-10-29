@@ -35,6 +35,7 @@ def mock_context():
     context = MagicMock()
     context.info = AsyncMock()
     context.warning = AsyncMock()
+    context.debug = AsyncMock()
     context.error = AsyncMock()
     return context
 
@@ -112,6 +113,23 @@ def mock_ce_client():
     }
 
     return mock_client
+
+
+def _passthrough_store():
+    """Patch the result store to return the response unchanged, recording its arguments."""
+    return patch(
+        'awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations.convert_response_if_needed',
+        new=AsyncMock(side_effect=lambda ctx, response, *args, **kwargs: response),
+    )
+
+
+METRICS_CASES = [
+    (None, ['UnblendedCost']),
+    ('', ['UnblendedCost']),
+    ([], ['UnblendedCost']),
+    ('["UnblendedCost", "UsageQuantity"]', ['UnblendedCost', 'UsageQuantity']),
+    (['AmortizedCost'], ['AmortizedCost']),
+]
 
 
 @pytest.fixture
@@ -324,6 +342,37 @@ class TestGetCostAndUsage:
         assert 'GroupBy' in call_kwargs
         assert 'Filter' in call_kwargs
 
+    @pytest.mark.parametrize('metrics, expected', METRICS_CASES)
+    async def test_sends_and_stores_parsed_metrics(
+        self, mock_context, mock_ce_client, metrics, expected
+    ):
+        """The parsed metrics, default applied, are sent to the API and stored with the result."""
+        with _passthrough_store() as store:
+            result = await get_cost_and_usage(
+                mock_context,
+                mock_ce_client,
+                start_date='2023-01-01',
+                end_date='2023-01-07',
+                metrics=metrics,
+            )
+
+        assert result['status'] == 'success'
+        assert mock_ce_client.get_cost_and_usage.call_args.kwargs['Metrics'] == expected
+        assert store.call_args.kwargs['metrics'] == expected
+
+    @pytest.mark.parametrize(
+        'metrics', ['["UnblendedCost", 1]', '{"a": 1}', [''], 5, 'UnblendedCost']
+    )
+    async def test_invalid_metrics_is_a_validation_error(
+        self, mock_context, mock_ce_client, metrics
+    ):
+        """Invalid metrics are rejected before any API call."""
+        result = await get_cost_and_usage(mock_context, mock_ce_client, metrics=metrics)
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        mock_ce_client.get_cost_and_usage.assert_not_called()
+
     async def test_with_pagination(self, mock_context, mock_ce_client):
         """Test pagination handling in get_cost_and_usage."""
         # Setup paginated responses
@@ -345,12 +394,13 @@ class TestGetCostAndUsage:
             start_date='2023-01-01',
             end_date='2023-01-31',
             next_token='initial_token',
-            max_pages=2,
         )
 
-        # Verify response is successful
+        # Every page is fetched, starting from the caller's token.
         assert result['status'] == 'success'
-        assert result['data'] is not None
+        calls = mock_ce_client.get_cost_and_usage.call_args_list
+        assert [c.kwargs.get('NextPageToken') for c in calls] == ['initial_token', 'page2token']
+        assert len(result['data']['ResultsByTime']) == 2
 
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_cost_and_usage."""
@@ -377,16 +427,15 @@ class TestGetCostAndUsage:
             start_date='2023-01-01',
             end_date='2023-01-31',
             next_token='resume-from-here',
-            max_pages=1,
         )
 
         first_call_kwargs = mock_ce_client.get_cost_and_usage.call_args_list[0][1]
         assert first_call_kwargs.get('NextPageToken') == 'resume-from-here'
 
-    async def test_single_page_surfaces_next_page_token_for_agent(
+    async def test_max_items_stops_before_a_page_that_could_exceed_it(
         self, mock_context, mock_ce_client
     ):
-        """Small responses preserve the raw boto3 NextPageToken in result.data."""
+        """max_items stops once another full page could pass it; the token leads the result."""
         mock_ce_client.get_cost_and_usage.return_value = {
             'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01', 'End': '2023-01-02'}}],
             'NextPageToken': 'continue-here',
@@ -397,28 +446,228 @@ class TestGetCostAndUsage:
             mock_ce_client,
             start_date='2023-01-01',
             end_date='2023-01-31',
+            max_items=10,
         )
 
         assert result['status'] == 'success'
-        assert result['data'].get('NextPageToken') == 'continue-here'
+        # One page holds up to 5,000 rows, so a second could take 1 row past 10.
+        assert mock_ce_client.get_cost_and_usage.call_count == 1
+        data = result['data']
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'continue-here',
+            'items_returned': 1,
+        }
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['complete_dataset'] is False
+        assert 'max_items' in data['warning']
+        # Cost Explorer sets the page size; neither a size nor the caller's limit is sent.
+        assert 'MaxResults' not in mock_ce_client.get_cost_and_usage.call_args.kwargs
 
-    async def test_pagination_metadata_forwarded_to_sql_offload(
-        self, mock_context, mock_ce_client
+    @pytest.mark.parametrize(
+        'metrics, expected_calls',
+        [
+            ('["UnblendedCost"]', 1),  # 5,000-row pages: 100 + 5,000 > 2,600
+            ('["UnblendedCost", "UsageQuantity"]', 2),  # 2,500-row pages: 100 + 2,500 <= 2,600
+            ('["UnblendedCost", "UnblendedCost"]', 1),  # duplicates count once
+        ],
+    )
+    async def test_page_max_shrinks_with_the_number_of_metrics(
+        self, mock_context, mock_ce_client, metrics, expected_calls
     ):
-        """Pagination markers in the response must surface in the offload result.
+        """The worst-case page is ceil(5000 / distinct metrics) rows."""
+        page = {
+            'ResultsByTime': [{'Groups': [{'Keys': [str(i)]} for i in range(100)]}],
+            'NextPageToken': 'more',
+        }
+        mock_ce_client.get_cost_and_usage.return_value = page
 
-        convert_response_if_needed auto-derives next_page_token / has_more /
-        pages_fetched from the response shape (NextPageToken for single-page,
-        or the Pagination sub-dict for the paginate_aws_response wrapper),
-        so the operation no longer passes them as kwargs.
-        """
+        result = await get_cost_and_usage(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            metrics=metrics,
+            max_items=2600,
+        )
+
+        assert mock_ce_client.get_cost_and_usage.call_count == expected_calls
+        assert result['data']['pagination']['items_returned'] == 100 * expected_calls
+
+    async def test_rows_count_groups_and_empty_periods(self, mock_context, mock_ce_client):
+        """A row is one group in one period; a period without groups counts as one row."""
         mock_ce_client.get_cost_and_usage.return_value = {
-            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01', 'End': '2023-01-02'}}],
-            'NextPageToken': 'continue-here',
+            'ResultsByTime': [
+                {'Groups': [{'Keys': ['a']}, {'Keys': ['b']}, {'Keys': ['c']}]},
+                {'Groups': []},
+                {'Total': {}},
+            ],
         }
 
-        # Force SQL offload so we can inspect the offload result, regardless
-        # of the small response size that would otherwise stay inline.
+        result = await get_cost_and_usage(
+            mock_context, mock_ce_client, start_date='2023-01-01', end_date='2023-01-31'
+        )
+
+        assert result['data']['pagination']['items_returned'] == 5
+
+    async def test_continuation_resends_identical_params_with_the_callers_token(
+        self, mock_context, mock_ce_client
+    ):
+        """A continuation call sends the caller's token and otherwise the same request."""
+        mock_ce_client.get_cost_and_usage.side_effect = [
+            {'ResultsByTime': [{'Groups': [{'Keys': ['a']}]}], 'NextPageToken': 'tok-1'},
+            {'ResultsByTime': [{'Groups': [{'Keys': ['b']}]}]},
+        ]
+        args = {
+            'start_date': '2023-01-01',
+            'end_date': '2023-01-31',
+            'granularity': 'MONTHLY',
+            'metrics': '["UnblendedCost"]',
+            'group_by': '[{"Type": "DIMENSION", "Key": "SERVICE"}]',
+            'filter_expr': '{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}',
+            'billing_view_arn': 'arn:aws:billing::123456789012:billingview/primary',
+        }
+
+        first = await get_cost_and_usage(mock_context, mock_ce_client, max_items=1, **args)
+        token = first['data']['pagination']['next_token']
+        second = await get_cost_and_usage(
+            mock_context, mock_ce_client, max_items=1, next_token=token, **args
+        )
+
+        first_call, second_call = mock_ce_client.get_cost_and_usage.call_args_list
+        assert token == 'tok-1'
+        assert 'NextPageToken' not in first_call.kwargs
+        assert second_call.kwargs.pop('NextPageToken') == 'tok-1'
+        assert second_call.kwargs == first_call.kwargs
+        assert second['data']['pagination']['complete_dataset'] is True
+        assert 'warning' not in second['data']
+
+    async def test_fetches_all_pages_by_default(self, mock_context, mock_ce_client):
+        """With no max_items, every page is fetched and the dataset is complete."""
+        mock_ce_client.get_cost_and_usage.side_effect = [
+            {
+                'ResultsByTime': [{'TimePeriod': {'Start': f'2023-01-0{i}'}}],
+                'NextPageToken': f'page{i + 1}' if i < 3 else None,
+            }
+            for i in (1, 2, 3)
+        ]
+
+        result = await get_cost_and_usage(
+            mock_context, mock_ce_client, start_date='2023-01-01', end_date='2023-01-31'
+        )
+
+        data = result['data']
+        assert mock_ce_client.get_cost_and_usage.call_count == 3
+        assert [r['TimePeriod']['Start'] for r in data['ResultsByTime']] == [
+            '2023-01-01',
+            '2023-01-02',
+            '2023-01-03',
+        ]
+        assert data['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 3,
+        }
+        assert 'complete_dataset' not in data
+        assert 'warning' not in data
+        assert 'NextPageToken' not in data
+        second_call = mock_ce_client.get_cost_and_usage.call_args_list[1].kwargs
+        assert second_call['NextPageToken'] == 'page2'
+
+    async def test_merges_page_metadata(self, mock_context, mock_ce_client):
+        """Pages keep one GroupDefinitions and concatenate DimensionValueAttributes."""
+        group_definitions = [{'Type': 'DIMENSION', 'Key': 'LINKED_ACCOUNT'}]
+        mock_ce_client.get_cost_and_usage.side_effect = [
+            {
+                'GroupDefinitions': group_definitions,
+                'ResultsByTime': [{'Groups': [{'Keys': ['111']}]}],
+                'DimensionValueAttributes': [{'Value': '111', 'Attributes': {'description': 'a'}}],
+                'NextPageToken': 'page2',
+            },
+            {
+                'GroupDefinitions': group_definitions,
+                'ResultsByTime': [{'Groups': [{'Keys': ['222']}]}],
+                'DimensionValueAttributes': [{'Value': '222', 'Attributes': {'description': 'b'}}],
+            },
+        ]
+
+        result = await get_cost_and_usage(
+            mock_context, mock_ce_client, start_date='2023-01-01', end_date='2023-01-31'
+        )
+
+        data = result['data']
+        assert data['GroupDefinitions'] == group_definitions
+        assert [d['Value'] for d in data['DimensionValueAttributes']] == ['111', '222']
+        assert len(data['ResultsByTime']) == 2
+
+    async def test_repeated_dimension_value_attributes_are_deduplicated(
+        self, mock_context, mock_ce_client
+    ):
+        """An account named on every page is listed once in the merged response."""
+        attribute = {'Value': '111', 'Attributes': {'description': 'a'}}
+        mock_ce_client.get_cost_and_usage.side_effect = [
+            {
+                'ResultsByTime': [{'Groups': [{'Keys': ['111']}]}],
+                'DimensionValueAttributes': [attribute],
+                'NextPageToken': 'page2',
+            },
+            {
+                'ResultsByTime': [{'Groups': [{'Keys': ['111']}]}],
+                'DimensionValueAttributes': [attribute],
+            },
+        ]
+
+        result = await get_cost_and_usage(
+            mock_context, mock_ce_client, start_date='2023-01-01', end_date='2023-01-31'
+        )
+
+        assert result['data']['DimensionValueAttributes'] == [attribute]
+
+    async def test_dimension_value_attributes_without_value_are_all_kept(
+        self, mock_context, mock_ce_client
+    ):
+        """Only entries with a Value are deduplicated; entries without one are kept as is."""
+        unnamed = {'Attributes': {'description': 'no value'}}
+        mock_ce_client.get_cost_and_usage.side_effect = [
+            {
+                'ResultsByTime': [{'Groups': [{'Keys': ['111']}]}],
+                'DimensionValueAttributes': [unnamed, 'raw'],
+                'NextPageToken': 'page2',
+            },
+            {
+                'ResultsByTime': [{'Groups': [{'Keys': ['222']}]}],
+                'DimensionValueAttributes': [unnamed, 'raw'],
+            },
+        ]
+
+        result = await get_cost_and_usage(
+            mock_context, mock_ce_client, start_date='2023-01-01', end_date='2023-01-31'
+        )
+
+        assert result['data']['DimensionValueAttributes'] == [unnamed, 'raw', unnamed, 'raw']
+
+    async def test_partial_offload_flags_partial_ahead_of_preview(
+        self, mock_context, mock_ce_client
+    ):
+        """A result stopped by max_items offloads with the partial signal before the data."""
+        mock_ce_client.get_cost_and_usage.return_value = {
+            'ResultsByTime': [
+                {
+                    'TimePeriod': {'Start': '2023-01-01', 'End': '2023-01-02'},
+                    'Groups': [
+                        {
+                            'Keys': ['Amazon EC2'],
+                            'Metrics': {'UnblendedCost': {'Amount': '1.0', 'Unit': 'USD'}},
+                        }
+                    ],
+                }
+            ],
+            'NextPageToken': 'more',
+        }
+
+        # Force SQL offload so we can inspect the offload sentinel.
         with patch(
             'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
             return_value=True,
@@ -428,14 +677,42 @@ class TestGetCostAndUsage:
                 mock_ce_client,
                 start_date='2023-01-01',
                 end_date='2023-01-31',
+                max_items=100,
             )
 
-        assert result['status'] == 'success'
         data = result['data']
-        assert data.get('data_stored') is True
-        assert data.get('next_page_token') == 'continue-here'
-        assert data.get('has_more') is True
-        assert data.get('pages_fetched') == 1
+        keys = list(data)
+        assert mock_ce_client.get_cost_and_usage.call_count == 1
+        assert data['data_stored'] is True
+        assert data['complete_dataset'] is False
+        assert 'max_items' in data['warning']
+        assert keys.index('warning') < keys.index('preview')
+        assert keys.index('complete_dataset') < keys.index('sample_queries')
+        assert data['pagination']['has_more'] is True
+        assert data['pagination']['next_token'] == 'more'
+        assert data['pagination']['items_returned'] == 1
+        assert all(q['description'].startswith('PARTIAL DATA') for q in data['sample_queries'])
+
+    async def test_complete_offload_has_no_warning(self, mock_context, mock_ce_client):
+        """A complete offloaded result reports complete_dataset without a warning."""
+        mock_ce_client.get_cost_and_usage.return_value = {
+            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01', 'End': '2023-01-02'}}],
+        }
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
+            return_value=True,
+        ):
+            result = await get_cost_and_usage(
+                mock_context, mock_ce_client, start_date='2023-01-01', end_date='2023-01-31'
+            )
+
+        data = result['data']
+        assert data['pagination']['complete_dataset'] is True
+        assert data['pagination']['has_more'] is False
+        assert 'warning' not in data
+        assert 'rows_retrieved' not in data
+        assert not any(q['description'].startswith('PARTIAL DATA') for q in data['sample_queries'])
 
 
 @pytest.mark.asyncio
@@ -512,6 +789,42 @@ class TestGetCostAndUsageWithResources:
         assert 'Metrics' in call_kwargs
         assert 'GroupBy' in call_kwargs
         assert 'Filter' in call_kwargs
+
+    @pytest.mark.parametrize('metrics, expected', METRICS_CASES)
+    async def test_sends_and_stores_parsed_metrics(
+        self, mock_context, mock_ce_client, metrics, expected
+    ):
+        """The parsed metrics, default applied, are sent to the API and stored with the result."""
+        with _passthrough_store() as store:
+            result = await get_cost_and_usage_with_resources(
+                mock_context,
+                mock_ce_client,
+                start_date='2023-01-01',
+                end_date='2023-01-07',
+                metrics=metrics,
+            )
+
+        assert result['status'] == 'success'
+        assert (
+            mock_ce_client.get_cost_and_usage_with_resources.call_args.kwargs['Metrics']
+            == expected
+        )
+        assert store.call_args.kwargs['metrics'] == expected
+
+    @pytest.mark.parametrize(
+        'metrics', ['["UnblendedCost", 1]', '{"a": 1}', [''], 5, 'UnblendedCost']
+    )
+    async def test_invalid_metrics_is_a_validation_error(
+        self, mock_context, mock_ce_client, metrics
+    ):
+        """Invalid metrics are rejected before any API call."""
+        result = await get_cost_and_usage_with_resources(
+            mock_context, mock_ce_client, metrics=metrics
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        mock_ce_client.get_cost_and_usage_with_resources.assert_not_called()
 
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_cost_and_usage_with_resources."""
@@ -594,18 +907,81 @@ class TestGetDimensionValues:
             call_kwargs = mock_ce_client.get_dimension_values.call_args[1]
             assert 'Filter' in call_kwargs
 
-    async def test_with_max_results(self, mock_context, mock_ce_client):
-        """Test get_dimension_values with max_results parameter."""
+    async def test_never_sends_max_results(self, mock_context, mock_ce_client):
+        """MaxResults is ignored without SortBy, so max_items is not sent as a page size."""
         await get_dimension_values(
             mock_context,
             mock_ce_client,
             dimension='SERVICE',
-            max_results=50,
+            max_items=50,
         )
 
         call_kwargs = mock_ce_client.get_dimension_values.call_args[1]
-        assert 'MaxResults' in call_kwargs
-        assert call_kwargs['MaxResults'] == 50
+        assert 'MaxResults' not in call_kwargs
+
+    async def test_fetches_every_page_without_max_items(self, mock_context, mock_ce_client):
+        """Without max_items every page is fetched and merged."""
+        mock_ce_client.get_dimension_values.side_effect = [
+            {'DimensionValues': [{'Value': 'a'}], 'NextPageToken': 'p2'},
+            {'DimensionValues': [{'Value': 'b'}], 'NextPageToken': 'p3'},
+            {'DimensionValues': [{'Value': 'c'}]},
+        ]
+
+        result = await get_dimension_values(mock_context, mock_ce_client, dimension='SERVICE')
+
+        data = result['data']
+        assert [v['Value'] for v in data['DimensionValues']] == ['a', 'b', 'c']
+        assert data['pagination']['complete_dataset'] is True
+        assert 'warning' not in data
+
+    async def test_max_items_stops_before_a_5000_value_page(self, mock_context, mock_ce_client):
+        """Pages hold up to 5,000 values, so max_items below that stops after one page."""
+        mock_ce_client.get_dimension_values.return_value = {
+            'DimensionValues': [{'Value': 'a'}, {'Value': 'b'}],
+            'NextPageToken': 'p2',
+        }
+
+        result = await get_dimension_values(
+            mock_context, mock_ce_client, dimension='SERVICE', max_items=5001
+        )
+
+        assert mock_ce_client.get_dimension_values.call_count == 1
+        assert result['data']['pagination']['next_token'] == 'p2'
+        assert result['data']['complete_dataset'] is False
+
+    async def test_max_items_allows_a_further_full_page(self, mock_context, mock_ce_client):
+        """A second page is fetched when even a full one cannot pass max_items."""
+        mock_ce_client.get_dimension_values.side_effect = [
+            {'DimensionValues': [{'Value': 'a'}], 'NextPageToken': 'p2'},
+            {'DimensionValues': [{'Value': 'b'}], 'NextPageToken': 'p3'},
+        ]
+
+        result = await get_dimension_values(
+            mock_context, mock_ce_client, dimension='SERVICE', max_items=5001
+        )
+
+        assert mock_ce_client.get_dimension_values.call_count == 2
+        assert result['data']['pagination']['next_token'] == 'p3'
+
+    async def test_continuation_resends_identical_params(self, mock_context, mock_ce_client):
+        """A continuation sends the caller's token and otherwise the same request."""
+        mock_ce_client.get_dimension_values.return_value = {'DimensionValues': []}
+        args = {
+            'dimension': 'LINKED_ACCOUNT',
+            'start_date': '2023-01-01',
+            'end_date': '2023-01-31',
+            'search_string': 'prod',
+            'context': 'COST_AND_USAGE',
+        }
+
+        await get_dimension_values(mock_context, mock_ce_client, max_items=10, **args)
+        await get_dimension_values(
+            mock_context, mock_ce_client, max_items=10, next_token='tok', **args
+        )
+
+        first_call, second_call = mock_ce_client.get_dimension_values.call_args_list
+        assert second_call.kwargs.pop('NextPageToken') == 'tok'
+        assert second_call.kwargs == first_call.kwargs
 
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_dimension_values."""
@@ -619,6 +995,24 @@ class TestGetDimensionValues:
         # Verify error was properly handled
         assert result['status'] == 'error'
         assert 'message' in result
+
+    async def test_size_fields_describe_merged_pages(self, mock_context, mock_ce_client):
+        """ReturnSize counts every merged value; TotalSize is kept from the first page."""
+        mock_ce_client.get_dimension_values.side_effect = [
+            {
+                'DimensionValues': [{'Value': 'a'}],
+                'ReturnSize': 1,
+                'TotalSize': 2,
+                'NextPageToken': 'page2',
+            },
+            {'DimensionValues': [{'Value': 'b'}], 'ReturnSize': 1, 'TotalSize': 2},
+        ]
+
+        result = await get_dimension_values(mock_context, mock_ce_client, 'SERVICE')
+
+        assert result['data']['ReturnSize'] == 2
+        assert result['data']['TotalSize'] == 2
+        assert [v['Value'] for v in result['data']['DimensionValues']] == ['a', 'b']
 
 
 @pytest.mark.asyncio
@@ -891,7 +1285,6 @@ class TestGetTags:
             mock_context,
             mock_ce_client,
             tag_key='Environment',
-            max_pages=5,
         )
 
         assert result['status'] == 'success'
@@ -906,10 +1299,24 @@ class TestGetTags:
         """Paginated tag keys (no TagKey) are still read from 'Tags'."""
         mock_ce_client.get_tags.return_value = {'Tags': ['Environment', 'Project']}
 
-        result = await get_tags(mock_context, mock_ce_client, max_pages=1)
+        result = await get_tags(mock_context, mock_ce_client)
 
         assert result['data']['Tags'] == ['Environment', 'Project']
-        assert result['data']['Pagination']['complete_dataset'] is True
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    async def test_max_items_stops_and_continuation_matches(self, mock_context, mock_ce_client):
+        """max_items stops after a page; the continuation resends the request with the token."""
+        mock_ce_client.get_tags.return_value = {'Tags': ['a', 'b'], 'NextPageToken': 'p2'}
+
+        first = await get_tags(mock_context, mock_ce_client, tag_key='Env', max_items=100)
+        await get_tags(mock_context, mock_ce_client, tag_key='Env', max_items=100, next_token='p2')
+
+        assert first['data']['complete_dataset'] is False
+        assert first['data']['pagination']['next_token'] == 'p2'
+        first_call, second_call = mock_ce_client.get_tags.call_args_list
+        assert second_call.kwargs.pop('NextPageToken') == 'p2'
+        assert second_call.kwargs == first_call.kwargs
+        assert 'MaxResults' not in first_call.kwargs
 
     async def test_paginated_tag_values_from_next_token(self, mock_context, mock_ce_client):
         """Resuming with next_token sends the token and reads values from 'Tags'."""
@@ -930,7 +1337,7 @@ class TestGetTags:
         """A tag key with no values yields an empty list, not an error."""
         mock_ce_client.get_tags.return_value = {'Tags': []}
 
-        result = await get_tags(mock_context, mock_ce_client, tag_key='Unused', max_pages=1)
+        result = await get_tags(mock_context, mock_ce_client, tag_key='Unused')
 
         assert result['status'] == 'success'
         assert result['data']['Tags'] == []
@@ -981,6 +1388,52 @@ class TestGetCostCategories:
 
         assert result['status'] == 'success'
         assert result['data'] is not None
+
+    async def test_category_names_collected_across_pages(self, mock_context, mock_ce_client):
+        """Paged names are read from CostCategoryNames, the key the API returns."""
+        mock_ce_client.get_cost_categories.side_effect = [
+            {'CostCategoryNames': ['Department'], 'NextPageToken': 'page2'},
+            {'CostCategoryNames': ['Team']},
+        ]
+
+        result = await get_cost_categories(mock_context, mock_ce_client)
+
+        assert result['data']['CostCategoryNames'] == ['Department', 'Team']
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    async def test_category_values_max_items_stop_and_continuation(
+        self, mock_context, mock_ce_client
+    ):
+        """Values are read from CostCategoryValues; max_items stops, continuation matches."""
+        mock_ce_client.get_cost_categories.return_value = {
+            'CostCategoryValues': ['eng', 'ops'],
+            'ReturnSize': 2,
+            'TotalSize': 9000,
+            'NextPageToken': 'p2',
+        }
+
+        first = await get_cost_categories(
+            mock_context, mock_ce_client, cost_category_name='Team', max_items=10
+        )
+        await get_cost_categories(
+            mock_context, mock_ce_client, cost_category_name='Team', max_items=10, next_token='p2'
+        )
+
+        data = first['data']
+        assert data['CostCategoryValues'] == ['eng', 'ops']
+        assert data['TotalSize'] == 9000
+        assert data['complete_dataset'] is False
+        assert data['pagination']['next_token'] == 'p2'
+        first_call, second_call = mock_ce_client.get_cost_categories.call_args_list
+        assert second_call.kwargs.pop('NextPageToken') == 'p2'
+        assert second_call.kwargs == first_call.kwargs
+
+    async def test_category_name_is_not_logged(self, mock_context, mock_ce_client):
+        """The cost category name is customer content and stays out of log messages."""
+        await get_cost_categories(mock_context, mock_ce_client, cost_category_name='SecretProject')
+
+        logged = ' '.join(str(c) for c in mock_context.info.call_args_list)
+        assert 'SecretProject' not in logged
 
     async def test_get_cost_category_values(self, mock_context, mock_ce_client):
         """Test get_cost_categories with cost_category_name to get values.
@@ -1081,6 +1534,20 @@ class TestGetSavingsPlansUtilization:
             call_kwargs = mock_ce_client.get_savings_plans_utilization.call_args[1]
             assert 'Filter' in call_kwargs
 
+    async def test_is_a_single_call_without_a_token(self, mock_context, mock_ce_client):
+        """GetSavingsPlansUtilization is not paginated: one call, no token parameter."""
+        mock_ce_client.get_savings_plans_utilization.return_value = {
+            'SavingsPlansUtilizationsByTime': [],
+            'Total': {},
+        }
+
+        result = await get_savings_plans_utilization(mock_context, mock_ce_client)
+
+        mock_ce_client.get_savings_plans_utilization.assert_called_once()
+        call_kwargs = mock_ce_client.get_savings_plans_utilization.call_args.kwargs
+        assert 'NextToken' not in call_kwargs
+        assert 'pagination' not in result['data']
+
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_savings_plans_utilization."""
         # Setup error
@@ -1134,15 +1601,8 @@ class TestGetSavingsPlansUtilization:
         (
             get_cost_categories,
             'get_cost_categories',
-            'CostCategories',
+            'CostCategoryNames',
             'NextPageToken',
-            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
-        ),
-        (
-            get_savings_plans_utilization,
-            'get_savings_plans_utilization',
-            'SavingsPlansUtilizationsByTime',
-            'NextToken',
             {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
         ),
     ],
@@ -1158,7 +1618,6 @@ async def test_caller_next_token_injected_into_first_request(
         mock_context,
         mock_ce_client,
         next_token='resume-from-here',
-        max_pages=1,
         **kwargs,
     )
 
@@ -1200,33 +1659,27 @@ async def test_caller_next_token_injected_into_first_request(
         (
             get_cost_categories,
             'get_cost_categories',
-            'CostCategories',
+            'CostCategoryNames',
             'NextPageToken',
-            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
-        ),
-        (
-            get_savings_plans_utilization,
-            'get_savings_plans_utilization',
-            'SavingsPlansUtilizationsByTime',
-            'NextToken',
             {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
         ),
     ],
 )
 @pytest.mark.asyncio
-async def test_max_pages_without_next_token_omits_token_from_first_request(
+async def test_max_items_without_next_token_omits_token_from_first_request(
     mock_context, mock_ce_client, op_func, ce_method, result_key, token_key, kwargs
 ):
-    """When max_pages is set but next_token is None, the first boto3 request must not carry a token."""
+    """With max_items but no next_token, the first request carries no token or page size."""
     getattr(mock_ce_client, ce_method).return_value = {result_key: []}
 
     await op_func(
         mock_context,
         mock_ce_client,
         next_token=None,
-        max_pages=1,
+        max_items=1,
         **kwargs,
     )
 
     first_call_kwargs = getattr(mock_ce_client, ce_method).call_args_list[0][1]
     assert token_key not in first_call_kwargs
+    assert 'MaxResults' not in first_call_kwargs

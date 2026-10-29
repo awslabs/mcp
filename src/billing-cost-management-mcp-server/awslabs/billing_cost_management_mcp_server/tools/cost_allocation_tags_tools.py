@@ -16,10 +16,12 @@
 
 import json
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
+    with_pagination,
 )
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
@@ -28,6 +30,22 @@ from typing import Any, Dict, Optional
 cost_allocation_tags_server = FastMCP(
     name='cost-allocation-tags-tools',
     instructions='Tools for managing AWS Cost Allocation Tags',
+)
+
+LIST_COST_ALLOCATION_TAGS = PageSpec(
+    result_key='CostAllocationTags',
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=1000,
+    page_size_param='MaxResults',
+)
+
+LIST_COST_ALLOCATION_TAG_BACKFILL_HISTORY = PageSpec(
+    result_key='BackfillRequests',
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=1000,
+    page_size_param='MaxResults',
 )
 
 
@@ -49,8 +67,12 @@ You can filter tags by:
 - tag_keys: JSON array of tag key strings to look up (max 100, case-sensitive).
   Example: '["Environment", "Team", "CostCenter"]'
 - tag_type: AWSGenerated or UserDefined
-- max_results: Results per page (1-1000, default 100)
-- max_pages: Max pages to auto-paginate through
+
+Pagination:
+- max_items: total number of tags returned. Omit it to fetch every page (no limit). Pass it,
+  or narrow the filters, when the account can have many tags.
+- If the result has complete_dataset: false, it is partial: call again with a larger
+  max_items, continue with next_token, or say the result is partial.
 
 Limits: 500 active cost allocation tag keys per payer account (adjustable via Service Quotas
 up to 1,000). Max 20 tags per UpdateCostAllocationTagsStatus request.
@@ -64,9 +86,8 @@ async def list_cost_allocation_tags(
     status: Optional[str] = None,
     tag_keys: Optional[str] = None,
     tag_type: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """List cost allocation tags.
 
@@ -75,9 +96,8 @@ async def list_cost_allocation_tags(
         status: Filter by tag status (Active, Inactive)
         tag_keys: JSON array of tag key strings to filter by (max 100)
         tag_type: Filter by tag type (AWSGenerated, UserDefined)
-        max_results: Max results per page (1-1000, default 100)
+        max_items: Total tags to return. None fetches every page.
         next_token: Pagination token from previous response
-        max_pages: Max pages to auto-paginate through
 
     Returns:
         Dict containing the list of cost allocation tags
@@ -105,30 +125,19 @@ async def list_cost_allocation_tags(
                 )
         if tag_type:
             params['Type'] = tag_type
-        if max_results is not None:
-            params['MaxResults'] = max_results
 
-        if next_token:
-            params['NextToken'] = next_token
-        if next_token or max_pages:
-            results, pagination = await paginate_aws_response(
-                ctx,
-                'ListCostAllocationTags',
-                lambda **p: ce_client.list_cost_allocation_tags(**p),
-                params,
-                'CostAllocationTags',
-                max_pages=max_pages,
-            )
-            return format_response(
-                'success',
-                {
-                    'CostAllocationTags': results,
-                    'Pagination': pagination,
-                },
-            )
-
-        response = ce_client.list_cost_allocation_tags(**params)
-        return format_response('success', response)
+        tags, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListCostAllocationTags',
+            ce_client.list_cost_allocation_tags,
+            params,
+            LIST_COST_ALLOCATION_TAGS,
+            max_items=max_items,
+            next_token=next_token,
+        )
+        return format_response(
+            'success', with_pagination({'CostAllocationTags': tags}, pagination)
+        )
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'ListCostAllocationTags', 'Cost Explorer')
@@ -157,26 +166,26 @@ The tool returns CostAllocationTagBackfillRequest objects containing:
 - BackfillStatus (SUCCEEDED, PROCESSING, or FAILED)
 - RequestedAt, CompletedAt (null if still processing), LastUpdatedAt
 
-You can control pagination with:
-- max_results: Results per page (1-1000)
-- max_pages: Max pages to auto-paginate through
+Pagination:
+- max_items: total number of backfill requests returned. Omit it to fetch every page
+  (no limit).
+- If the result has complete_dataset: false, it is partial: call again with a larger
+  max_items, continue with next_token, or say the result is partial.
 
-Example 1 - Get latest backfill request: {"max_results": 1}
-Example 2 - Get full backfill history: {"max_pages": 10}""",
+Example 1 - Get the latest backfill request: {"max_items": 1}
+Example 2 - Get the full backfill history: {}""",
 )
 async def list_cost_allocation_tag_backfill_history(
     ctx: Context,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """List cost allocation tag backfill history.
 
     Args:
         ctx: The MCP context object
-        max_results: Max results per page (1-1000)
+        max_items: Total backfill requests to return. None fetches every page.
         next_token: Pagination token from previous response
-        max_pages: Max pages to auto-paginate through
 
     Returns:
         Dict containing the list of backfill requests
@@ -185,32 +194,18 @@ async def list_cost_allocation_tag_backfill_history(
 
     try:
         ce_client = create_aws_client('ce')
-        params: Dict[str, Any] = {}
-
-        if max_results is not None:
-            params['MaxResults'] = max_results
-
-        if next_token:
-            params['NextToken'] = next_token
-        if next_token or max_pages:
-            results, pagination = await paginate_aws_response(
-                ctx,
-                'ListCostAllocationTagBackfillHistory',
-                lambda **p: ce_client.list_cost_allocation_tag_backfill_history(**p),
-                params,
-                'BackfillRequests',
-                max_pages=max_pages,
-            )
-            return format_response(
-                'success',
-                {
-                    'BackfillRequests': results,
-                    'Pagination': pagination,
-                },
-            )
-
-        response = ce_client.list_cost_allocation_tag_backfill_history(**params)
-        return format_response('success', response)
+        requests, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListCostAllocationTagBackfillHistory',
+            ce_client.list_cost_allocation_tag_backfill_history,
+            {},
+            LIST_COST_ALLOCATION_TAG_BACKFILL_HISTORY,
+            max_items=max_items,
+            next_token=next_token,
+        )
+        return format_response(
+            'success', with_pagination({'BackfillRequests': requests}, pagination)
+        )
 
     except Exception as e:
         return await handle_aws_error(

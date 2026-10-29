@@ -148,13 +148,12 @@ class TestParameterForwarding:
                 start_date='2026-01-01',
                 credit_id='4242',
                 billing_period='2026-06',
-                max_results=50,
+                max_items=50,
                 next_token='token',
-                max_pages=2,
             )
 
         kwargs = _await_kwargs(credits_mock)
-        for name in ('credit_id', 'billing_period', 'max_results', 'next_token', 'max_pages'):
+        for name in ('credit_id', 'billing_period', 'max_items', 'next_token'):
             assert name not in kwargs
 
     @pytest.mark.asyncio
@@ -167,17 +166,15 @@ class TestParameterForwarding:
                 'get_credit_allocation_history',
                 billing_period='2026-06',
                 credit_id='4242',
-                max_results=50,
+                max_items=50,
                 next_token='token',
-                max_pages=3,
             )
 
         kwargs = _await_kwargs(history_mock)
         assert kwargs['billing_period'] == '2026-06'
         assert kwargs['credit_id'] == '4242'
-        assert kwargs['max_results'] == 50
+        assert kwargs['max_items'] == 50
         assert kwargs['next_token'] == 'token'
-        assert kwargs['max_pages'] == 3
 
     @pytest.mark.asyncio
     async def test_get_credit_allocation_history_does_not_receive_payer_account_flag(
@@ -210,15 +207,16 @@ class TestWrapperDelegation:
                 billing_period='2026-06',
                 account_id='123456789012',
                 credit_id='4242',
-                max_results=10,
+                max_items=10,
                 next_token='token',
-                max_pages=1,
             )
 
         kwargs = _await_kwargs(history_mock)
         assert kwargs['billing_period'] == '2026-06'
         assert kwargs['account_id'] == '123456789012'
         assert kwargs['credit_id'] == '4242'
+        assert kwargs['max_items'] == 10
+        assert kwargs['next_token'] == 'token'
 
 
 class TestToolRegistration:
@@ -246,6 +244,41 @@ class TestToolRegistration:
         tool = await _registered_tool()
 
         assert 'partial_results' in (tool.description or '')
-        assert 'narrowed_from_request' in (tool.description or '')
+        assert 'limited_from_request' in (tool.description or '')
         assert 'one year before today' in (tool.description or '')
         assert 'never floats' in (tool.description or '')
+
+    @pytest.mark.asyncio
+    async def test_description_end_date_matches_clamp(self):
+        """The end_date line states the limit instead of claiming a future end is rejected.
+
+        The code limits a future end to now and sets ``limited_from_request``, so the
+        old "Cannot be in the future" wording contradicted the behaviour and could lead
+        a model to report the requested window rather than the one served.
+        """
+        description = (await _registered_tool()).description or ''
+
+        assert 'Cannot be in the future' not in description
+        assert 'limited to now' in description
+        assert 'time_range' in description
+
+    @pytest.mark.asyncio
+    async def test_description_documents_max_items_contract(self):
+        """The description documents max_items/next_token and drops the old paging params."""
+        description = (await _registered_tool()).description or ''
+
+        assert 'max_items' in description
+        assert 'next_token' in description
+        assert 'complete_dataset' in description
+        assert 'max_results' not in description
+        assert 'max_pages' not in description
+
+    @pytest.mark.asyncio
+    async def test_old_paging_parameters_are_gone(self):
+        """The tool schema exposes max_items and next_token, not max_results/max_pages."""
+        properties = (await _registered_tool()).parameters['properties']
+
+        assert 'max_items' in properties
+        assert 'next_token' in properties
+        assert 'max_results' not in properties
+        assert 'max_pages' not in properties

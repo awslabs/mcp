@@ -2,6 +2,7 @@ import awslabs.aws_api_mcp_server.server as server_module
 import os
 import pytest
 import requests
+from awslabs.aws_api_mcp_server.core.common.auth import ClientIdJWTVerifier
 from awslabs.aws_api_mcp_server.core.common.config import FileAccessMode, get_server_auth
 from awslabs.aws_api_mcp_server.core.common.errors import AwsApiMcpError
 from awslabs.aws_api_mcp_server.core.common.help_command import generate_help_document
@@ -1416,6 +1417,23 @@ def test_get_server_auth_oauth_missing_both():
 @patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'oauth')
 @patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_ISSUER', 'https://issuer.example.com')
 @patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_JWKS_URI', 'https://example.com/jwks')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_AUDIENCE', None)
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_CLIENT_ID', None)
+def test_get_server_auth_oauth_missing_audience_and_client_id():
+    """Test get_server_auth raises ValueError when no expected recipient is configured."""
+    with pytest.raises(
+        ValueError,
+        match='AUTH_TYPE="oauth" requires one of the following environment variables to be set: AUTH_AUDIENCE, or AUTH_CLIENT_ID',
+    ):
+        get_server_auth()
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'oauth')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_ISSUER', 'https://issuer.example.com')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_JWKS_URI', 'https://example.com/jwks')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_AUDIENCE', 'my-mcp-server')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_CLIENT_ID', None)
 def test_get_server_auth_oauth_valid():
     """Test get_server_auth with valid oauth configuration."""
     auth_provider = get_server_auth()
@@ -1425,6 +1443,23 @@ def test_get_server_auth_oauth_valid():
     # Verify the JWTVerifier is configured correctly
     assert auth_provider.issuer == 'https://issuer.example.com'
     assert auth_provider.jwks_uri == 'https://example.com/jwks'
+    assert auth_provider.audience == 'my-mcp-server'
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'oauth')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_ISSUER', 'https://issuer.example.com')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_JWKS_URI', 'https://example.com/jwks')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_AUDIENCE', None)
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_CLIENT_ID', 'my-client-id')
+def test_get_server_auth_oauth_client_id():
+    """Test get_server_auth validates the client ID claim when AUTH_CLIENT_ID is set."""
+    auth_provider = get_server_auth()
+
+    assert isinstance(auth_provider, ClientIdJWTVerifier)
+    assert auth_provider.client_id == 'my-client-id'
+    assert auth_provider.issuer == 'https://issuer.example.com'
+    assert auth_provider.audience is None
 
 
 @patch('awslabs.aws_api_mcp_server.server.call_aws_helper')

@@ -100,11 +100,29 @@ class TestListProcurementPortalPreferences:
         assert prefs[0]['Status'] == 'ACTIVE'
 
     @pytest.mark.asyncio
-    async def test_pagination_across_pages(self, mock_context, sample_preference):
-        """Multiple pages are aggregated and pagination metadata is accurate."""
+    async def test_shared_secret_dropped_on_every_page(self, mock_context, sample_preference):
+        """Items from later pages are redacted too, not just the first page."""
+        mock_client = MagicMock()
+        mock_client.list_procurement_portal_preferences.side_effect = [
+            {'ProcurementPortalPreferences': [dict(sample_preference)], 'NextToken': 'page-2'},
+            {'ProcurementPortalPreferences': [dict(sample_preference)]},
+        ]
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await list_procurement_portal_preferences(mock_context)
+
+        prefs = result['data']['procurement_portal_preferences']
+        assert len(prefs) == 2
+        assert all('ProcurementPortalSharedSecret' not in pref for pref in prefs)
+
+    @pytest.mark.asyncio
+    async def test_no_max_items_fetches_every_page(self, mock_context, sample_preference):
+        """Without max_items every page is fetched at the largest page size."""
         mock_client = MagicMock()
         mock_client.list_procurement_portal_preferences.side_effect = [
             {'ProcurementPortalPreferences': [sample_preference], 'NextToken': 'page-2'},
+            {'ProcurementPortalPreferences': [sample_preference], 'NextToken': 'page-3'},
             {'ProcurementPortalPreferences': [sample_preference]},
         ]
 
@@ -113,32 +131,93 @@ class TestListProcurementPortalPreferences:
             result = await list_procurement_portal_preferences(mock_context)
 
         assert result['status'] == 'success'
-        assert mock_client.list_procurement_portal_preferences.call_count == 2
-        assert result['data']['pagination']['total_results'] == 2
-        assert result['data']['pagination']['has_more'] is False
+        calls = mock_client.list_procurement_portal_preferences.call_args_list
+        assert len(calls) == 3
+        assert all(call.kwargs['MaxResults'] == 100 for call in calls)
+        assert [call.kwargs.get('NextToken') for call in calls] == [None, 'page-2', 'page-3']
+        assert len(result['data']['procurement_portal_preferences']) == 3
+        assert result['data']['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 3,
+        }
+        assert 'warning' not in result['data']
 
     @pytest.mark.asyncio
-    async def test_max_results_and_next_token_forwarded(self, mock_context, sample_preference):
-        """max_results and next_token are forwarded to the request."""
+    async def test_max_items_stops_before_exceeding(self, mock_context, sample_preference):
+        """max_items sizes the page and stops once reached, returning the service token."""
         mock_client = MagicMock()
         mock_client.list_procurement_portal_preferences.return_value = {
-            'ProcurementPortalPreferences': [sample_preference]
+            'ProcurementPortalPreferences': [sample_preference, sample_preference],
+            'NextToken': 'always-more',
         }
 
         with patch(CREATE_CLIENT_PATH) as mock_create:
             mock_create.return_value = mock_client
+            result = await list_procurement_portal_preferences(mock_context, max_items=2)
+
+        assert mock_client.list_procurement_portal_preferences.call_count == 1
+        assert mock_client.list_procurement_portal_preferences.call_args.kwargs['MaxResults'] == 2
+        data = result['data']
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['complete_dataset'] is False
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'always-more',
+            'items_returned': 2,
+        }
+
+    @pytest.mark.asyncio
+    async def test_continuation_sends_token_and_identical_params(
+        self, mock_context, sample_preference
+    ):
+        """A continuation sends the caller's token and otherwise the same request."""
+        first = MagicMock()
+        first.list_procurement_portal_preferences.return_value = {
+            'ProcurementPortalPreferences': [sample_preference],
+            'NextToken': 'page-2',
+        }
+        resumed = MagicMock()
+        resumed.list_procurement_portal_preferences.return_value = {
+            'ProcurementPortalPreferences': [sample_preference]
+        }
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = first
+            await list_procurement_portal_preferences(mock_context, max_items=1)
+            mock_create.return_value = resumed
             result = await list_procurement_portal_preferences(
-                mock_context, max_results=5, next_token='resume-here'
+                mock_context, max_items=1, next_token='page-2'
             )
 
-        assert result['status'] == 'success'
-        call = mock_client.list_procurement_portal_preferences.call_args.kwargs
-        assert call['MaxResults'] == 5
-        assert call['NextToken'] == 'resume-here'
+        first_call = first.list_procurement_portal_preferences.call_args.kwargs
+        resumed_call = resumed.list_procurement_portal_preferences.call_args.kwargs
+        assert resumed_call['NextToken'] == 'page-2'
+        assert 'NextToken' not in first_call
+        assert {k: v for k, v in resumed_call.items() if k != 'NextToken'} == first_call
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    @pytest.mark.asyncio
+    async def test_rejected_token_is_invalid_next_token(self, mock_context):
+        """A token the service rejects maps to invalid_next_token."""
+        mock_client = MagicMock()
+        mock_client.list_procurement_portal_preferences.side_effect = ClientError(
+            {'Error': {'Code': 'InvalidNextTokenException', 'Message': 'bad'}},
+            'ListProcurementPortalPreferences',
+        )
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await list_procurement_portal_preferences(mock_context, next_token='stale')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'invalid_next_token'
 
     @pytest.mark.asyncio
     async def test_empty_results(self, mock_context):
-        """An empty result set returns success with zero total_results."""
+        """An empty result set returns success with zero items_returned."""
         mock_client = MagicMock()
         mock_client.list_procurement_portal_preferences.return_value = {
             'ProcurementPortalPreferences': []
@@ -150,7 +229,8 @@ class TestListProcurementPortalPreferences:
 
         assert result['status'] == 'success'
         assert result['data']['procurement_portal_preferences'] == []
-        assert result['data']['pagination']['total_results'] == 0
+        assert result['data']['pagination']['items_returned'] == 0
+        assert result['data']['pagination']['complete_dataset'] is True
 
     @pytest.mark.asyncio
     async def test_api_client_error(self, mock_context):

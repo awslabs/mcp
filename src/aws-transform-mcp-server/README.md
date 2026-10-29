@@ -286,6 +286,7 @@ To verify your credentials are working, ask your AI assistant: **"Check my AWS T
 |------|-------------|------|
 | `list_resources` | List any resource type: workspaces, jobs, connectors, tasks, artifacts, messages, worklogs, plan, agents, collaborators, users. Use `category="TOOL_APPROVAL"` and `taskStatus="AWAITING_APPROVAL"` to list pending tool approvals. | Web API |
 | `get_resource` | Get details for any resource by ID. Auto-downloads artifacts and enriches HITL tasks with output schemas. | Web API |
+| `download_artifact` | Stream a job or user artifact, or a connector asset, to a local file over the authenticated connection (no pre-signed S3 URL reaches the client). Saves only after the end-of-stream event confirms a complete download. | Web API |
 
 ### Collaborators
 
@@ -317,7 +318,7 @@ Set these in your MCP client config `env` block:
 | `AWS_PROFILE` | No | `default` profile | AWS profile from `~/.aws/credentials` to use for Control Plane tools (e.g., `accept_connector`). If you have multiple AWS profiles, set this to the one with access to your Transform account. If not set, boto3 uses the `[default]` profile, then falls back to environment variables (`AWS_ACCESS_KEY_ID`), then instance metadata. See [boto3 credential chain](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#configuring-credentials) for the full resolution order. |
 | `AWS_REGION` | No | Profile region, then `us-east-1` | AWS region for Control Plane API calls. If not set, uses the region from your AWS profile (`~/.aws/config`), then falls back to `us-east-1`. |
 | `FASTMCP_LOG_LEVEL` | No | `INFO` | Log level for the MCP server (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
-| `AWS_TRANSFORM_MCP_WRITE_DIR` | No | Server working directory | Base directory that artifact downloads (`get_resource`, `load_instructions`) are confined to. A `savePath` must resolve to this directory or a subdirectory of it; anything outside is rejected. If not set, the server's current working directory at startup is used. If that working directory is the filesystem root (`/`) — which happens when a desktop or IDE client launches the server outside a shell — downloads are refused until this variable is set, since confining to `/` would place no bound on writes. Set this to the directory you want downloads written to. |
+| `AWS_TRANSFORM_MCP_WRITE_DIR` | No | Server working directory | Base directory that artifact downloads (`get_resource`, `load_instructions`, `download_artifact`) are confined to. A `savePath` must resolve to this directory or a subdirectory of it; anything outside is rejected. If not set, the server's current working directory at startup is used. If that working directory is the filesystem root (`/`) — which happens when a desktop or IDE client launches the server outside a shell — downloads are refused until this variable is set, since confining to `/` would place no bound on writes. Set this to the directory you want downloads written to. |
 
 ## HITL Task Response System
 
