@@ -212,8 +212,9 @@ The tool returns cost report information for each billing group:
 - Billing group ARN
 - AWS cost (actual AWS charges)
 - Proforma cost (hypothetical charges based on the associated pricing plan)
-- Margin (billing group margin)
-- Margin percentage (percentage of billing group margin)
+- Margin (proforma cost minus AWS cost; negative means the proforma cost is below the AWS cost)
+- Margin percentage (margin divided by AWS cost, as a fraction, not a percent: -0.25 means -25%;
+  "0.0" when the AWS cost is 0)
 - Currency (displayed currency)
 
 You can filter cost reports by:
@@ -271,8 +272,9 @@ The tool returns margin summary report results for the billing group:
 - Attributes (key-value pairs for grouping, e.g., PRODUCT_NAME: "S3", BILLING_PERIOD: "Nov 2023")
 - AWS cost (actual AWS charges)
 - Proforma cost (hypothetical charges based on the associated pricing plan)
-- Margin (billing group margin)
-- Margin percentage (percentage of billing group margin)
+- Margin (proforma cost minus AWS cost; negative means the proforma cost is below the AWS cost)
+- Margin percentage (margin divided by AWS cost, as a fraction, not a percent: -0.25 means -25%;
+  "0.0" when the AWS cost is 0)
 - Currency (displayed currency)
 
 You can customize the report by:
