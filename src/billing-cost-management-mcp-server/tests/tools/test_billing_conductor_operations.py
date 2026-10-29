@@ -42,7 +42,7 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operatio
 )
 from botocore.exceptions import ClientError
 from botocore.stub import Stubber
-from datetime import date
+from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -2334,7 +2334,10 @@ class TestFutureBillingPeriod:
         assert f'billing_period {period} is after the current month (2026-10' in result['message']
         mock_create_client.assert_not_called()
 
-    @pytest.mark.parametrize('period', [None, '2026-10', '2026-9', '2024-01', '2026-13', 'bad'])
+    @pytest.mark.parametrize(
+        'period',
+        [None, '', '2026-10', '2026-9', '2024-01', '2026-13', 'bad', ' 2026-12', '2027-01\n'],
+    )
     @patch(PATCH_BC_CLIENT)
     async def test_cost_reports_current_past_or_malformed_reach_aws(
         self, mock_create_client, _today, mock_ctx, period
@@ -2373,6 +2376,8 @@ class TestFutureBillingPeriod:
             None,
             {'InclusiveStartBillingPeriod': '2026-10', 'ExclusiveEndBillingPeriod': '2026-11'},
             {'InclusiveStartBillingPeriod': '2026-09', 'ExclusiveEndBillingPeriod': '2027-01'},
+            {'ExclusiveEndBillingPeriod': '2027-01'},
+            ['2027-01'],
         ],
     )
     @patch(PATCH_BC_CLIENT)
@@ -2450,3 +2455,16 @@ def test_is_future_billing_period_year_boundary(today, period, future):
 
     with patch(PATCH_BC_TODAY, return_value=today):
         assert _is_future_billing_period(period) is future
+
+
+def test_utc_today_reads_the_utc_date():
+    """Today is the UTC date: 23:30 UTC on Oct 31 is still October wherever the host is."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        billing_conductor_operations as bco,
+    )
+
+    utc_now = datetime(2026, 10, 31, 23, 30, tzinfo=timezone.utc)
+    with patch.object(bco, 'datetime') as mock_datetime:
+        mock_datetime.now.side_effect = lambda tz=None: utc_now.astimezone(tz)
+        assert bco._current_billing_period() == '2026-10'
+        mock_datetime.now.assert_called_with(timezone.utc)

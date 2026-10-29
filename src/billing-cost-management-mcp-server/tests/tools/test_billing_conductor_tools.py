@@ -901,7 +901,7 @@ async def test_descriptions_state_future_billing_period_behavior():
         for name, tool in tools.items()
         if 'billing_period' in tool.parameters['properties'] and name not in rejected
     }
-    assert len(projected) == 8
+    assert len(projected) == 8, 'a new tool takes billing_period: add it to the checks below'
     for name in projected:
         description = ' '.join((tools[name].description or '').split())
         assert 'after the current month (UTC) is a projection, not a record' in description, name
