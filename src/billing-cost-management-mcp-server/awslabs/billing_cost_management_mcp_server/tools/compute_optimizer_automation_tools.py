@@ -195,9 +195,12 @@ def _multi_region_guidance(
     Derived from each region's own error_type and http_status, which stay nested in
     region_errors, so the top-level multi_region_error or a promoted type alone would
     lose them (e.g. throttled in one region and a 5xx in another is still transient).
+    A region's own retry_strategy, when its error set one, wins over that mapping.
     """
     guidance = [
-        classify_error(error.get('error_type'), error.get('http_status'))
+        (error['retry_strategy'], error.get('hint'))
+        if error.get('retry_strategy')
+        else classify_error(error.get('error_type'), error.get('http_status'))
         for error in region_errors.values()
     ]
     if regions_not_found:
@@ -866,7 +869,7 @@ async def _get_automation_event_multi_region(
             data,
             f'Could not determine whether automation event {event_id} exists because '
             f'{len(region_errors)} of {len(regions)} region(s) could not be searched. '
-            'Review region_errors and retry.',
+            'Review region_errors and follow retry_strategy.',
             error_type=_multi_region_error_type(region_errors, regions_not_found),
             operation='get_automation_event',
             service=_SERVICE_NAME,

@@ -22,6 +22,7 @@ These tests verify the functionality of the AWS Budgets API tools, including:
 - Formatting budget data for display and analysis
 """
 
+import asyncio
 import boto3
 import json
 import pytest
@@ -292,6 +293,125 @@ class TestFormatBudgets:
         assert 'Service' in result[0]['cost_filters']
         assert 'Region' in result[0]['cost_filters']
         assert 'Amazon EC2' in result[0]['cost_filters']['Service']
+
+    def test_format_budgets_with_filter_expression(self):
+        """A budget scoped by FilterExpression keeps its filter, metric and billing view.
+
+        Such a budget has no CostFilters, so dropping these fields made it look account-wide.
+        """
+        filter_expression = {
+            'And': [
+                {'CostCategories': {'Key': 'Team', 'Values': ['Analytics']}},
+                {'Not': {'Dimensions': {'Key': 'RECORD_TYPE', 'Values': ['Credit', 'Refund']}}},
+            ]
+        }
+        billing_view_arn = 'arn:aws:billing::123456789012:billingview/billing-group-210987654321'
+        budgets_list = [
+            {
+                'BudgetName': 'Team Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'FilterExpression': filter_expression,
+                'Metrics': ['NetUnblendedCost'],
+                'BillingViewArn': billing_view_arn,
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['filter_expression'] == filter_expression
+        assert result[0]['metrics'] == ['NetUnblendedCost']
+        assert result[0]['billing_view_arn'] == billing_view_arn
+        assert 'cost_filters' not in result[0]
+        assert 'cost_types' not in result[0]
+
+    def test_format_budgets_with_health_status(self):
+        """An unhealthy budget says why, without the raw timestamp."""
+        budgets_list = [
+            {
+                'BudgetName': 'View Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'HealthStatus': {
+                    'Status': 'UNHEALTHY',
+                    'StatusReason': 'BILLING_VIEW_NO_ACCESS',
+                    'LastUpdatedTime': datetime(2026, 1, 15),
+                },
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['health_status'] == {
+            'status': 'UNHEALTHY',
+            'status_reason': 'BILLING_VIEW_NO_ACCESS',
+        }
+
+    def test_format_budgets_healthy_budget_has_no_status_reason(self):
+        """A healthy budget has no StatusReason, so none is returned."""
+        budgets_list = [
+            {
+                'BudgetName': 'View Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'HealthStatus': {'Status': 'HEALTHY', 'LastUpdatedTime': datetime(2026, 1, 15)},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['health_status'] == {'status': 'HEALTHY'}
+
+    def test_format_budgets_with_cost_types(self):
+        """A budget using the deprecated CostFilters form keeps its CostTypes."""
+        cost_types = {'IncludeCredit': False, 'IncludeRefund': False, 'UseAmortized': True}
+        budgets_list = [
+            {
+                'BudgetName': 'Legacy Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'CostFilters': {'Service': ['Amazon Elastic Compute Cloud - Compute']},
+                'CostTypes': cost_types,
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['cost_filters'] == {'Service': ['Amazon Elastic Compute Cloud - Compute']}
+        assert result[0]['cost_types'] == cost_types
+        assert 'filter_expression' not in result[0]
+        assert 'metrics' not in result[0]
+
+    def test_format_budgets_omits_empty_scope_fields(self):
+        """Empty scope fields are left out, as an empty CostFilters already was.
+
+        A regression guard: the old code emitted none of these except cost_filters.
+        """
+        budgets_list = [
+            {
+                'BudgetName': 'Account Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'CostFilters': {},
+                'FilterExpression': {},
+                'Metrics': [],
+                'CostTypes': {},
+                'BillingViewArn': '',
+                'HealthStatus': {},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        for key in (
+            'cost_filters',
+            'filter_expression',
+            'metrics',
+            'cost_types',
+            'billing_view_arn',
+            'health_status',
+        ):
+            assert key not in result[0]
 
     def test_format_budgets_status_exceeded(self):
         """Test format_budgets correctly calculates EXCEEDED status."""
@@ -573,6 +693,29 @@ class TestDescribeBudgets:
         assert result['data']['budgets'][0]['budget_name'] == 'S3 Budget'
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_describe_budget_by_name_keeps_filter_expression(
+        self, mock_create_aws_client, mock_context, mock_budgets_client
+    ):
+        """The DescribeBudget path returns the budget's FilterExpression scope too."""
+        mock_create_aws_client.return_value = mock_budgets_client
+        filter_expression = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon S3']}}
+        mock_budgets_client.describe_budget.return_value = {
+            'Budget': {
+                'BudgetName': 'S3 Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'FilterExpression': filter_expression,
+                'Metrics': ['UnblendedCost'],
+            }
+        }
+
+        result = await describe_budgets(mock_context, '123456789012', 'S3 Budget')
+
+        budget = result['data']['budgets'][0]
+        assert budget['filter_expression'] == filter_expression
+        assert budget['metrics'] == ['UnblendedCost']
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
     async def test_describe_budgets_unknown_name_returns_empty_list(
         self, mock_create_aws_client, mock_context
     ):
@@ -739,6 +882,16 @@ def test_budget_server_initialization():
     instructions = budget_server.instructions
     assert instructions is not None
     assert 'Tools for working with AWS Budgets API' in instructions if instructions else False
+
+
+def test_budgets_description_states_scope_and_health():
+    """The description names every Expression member and what UNHEALTHY does to the spend."""
+    tool = asyncio.run(budget_server.get_tool('budgets'))
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert 'Dimensions, Tags, CostCategories and ProductAttributes' in description
+    assert "means AWS has stopped updating the budget's spend" in description
+    assert 'cannot read its billing view or filter' not in description
 
 
 # ---------------------------------------------------------------------------
