@@ -90,10 +90,11 @@ def mock_ce_client():
         ]
     }
 
+    # The API returns DAILY bounds as UTC-midnight timestamps here, unlike get_cost_and_usage.
     mock_client.get_cost_and_usage_with_resources.return_value = {
         'ResultsByTime': [
             {
-                'TimePeriod': {'Start': '2023-01-01', 'End': '2023-01-02'},
+                'TimePeriod': {'Start': '2023-01-01T00:00:00Z', 'End': '2023-01-02T00:00:00Z'},
                 'Groups': [
                     {
                         'Keys': ['AWS Lambda'],
