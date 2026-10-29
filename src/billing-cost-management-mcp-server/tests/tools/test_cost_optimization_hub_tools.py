@@ -1862,4 +1862,7 @@ def test_tool_description_filter_values_match_api_enum(filter_name):
         if line.startswith(f'- {filter_name}:')
     )
 
-    assert set(re.findall(r"'([A-Za-z0-9]+)'", line)) == set(coh_mod._filter_model()[filter_name])
+    api_values = coh_mod._filter_model()[filter_name]
+
+    assert api_values is not None
+    assert set(re.findall(r"'([A-Za-z0-9]+)'", line)) == set(api_values)
