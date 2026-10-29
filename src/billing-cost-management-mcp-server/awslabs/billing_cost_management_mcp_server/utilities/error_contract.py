@@ -69,6 +69,15 @@ _ERROR_TYPE_GUIDANCE: Dict[str, Tuple[str, Optional[str]]] = {
     'TooManyRequestsException': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
     'RequestLimitExceeded': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
     'LimitExceededException': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
+    # The rest of the AWS SDKs' standard-mode throttling codes, which can come with a 4xx
+    'RequestThrottled': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
+    'RequestThrottledException': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
+    'ProvisionedThroughputExceededException': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
+    'TransactionInProgressException': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
+    'PriorRequestNotComplete': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
+    'EC2ThrottledException': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
+    'SlowDown': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
+    'BandwidthLimitExceeded': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
     'throttling_error': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
     # Transient service and connection failures
     'aws_connection_error': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),
@@ -80,6 +89,8 @@ _ERROR_TYPE_GUIDANCE: Dict[str, Tuple[str, Optional[str]]] = {
     'RequestTimeout': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),
     'RequestTimeoutException': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),
     'InternalErrorException': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),
+    'InternalError': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),
+    'IDPCommunicationError': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),
     # A builtin TimeoutError reaching handle_aws_error (e.g. polling an Athena query)
     'unknown_timeouterror': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),
     'service_unavailable': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),

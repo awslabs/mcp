@@ -2055,3 +2055,72 @@ class TestBcmPricingCalcToolSchema:
         assert 'max_pages' not in properties
         assert 'complete_dataset' in description
         assert 'max_results' not in description
+
+
+class TestNonTransientBotocoreRetryStrategy:
+    """The guidance derived from the full error survives the tool's own repackaging."""
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_preferences_expired_sso_token_is_do_not_retry(self, mock_create_client):
+        """get_preferences' failure keeps handle_aws_error's do_not_retry."""
+        from botocore.exceptions import SSOTokenLoadError
+
+        mock_create_client.side_effect = SSOTokenLoadError(error_msg='token expired')
+
+        result = await bcm_pricing_calc_core(AsyncMock(), 'get_preferences')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'aws_connection_error'
+        assert result['retry_strategy'] == 'do_not_retry'
+        assert result['hint'].startswith('AWS credentials or client configuration')
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_preferences_unmapped_5xx_stays_retryable(self, mock_create_client):
+        """An unmapped code with a 5xx status is transient after get_preferences repackages it."""
+        mock_create_client.side_effect = ClientError(
+            {
+                'Error': {'Code': 'SomeServiceFault', 'Message': 'oops'},
+                'ResponseMetadata': {'HTTPStatusCode': 503},
+            },
+            'GetPreferences',
+        )
+
+        result = await bcm_pricing_calc_core(AsyncMock(), 'get_preferences')
+
+        assert result['error_type'] == 'SomeServiceFault'
+        assert result['retry_strategy'] == 'retry_same_request'
+
+    @pytest.mark.parametrize(
+        'error, expected',
+        [
+            (
+                ClientError(
+                    {
+                        'Error': {'Code': 'SomeServiceFault', 'Message': 'oops'},
+                        'ResponseMetadata': {'HTTPStatusCode': 503},
+                    },
+                    'GetWorkloadEstimate',
+                ),
+                'retry_same_request',
+            ),
+            (BotoCoreError(), 'do_not_retry'),
+        ],
+        ids=['unmapped-5xx', 'non-transient-botocore'],
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_workload_estimate'
+    )
+    async def test_core_repackaging_keeps_guidance(self, mock_get_estimate, error, expected):
+        """An error reaching bcm_pricing_calc_core's own handler keeps its derived guidance."""
+        mock_get_estimate.side_effect = error
+
+        result = await bcm_pricing_calc_core(
+            AsyncMock(), 'get_workload_estimate', identifier='estimate-1'
+        )
+
+        assert result['status'] == 'error'
+        assert result['retry_strategy'] == expected

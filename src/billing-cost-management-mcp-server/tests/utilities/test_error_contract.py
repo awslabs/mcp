@@ -269,3 +269,26 @@ class TestFormatResponseOverrides:
 
         assert 'retry_strategy' not in response
         assert 'hint' not in response
+
+
+class TestSdkStandardRetryableCodes:
+    """Codes the AWS SDKs' standard retry mode lists as transient or throttling."""
+
+    @pytest.mark.parametrize(
+        'error_type',
+        [
+            'InternalError',
+            'IDPCommunicationError',
+            'PriorRequestNotComplete',
+            'RequestThrottled',
+            'RequestThrottledException',
+            'ProvisionedThroughputExceededException',
+            'TransactionInProgressException',
+            'EC2ThrottledException',
+            'SlowDown',
+            'BandwidthLimitExceeded',
+        ],
+    )
+    def test_retry_same_request(self, error_type):
+        """These arrive with a 4xx status too, so they need an explicit mapping."""
+        assert classify_error(error_type, 400)[0] == RETRY_SAME_REQUEST
