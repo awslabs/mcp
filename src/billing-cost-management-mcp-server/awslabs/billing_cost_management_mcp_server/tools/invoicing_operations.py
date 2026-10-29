@@ -109,21 +109,27 @@ def _receiver_role_span_limit(start_epoch: int) -> int:
     too, so flooring to days would admit a range up to five years plus 23:59:59.
 
     The limit is derived from the start date rather than a fixed day count, so
-    leap years inside the window do not shift it; a 29 February start clamps to
-    28 February, having no counterpart five years on.
+    leap years inside the window do not shift it. A 29 February start has no
+    counterpart five years on, and the service resolves it FORWARD to 1 March
+    rather than back to 28 February: verified live, a start of 2024-02-29
+    accepts an end of 2029-02-28T23:59:59 and rejects 2029-03-01, and a start
+    of 2024-02-29T12:00:00 accepts 2029-03-01T11:59:59 and rejects
+    2029-03-01T12:00:00. Clamping to 28 February would refuse a day of ranges
+    the service accepts.
 
     Args:
         start_epoch: Range start as epoch seconds (UTC).
 
     Returns:
         The exclusive upper bound as epoch seconds: the same calendar instant
-        five years after the start.
+        five years after the start, or the same time of day on 1 March for a
+        29 February start.
     """
     start = datetime.fromtimestamp(start_epoch, tz=timezone.utc)
     try:
         limit = start.replace(year=start.year + _RECEIVER_ROLE_MAX_YEARS)
     except ValueError:
-        limit = start.replace(year=start.year + _RECEIVER_ROLE_MAX_YEARS, day=28)
+        limit = start.replace(year=start.year + _RECEIVER_ROLE_MAX_YEARS, month=3, day=1)
     return int(limit.timestamp())
 
 
@@ -256,8 +262,10 @@ async def list_invoice_summaries(
             this role. Account queries only -- it cannot be combined with
             ``invoice_id``. Raises the ``start_date``/``end_date`` cap from one
             month to less than five years, and is the only way estimated
-            invoices are returned. Not a superset of an unrestricted query: see
-            the note on the span check below.
+            invoices are returned. Not a superset of an unrestricted query:
+            invoices issued to invoice-unit receivers billed from the selected
+            account can be absent, so run the query without a role as well and
+            de-duplicate on ``InvoiceId``.
         max_items: Most invoice summaries to return. None fetches every page.
         next_token: Pagination token from a previous response to resume from.
 
@@ -388,8 +396,7 @@ async def list_invoice_summaries(
                 )
 
             # Reject a span the service is guaranteed to refuse, and name the
-            # sub-ranges that together cover the request instead. The service
-            # truncates to whole days, so compare on the same basis.
+            # sub-ranges that together cover the request instead.
             span_days = (end_epoch - start_epoch) // _SECONDS_PER_DAY
             if receiver_role:
                 # A receiver role lifts the cap to just under five years, so the
@@ -402,22 +409,26 @@ async def list_invoice_summaries(
                         {
                             'message': (
                                 f'start_date to end_date spans {span_days} days. With '
-                                'receiver_role set the Invoicing service requires a range '
-                                'of less than five years, so end_date must be earlier than '
+                                'receiver_role set a range must be less than five years, '
+                                'which this tool checks before calling AWS, so end_date '
+                                'must be earlier than '
                                 f'{_format_range_bound(datetime.fromtimestamp(limit_epoch, tz=timezone.utc))}. '
                                 'Narrow the range.'
                             )
                         },
                     )
             else:
+                # The one-month cap is measured in whole days, so compare on the
+                # same basis.
                 max_days = _max_time_interval_days(start_epoch)
                 if span_days > max_days:
                     return _validation_error(
                         {
                             'message': (
-                                f'start_date to end_date spans {span_days} days. The Invoicing '
-                                'service accepts at most one month per call, measured as the '
-                                f"number of days in the start date's month ({max_days} here). "
+                                f'start_date to end_date spans {span_days} days. This tool '
+                                'accepts at most one month per call, measured as the number '
+                                f"of days in the start date's month ({max_days} here), and "
+                                'rejects a longer range before calling AWS. '
                                 'Issue one call per suggested_date_ranges entry instead of '
                                 'widening the range, then combine the results. Setting '
                                 'receiver_role raises the cap to less than five years, but '

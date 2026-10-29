@@ -406,11 +406,50 @@ class TestListInvoiceSummariesReceiverRole:
         mock_create.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_leap_day_start_clamps_to_28_february(self, mock_context, sample_summary):
-        """A 29 February start has no counterpart five years on, so it clamps.
+    async def test_leap_day_start_resolves_forward_to_1_march(self, mock_context, sample_summary):
+        """A 29 February start has no counterpart five years on.
 
-        2024-02-29 plus five years is not a date; the bound becomes 2029-02-28,
-        and a range ending the day before it is accepted.
+        The service resolves it FORWARD to 1 March, not back to 28 February.
+        Verified live with ReceiverRole=BUYER from a 2024-02-29 start: an end
+        of 2029-02-28T23:59:59 is accepted and 2029-03-01 is rejected with
+        "TimePeriod must be less than 5 years". Clamping to 28 February, as
+        this did before, refused a whole day of ranges the service accepts.
+        """
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        for end in ('2029-02-27', '2029-02-28', '2029-02-28T23:59:59'):
+            with patch(CREATE_CLIENT_PATH) as mock_create:
+                mock_create.side_effect = _client_factory(mock_client, MagicMock())
+                accepted = await list_invoice_summaries(
+                    mock_context,
+                    account_id='123456789012',
+                    start_date='2024-02-29',
+                    end_date=end,
+                    receiver_role='BUYER',
+                )
+            assert accepted['status'] == 'success', end
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            refused = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2024-02-29',
+                end_date='2029-03-01',
+                receiver_role='BUYER',
+            )
+        _assert_validation_error(refused)
+        mock_create.assert_not_called()
+        # The bound named in the message is the one the service enforces.
+        assert '2029-03-01' in refused['data']['message']
+
+    @pytest.mark.asyncio
+    async def test_leap_day_bound_keeps_the_start_time_of_day(self, mock_context, sample_summary):
+        """The 1 March bound carries the start's time of day, not midnight.
+
+        Verified live from a 2024-02-29T12:00:00 start: 2029-03-01T11:59:59 is
+        accepted and 2029-03-01T12:00:00 is rejected. Flooring the bound to
+        midnight on 1 March would refuse half a day the service accepts.
         """
         mock_client = MagicMock()
         mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
@@ -420,8 +459,8 @@ class TestListInvoiceSummariesReceiverRole:
             accepted = await list_invoice_summaries(
                 mock_context,
                 account_id='123456789012',
-                start_date='2024-02-29',
-                end_date='2029-02-27',
+                start_date='2024-02-29T12:00:00',
+                end_date='2029-03-01T11:59:59',
                 receiver_role='BUYER',
             )
         assert accepted['status'] == 'success'
@@ -430,8 +469,8 @@ class TestListInvoiceSummariesReceiverRole:
             refused = await list_invoice_summaries(
                 mock_context,
                 account_id='123456789012',
-                start_date='2024-02-29',
-                end_date='2029-02-28',
+                start_date='2024-02-29T12:00:00',
+                end_date='2029-03-01T12:00:00',
                 receiver_role='BUYER',
             )
         _assert_validation_error(refused)
