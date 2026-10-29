@@ -87,11 +87,13 @@ The tool returns information about:
 
 You can filter billing groups by:
 - ARNs: Filter by specific billing group ARNs
-- Names: Filter by billing group name (supports STARTS_WITH search)
-- Statuses: Filter by status (ACTIVE, PRIMARY_ACCOUNT_MISSING, PENDING)
+- Names: exactly one name search, a case-sensitive prefix match:
+  [{"SearchOption": "STARTS_WITH", "SearchValue": "<prefix>"}]
+- Statuses: at most 2 of ACTIVE, PRIMARY_ACCOUNT_MISSING, PENDING (omit it for every status)
 - Billing group types: Filter by type (STANDARD, TRANSFER_BILLING)
 - Primary account IDs: Filter by primary account ID
-- Pricing plan: Filter by pricing plan ARN
+- PricingPlan: a full pricing plan ARN (arn:aws:billingconductor::<account>:pricingplan/<id>),
+  not a bare ID
 - Auto-associate: Filter by auto-associate setting
 - Responsibility transfer ARNs: Filter by responsibility transfer ARNs
 
@@ -120,11 +122,12 @@ async def list_billing_groups(
             A month after the current month (UTC) returns a projection (billing_period_is_future).
         filters: Optional JSON string containing filter criteria. Supported filters:
             - Arns: List of billing group ARNs to retrieve
-            - Names: List of name search objects with SearchOption and SearchValue
-            - Statuses: List of statuses ("ACTIVE", "PRIMARY_ACCOUNT_MISSING", "PENDING")
+            - Names: Exactly one name search object with SearchOption "STARTS_WITH" and
+              SearchValue (a case-sensitive prefix)
+            - Statuses: Up to 2 of "ACTIVE", "PRIMARY_ACCOUNT_MISSING", "PENDING"
             - BillingGroupTypes: List of types ("STANDARD", "TRANSFER_BILLING")
             - PrimaryAccountIds: List of primary account IDs
-            - PricingPlan: Pricing plan ARN
+            - PricingPlan: Full pricing plan ARN, not a bare ID
             - AutoAssociate: Boolean for auto-associate filter
             - ResponsibilityTransferArns: List of responsibility transfer ARNs
         max_items: Optional total number of items to return. Omit it to fetch every page.
@@ -160,7 +163,11 @@ You can filter account associations by:
 - Association: Filter by association status:
   - MONITORED: linked accounts associated to billing groups
   - UNMONITORED: linked accounts not associated to billing groups
-  - Billing Group ARN: linked accounts associated to a specific billing group
+  - A full billing group ARN (arn:aws:billingconductor::<account>:billinggroup/<id>): linked
+    accounts associated to that billing group
+  MONITORED and UNMONITORED are upper case.
+Use AccountId or AccountIds, not both. Either can be combined with Association to narrow the
+result.
 
 Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
 (no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
@@ -189,9 +196,9 @@ async def list_account_associations(
             If not provided, the current billing period is used.
             A month after the current month (UTC) returns a projection (billing_period_is_future).
         filters: Optional JSON string containing filter criteria. Supported filters:
-            - AccountId: A single AWS account ID (12 digits)
-            - AccountIds: List of AWS account IDs (up to 30, each 12 digits)
-            - Association: One of "MONITORED", "UNMONITORED", or a billing group ARN
+            - AccountId: A single AWS account ID (12 digits). Not with AccountIds.
+            - AccountIds: List of AWS account IDs (up to 30, each 12 digits). Not with AccountId.
+            - Association: One of "MONITORED", "UNMONITORED", or a full billing group ARN
         max_items: Optional total number of items to return. Omit it to fetch every page.
         next_token: Optional pagination token from a previous response.
 
@@ -280,7 +287,7 @@ with validation_error before any AWS call; the service would return no results.
 
 The tool returns margin summary report results for the billing group:
 - Billing group ARN
-- Attributes (key-value pairs for grouping, e.g., PRODUCT_NAME: "S3", BILLING_PERIOD: "Nov 2023")
+- Attributes (key-value pairs for grouping, e.g., PRODUCT_NAME: "S3", BILLING_PERIOD: "2025-01")
 - AWS cost (actual AWS charges)
 - Proforma cost (hypothetical charges based on the associated pricing plan)
 - Margin (proforma cost minus AWS cost; negative means the proforma cost is below the AWS cost)
@@ -289,8 +296,14 @@ The tool returns margin summary report results for the billing group:
 - Currency (displayed currency)
 
 You can customize the report by:
-- BillingPeriodRange: JSON string specifying a time range (up to 12 months)
-- GroupBy: JSON array string with values "PRODUCT_NAME" and/or "BILLING_PERIOD"
+- BillingPeriodRange: JSON string {"InclusiveStartBillingPeriod": "YYYY-MM",
+  "ExclusiveEndBillingPeriod": "YYYY-MM"}, up to 12 months. The end month is excluded:
+  2025-01 to 2025-04 covers January to March. Without it, the report covers only the current
+  month, month-to-date (still changing).
+- GroupBy: JSON array string with values "PRODUCT_NAME" and/or "BILLING_PERIOD". Without
+  BILLING_PERIOD, the months of a range are summed: no GroupBy gives one row for the whole
+  range, PRODUCT_NAME alone one row per product. Include BILLING_PERIOD in GroupBy to get one
+  row per month.
 
 Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
 (no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
@@ -317,8 +330,11 @@ async def get_billing_group_cost_report(
     Args:
         ctx: The MCP context object
         arn: The ARN that uniquely identifies the billing group.
-        billing_period_range: Optional JSON string specifying a time range (up to 12 months).
+        billing_period_range: Optional JSON string with InclusiveStartBillingPeriod and
+            ExclusiveEndBillingPeriod (YYYY-MM, end month excluded, up to 12 months). Omitted:
+            the current month, month-to-date.
         group_by: Optional JSON string with attributes to group by ("PRODUCT_NAME", "BILLING_PERIOD").
+            Include "BILLING_PERIOD" for one row per month; without it a multi-month range is summed.
         max_items: Optional total number of items to return. Omit it to fetch every page.
             A max_items below 200 can return up to 200, the service's smallest page.
         next_token: Optional pagination token from a previous response.
