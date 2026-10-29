@@ -201,6 +201,16 @@ def _collect_response_enums(shape: Any, found: Dict[str, List[str]], seen: set) 
             _collect_response_enums(member, found, seen)
 
 
+def _response_enums(service_model: Any, api_name: str) -> Dict[str, List[str]]:
+    """Return {member name: enum values} for one API's response, or {} if it cannot be read."""
+    found: Dict[str, List[str]] = {}
+    try:
+        _collect_response_enums(service_model.operation_model(api_name).output_shape, found, set())
+    except Exception:
+        return {}
+    return found
+
+
 @lru_cache(maxsize=1)
 def _filter_values_by_operation() -> Dict[str, Dict[str, List[str]]]:
     """Build {operation: {filter name: accepted values}} for the enum-valued filters.
@@ -215,14 +225,10 @@ def _filter_values_by_operation() -> Dict[str, Dict[str, List[str]]]:
         return result
 
     for operation, api_name in _FILTER_VALUE_SOURCE_API.items():
-        try:
-            found: Dict[str, List[str]] = {}
-            _collect_response_enums(
-                service_model.operation_model(api_name).output_shape, found, set()
-            )
-        except Exception:
-            continue
-        by_key = {_member_key(name): values for name, values in found.items()}
+        by_key = {
+            _member_key(name): values
+            for name, values in _response_enums(service_model, api_name).items()
+        }
         values_by_filter = {
             filter_name: by_key[_member_key(member)]
             for filter_name, member in _FILTER_VALUE_MEMBERS.items()

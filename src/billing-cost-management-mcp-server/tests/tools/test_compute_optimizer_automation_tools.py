@@ -41,6 +41,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.regional_fanout import
 )
 from botocore.exceptions import ClientError, EndpointConnectionError
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -1145,6 +1146,11 @@ class TestFilterValidation:
             ),
             (
                 'list_recommended_actions',
+                [{'name': 'RestartNeeded', 'values': [True, False]}],
+                [{'name': 'RestartNeeded', 'values': ['true', 'false']}],
+            ),
+            (
+                'list_recommended_actions',
                 [{'name': 'CurrentResourceDetailsEbsVolumeType', 'values': ['IO1']}],
                 [{'name': 'CurrentResourceDetailsEbsVolumeType', 'values': ['io1']}],
             ),
@@ -1198,6 +1204,8 @@ class TestFilterValidation:
             ('list_recommended_actions', 'RestartNeeded', 'yes'),
             ('list_recommended_actions', 'LookBackPeriodInDays', 'abc'),
             ('list_recommended_actions', 'LookBackPeriodInDays', '32.0'),
+            ('list_recommended_actions', 'LookBackPeriodInDays', True),
+            ('list_recommended_actions', 'RestartNeeded', 1),
         ],
     )
     async def test_unusable_filter_values_are_rejected_locally(
@@ -1217,9 +1225,26 @@ class TestFilterValidation:
             _assert_classified_error(result, 'validation_error', operation)
             assert result['data']['invalid_filter_values'] == {name: [value]}
             assert name in result['data']['valid_filter_values']
-            assert value in result['message']
+            assert str(value) in result['message']
             mock_create.assert_not_called()
             mock_op.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        'filters',
+        [
+            None,
+            '',
+            '{not json',
+            '{"name": "EventStatus", "values": ["Complete"]}',
+            '["EventStatus", {"name": 5, "values": ["a"]}, {"name": "EventStatus", "values": "x"}]',
+        ],
+    )
+    async def test_filters_that_cannot_be_normalized_are_left_for_the_api(self, filters):
+        """Input that is not a list of {name, values} objects is returned unchanged."""
+        assert automation_tools._normalize_filter_values('list_automation_events', filters) == (
+            filters,
+            None,
+        )
 
     async def test_validation_skipped_when_model_unavailable(self, mock_ctx):
         """If the boto model can't be loaded, filter validation is skipped (AWS validates)."""
@@ -1356,6 +1381,44 @@ class TestFilterValuesFromModel:
 
         assert values
         assert {value for value in values if value not in description} == set()
+
+    def test_collects_enums_from_lists_and_ignores_repeated_or_missing_shapes(self):
+        """Enums are found through lists, and a shape that refers to itself is visited once."""
+
+        def shape(type_name, members=None, member=None, enum=None):
+            return SimpleNamespace(
+                type_name=type_name, members=members or {}, member=member, enum=enum
+            )
+
+        record = shape('structure')
+        record.members = {
+            'self': record,
+            'kind': shape('string', enum=['A', 'B']),
+            'tags': shape('list', member=shape('string', enum=['X'])),
+            'plain': shape('string'),
+        }
+        found: dict = {}
+
+        automation_tools._collect_response_enums(None, found, set())
+        automation_tools._collect_response_enums(shape('list', member=record), found, set())
+
+        assert found == {'kind': ['A', 'B'], 'tags': ['X']}
+
+    def test_operations_without_readable_enums_have_no_filter_values(self):
+        """An operation whose response cannot be read, or has no enums, adds no values."""
+
+        def operation_model(api_name):
+            if api_name == 'ListAutomationEvents':
+                raise RuntimeError('boom')
+            return SimpleNamespace(output_shape=SimpleNamespace(type_name='structure', members={}))
+
+        service_model = MagicMock()
+        service_model.operation_model.side_effect = operation_model
+
+        automation_tools._filter_values_by_operation.cache_clear()
+        with patch('botocore.session.Session.get_service_model', return_value=service_model):
+            assert automation_tools._filter_values_by_operation() == {}
+        automation_tools._filter_values_by_operation.cache_clear()
 
 
 @pytest.mark.asyncio
