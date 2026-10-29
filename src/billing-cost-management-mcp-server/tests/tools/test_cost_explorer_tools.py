@@ -1635,6 +1635,128 @@ class TestCostExplorerDescriptionContract:
         for wrong in ('shared', 'dedicated', 'default', 'SHARED', 'DEDICATED', 'HOST'):
             assert not re.search(rf'\b{wrong}\b', tenancy)
 
+    def test_record_type_reference_uses_exact_ce_values(self, tool):
+        """RECORD_TYPE lists the values Cost Explorer matches, not CUR codes or prose."""
+        match = re.search(r'^- RECORD_TYPE:.*(?:\n  .*)*', tool.description, re.MULTILINE)
+        assert match is not None
+        # Re-join wrapped lines so multi-word values split across a line break still match.
+        record_type = ' '.join(match.group(0).split())
+        assert 'case-sensitive' in record_type
+        for value in (
+            'Usage',
+            'DiscountedUsage',
+            'SavingsPlanCoveredUsage',
+            'SavingsPlanNegation',
+            'SavingsPlanRecurringFee',
+            'SavingsPlanUpfrontFee',
+            'Recurring',
+            'Upfront',
+            'Support',
+            'Other',
+            'Tax',
+            'Credit',
+            'Refund',
+            'Bundled Discount',
+            'Enterprise Discount Program Discount',
+            'Private Rate Card Discount',
+            'RI Volume Discount',
+            'Solution Provider Program Discount',
+            'Distributor Discount',
+            'Marketplace Discount',
+        ):
+            assert re.search(rf'\b{value}\b', record_type), value
+        # The old prose guesses are gone, and the CUR codes are named only as non-values.
+        assert 'e.g., RI fees, usage costs' not in record_type
+        assert 'reports RIFee as Recurring, so a RIFee filter matches nothing' in record_type
+        assert 'most CUR Fee rows as Upfront, Other or Support' in record_type
+        assert 'use Upfront for RI upfront fees, Other for other subscription fees' in record_type
+        assert 'RIFee and Fee match nothing' not in record_type
+        # The list is not exhaustive: any unmapped CUR line-item type passes through unchanged.
+        assert 'Exact' not in record_type
+        assert 'Any other CUR line-item type' in record_type
+        assert 'passes through unchanged' in record_type
+        assert 'getDimensionValues with RECORD_TYPE' in record_type
+
+    @pytest.mark.parametrize(
+        'module_name, tool_name, server_attr, key, values, wrong',
+        [
+            (
+                'cost_explorer_tools',
+                'cost-explorer',
+                'cost_explorer_server',
+                'DATABASE_ENGINE',
+                ('Aurora MySQL', 'Aurora PostgreSQL', 'MySQL', 'PostgreSQL'),
+                ('Aurora',),
+            ),
+            (
+                'cost_explorer_tools',
+                'cost-explorer',
+                'cost_explorer_server',
+                'DEPLOYMENT_OPTION',
+                ('Single-AZ', 'Multi-AZ'),
+                ('SingleAZ', 'MultiAZ'),
+            ),
+            (
+                'cost_explorer_tools',
+                'cost-explorer',
+                'cost_explorer_server',
+                'INSTANCE_TYPE_FAMILY',
+                ('m5', 't3', 'c6g', 'r5', 'R5'),
+                ('Compute Optimized', 'Memory Optimized'),
+            ),
+            (
+                'cost_explorer_tools',
+                'cost-explorer',
+                'cost_explorer_server',
+                'OPERATING_SYSTEM',
+                ('Linux/UNIX', 'Windows (Amazon VPC)'),
+                ('Windows', 'Linux'),
+            ),
+            (
+                'cost_explorer_tools',
+                'cost-explorer',
+                'cost_explorer_server',
+                'PLATFORM',
+                ('Linux/UNIX', 'Windows (Amazon VPC)'),
+                ('Windows', 'Linux'),
+            ),
+            (
+                'cost_explorer_tools',
+                'cost-explorer',
+                'cost_explorer_server',
+                'PURCHASE_TYPE',
+                ('On Demand Instances', 'Standard Reserved Instances', 'Savings Plans'),
+                ('On-Demand',),
+            ),
+            (
+                'cost_comparison_tools',
+                'cost-comparison',
+                'cost_comparison_server',
+                'PLATFORM',
+                ('Linux/UNIX', 'Windows (Amazon VPC)'),
+                ('Windows', 'Linux'),
+            ),
+        ],
+    )
+    def test_dimension_examples_use_exact_ce_values(
+        self, module_name, tool_name, server_attr, key, values, wrong
+    ):
+        """Dimension examples are values Cost Explorer returns, not console or pricing labels."""
+        module = importlib.reload(
+            importlib.import_module(
+                f'awslabs.billing_cost_management_mcp_server.tools.{module_name}'
+            )
+        )
+        description = _registered_tool(getattr(module, server_attr), tool_name).description or ''
+        match = re.search(rf'^- {key}:.*(?:\n  .*)*', description, re.MULTILINE)
+        assert match is not None
+        entry = ' '.join(match.group(0).split())
+        for value in values:
+            assert re.search(rf'(?<![\w-]){re.escape(value)}(?![\w-])', entry), value
+        for value in wrong:
+            # A wrong value only counts as a whole list item, so 'Aurora MySQL' is not 'Aurora'.
+            assert not re.search(rf'[ (]{re.escape(value)}(?=[,);.]|$)', entry), value
+
     def test_description_prefers_monthly_for_whole_month_rankings(self, tool):
         """Whole-month totals and rankings are steered to MONTHLY; the code default stays DAILY."""
         assert 'DAILY granularity for periods <3 months' not in tool.description
