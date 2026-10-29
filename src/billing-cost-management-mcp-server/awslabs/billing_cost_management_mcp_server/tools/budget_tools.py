@@ -31,6 +31,7 @@ from ..utilities.aws_service_base import (
     with_pagination,
 )
 from ..utilities.sql_utils import convert_response_if_needed
+from ..utilities.time_utils import format_timestamp_to_utc_iso
 from botocore.exceptions import ClientError
 from datetime import datetime, timezone
 from fastmcp import Context, FastMCP
@@ -62,7 +63,7 @@ unknown name returns an empty `budgets` list).
 
 The API returns information about:
 - Budget names, types, and time periods
-- Budget limits (amount and unit)
+- Budget limits (amount and unit), and any planned per-period limits or auto-adjust settings
 - Current actual spend
 - Forecasted spend
 - The scope each budget tracks: its filter, cost metric and billing view, and whether AWS is
@@ -79,6 +80,29 @@ compare it only with a Cost Explorer query that applies the same ones, never wit
 total. A `health_status` of `UNHEALTHY` means AWS has stopped updating the budget's spend, for
 example because it can no longer read its billing view (`status_reason` says why), so its
 `calculated_spend` may be stale.
+
+An `actual_spend` of 0 on a filtered budget does not prove there was no spend: a filter that
+matches nothing also tracks 0, and no error is raised. Two common causes: SERVICE (or `cost_filters`
+`Service`) values given as service codes such as `AmazonEC2` instead of Cost Explorer service names
+such as `Amazon Elastic Compute Cloud - Compute`; and `cost_filters` keys are combined with AND
+(values within one key with OR), so keys that never occur together match nothing. Before reporting
+no spend, run the equivalent filter, metric and billing view with `cost-explorer`. In
+`filter_expression`, a tag value of `""` matches costs that have no value for that tag key.
+
+In `cost_types` on a COST budget, `IncludeCredit` and `IncludeRefund` default to true, so unless
+they are false the budget's spend is net of credits and refunds. A COST budget with no `cost_types`
+includes credits and refunds unless its `filter_expression` excludes them, for example with a `Not`
+on dimension `RECORD_TYPE` with values `Credit` and `Refund`. USAGE, RI and Savings Plans budgets
+can also return `cost_types`; when an RI or Savings Plans budget returns it, it is
+`IncludeSubscription` true and all else false.
+
+`budget_limit` is the limit for the current period. A budget with `planned_budget_limits` has a
+limit for each period of its plan (`period_start` in UTC; past periods are included) and keeps the
+last one after the plan ends. A budget with `auto_adjust` (`last_auto_adjust_time` in UTC) has its
+limit recomputed by AWS, from the average of up to `budget_adjustment_period` past periods
+(`HISTORICAL`; `look_back_available_periods` is how many of those periods were averaged; periods
+before the first one with cost are left out) or from the forecast (`FORECAST`), so the limit can
+change with no one editing the budget.
 
 With this information, you can determine which budgets have been exceeded or are projected to exceed their limits.
 
@@ -736,6 +760,15 @@ def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             if health.get('StatusReason'):
                 formatted_budget['health_status']['status_reason'] = health['StatusReason']
 
+        # Add planned and auto-adjusting limit settings if present; budget_limit is only the
+        # current period's limit for these budgets.
+        if budget.get('PlannedBudgetLimits'):
+            formatted_budget['planned_budget_limits'] = format_planned_budget_limits(
+                budget['PlannedBudgetLimits']
+            )
+        if budget.get('AutoAdjustData'):
+            formatted_budget['auto_adjust'] = format_auto_adjust(budget['AutoAdjustData'])
+
         # Add time period if present
         if 'TimePeriod' in budget:
             time_period = budget['TimePeriod']
@@ -798,6 +831,42 @@ def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         formatted_budgets.append(formatted_budget)
 
     return formatted_budgets
+
+
+def format_planned_budget_limits(planned: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Formats PlannedBudgetLimits (epoch-second keys) as a list ordered by period start.
+
+    A key that is not epoch seconds is kept as given, so no planned limit is dropped.
+    """
+    limits = []
+    for key, spend in planned.items():
+        try:
+            period_start = datetime.fromtimestamp(int(key), tz=timezone.utc).strftime('%Y-%m-%d')
+        except (TypeError, ValueError, OverflowError, OSError):
+            period_start = key
+        spend = spend or {}
+        limits.append(
+            {
+                'period_start': period_start,
+                'amount': spend.get('Amount'),
+                'unit': spend.get('Unit'),
+            }
+        )
+    return sorted(limits, key=lambda limit: str(limit['period_start']))
+
+
+def format_auto_adjust(auto_adjust: Dict[str, Any]) -> Dict[str, Any]:
+    """Formats AutoAdjustData, returning only the fields the API set."""
+    formatted: Dict[str, Any] = {'auto_adjust_type': auto_adjust.get('AutoAdjustType')}
+    historical = auto_adjust.get('HistoricalOptions') or {}
+    if 'BudgetAdjustmentPeriod' in historical:
+        formatted['budget_adjustment_period'] = historical['BudgetAdjustmentPeriod']
+    if 'LookBackAvailablePeriods' in historical:
+        formatted['look_back_available_periods'] = historical['LookBackAvailablePeriods']
+    last = format_timestamp_to_utc_iso(auto_adjust.get('LastAutoAdjustTime'))
+    if last:
+        formatted['last_auto_adjust_time'] = last
+    return formatted
 
 
 def format_action(action: Dict[str, Any]) -> Dict[str, Any]:
