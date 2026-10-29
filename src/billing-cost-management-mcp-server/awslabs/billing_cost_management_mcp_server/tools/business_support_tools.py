@@ -110,7 +110,7 @@ async def _business_support(
 
 1) list_account_charges - the per-account Business Support charge breakdown for one billing period
    Required: operation="list_account_charges", billing_month.
-   billing_month is a single calendar month "YYYY-MM" (e.g. "2026-06") and it selects the billing period the answer covers. It cannot be earlier than 2025-01, the oldest month with Business Support data. You can request the current month, in which case the charges will be estimated (isEstimated=true in the response). Future months (after the current month) are rejected. Both bounds are rejected locally without spending a call.
+   billing_month is a single calendar month "YYYY-MM" (e.g. "2026-06") and it selects the billing period the answer covers. It cannot be earlier than 2024-01, the oldest month with Business Support data. You can request the current month, in which case the charges will be estimated (isEstimated=true in the response). Future months (after the current month) are rejected. Both bounds are rejected locally without spending a call.
    Optional:
      - account_id: a 12-digit AWS account number that filters to ONE account inside the payer's Support profile. Omit it to get every account, which is what "break down my Business Support charge by account" asks for. Omitting it sends no account filter at all and the tool never infers one from the caller credentials, so never report that a filter was applied when you left it out. An account id that appears in an error message is the caller's payer account, not a filter that was used.
      - max_items: total rows to return across pages. Omit it to fetch every page (no limit). next_token: resume from a previous response.
@@ -128,7 +128,7 @@ async def _business_support(
 2) list_subscription_history - the Business Support subscription contract history
    Required: operation="list_subscription_history". Everything else is optional.
    Optional:
-     - billing_month: a single calendar month "YYYY-MM" to scope the history to contracts in effect that month. When omitted, the API defaults to the CURRENT month, not the full history; to cover several months pass start_date/end_date. Same 2025-01 and future-month bounds as above, applied only when supplied.
+     - billing_month: a single calendar month "YYYY-MM" to scope the history to contracts in effect that month. When omitted, the API defaults to the CURRENT month, not the full history; to cover several months pass start_date/end_date. Same 2024-01 and future-month bounds as above, applied only when supplied.
      - account_id: a 12-digit AWS account number to filter to one account. Same omit-means-no-filter rule as above.
      - start_date, end_date: ISO-8601 dates or timestamps bounding the contract window (e.g. "2025-01-01" or "2025-01-01T00:00:00Z"). They are validated locally (format, and start_date on or before end_date) and then sent as given.
      - max_items, next_token: paging, as above.

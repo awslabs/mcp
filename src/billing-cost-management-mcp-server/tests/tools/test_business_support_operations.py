@@ -229,7 +229,7 @@ class TestBillingMonthValidation:
     @pytest.mark.parametrize('handler,kwargs', MONTH_VALIDATED_HANDLERS)
     async def test_month_before_floor_is_rejected(self, mock_context, handler, kwargs):
         """A month earlier than the data floor fails for every operation."""
-        result = await _run_rejected(mock_context, handler, billing_month='2024-12')
+        result = await _run_rejected(mock_context, handler, billing_month='2023-12')
 
         assert result['status'] == 'error'
         assert EARLIEST_BILLING_MONTH in result['data']['message']
@@ -1101,7 +1101,7 @@ class TestValidationErrorContract:
             ),
             (
                 list_account_charges,
-                {'billing_month': '2024-12'},
+                {'billing_month': '2023-12'},
                 'ListBusinessSupportAccountCharges',
             ),
             (

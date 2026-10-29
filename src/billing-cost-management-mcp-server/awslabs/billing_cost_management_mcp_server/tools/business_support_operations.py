@@ -51,7 +51,7 @@ ACCOUNT_ID_PATTERN = re.compile(r'\d{12}')
 
 # Oldest billing month the Business Support APIs serve. Requests earlier than
 # this are rejected locally rather than spending a call that cannot return data.
-EARLIEST_BILLING_MONTH = '2025-01'
+EARLIEST_BILLING_MONTH = '2024-01'
 
 # AWS operation names, used both for the call and to label validation errors.
 LIST_ACCOUNT_CHARGES_OPERATION = 'ListBusinessSupportAccountCharges'
