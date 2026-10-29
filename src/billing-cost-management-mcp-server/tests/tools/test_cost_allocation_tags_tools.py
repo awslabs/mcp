@@ -519,6 +519,7 @@ class TestListCostAllocationTagsInputs:
 
         assert result['status'] == 'success'
         assert len(client.list_cost_allocation_tags.call_args.kwargs['TagKeys']) == 100
+        assert 'note' not in result['data']
 
     async def test_expansion_over_100_keys_falls_back_to_keys_as_given(self, mock_context):
         """51 user: keys would expand to 102, so the caller's keys are sent unexpanded."""
@@ -533,10 +534,9 @@ class TestListCostAllocationTagsInputs:
         assert result['status'] == 'success'
         assert [t['TagKey'] for t in result['data']['CostAllocationTags']] == ['user:k3']
         assert result['data']['note'] == (
-            'The 51 keys starting with user: were looked up only as given: adding their '
-            "unprefixed forms would make 102 keys, over the API's limit of 100. Stored keys "
-            'normally have no user: prefix, so pass the keys without it, or split tag_keys '
-            'across calls.'
+            'Sent the keys only as given: adding the unprefixed form of 51 user: keys would '
+            "make 102 keys, over the API's limit of 100. To look those up, pass them without "
+            'user:, or split tag_keys across calls.'
         )
 
     async def test_fallback_still_sends_repeated_keys_once(self, mock_context):
@@ -553,9 +553,64 @@ class TestListCostAllocationTagsInputs:
         )
         assert result['status'] == 'success'
         assert result['data']['note'].startswith(
-            'The 60 keys starting with user: were looked up only as given: adding their '
-            'unprefixed forms would make 121 keys'
+            'Sent the keys only as given: adding the unprefixed form of 60 user: keys would '
+            'make 121 keys'
         )
+
+    async def test_fallback_note_counts_only_keys_whose_unprefixed_form_was_dropped(
+        self, mock_context
+    ):
+        """user:k0-39 already have k0-39 listed and a bare user: has no unprefixed form."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+        keys = [f'user:k{i}' for i in range(60)] + ['user:'] + [f'k{i}' for i in range(39)]
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(mock_context, tag_keys=json.dumps(keys))
+
+        client.list_cost_allocation_tags.assert_called_once_with(TagKeys=keys, MaxResults=1000)
+        assert result['data']['note'].startswith(
+            'Sent the keys only as given: adding the unprefixed form of 21 user: keys would '
+            'make 121 keys'
+        )
+
+    async def test_fallback_note_singular_for_one_key(self, mock_context):
+        """100 keys where only one unprefixed form is missing: the note says 1 key."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+        keys = [f'k{i}' for i in range(99)] + ['user:x']
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(mock_context, tag_keys=json.dumps(keys))
+
+        client.list_cost_allocation_tags.assert_called_once_with(TagKeys=keys, MaxResults=1000)
+        assert 'of 1 user: key would make 101 keys' in result['data']['note']
+
+    async def test_over_100_distinct_user_keys_is_rejected(self, mock_context):
+        """101 distinct user: keys is rejected locally with the plain over-limit message."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+        keys = [f'user:k{i}' for i in range(101)]
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(mock_context, tag_keys=json.dumps(keys))
+
+        client.list_cost_allocation_tags.assert_not_called()
+        assert result['error_type'] == 'validation_error'
+        assert result['message'].startswith('tag_keys has 101 distinct keys')
+
+    async def test_many_repeats_of_few_keys_are_sent_once_without_note(self, mock_context):
+        """150 entries of one key are one distinct key: sent once, no fallback."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client('Team')
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(
+                mock_context, tag_keys=json.dumps(['Team'] * 150)
+            )
+
+        client.list_cost_allocation_tags.assert_called_once_with(TagKeys=['Team'], MaxResults=1000)
+        assert 'note' not in result['data']
 
     async def test_over_100_plain_keys_is_rejected_without_expansion_text(self, mock_context):
         """101 keys without user: get a plain over-limit message."""
@@ -709,7 +764,10 @@ async def test_list_tags_description_states_key_and_enum_rules():
     assert 'the stored key normally has no prefix' in description
     assert 'Repeated keys are sent once' in description
     assert 'as given and also without the prefix, and adds a note' in description
-    assert 'At most 100 keys. If the unprefixed keys would take the total over 100' in description
+    assert (
+        'At most 100 distinct keys. If the unprefixed forms would take the total over 100'
+        in description
+    )
     assert 'At most 100 keys, counting the unprefixed keys the tool adds' not in description
     assert 'Team and team are separate tags' in description
     assert 'AWSGenerated is exactly the keys that start with aws:' in description
