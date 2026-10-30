@@ -601,3 +601,23 @@ def mock_PsycopgPoolConnection():
         region='us-east-1',
         is_test=True,
     )
+
+
+@pytest.fixture(autouse=True)
+def _clear_proxy_lookup_cache():
+    """Reset the RDS Proxy lookup cache around every test.
+
+    ``find_proxy_for_instance`` memoizes per (region, instance) with a short TTL,
+    in module-level state. Without this, a result cached by one test is returned to
+    the next one that happens to use the same region and instance identifier -- so
+    a test asserting "no proxy found" could pass or fail depending on which tests
+    ran before it. Autouse because the cache is global: any test that reaches the
+    lookup, directly or through internal_create_connection, is affected.
+    """
+    from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+        clear_proxy_lookup_cache,
+    )
+
+    clear_proxy_lookup_cache()
+    yield
+    clear_proxy_lookup_cache()

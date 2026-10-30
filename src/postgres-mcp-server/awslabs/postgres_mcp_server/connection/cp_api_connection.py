@@ -14,8 +14,10 @@
 
 import boto3
 import json
+import threading
 import time
 from awslabs.postgres_mcp_server import __user_agent__
+from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
@@ -128,6 +130,267 @@ def internal_get_cluster_valid_endpoints(
         )
 
     return endpoints
+
+
+# Error codes that mean "this caller will never be allowed to list proxy targets".
+# Retrying per-proxy just multiplies the failure, so the lookup stops on sight.
+_ACCESS_DENIED_CODES = frozenset(
+    {'AccessDenied', 'AccessDeniedException', 'UnauthorizedOperation'}
+)
+
+# RDS Proxy for PostgreSQL always listens on the engine default port. The DBProxy
+# API object carries no port field to read it from, so the proxy path uses this
+# rather than the instance's port -- see connect_port in server.py. (DBProxyTarget
+# does have a Port, but that is the *target's* port, not the proxy's listener.)
+PROXY_LISTEN_PORT = DEFAULT_POSTGRES_PORT
+
+# A healthy, usable proxy target. A proxy can be 'available' while its target is
+# UNAVAILABLE (AUTH_FAILURE, "no registered credentials"), REGISTERING, or UNUSED;
+# routing to any of those produces a connection failure, so only AVAILABLE counts.
+_TARGET_STATE_AVAILABLE = 'AVAILABLE'
+_TARGET_TYPE_RDS_INSTANCE = 'RDS_INSTANCE'
+
+# Proxy topology changes on the order of minutes at worst, while this lookup sits
+# on the connect path and costs 1 + N describe calls. A short TTL keeps repeated
+# connects cheap without pinning a stale answer for long. Keyed by (region,
+# instance); the value is (expiry_monotonic, proxy_dict_or_None) so a negative
+# result is cached too -- the no-proxy case is the common one.
+_PROXY_LOOKUP_TTL_SECONDS = 60.0
+_proxy_lookup_cache: Dict[Tuple[str, str], Tuple[float, Optional[Dict[str, Any]]]] = {}
+_proxy_lookup_cache_lock = threading.Lock()
+
+
+def clear_proxy_lookup_cache() -> None:
+    """Drop every cached proxy lookup. Intended for tests and for --rds_proxy flips."""
+    with _proxy_lookup_cache_lock:
+        _proxy_lookup_cache.clear()
+
+
+def _target_matches_instance(target: Dict[str, Any], db_instance_id: str) -> bool:
+    """Return True when a proxy target is a healthy RDS instance target for this instance.
+
+    All three conditions matter. ``Type`` excludes RDS_SERVERLESS_ENDPOINT and
+    TRACKED_CLUSTER targets, whose RdsResourceId is a cluster identifier that could
+    collide with an instance name. ``TargetHealth.State`` excludes a target the
+    proxy knows about but cannot currently serve.
+    """
+    return (
+        target.get('Type') == _TARGET_TYPE_RDS_INSTANCE
+        and target.get('RdsResourceId') == db_instance_id
+        and (target.get('TargetHealth') or {}).get('State') == _TARGET_STATE_AVAILABLE
+    )
+
+
+def find_proxy_for_instance(db_instance_id: str, region: str) -> Optional[Dict[str, Any]]:
+    """Find an available RDS Proxy with a healthy target for the given DB instance.
+
+    Returns the whole ``DBProxy`` object rather than just its endpoint so the caller
+    can check the proxy's ``Auth`` configuration against the connection method in
+    use -- a proxy that fronts the instance is not necessarily one this server can
+    authenticate to. See ``proxy_supports_connection``.
+
+    Best-effort by design: any API or permission failure logs and returns None so
+    the caller falls back to a direct instance connection rather than failing.
+
+    Results are cached per (region, instance) for a short TTL, including negative
+    results, because this runs on the connect path.
+
+    Args:
+        db_instance_id: The RDS DB instance identifier to look up.
+        region: AWS region (e.g., 'us-east-1').
+
+    Returns:
+        The matching DBProxy dict, or None if no usable proxy fronts the instance.
+    """
+    cache_key = (region, db_instance_id)
+    now = time.monotonic()
+    with _proxy_lookup_cache_lock:
+        cached = _proxy_lookup_cache.get(cache_key)
+        if cached and cached[0] > now:
+            logger.debug(f"Using cached RDS Proxy lookup for '{db_instance_id}' in '{region}'")
+            return cached[1]
+
+    result = _find_proxy_for_instance_uncached(db_instance_id, region)
+
+    with _proxy_lookup_cache_lock:
+        _proxy_lookup_cache[cache_key] = (
+            time.monotonic() + _PROXY_LOOKUP_TTL_SECONDS,
+            result,
+        )
+    return result
+
+
+def _find_proxy_for_instance_uncached(
+    db_instance_id: str, region: str
+) -> Optional[Dict[str, Any]]:
+    """Do the actual proxy search. See find_proxy_for_instance for semantics."""
+    logger.info(f"Looking for RDS Proxy fronting instance '{db_instance_id}' in region '{region}'")
+
+    matches: List[Dict[str, Any]] = []
+    try:
+        rds_client = internal_create_rds_client(region=region)
+
+        proxy_paginator = rds_client.get_paginator('describe_db_proxies')
+        for proxy_page in proxy_paginator.paginate():
+            for proxy in proxy_page.get('DBProxies', []):
+                proxy_name = proxy.get('DBProxyName', '')
+                proxy_status = proxy.get('Status', '')
+
+                if proxy_status != 'available':
+                    logger.debug(f"Skipping proxy '{proxy_name}' with status '{proxy_status}'")
+                    continue
+
+                try:
+                    targets_paginator = rds_client.get_paginator('describe_db_proxy_targets')
+                    for targets_page in targets_paginator.paginate(DBProxyName=proxy_name):
+                        for target in targets_page.get('Targets', []):
+                            if _target_matches_instance(target, db_instance_id):
+                                matches.append(proxy)
+                                break
+                        else:
+                            continue
+                        break
+                except ClientError as e:
+                    code = e.response['Error']['Code']
+                    message = e.response['Error']['Message']
+                    if code in _ACCESS_DENIED_CODES:
+                        # Not a per-proxy problem: the caller lacks the permission
+                        # outright, so every remaining proxy would fail the same
+                        # way. Warn once and fall back.
+                        logger.warning(
+                            f'Not authorized to describe RDS Proxy targets in '
+                            f"region '{region}': {code} - {message}. Add "
+                            f'rds:DescribeDBProxyTargets to enable proxy '
+                            f'detection. Falling back to direct instance connection.'
+                        )
+                        return None
+                    logger.warning(
+                        f"Failed to describe targets for proxy '{proxy_name}': {code} - {message}"
+                    )
+                    continue
+
+    except ClientError as e:
+        logger.warning(
+            f"Failed to look up RDS Proxies in region '{region}': "
+            f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}. '
+            f'Falling back to direct instance connection.'
+        )
+        return None
+    except Exception as e:
+        logger.warning(
+            f"Unexpected error during RDS Proxy lookup in region '{region}': "
+            f'{type(e).__name__}: {e}. Falling back to direct instance connection.'
+        )
+        return None
+
+    if not matches:
+        logger.info(f"No RDS Proxy found for instance '{db_instance_id}' in region '{region}'")
+        return None
+
+    # Deterministic choice: the API returns proxies in no guaranteed order, and
+    # silently depending on that order would make behavior vary between calls.
+    matches.sort(key=lambda p: p.get('DBProxyName', ''))
+    chosen = matches[0]
+    if len(matches) > 1:
+        logger.warning(
+            f"{len(matches)} RDS Proxies front instance '{db_instance_id}': "
+            f'{[p.get("DBProxyName", "") for p in matches]}. '
+            f"Using '{chosen.get('DBProxyName', '')}' (first by name). Set "
+            f'--rds_proxy off and supply the intended proxy endpoint directly if '
+            f'this is not the one you want.'
+        )
+
+    logger.info(
+        f"Found RDS Proxy '{chosen.get('DBProxyName', '')}' "
+        f'(endpoint: {chosen.get("Endpoint", "")}) '
+        f"fronting instance '{db_instance_id}'"
+    )
+    return chosen
+
+
+def proxy_supports_connection(
+    proxy: Dict[str, Any],
+    connection_method: str,
+    secret_arn: str,
+) -> Tuple[bool, str]:
+    """Check whether a proxy will accept the connection this server is about to make.
+
+    A proxy that fronts the instance is not necessarily one we can authenticate to.
+    RDS Proxy only accepts users whose secrets are registered in its ``Auth`` list,
+    and each entry independently decides whether IAM auth is disallowed, permitted,
+    or mandatory. Routing to an incompatible proxy turns a working direct
+    connection into an authentication failure, which is exactly the regression that
+    makes proxy routing opt-in.
+
+    Matching rules, per ``UserAuthConfigInfo`` entry:
+
+    - ``IAMAuth=REQUIRED`` accepts only PG_WIRE_IAM_PROTOCOL; a password connection
+      is rejected by the proxy.
+    - ``IAMAuth=DISABLED`` accepts only password auth; an IAM token is rejected.
+    - ``IAMAuth=ENABLED`` accepts either.
+    - For password auth the entry's ``SecretArn`` must be the secret we will
+      actually authenticate with, otherwise the proxy has no credentials for us.
+
+    Args:
+        proxy: A DBProxy dict as returned by find_proxy_for_instance.
+        connection_method: The ConnectionMethod value in use.
+        secret_arn: The Secrets Manager ARN this connection will authenticate with,
+            or '' when none is resolved (valid on the IAM path).
+
+    Returns:
+        ``(True, reason)`` when the proxy should accept the connection, else
+        ``(False, reason)``. The reason is for logging in both cases.
+    """
+    proxy_name = proxy.get('DBProxyName', '')
+
+    if connection_method == ConnectionMethod.RDS_API:
+        # The Data API talks HTTPS to the cluster, never the Postgres wire
+        # protocol, so a proxy is not on its path at all.
+        return (False, f"connection method '{connection_method}' does not use an RDS Proxy")
+
+    auth_entries = proxy.get('Auth') or []
+    if not auth_entries:
+        return (False, f"proxy '{proxy_name}' has no Auth entries configured")
+
+    is_iam = connection_method == ConnectionMethod.PG_WIRE_IAM_PROTOCOL
+    rejections: List[str] = []
+
+    for entry in auth_entries:
+        iam_auth = (entry.get('IAMAuth') or 'DISABLED').upper()
+        entry_secret = entry.get('SecretArn') or ''
+        described = entry.get('UserName') or entry_secret or '<unnamed>'
+
+        if is_iam:
+            if iam_auth in ('REQUIRED', 'ENABLED'):
+                return (
+                    True,
+                    f"proxy '{proxy_name}' entry '{described}' permits IAM auth "
+                    f'(IAMAuth={iam_auth})',
+                )
+            rejections.append(f"'{described}' has IAMAuth={iam_auth}")
+            continue
+
+        # Password auth.
+        if iam_auth == 'REQUIRED':
+            rejections.append(f"'{described}' requires IAM auth (IAMAuth=REQUIRED)")
+            continue
+        if not secret_arn:
+            rejections.append(f"'{described}' needs a secret but none is configured")
+            continue
+        if entry_secret != secret_arn:
+            rejections.append(f"'{described}' registers a different secret")
+            continue
+        return (
+            True,
+            f"proxy '{proxy_name}' entry '{described}' registers the secret in use "
+            f'(IAMAuth={iam_auth})',
+        )
+
+    return (
+        False,
+        f"no Auth entry on proxy '{proxy_name}' accepts connection method "
+        f"'{connection_method}': {'; '.join(rejections)}",
+    )
 
 
 def internal_get_instance_properties(target_endpoint: str, region: str) -> Dict[str, Any]:

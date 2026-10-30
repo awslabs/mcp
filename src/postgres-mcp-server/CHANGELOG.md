@@ -54,6 +54,42 @@ not always obvious from the entries below.
 
 ### Added
 
+- **RDS Proxy auto-detection for standalone RPG instances, behind `--rds_proxy`.**
+  With `--rds_proxy auto`, connecting to a standalone RDS PostgreSQL instance
+  (`RPG` with no `cluster_identifier`) checks whether an available RDS Proxy fronts
+  that instance and connects through it when one is found. The default is `off`,
+  which behaves exactly as before. Cluster-backed targets (APG, and RPG multi-AZ
+  clusters) are unaffected in either mode.
+
+  Opt-in rather than automatic because a proxy that fronts an instance is not
+  necessarily one the server can use: the proxy only accepts users whose secrets
+  are registered in its `Auth` configuration, each entry independently allows or
+  requires IAM auth, a `pgwire_iam` policy must authorize the proxy resource
+  (`prx-*`) rather than the instance, and the proxy may be unreachable from a host
+  that can reach the instance. Enabling it automatically would have turned working
+  direct connections into failures on upgrade.
+
+  Under `auto`, a proxy is used only when its `Auth` configuration accepts the
+  connection method and secret in use, and only when its target for the instance
+  reports `TargetHealth.State == AVAILABLE` — an `available` proxy can have an
+  unusable target. An incompatible or unhealthy proxy is skipped with a logged
+  reason and the connection goes direct. Discovery is best-effort: a missing
+  `rds:DescribeDBProxies` / `rds:DescribeDBProxyTargets` permission, or any API
+  failure, logs a warning and connects directly. Results are cached briefly per
+  instance, so repeated connects do not re-query.
+
+  Routing is transparent to callers: the instance endpoint stays the target's
+  identity, and only the connection's host and port change. `db_endpoint` continues
+  to key the per-target `--secret_arn` override map and the connection cache, and is
+  what `connect_to_database` echoes back. A proxied connection adds a
+  `proxy_endpoint` field to that response — and to `get_database_connection_info` —
+  with the key absent entirely for a direct connection.
+
+  The proxy is dialed on port 5432 rather than the instance's port: RDS Proxy for
+  PostgreSQL always listens on the engine default and exposes no port to read, and
+  that port also determines which port a `pgwire_iam` token is signed for. The
+  reported `port` remains the instance's own.
+
 - `create_cluster` gains an optional `enable_iam_auth` flag (default `False`)
   that enables IAM database authentication (`EnableIAMDatabaseAuthentication`)
   on serverless Aurora clusters it creates. It only permits IAM token auth in
