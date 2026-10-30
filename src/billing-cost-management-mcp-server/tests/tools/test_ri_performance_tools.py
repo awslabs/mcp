@@ -465,8 +465,10 @@ class TestGetReservationCoverage:
         'awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.paginate_aws_items'
     )
     @patch('awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.parse_json')
+    @patch('awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.parse_filter')
     async def test_get_reservation_coverage_with_options(
         self,
+        mock_parse_filter,
         mock_parse_json,
         mock_paginate_response,
         mock_get_date_range,
@@ -490,7 +492,8 @@ class TestGetReservationCoverage:
         }
         mock_sort_by = {'Key': 'CoverageHoursPercentage', 'SortOrder': 'DESCENDING'}
 
-        mock_parse_json.side_effect = [mock_metrics, mock_group_by, mock_filter, mock_sort_by]
+        mock_parse_json.side_effect = [mock_metrics, mock_group_by, mock_sort_by]
+        mock_parse_filter.return_value = mock_filter
 
         # Execute
         result = await get_reservation_coverage(
@@ -509,7 +512,7 @@ class TestGetReservationCoverage:
         # Assert
         mock_parse_json.assert_any_call('metrics_json', 'metrics')
         mock_parse_json.assert_any_call('group_by_json', 'group_by')
-        mock_parse_json.assert_any_call('filter_json', 'filter')
+        mock_parse_filter.assert_called_once_with('filter_json')
         mock_parse_json.assert_any_call('sort_by_json', 'sort_by')
 
         request_params = mock_paginate_response.call_args[0][3]
@@ -626,8 +629,10 @@ class TestGetReservationUtilization:
         'awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.paginate_aws_items'
     )
     @patch('awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.parse_json')
+    @patch('awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.parse_filter')
     async def test_get_reservation_utilization_with_options(
         self,
+        mock_parse_filter,
         mock_parse_json,
         mock_paginate_response,
         mock_get_date_range,
@@ -650,7 +655,8 @@ class TestGetReservationUtilization:
         }
         mock_sort_by = {'Key': 'UtilizationPercentage', 'SortOrder': 'DESCENDING'}
 
-        mock_parse_json.side_effect = [mock_group_by, mock_filter, mock_sort_by]
+        mock_parse_json.side_effect = [mock_group_by, mock_sort_by]
+        mock_parse_filter.return_value = mock_filter
 
         # Execute
         result = await get_reservation_utilization(
@@ -667,7 +673,7 @@ class TestGetReservationUtilization:
 
         # Assert
         mock_parse_json.assert_any_call('group_by_json', 'group_by')
-        mock_parse_json.assert_any_call('filter_json', 'filter')
+        mock_parse_filter.assert_called_once_with('filter_json')
         mock_parse_json.assert_any_call('sort_by_json', 'sort_by')
 
         request_params = mock_paginate_response.call_args[0][3]

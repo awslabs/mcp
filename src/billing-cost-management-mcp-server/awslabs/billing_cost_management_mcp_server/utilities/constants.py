@@ -213,8 +213,9 @@ RESOURCE_TYPE_RDS = 'RdsDbInstance'
 
 # ===== Recommendation Details - Mapping Constants =====
 
-# Term mapping (1-year, 3-year)
-TERM_MAP = {'OneYear': 'ONE_YEAR', 'ThreeYear': 'THREE_YEARS'}
+# Term mapping (1-year, 3-year). Cost Optimization Hub spells the three-year term
+# 'ThreeYears'; the singular spelling is kept in case a payload uses it.
+TERM_MAP = {'OneYear': 'ONE_YEAR', 'ThreeYears': 'THREE_YEARS', 'ThreeYear': 'THREE_YEARS'}
 
 # Payment option mapping
 PAYMENT_OPTION_MAP = {
@@ -222,6 +223,10 @@ PAYMENT_OPTION_MAP = {
     'PartialUpfront': 'PARTIAL_UPFRONT',
     'NoUpfront': 'NO_UPFRONT',
 }
+
+# DynamoDB reserved capacity: Cost Optimization Hub shows Cost Explorer's HEAVY_UTILIZATION
+# recommendation as PartialUpfront, and Cost Explorer has none under PARTIAL_UPFRONT.
+DYNAMODB_PAYMENT_OPTION_MAP = {**PAYMENT_OPTION_MAP, 'PartialUpfront': 'HEAVY_UTILIZATION'}
 
 # Account scope mapping
 ACCOUNT_SCOPE_MAP = {'Linked': 'LINKED', 'Payer': 'PAYER'}

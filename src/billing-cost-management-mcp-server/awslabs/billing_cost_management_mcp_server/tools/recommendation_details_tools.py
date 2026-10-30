@@ -25,6 +25,7 @@ from ..utilities.constants import (
     ACTION_TYPE_PURCHASE_RESERVED_INSTANCE,
     ACTION_TYPE_PURCHASE_SAVINGS_PLAN,
     ACTION_TYPE_STOP,
+    DYNAMODB_PAYMENT_OPTION_MAP,
     LOOKBACK_PERIOD_MAP,
     PAYMENT_OPTION_MAP,
     RESOURCE_TYPE_EBS_VOLUME,
@@ -63,8 +64,15 @@ COMMITMENT PURCHASE DETAILS:
 - For PurchaseReservedInstances, additional_details is the Cost Explorer reservation purchase
   recommendation for the recommendation's service, term and payment option. It may list several
   instance types and regions; EstimatedBreakEvenInMonths is per RecommendationDetails row.
+- When the Cost Explorer or Compute Optimizer lookup fails or is skipped,
+  the response leads with a warning and additional_details holds only an error;
+  base_recommendation is still valid. A lookup that runs but finds nothing
+  returns empty results and no warning.
 - Savings Plans recommendations carry no break-even. They return EstimatedROI (estimated savings /
   Savings Plan cost x 100 over the lookback period), which is not a payback period.
+- DynamoDB reserved capacity: Cost Optimization Hub shows the payment option as PartialUpfront,
+  and Cost Explorer returns the same recommendation as Heavy_Utilization. These are two names for
+  one payment option, not a mismatch.
 
 RESPONSE FORMATTING INSTRUCTIONS:
 The tool may return both raw recommendation data and a formatting template.
@@ -115,11 +123,23 @@ async def process_recommendation(ctx: Context, recommendation: Dict[str, Any]) -
     if action_type in [ACTION_TYPE_PURCHASE_SAVINGS_PLAN, ACTION_TYPE_PURCHASE_RESERVED_INSTANCE]:
         # Get Cost Explorer data for Savings Plans or Reserved Instances
         additional_data = await get_cost_explorer_data(ctx, recommendation)
-        result['additional_details'] = additional_data
+        source = 'Cost Explorer purchase recommendation'
     else:
         # Get Compute Optimizer data for other recommendation types
         additional_data = await get_compute_optimizer_data(ctx, recommendation)
-        result['additional_details'] = additional_data
+        source = 'Compute Optimizer details'
+    result['additional_details'] = additional_data
+
+    # The base recommendation is still valid, so the status stays success, but lead with a
+    # warning so the missing details are not mistaken for data.
+    if additional_data.get('error'):
+        result = {
+            'warning': (
+                f'additional_details has no {source}; additional_details.error says why. '
+                'base_recommendation is still valid.'
+            ),
+            **result,
+        }
 
     # Get the appropriate template
     template_content = get_template_for_recommendation(
@@ -309,8 +329,11 @@ async def get_reserved_instances_recommendation(
 
     # Map payment option
     payment_option = config.get('paymentOption')
-    if payment_option and payment_option in PAYMENT_OPTION_MAP:
-        params['PaymentOption'] = PAYMENT_OPTION_MAP[payment_option]
+    payment_option_map = (
+        DYNAMODB_PAYMENT_OPTION_MAP if ri_key == 'dynamoDbReservedCapacity' else PAYMENT_OPTION_MAP
+    )
+    if payment_option and payment_option in payment_option_map:
+        params['PaymentOption'] = payment_option_map[payment_option]
 
     # Only proceed if we have the required parameters
     if not all(key in params for key in ['Service', 'TermInYears', 'PaymentOption']):
