@@ -447,6 +447,22 @@ Or group by a tag's values with 'TagKey:<tag key>' (e.g. 'TagKey:Environment'). 
 key is case-sensitive; recommendations without the tag, or for a key that does not exist,
 are grouped under 'NoTagKey'.
 
+SAVINGS TOTALS:
+- For a portfolio total, use list_recommendation_summaries estimated_total_deduped_savings
+  with no filter, or with only accountIds and/or regions. Never add up list_recommendations
+  estimated_monthly_savings: items overlap (commitment purchases and rightsizing or idle
+  actions on the same usage, Auto Scaling groups and their instances, Payer and Linked copies).
+- Filters other than accountIds and regions (actionTypes, resourceTypes, implementationEfforts,
+  restartNeeded, rollbackPossible) change how overlap is netted out, so a filtered total is
+  not that slice's share of the portfolio total, and filtered totals do not sum to it.
+- list_recommendation_summaries totals and groups do not include DatabaseSavingsPlans
+  recommendations. list_recommendations returns them, so add their estimated_monthly_savings
+  to the summary total and say that the total was built that way.
+- Commitment (Savings Plans/Reserved Instance) savings assume current usage; implementing
+  rightsizing or idle recommendations reduces them.
+- With include_all_recommendations=true, the same purchase appears once per term, payment
+  option, and Payer/Linked scope, so a sum is inflated further.
+
 CRITICAL PARAMETER REQUIREMENTS:
 - 'filters' parameter must be passed as JSON string format
 - 'max_items' must be integer (not string)
@@ -599,8 +615,9 @@ async def cost_optimization_hub(
             omitted (default): one deduplicated recommendation per resource, and
             one Savings Plans/Reserved Instances purchase option per covered usage,
             chosen first by the account's commitment preference; Cost Optimization Hub
-            hides the alternatives. True: every recommendation,
-            including alternatives whose savings must not be added together.
+            hides the alternatives. True: every recommendation, including one row per
+            term, payment option, and Payer/Linked scope for the same purchase, so do
+            not sum their estimated_monthly_savings to get a total.
         next_token: Pagination token to resume from a previous response.
             Applies to list_recommendations, list_recommendation_summaries, and
             list_efficiency_metrics.
@@ -695,7 +712,7 @@ async def cost_optimization_hub(
                         'list_recommendation_summaries. Use one of supported_filters.',
                     )
 
-                effective_group_by = str(group_by) if group_by else 'RESOURCE_TYPE'
+                effective_group_by = str(group_by)
                 await ctx.info(f'Using group_by: {effective_group_by}')
 
                 result = await list_recommendation_summaries(

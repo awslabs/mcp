@@ -25,7 +25,7 @@ from ..utilities.aws_service_base import (
 )
 from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from fastmcp import Context, FastMCP
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 
 cost_allocation_tags_server = FastMCP(
@@ -48,6 +48,55 @@ LIST_COST_ALLOCATION_TAG_BACKFILL_HISTORY = PageSpec(
     page_max=1000,
     page_size_param='MaxResults',
 )
+
+
+# Cost allocation report and Cost and Usage Report columns add user: to user-defined tag keys
+# (resourceTags/user:Team); the stored key normally has no prefix. ListCostAllocationTags
+# matches keys exactly.
+USER_TAG_PREFIX = 'user:'
+MAX_TAG_KEYS = 100
+
+# The API's enum values, keyed by lowercase, so any casing of a valid value is accepted.
+STATUS_VALUES = {value.lower(): value for value in ('Active', 'Inactive')}
+TAG_TYPE_VALUES = {value.lower(): value for value in ('AWSGenerated', 'UserDefined')}
+
+
+def _expand_tag_keys(keys: List[str]) -> Tuple[List[str], Dict[str, str]]:
+    """Add each user:-prefixed key's stripped form, keeping order and dropping repeats.
+
+    Both forms are sent because a stored key may itself start with user:. The API
+    rejects a request that lists the same key twice.
+
+    Returns:
+        ``(keys to send, {stripped key: key as given})`` for stripped keys the caller
+        did not list themselves.
+    """
+    sent: List[str] = []
+    seen: Set[str] = set()
+    stripped_from: Dict[str, str] = {}
+    for key in keys:
+        if key not in seen:
+            seen.add(key)
+            sent.append(key)
+        stripped = key[len(USER_TAG_PREFIX) :] if key.startswith(USER_TAG_PREFIX) else ''
+        if stripped and stripped not in seen:
+            seen.add(stripped)
+            sent.append(stripped)
+            stripped_from[stripped] = key
+    for key in keys:
+        stripped_from.pop(key, None)
+    return sent, stripped_from
+
+
+def _tag_keys_error(message: str) -> Dict[str, Any]:
+    """A validation error for the tag_keys parameter, returned before any API call."""
+    return format_response(
+        'error',
+        {'message': message},
+        error_type='validation_error',
+        operation='ListCostAllocationTags',
+        service='Cost Explorer',
+    )
 
 
 async def _list_by_tag_keys(
@@ -112,10 +161,18 @@ The tool returns CostAllocationTag objects containing:
 - LastUsedDate (last month the tag appeared on a billed resource, for identifying stale tags)
 
 You can filter tags by:
-- status: Active or Inactive
-- tag_keys: JSON array of tag key strings to look up (max 100, case-sensitive).
-  Example: '["Environment", "Team", "CostCenter"]'
-- tag_type: AWSGenerated or UserDefined
+- status: Active or Inactive (any case).
+- tag_keys: JSON array of tag keys to look up. Example: '["Environment", "Team"]'
+  - Cost allocation report and Cost and Usage Report columns add user: to user-defined
+    keys (resourceTags/user:Team is the key Team); the stored key normally has no prefix. The
+    tool sends a key starting with user: as given and also without the prefix, and adds a
+    note when a tag matched only that way. Repeated keys are sent once.
+  - At most 100 distinct keys. If the unprefixed forms would take the total over 100, only the
+    keys as given are sent, and a note says so.
+  - Keys are case-sensitive: Team and team are separate tags. Unknown keys are left out of
+    the result without an error.
+- tag_type: AWSGenerated or UserDefined (any case). AWSGenerated is exactly the keys that
+  start with aws:. Every other key, including one starting with user:, is UserDefined.
 
 Pagination:
 - max_items: total number of tags returned. If it is omitted, the tool fetches every page for """
@@ -146,9 +203,10 @@ async def list_cost_allocation_tags(
 
     Args:
         ctx: The MCP context object
-        status: Filter by tag status (Active, Inactive)
-        tag_keys: JSON array of tag key strings to filter by (max 100)
-        tag_type: Filter by tag type (AWSGenerated, UserDefined)
+        status: Filter by tag status (Active, Inactive; any case)
+        tag_keys: JSON array of tag key strings to filter by (max 100 distinct). If adding the
+            stripped form of each user:-prefixed key would exceed 100, the keys are sent as given.
+        tag_type: Filter by tag type (AWSGenerated, UserDefined; any case)
         max_items: Total tags to return. None fetches every page.
         next_token: Pagination token from previous response. Not used with tag_keys.
 
@@ -161,23 +219,42 @@ async def list_cost_allocation_tags(
         ce_client = create_aws_client('ce')
         params: Dict[str, Any] = {}
 
+        stripped_from: Dict[str, str] = {}
+        fallback_note = ''
+
         if status:
-            params['Status'] = status
+            params['Status'] = STATUS_VALUES.get(status.lower(), status)
         if tag_keys:
             try:
-                params['TagKeys'] = json.loads(tag_keys)
+                keys = json.loads(tag_keys)
             except json.JSONDecodeError as e:
-                return format_response(
-                    'error',
-                    {
-                        'message': f'Invalid JSON for tag_keys parameter: {e}',
-                    },
-                    error_type='validation_error',
-                    operation='ListCostAllocationTags',
-                    service='Cost Explorer',
+                return _tag_keys_error(f'Invalid JSON for tag_keys parameter: {e}')
+            if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
+                return _tag_keys_error(
+                    'tag_keys must be a JSON array of strings, e.g. \'["Environment", "Team"]\''
+                )
+            if not keys:
+                return _tag_keys_error('tag_keys must list at least one key, or be omitted')
+            distinct = list(dict.fromkeys(keys))
+            if len(distinct) > MAX_TAG_KEYS:
+                return _tag_keys_error(
+                    f'tag_keys has {len(distinct)} distinct keys; the API accepts at most '
+                    f'{MAX_TAG_KEYS}. Split the keys across calls.'
+                )
+            params['TagKeys'], stripped_from = _expand_tag_keys(distinct)
+            count = len(params['TagKeys'])
+            if count > MAX_TAG_KEYS:
+                # The caller's own keys are a valid request; send them rather than fail.
+                params['TagKeys'], stripped_from = distinct, {}
+                added = count - len(distinct)
+                fallback_note = (
+                    'Sent the keys only as given: adding the unprefixed form of '
+                    f'{added} {USER_TAG_PREFIX} {"key" if added == 1 else "keys"} would make '
+                    f"{count} keys, over the API's limit of {MAX_TAG_KEYS}. To look those up, "
+                    f'pass them without {USER_TAG_PREFIX}, or split tag_keys across calls.'
                 )
         if tag_type:
-            params['Type'] = tag_type
+            params['Type'] = TAG_TYPE_VALUES.get(tag_type.lower(), tag_type)
 
         if 'TagKeys' in params:
             if next_token is not None:
@@ -204,9 +281,21 @@ async def list_cost_allocation_tags(
                 max_items=max_items,
                 next_token=next_token,
             )
-        return format_response(
-            'success', with_pagination({'CostAllocationTags': tags}, pagination)
-        )
+        data: Dict[str, Any] = {'CostAllocationTags': tags}
+        matched = [
+            f"'{stripped_from[t['TagKey']]}' matched tag key '{t['TagKey']}'"
+            for t in tags
+            if isinstance(t, dict) and t.get('TagKey') in stripped_from
+        ]
+        if matched:
+            data['note'] = (
+                '; '.join(matched) + '. Cost allocation report and Cost and Usage Report '
+                f'columns add {USER_TAG_PREFIX} to user-defined tag keys; the stored key '
+                'normally has no prefix.'
+            )
+        if fallback_note:
+            data['note'] = fallback_note
+        return format_response('success', with_pagination(data, pagination))
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'ListCostAllocationTags', 'Cost Explorer')

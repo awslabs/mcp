@@ -331,7 +331,7 @@ async def list_recommendation_summaries(
     Args:
         ctx: MCP context
         coh_client: Cost Optimization Hub client
-        group_by: Grouping parameter (e.g. ``RESOURCE_TYPE``)
+        group_by: Grouping dimension (e.g. ``ResourceType``)
         max_items: Most summaries to return. None fetches every page.
         filters: Optional filters dictionary
         next_token: Pagination token to resume from a previous response
