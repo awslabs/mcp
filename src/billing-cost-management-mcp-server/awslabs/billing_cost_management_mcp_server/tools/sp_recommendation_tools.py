@@ -22,6 +22,7 @@ from ..utilities.aws_service_base import (
     paginate_aws_items,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.logging_utils import get_context_logger
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
@@ -85,7 +86,9 @@ message and does not mean potential savings are zero.
 PAGINATION (get_savings_plans_purchase_recommendation, where the items are the recommendation
 details, and list_savings_plans_purchase_recommendation_generation; the other operations take
 neither parameter):
-- max_items is the total number of items returned. Omit it to fetch every page (no limit). Pass it,
+- max_items is the total number of items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it,
   or narrow the filter, for queries that can be large.
 - If the response has complete_dataset: false, call again with a larger max_items, continue with
   next_token, or state in the answer that the result is partial.""",

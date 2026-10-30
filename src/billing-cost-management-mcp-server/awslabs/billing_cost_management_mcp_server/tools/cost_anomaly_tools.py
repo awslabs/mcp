@@ -26,6 +26,7 @@ from ..utilities.aws_service_base import (
     validate_date_format,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.logging_utils import get_context_logger
 from datetime import date, datetime, timedelta, timezone
 from fastmcp import Context, FastMCP
@@ -85,7 +86,9 @@ Feedback status options:
 - PLANNED_ACTIVITY: Anomalies marked as planned activities
 
 Pagination:
-- max_items: total number of anomalies returned. Omit it to fetch every page (no limit).
+- max_items: total number of anomalies returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result.
   Pass it, or narrow the filters (monitor_arn, total impact, a shorter date range), for
   accounts with many anomalies.
 - Anomalies come back newest first (by anomaly end date), so max_items=N returns the N most

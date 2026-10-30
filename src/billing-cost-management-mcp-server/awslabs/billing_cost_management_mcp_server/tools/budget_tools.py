@@ -30,6 +30,7 @@ from ..utilities.aws_service_base import (
     paginate_aws_items,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.sql_utils import convert_response_if_needed
 from ..utilities.time_utils import format_timestamp_to_utc_iso
 from botocore.exceptions import ClientError
@@ -41,11 +42,14 @@ from typing import Any, Dict, List, Optional
 budget_server = FastMCP(name='budget-tools', instructions='Tools for working with AWS Budgets API')
 
 
-_PAGINATION_DESCRIPTION = """Pagination: `max_items` is the total number of items to return. Omit it to fetch every
-page (no limit); pass it when the account can have many budgets. A partial result leads with
+_PAGINATION_DESCRIPTION = (
+    """Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it when the account can have many budgets. A partial result leads with
 `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by passing
 `pagination.next_token` back as `next_token`, or say in the answer that the result is partial.
 `pagination.items_returned` counts the items in this response, not every item that exists."""
+)
 
 
 # =============================================================================
