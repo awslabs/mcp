@@ -374,7 +374,7 @@ Bedrock Custom Model Import MCP サーバーは、適切なセキュリティ管
 ## リンク {#links}
 
 - [ホームページ](https://awslabs.github.io/mcp/)
-- [ドキュメント](https://awslabs.github.io/mcp/servers/aws-bedrock-custom-model-import-mcp-server/)
+- [ドキュメント](https://awslabs.github.io/mcp/servers/aws-bedrock-custom-model-import-mcp-server)
 - [ソースコード](https://github.com/awslabs/mcp.git)
 - [バグトラッカー](https://github.com/awslabs/mcp/issues)
 - [変更履歴](https://github.com/awslabs/mcp/blob/main/src/aws-bedrock-custom-model-import-mcp-server/CHANGELOG.md)

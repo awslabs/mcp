@@ -798,7 +798,7 @@ create_asset_model(properties=[...] * 50)   # ✅ Passes validation
 
 ## ライセンス {#license}
 
-このプロジェクトは Apache License 2.0 のもとでライセンスされています。詳細は [LICENSE](https://github.com/awslabs/mcp/blob/main/src/aws-iot-sitewise/LICENSE) ファイルを参照してください。
+このプロジェクトは Apache License 2.0 のもとでライセンスされています。詳細は [LICENSE](https://github.com/awslabs/mcp/blob/main/src/aws-iot-sitewise-mcp-server/LICENSE) ファイルを参照してください。
 
 ---
 

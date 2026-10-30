@@ -12,7 +12,7 @@ To manage large messages, you can implement the claim check pattern by storing t
 
 The following diagram demonstrates how to use Amazon MQ for RabbitMQ and Amazon S3 to implement the claim check pattern.
 
-The following example demonstrates this pattern using Amazon MQ, the [AWS SDK for Java 2.x](https://docs.aws.amazon.com/https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/home.html), and [Amazon S3](https://docs.aws.amazon.com/https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html):
+The following example demonstrates this pattern using Amazon MQ, the [AWS SDK for Java 2.x](https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/home.html), and [Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html):
 
 1.  First, define a Message class that will hold the Amazon S3 reference identifier.
 
