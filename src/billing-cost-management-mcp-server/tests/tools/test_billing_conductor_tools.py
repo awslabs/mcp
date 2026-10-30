@@ -943,42 +943,40 @@ async def test_descriptions_state_future_billing_period_behavior():
 
 @pytest.mark.asyncio
 async def test_descriptions_state_past_month_with_nothing_in_effect():
-    """Each tool says what a past month with nothing in effect returns: empty, managed plans, or an error."""
+    """Tools that answer a month with nothing in effect predictably say so; the rest stay silent."""
     from awslabs.billing_cost_management_mcp_server.tools import billing_conductor_tools as bct
 
     # Other tests reload this module under a patched FastMCP; reload the real one here.
     real = importlib.reload(bct)
     tools = {t.name: t for t in await real.billing_conductor_server.list_tools()}
     expected = {
-        'list-billing-groups': 'A past month with no billing group in effect returns an empty list, not an error.',
         'list-billing-group-cost-reports': (
             'A past month with no billing group in effect returns an empty list, not an error.'
         ),
         'get-billing-group-cost-report': (
-            'A range with no data for the billing group (for example, before it existed) returns no '
-            'results, not an error.'
-        ),
-        'list-custom-line-items': (
-            'A past month with no custom line item in effect returns an empty list, not an error.'
-        ),
-        'list-pricing-rules': 'A past month with no pricing rule in effect returns an empty list, not an error.',
-        'list-pricing-plans': (
-            'AWS-managed pricing plans are listed for every month, so a past month with none of your '
-            'own pricing plans in effect still returns them rather than an empty list.'
+            'A range with no data for the billing group (for example, months before it took '
+            'effect) returns no results, not an error.'
         ),
         'list-resources-associated-to-custom-line-item': (
-            'fails with ResourceNotFoundException ("Custom line item does not exist."), not an empty list.'
+            'was not in effect (before it started or after it ended) fails with '
+            'ResourceNotFoundException ("Custom line item does not exist."), not an empty list. '
+            'A mistyped ARN can return the same error: confirm the ARN with list-custom-line-items'
         ),
         'list-pricing-rules-for-plan': (
-            'fails with ResourceNotFoundException ("Pricing plan does not exist."), not an empty list.'
+            'fails with ResourceNotFoundException ("Pricing plan does not exist."), not an empty '
+            'list. A mistyped ARN can return the same error: confirm the ARN with list-pricing-plans'
         ),
         'list-pricing-plans-for-rule': (
-            'fails with ResourceNotFoundException ("Pricing rule does not exist."), not an empty list.'
+            'fails with ResourceNotFoundException ("Pricing rule does not exist."), not an empty '
+            'list. A mistyped ARN can return the same error: confirm the ARN with list-pricing-rules'
         ),
     }
     for name, text in expected.items():
         description = ' '.join((tools[name].description or '').split())
         assert text in description, name
-    # Account associations come from the payer's linked accounts, not Billing Conductor records.
-    description = ' '.join((tools['list-account-associations'].description or '').split())
-    assert 'in effect returns an empty list' not in description
+    # These lists can be non-empty for a month with nothing in effect (very old months return
+    # historical records), or list the payer's linked accounts, so they make no such claim.
+    for name in set(tools) - set(expected):
+        description = ' '.join((tools[name].description or '').split())
+        assert 'returns an empty list' not in description, name
+        assert 'returns no results, not an error' not in description, name
