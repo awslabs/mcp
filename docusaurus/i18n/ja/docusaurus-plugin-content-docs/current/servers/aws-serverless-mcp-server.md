@@ -705,10 +705,9 @@ AWS Serverless MCPサーバーは、適切なセキュリティコントロー�
 ## リンク {#links}
 
 - [ホームページ](https://awslabs.github.io/mcp/)
-- [ドキュメント](https://awslabs.github.io/mcp/servers/aws-serverless-mcp-server/)
+- [ドキュメント](https://awslabs.github.io/mcp/servers/aws-serverless-mcp-server)
 - [ソースコード](https://github.com/awslabs/mcp.git)
 - [バグトラッカー](https://github.com/awslabs/mcp/issues)
-- [変更履歴](https://github.com/awslabs/mcp/blob/main/src/aws-serverless-mcp-server/CHANGELOG.md)
 
 ## ライセンス {#license}
 
