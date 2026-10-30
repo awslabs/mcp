@@ -22,6 +22,7 @@ These tests verify the functionality of AWS Free Tier usage monitoring tools, in
 - Error handling for accounts not eligible for Free Tier benefits
 """
 
+import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools import (
     create_free_tier_usage_summary,
@@ -31,43 +32,6 @@ from awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools impo
 from fastmcp import Context
 from fastmcp.tools import FunctionTool
 from unittest.mock import AsyncMock, MagicMock, patch
-
-
-# Create a mock implementation for testing
-async def free_tier_usage(ctx, operation, **kwargs):
-    """Mock implementation of free_tier_usage for testing."""
-    from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base import (
-        format_response,
-    )
-
-    if operation == 'get_free_tier_usage':
-        return {
-            'status': 'success',
-            'data': {
-                'free_tier_usages': [
-                    {
-                        'service': 'Amazon EC2',
-                        'usage': {
-                            'limit': '750 hours',
-                            'used': '250 hours',
-                            'remaining': '500 hours',
-                            'percent_used': 33.33,
-                        },
-                    },
-                    {
-                        'service': 'Amazon S3',
-                        'usage': {
-                            'limit': '5 GB',
-                            'used': '1 GB',
-                            'remaining': '4 GB',
-                            'percent_used': 20.0,
-                        },
-                    },
-                ]
-            },
-        }
-    else:
-        return format_response('error', {}, f'Unsupported operation: {operation}')
 
 
 @pytest.fixture
@@ -303,57 +267,77 @@ class TestGetFreeTierUsageData:
         assert result['data']['freeTierUsages'][0]['service'] == 'Amazon EC2'
 
 
+_TOOLS_MODULE = 'awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools'
+
+
+async def _free_tier_usage_fn():
+    """Return the undecorated function behind the registered free-tier-usage tool."""
+    tool = await free_tier_usage_server.get_tool('free-tier-usage')
+    assert isinstance(tool, FunctionTool)
+    return tool.fn
+
+
 @pytest.mark.asyncio
 class TestFreeTierUsage:
-    """Tests for free_tier_usage function."""
+    """Tests for the free-tier-usage tool."""
 
     async def test_free_tier_usage_get_free_tier_usage(self, mock_context):
-        """Test free_tier_usage with get_free_tier_usage operation."""
-        # Execute
-        result = await free_tier_usage(
-            mock_context,
-            operation='get_free_tier_usage',
-        )
+        """The default operation returns every usage row the API reports."""
+        fn = await _free_tier_usage_fn()
+        client = MagicMock()
+        client.get_free_tier_usage.return_value = {
+            'freeTierUsages': [{'service': 'Amazon EC2'}, {'service': 'Amazon S3'}]
+        }
 
-        # Assert
+        with patch(f'{_TOOLS_MODULE}.create_aws_client', return_value=client):
+            result = await fn(mock_context, operation='get_free_tier_usage')
+
         assert result['status'] == 'success'
-        assert 'data' in result
-        assert 'free_tier_usages' in result['data']
-        assert len(result['data']['free_tier_usages']) == 2
+        assert [u['service'] for u in result['data']['freeTierUsages']] == [
+            'Amazon EC2',
+            'Amazon S3',
+        ]
 
     async def test_free_tier_usage_with_all_parameters(self, mock_context):
-        """Test free_tier_usage with all parameters."""
-        # Execute
-        result = await free_tier_usage(
-            mock_context,
-            operation='get_free_tier_usage',
-            filter='{"services":["Amazon EC2"]}',
-            max_items=10,
-        )
+        """The filter is parsed and sent with a page size sized from max_items."""
+        fn = await _free_tier_usage_fn()
+        client = MagicMock()
+        client.get_free_tier_usage.return_value = {'freeTierUsages': []}
+        filter_json = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon EC2"]}}'
 
-        # Assert
+        with patch(f'{_TOOLS_MODULE}.create_aws_client', return_value=client):
+            result = await fn(
+                mock_context, operation='get_free_tier_usage', filter=filter_json, max_items=10
+            )
+
         assert result['status'] == 'success'
+        client.get_free_tier_usage.assert_called_once_with(
+            filter={'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}}, maxResults=10
+        )
 
     async def test_free_tier_usage_unsupported_operation(self, mock_context):
-        """Test free_tier_usage with unsupported operation."""
-        # Execute
-        result = await free_tier_usage(
-            mock_context,
-            operation='unknown_operation',
-        )
+        """An unknown operation returns an error without calling the API."""
+        fn = await _free_tier_usage_fn()
+        client = MagicMock()
 
-        # Assert
+        with patch(f'{_TOOLS_MODULE}.create_aws_client', return_value=client):
+            result = await fn(mock_context, operation='unknown_operation')
+
         assert result['status'] == 'error'
         assert 'Unsupported operation' in result['message']
+        client.get_free_tier_usage.assert_not_called()
 
     async def test_free_tier_usage_error_handling(self, mock_context):
-        """Test free_tier_usage error handling."""
-        # Setup - simulate error response
-        result = {'status': 'error', 'message': 'API error'}
+        """An exception from the API comes back as an error response."""
+        fn = await _free_tier_usage_fn()
+        client = MagicMock()
+        client.get_free_tier_usage.side_effect = RuntimeError('API error')
 
-        # Assert
+        with patch(f'{_TOOLS_MODULE}.create_aws_client', return_value=client):
+            result = await fn(mock_context, operation='get_free_tier_usage')
+
         assert result['status'] == 'error'
-        assert result['message'] == 'API error'
+        assert 'API error' in result['message']
 
 
 class TestFreeTierUsageEdgeCases:
@@ -545,3 +529,268 @@ def test_free_tier_usage_server_initialization():
     assert (
         'Tools for working with AWS Free Tier Usage API' in instructions if instructions else False
     )
+
+
+class TestFilterValidation:
+    """The tool rejects filters the API would reject or silently match nothing with."""
+
+    @pytest.mark.parametrize(
+        'filter_json',
+        [
+            '{"Dimensions": {"Key": "SERVICE", "Values": ["AWS Lambda"],'
+            ' "MatchOptions": ["GREATER_THAN_OR_EQUAL"]}}',
+            '{"And": [{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"],'
+            ' "MatchOptions": ["EQUALS"]}}, {"Not": {"Dimensions": {"Key": "USAGE_TYPE",'
+            ' "Values": ["Requests"], "MatchOptions": ["GREATER_THAN_OR_EQUAL"]}}}]}',
+            '{"Not": {"Dimensions": {"Key": "FREE_TIER_TYPE", "Values": ["Always Free"],'
+            ' "MatchOptions": ["GREATER_THAN_OR_EQUAL"]}}}',
+        ],
+    )
+    async def test_greater_than_or_equal_off_usage_percentage_is_rejected(
+        self, mock_context, filter_json
+    ):
+        """GTE on a text key matches no row at the API (every row under Not), so the tool rejects it."""
+        mock_client = MagicMock()
+
+        result = await get_free_tier_usage_data(mock_context, mock_client, filter_json)
+
+        mock_client.get_free_tier_usage.assert_not_called()
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert 'GREATER_THAN_OR_EQUAL applies only to USAGE_PERCENTAGE' in result['message']
+        assert 'it matches no row (and under Not, every row)' in result['message']
+
+    async def test_value_of_21_characters_is_rejected(self, mock_context):
+        """21 characters is one over the API's limit."""
+        mock_client = MagicMock()
+        filter_json = (
+            '{"Dimensions": {"Key": "USAGE_TYPE", "Values": ["123456789012345678901"],'
+            ' "MatchOptions": ["CONTAINS"]}}'
+        )
+
+        result = await get_free_tier_usage_data(mock_context, mock_client, filter_json)
+
+        mock_client.get_free_tier_usage.assert_not_called()
+        assert result['error_type'] == 'validation_error'
+        assert 'is 21 characters' in result['message']
+
+    async def test_value_over_20_characters_is_rejected_with_hint(self, mock_context):
+        """The API caps each value at 20 characters; the tool names the fix."""
+        mock_client = MagicMock()
+        filter_json = (
+            '{"Or": [{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"],'
+            ' "MatchOptions": ["EQUALS"]}}, {"Dimensions": {"Key": "SERVICE",'
+            ' "Values": ["AmazonSNS", "Amazon Simple Notification Service"],'
+            ' "MatchOptions": ["EQUALS"]}}]}'
+        )
+
+        result = await get_free_tier_usage_data(mock_context, mock_client, filter_json)
+
+        mock_client.get_free_tier_usage.assert_not_called()
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert 'Amazon Simple Notification Service' in result['message']
+        assert '20' in result['message']
+        assert 'CONTAINS' in result['message']
+        assert 'AmazonSNS' in result['message']
+
+    @pytest.mark.parametrize(
+        'filter_json',
+        [
+            '{"Dimensions": {"Key": "USAGE_PERCENTAGE", "Values": ["80"],'
+            ' "MatchOptions": ["GREATER_THAN_OR_EQUAL"]}}',
+            '{"Dimensions": {"Key": "SERVICE", "Values": ["12345678901234567890"],'
+            ' "MatchOptions": ["CONTAINS"]}}',
+            # Malformed shapes are left for the SDK and the API to report.
+            '{"Dimensions": {"Key": "SERVICE", "Values": ["AWS Lambda"],'
+            ' "MatchOptions": ["EQUALS", "GREATER_THAN_OR_EQUAL"]}}',
+            '{"Dimensions": {"Key": "service", "Values": ["AWS Lambda"],'
+            ' "MatchOptions": ["GREATER_THAN_OR_EQUAL"]}}',
+            '{"Dimensions": {"Values": ["AWS Lambda"], "MatchOptions": ["GREATER_THAN_OR_EQUAL"]}}',
+            '{"Dimensions": {"Key": "SERVICE", "Values": ["AmazonSNS"]}}',
+            '{"Dimensions": "SERVICE"}',
+            '{"And": {"Dimensions": {}}}',
+            '[1, 2]',
+        ],
+    )
+    async def test_other_filters_are_sent_unchanged(self, mock_context, filter_json):
+        """A valid filter, or one the tool does not check, reaches the API as given."""
+        mock_client = MagicMock()
+        mock_client.get_free_tier_usage.return_value = {'freeTierUsages': []}
+
+        result = await get_free_tier_usage_data(mock_context, mock_client, filter_json)
+
+        assert result['status'] == 'success'
+        assert mock_client.get_free_tier_usage.call_args.kwargs['filter'] == json.loads(
+            filter_json
+        )
+
+
+async def test_description_documents_the_filter_rules():
+    """The served description gives the filter shape and every trap the API leaves silent."""
+    tool = await free_tier_usage_server.get_tool('free-tier-usage')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert '"MatchOptions": ["EQUALS"]' in description
+    assert 'exactly one' in description
+    assert 'at least 2' in description
+    assert 'at most 20 characters of letters, digits, spaces and - : . _ / , $ ( )' in description
+    assert 'AmazonSNS' in description
+    assert 'ignores case and spaces' in description
+    assert (
+        'FREE_TIER_TYPE is one of "Always Free", "12 Months Free" or "Free Trial" '
+        '(empty for a row with no type).'
+    ) in description
+    assert 'Only USAGE_PERCENTAGE takes GREATER_THAN_OR_EQUAL' in description
+
+
+def _usage_row(service, actual, forecast, limit, region='us-east-1', free_tier_type='Always Free'):
+    """Build one GetFreeTierUsage row."""
+    return {
+        'service': service,
+        'usageType': f'{service}-Usage',
+        'actualUsageAmount': actual,
+        'forecastedUsageAmount': forecast,
+        'limit': limit,
+        'unit': 'Units',
+        'region': region,
+        'freeTierType': free_tier_type,
+    }
+
+
+class TestSummaryForecastAndOffer:
+    """The summary flags forecast breaches and keeps each row's region and offer type."""
+
+    def test_row_under_limit_with_forecast_at_limit_is_flagged(self):
+        """A row at 50% whose month-end forecast reaches the limit is in forecast_exceeds_limit."""
+        result = create_free_tier_usage_summary([_usage_row('Service A', 50, 120, 100)])
+
+        assert result['forecast_exceeds_limit_count'] == 1
+        item = result['forecast_exceeds_limit_items'][0]
+        assert item['service'] == 'Service A'
+        assert item['forecast'] == 120
+        assert item['forecast_percentage'] == 120.0
+        # The actual-usage buckets are unchanged: the row is still counted as safe.
+        assert result['safe_count'] == 1
+
+    def test_forecast_equal_to_limit_is_flagged(self):
+        """A forecast of exactly the limit counts as reaching it."""
+        result = create_free_tier_usage_summary([_usage_row('Service A', 85, 100, 100)])
+
+        assert result['forecast_exceeds_limit_count'] == 1
+        assert result['near_limit_count'] == 1
+
+    def test_forecast_under_limit_is_not_flagged(self):
+        """A forecast below the limit is not a breach."""
+        result = create_free_tier_usage_summary([_usage_row('Service A', 50, 90, 100)])
+
+        assert result['forecast_exceeds_limit_count'] == 0
+        assert result['forecast_exceeds_limit_items'] == []
+
+    def test_row_already_at_limit_is_not_repeated(self):
+        """A row already at the limit stays in at_limit only."""
+        result = create_free_tier_usage_summary([_usage_row('Service A', 62, 71.2, 62)])
+
+        assert result['at_limit_count'] == 1
+        assert result['forecast_exceeds_limit_count'] == 0
+
+    def test_missing_forecast_or_limit_is_not_flagged(self):
+        """No forecast, or no usable limit, never lands in forecast_exceeds_limit."""
+        no_forecast = _usage_row('Service A', 85, None, 100)
+        del no_forecast['forecastedUsageAmount']
+        zero_limit = _usage_row('Service B', 0, 5, 0)
+
+        result = create_free_tier_usage_summary([no_forecast, zero_limit])
+
+        assert result['forecast_exceeds_limit_count'] == 0
+        assert result['unknown_count'] == 1
+        item = result['near_limit_items'][0]
+        assert item['forecast'] is None
+        assert 'forecast_percentage' not in item
+
+    def test_default_zero_forecast_gets_no_percentage(self):
+        """A forecast of 0 under a positive actual is the API's default, not a forecast."""
+        result = create_free_tier_usage_summary([_usage_row('Service A', 85, 0, 100)])
+
+        item = result['near_limit_items'][0]
+        assert item['forecast'] == 0
+        assert 'forecast_percentage' not in item
+        assert result['forecast_exceeds_limit_count'] == 0
+
+    @pytest.mark.parametrize(
+        'actual,forecast,flagged',
+        [
+            (50, 99.9, True),
+            (50, 99.8, False),
+            (99.85, 120, True),
+            (99.9, 120, False),
+        ],
+    )
+    def test_forecast_threshold_is_99_9_percent(self, actual, forecast, flagged):
+        """The forecast and at-limit cut-offs are both 99.9% of the limit."""
+        result = create_free_tier_usage_summary([_usage_row('Service A', actual, forecast, 100)])
+
+        assert result['forecast_exceeds_limit_count'] == (1 if flagged else 0)
+
+    def test_forecast_breaches_sort_highest_forecast_first(self):
+        """forecast_exceeds_limit_items is sorted by forecast percentage, highest first."""
+        result = create_free_tier_usage_summary(
+            [
+                _usage_row('Service A', 10, 110, 100),
+                _usage_row('Service B', 10, 300, 100),
+            ]
+        )
+
+        assert [i['service'] for i in result['forecast_exceeds_limit_items']] == [
+            'Service B',
+            'Service A',
+        ]
+
+    def test_items_carry_region_and_free_tier_type(self):
+        """Rows of one service in two regions stay apart, each with its region and offer type."""
+        result = create_free_tier_usage_summary(
+            [
+                _usage_row('Amazon SNS', 100, 110, 100, region='us-east-1'),
+                _usage_row(
+                    'Amazon SNS', 100, 100, 100, region='eu-west-1', free_tier_type='Free Trial'
+                ),
+            ]
+        )
+
+        items = sorted(result['at_limit_items'], key=lambda i: i['region'])
+        assert [(i['region'], i['free_tier_type']) for i in items] == [
+            ('eu-west-1', 'Free Trial'),
+            ('us-east-1', 'Always Free'),
+        ]
+        assert [i['forecast'] for i in items] == [100, 110]
+
+    def test_existing_item_fields_are_kept(self):
+        """The fields the summary already returned keep their names and values."""
+        result = create_free_tier_usage_summary([_usage_row('Service A', 90, 95, 100)])
+
+        item = result['near_limit_items'][0]
+        assert item['service'] == 'Service A'
+        assert item['usage_type'] == 'Service A-Usage'
+        assert item['actual'] == 90
+        assert item['limit'] == 100
+        assert item['unit'] == 'Units'
+        assert item['percentage'] == 90.0
+        assert item['forecast_percentage'] == 95.0
+
+
+async def test_description_documents_the_summary():
+    """The served description names the forecast list and the per-item region and offer type."""
+    tool = await free_tier_usage_server.get_tool('free-tier-usage')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert 'forecast_exceeds_limit_items' in description
+    assert 'forecastedUsageAmount' in description
+    assert 'free_tier_type' in description
+    assert 'an empty one says neither' in description
+    assert (
+        'The forecast is month-to-date usage projected in a straight line to month end, '
+        'so early in the month it can greatly overstate.'
+    ) in description
+    assert 'region' in description

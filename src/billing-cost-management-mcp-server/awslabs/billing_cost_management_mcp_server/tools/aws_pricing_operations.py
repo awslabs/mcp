@@ -514,8 +514,8 @@ def _filters_matched_nothing(
     if any(f['Field'].lower() == 'location' for f in api_filters):
         message += (
             ' "location" takes the Price List location name (for example "US East (N. Virginia)"'
-            ' or "EU (Ireland)"), not a region code; services with a "regionCode" attribute take'
-            ' codes such as "us-east-1" in regionCode.'
+            ' or "EU (Ireland)"), not a region code. If get_service_attributes lists "regionCode"'
+            ' for this service, filter on it with codes such as "us-east-1".'
         )
     exact_with_comma = [
         f for f in api_filters if f['Type'] in ('TERM_MATCH', 'EQUALS') and ',' in f['Value']

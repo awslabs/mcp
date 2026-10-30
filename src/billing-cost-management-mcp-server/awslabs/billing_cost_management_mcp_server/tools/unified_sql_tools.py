@@ -45,6 +45,10 @@ Use this tool to:
 - Join data from multiple AWS APIs
 - Perform complex analysis across different data sources
 
+Adding data: pass `schema` (column definitions, e.g. ["service TEXT", "cost REAL"]) and `data`
+(rows) to create a table before `query` runs. If `table_name` is omitted while `schema` and
+`data` are given, the tool creates a table named `user_data_<random 8 hex>`.
+
 Common queries:
 - SELECT name FROM sqlite_master WHERE type='table' -- List all tables
 - SELECT * FROM [table_name] LIMIT 10 -- Preview table data""",

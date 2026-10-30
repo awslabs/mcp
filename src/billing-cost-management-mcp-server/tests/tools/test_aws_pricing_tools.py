@@ -394,22 +394,6 @@ class TestAwsPricing:
         assert 'message' in result
         assert 'Unknown operation' in result['message']
 
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.get_service_codes'
-    )
-    async def test_aws_pricing_error_handling(self, mock_get_service_codes, mock_context):
-        """Test aws_pricing error handling."""
-        # Setup
-        error = Exception('API error')
-        mock_get_service_codes.side_effect = error
-
-        # Execute
-        result = {'status': 'error', 'message': 'API error'}
-
-        # Assert
-        assert result['status'] == 'error'
-        assert result['message'] == 'API error'
-
 
 def test_aws_pricing_server_initialization():
     """Test that the aws_pricing_server is properly initialized."""
@@ -679,6 +663,19 @@ async def test_aws_pricing_get_pricing_from_api_passes_filters_dict_too_extra(mo
         )
         assert res['status'] == 'success'
         mock_impl.assert_awaited_once_with(mock_context, 'AmazonEC2', filters, max_items=None)
+
+
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_pricing_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import aws_pricing_tools as module
+
+    importlib.reload(module)
 
 
 def _reload_pricing_with_identity_decorator():
@@ -1756,6 +1753,7 @@ class TestGetPricingFromApiFilterGuidance:
         assert '{"Field": "location", "Type": "TERM_MATCH", "Value": "us-east-1"}' in message
         assert 'get_attribute_values' in message
         assert 'regionCode' in message
+        assert 'If get_service_attributes lists "regionCode"' in message
         assert 'US East (N. Virginia)' in message
         assert result['data']['message'] == message
         assert result['data']['filters'] == [
@@ -2021,6 +2019,8 @@ async def test_aws_pricing_description_teaches_a_filter_that_resolves_to_one_pro
         assert pair in description
     assert 'about 100' in description
     assert 'not a region code' in description
+    assert "use 'regionCode' when get_service_attributes lists it" in description
+    assert 'AWSDataTransfer lists neither and uses fromRegionCode/toRegionCode' in description
     assert 'varying_attributes' in description
 
 
@@ -2410,3 +2410,35 @@ class TestGetAttributeValuesEmpty:
 
         assert result['data']['pagination']['complete_dataset'] is False
         assert 'hint' not in result['data']
+
+
+def test_many_products_guidance_skips_products_whose_attributes_are_not_a_dict():
+    """A product whose attributes are null or a list is not counted, so no attribute claim is made."""
+    guidance = _guidance(
+        [
+            _product('A', tenancy='Shared'),
+            json.dumps({'product': {'sku': 'B', 'attributes': None}}),
+            json.dumps({'product': {'sku': 'C', 'attributes': ['tenancy']}}),
+        ]
+    )
+
+    assert guidance['varying_attributes'] == []
+    assert 'This response has 3 products, each priced separately.' in guidance['hint']
+    assert 'same attributes' not in guidance['hint']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('filters', ['{}', 'null'])
+@patch('awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client')
+async def test_empty_or_null_filters_are_skipped(mock_create_client, filters, mock_context):
+    """Filters that parse to {} or None send none, log no filter count, and make no check."""
+    mock_client = MagicMock()
+    mock_create_client.return_value = mock_client
+    mock_client.get_products.return_value = {'PriceList': []}
+
+    result = await get_pricing_from_api(mock_context, 'AmazonEC99', filters=filters)
+
+    assert mock_client.get_products.call_count == 1
+    assert mock_client.get_products.call_args.kwargs['Filters'] == []
+    assert not any('Applied' in str(c) for c in mock_context.info.await_args_list)
+    assert result['error_type'] == 'no_results'

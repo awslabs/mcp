@@ -72,29 +72,16 @@ def temp_db_path():
 class TestShouldConvertToSql:
     """Tests for should_convert_to_sql function."""
 
-    def test_should_convert_large_response(self):
-        """Test should_convert_to_sql with large response."""
-        # Setup - Response size above threshold
-        threshold = int(os.getenv('MCP_SQL_THRESHOLD', 50 * 1024))  # 50KB default
-        large_size = threshold + 1024  # 1KB over threshold
+    @pytest.mark.parametrize('offset,expected', [(1024, True), (0, False), (-1024, False)])
+    def test_converts_only_above_threshold(self, offset, expected):
+        """A response converts only when it is larger than SQL_CONVERSION_THRESHOLD."""
+        from awslabs.billing_cost_management_mcp_server.utilities import (
+            sql_utils as sql_utils_mod,
+        )
 
-        # Execute
-        result = should_convert_to_sql(large_size)
-
-        # Assert
-        assert result is True
-
-    def test_should_not_convert_small_response(self):
-        """Test should_convert_to_sql with small response."""
-        # Setup - Response size below threshold
-        threshold = int(os.getenv('MCP_SQL_THRESHOLD', 50 * 1024))  # 50KB default
-        small_size = threshold - 1024  # 1KB under threshold
-
-        # Execute
-        result = should_convert_to_sql(small_size)
-
-        # Assert
-        assert result is True
+        size = sql_utils_mod.SQL_CONVERSION_THRESHOLD + offset
+        with patch.object(sql_utils_mod, 'FORCE_SQL_CONVERSION', False):
+            assert should_convert_to_sql(size) is expected
 
     def test_should_convert_with_force_enabled(self):
         """Test should_convert_to_sql with FORCE_SQL_CONVERSION enabled."""
@@ -1387,7 +1374,7 @@ class TestValidateSqlQuery:
         Without this rejection, an attacker (or a prompt-injected
         agent) can attach any SQLite file readable by the process
         and read it back via subsequent SELECTs — a filter bypass
-        that the blacklist previously missed.
+        that the denylist previously missed.
         """
         from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
             validate_sql_query,
@@ -1419,8 +1406,8 @@ class TestSessionAuthorizer:
     """Engine-level defense against ATTACH DATABASE.
 
     The authorizer is the second line of defense behind the regex
-    blacklist in ``validate_sql_query``. Even if the query text were
-    to slip past the blacklist (comment tricks, whitespace variants,
+    denylist in ``validate_sql_query``. Even if the query text were
+    to slip past the denylist (comment tricks, whitespace variants,
     dynamic SQL from a trigger), the SQLite parser calls the
     authorizer for every operation the query would perform. ATTACH
     returns SQLITE_DENY here, so the connection refuses to mount any

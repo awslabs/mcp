@@ -29,6 +29,7 @@ region. With no `regions`, a single call targets the AWS_REGION env var or us-ea
 
 import asyncio
 import botocore.session
+import json
 from ..utilities.aws_service_base import (
     format_response,
     handle_aws_error,
@@ -36,6 +37,7 @@ from ..utilities.aws_service_base import (
     partial_data_warning,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.error_contract import classify_error, combine_guidance
 from ..utilities.regional_fanout import (
     collect_regional_pages,
@@ -55,6 +57,7 @@ from .compute_optimizer_automation_operations import (
     _collect_recommended_actions,
     _format_automation_event,
     _parse_datetime,
+    _rule_preview_request,
     create_compute_optimizer_automation_client,
     get_automation_event,
     get_automation_rule,
@@ -71,6 +74,8 @@ from .compute_optimizer_automation_operations import (
     list_tags_for_resource,
 )
 from botocore import xform_name
+from botocore.exceptions import ParamValidationError
+from botocore.validate import ParamValidator
 from fastmcp import Context, FastMCP
 from functools import lru_cache
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
@@ -112,6 +117,24 @@ _SINGLE_REGION_OPERATIONS = {
     'list_accounts',
 }
 
+_PREVIEW_API_NAMES = {
+    'list_automation_rule_preview': 'ListAutomationRulePreview',
+    'list_automation_rule_preview_summaries': 'ListAutomationRulePreviewSummaries',
+}
+
+
+@lru_cache(maxsize=1)
+def _preview_input_shapes() -> Dict[str, Any]:
+    """Return {preview operation: botocore input shape}, or {} if the model cannot be loaded."""
+    try:
+        service_model: Any = botocore.session.get_session().get_service_model(_BOTO_SERVICE_NAME)
+        return {
+            operation: service_model.operation_model(api_name).input_shape
+            for operation, api_name in _PREVIEW_API_NAMES.items()
+        }
+    except Exception:
+        return {}
+
 
 @lru_cache(maxsize=1)
 def _valid_filter_names_by_operation() -> Dict[str, List[str]]:
@@ -148,6 +171,191 @@ def _valid_filter_names_by_operation() -> Dict[str, List[str]]:
             result[xform_name(op_name)] = list(enum_values)
 
     return result
+
+
+# The request model types every filter value as a free string, so the values a filter accepts are
+# read from the enum on the matching member of the operation's response. This maps a filter name
+# to that response member, and each operation to the list call whose response carries it.
+_FILTER_VALUE_MEMBERS: Dict[str, str] = {
+    'ResourceType': 'resourceType',
+    'RecommendedActionType': 'recommendedActionType',
+    'EventType': 'eventType',
+    'EventStatus': 'eventStatus',
+    'Status': 'status',
+    'RuleType': 'ruleType',
+}
+_FILTER_VALUE_SOURCE_API: Dict[str, str] = {
+    'list_automation_events': 'ListAutomationEvents',
+    'list_automation_event_summaries': 'ListAutomationEvents',
+    'list_automation_rules': 'ListAutomationRules',
+    'list_recommended_actions': 'ListRecommendedActions',
+    'list_recommended_action_summaries': 'ListRecommendedActions',
+}
+# For these the API answers an unknown value with an empty success, so an unknown value is
+# rejected locally. The other enum filters are folded but passed through: the API already
+# rejects an unknown value for them and names the valid ones.
+_STRICT_VALUE_FILTERS = frozenset({'ResourceType', 'EventStatus'})
+
+
+def _filter_value_key(value: str) -> str:
+    """Fold a filter value for matching: case- and underscore-insensitive."""
+    return value.casefold().replace('_', '')
+
+
+def _member_key(name: str) -> str:
+    """Fold a response member name for matching: case-insensitive, singular/plural agnostic."""
+    return name.casefold().removesuffix('s')
+
+
+def _collect_response_enums(shape: Any, found: Dict[str, List[str]], seen: set) -> None:
+    """Collect {member name: enum values} from a response shape, first occurrence wins."""
+    if shape is None or id(shape) in seen:
+        return
+    seen.add(id(shape))
+    if shape.type_name == 'list':
+        _collect_response_enums(shape.member, found, seen)
+    elif shape.type_name == 'structure':
+        for name, member in shape.members.items():
+            target = member.member if member.type_name == 'list' else member
+            values = getattr(target, 'enum', None)
+            if values:
+                found.setdefault(name, list(values))
+            _collect_response_enums(member, found, seen)
+
+
+def _response_enums(service_model: Any, api_name: str) -> Dict[str, List[str]]:
+    """Return {member name: enum values} for one API's response, or {} if it cannot be read."""
+    found: Dict[str, List[str]] = {}
+    try:
+        _collect_response_enums(service_model.operation_model(api_name).output_shape, found, set())
+    except Exception:
+        return {}
+    return found
+
+
+@lru_cache(maxsize=1)
+def _filter_values_by_operation() -> Dict[str, Dict[str, List[str]]]:
+    """Build {operation: {filter name: accepted values}} for the enum-valued filters.
+
+    Read offline from the installed botocore service model. Returns an empty map if the
+    model cannot be loaded (value normalization is then skipped and AWS validates).
+    """
+    result: Dict[str, Dict[str, List[str]]] = {}
+    try:
+        service_model: Any = botocore.session.get_session().get_service_model(_BOTO_SERVICE_NAME)
+    except Exception:
+        return result
+
+    for operation, api_name in _FILTER_VALUE_SOURCE_API.items():
+        by_key = {
+            _member_key(name): values
+            for name, values in _response_enums(service_model, api_name).items()
+        }
+        values_by_filter = {
+            filter_name: by_key[_member_key(member)]
+            for filter_name, member in _FILTER_VALUE_MEMBERS.items()
+            if _member_key(member) in by_key
+        }
+        if values_by_filter:
+            result[operation] = values_by_filter
+    return result
+
+
+def _normalize_filter_values(
+    operation: str, filters: Optional[str]
+) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+    """Fold filter values onto the spelling the API matches and reject values it mishandles.
+
+    The API compares filter values exactly and, for several filters, answers a value it
+    does not match with an empty success. This folds enum values (case and underscores),
+    lowercases EBS volume types, and rejects locally: an unknown ResourceType or
+    EventStatus, a RestartNeeded other than true/false (the API treats it as false), and a
+    LookBackPeriodInDays that is not a whole number (the API fails with an internal error).
+    Run after _validate_filters, so the JSON and the filter names are already valid.
+
+    Returns:
+        (filters to send, None), or (original filters, error response) when a value is
+        rejected. The original string is returned when nothing changed.
+    """
+    if not filters:
+        return filters, None
+    try:
+        parsed = parse_json(filters, 'filters')
+    except ValueError:
+        return filters, None
+    if not isinstance(parsed, list):
+        return filters, None
+
+    known = _filter_values_by_operation().get(operation, {})
+    normalized: List[Any] = []
+    invalid: Dict[str, List[Any]] = {}
+    for item in parsed:
+        if (
+            not isinstance(item, dict)
+            or not isinstance(item.get('name'), str)
+            or not isinstance(item.get('values'), list)
+        ):
+            normalized.append(item)
+            continue
+        name, values = item['name'], item['values']
+        if name in known:
+            canonical = {_filter_value_key(v): v for v in known[name]}
+            values = [
+                canonical.get(_filter_value_key(v), v) if isinstance(v, str) else v for v in values
+            ]
+            if name in _STRICT_VALUE_FILTERS and any(v not in known[name] for v in values):
+                invalid[name] = [v for v in values if v not in known[name]]
+        elif name == 'RestartNeeded':
+            keys = [str(v).casefold() if isinstance(v, (str, bool)) else None for v in values]
+            if any(k not in ('true', 'false') for k in keys):
+                invalid[name] = [v for v, k in zip(values, keys) if k not in ('true', 'false')]
+            else:
+                values = keys
+        elif name == 'LookBackPeriodInDays':
+            days = [
+                str(int(v))
+                if (isinstance(v, int) and not isinstance(v, bool))
+                or (isinstance(v, str) and v.strip().isdecimal())
+                else None
+                for v in values
+            ]
+            if any(d is None for d in days):
+                invalid[name] = [v for v, d in zip(values, days) if d is None]
+            else:
+                values = days
+        elif name == 'CurrentResourceDetailsEbsVolumeType':
+            # Matching is case-sensitive and every EBS volume type is lowercase (gp2, io1).
+            values = [v.lower() if isinstance(v, str) else v for v in values]
+        normalized.append({**item, 'values': values})
+
+    if invalid:
+        valid = {
+            name: known[name]
+            if name in known
+            else ['true', 'false']
+            if name == 'RestartNeeded'
+            else 'a whole number of days'
+            for name in invalid
+        }
+        return filters, _validation_error(
+            operation,
+            {
+                'operation': operation,
+                'invalid_filter_values': invalid,
+                'valid_filter_values': valid,
+            },
+            'Invalid filter value(s) for '
+            + '; '.join(
+                f'{name}: {", ".join(str(v) for v in bad)}' for name, bad in invalid.items()
+            )
+            + '. Valid values: '
+            + '; '.join(
+                f'{name}: {", ".join(vals) if isinstance(vals, list) else vals}'
+                for name, vals in valid.items()
+            )
+            + '.',
+        )
+    return (filters if normalized == parsed else json.dumps(normalized)), None
 
 
 def _validation_error(operation: str, data: Dict[str, Any], message: str) -> Dict[str, Any]:
@@ -195,9 +403,12 @@ def _multi_region_guidance(
     Derived from each region's own error_type and http_status, which stay nested in
     region_errors, so the top-level multi_region_error or a promoted type alone would
     lose them (e.g. throttled in one region and a 5xx in another is still transient).
+    A region's own retry_strategy, when its error set one, wins over that mapping.
     """
     guidance = [
-        classify_error(error.get('error_type'), error.get('http_status'))
+        (error['retry_strategy'], error.get('hint'))
+        if error.get('retry_strategy')
+        else classify_error(error.get('error_type'), error.get('http_status'))
         for error in region_errors.values()
     ]
     if regions_not_found:
@@ -247,17 +458,20 @@ Supported operations (pass via the `operation` parameter):
 1. get_enrollment_configuration: Current Automation enrollment status for the account.
    Params: (none)
 2. get_automation_event: Details about a single automation event (one execution of a
-   recommended action). Params: event_id (required)
+   recommended action). Params: event_id (required). With `regions`, `found_in_region` names
+   the region holding the event.
 3. get_automation_rule: Details about a single automation rule, including its criteria
-   and tags. Params: rule_arn (required)
+   ({} for a rule with no conditions) and tags. Params: rule_arn (required)
 4. list_accounts: Organization accounts enrolled in Compute Optimizer and whether they
    enabled Automation (management/delegated-admin only). Params: max_items, next_token
 5. list_automation_events: Automation events matching filters (created within the past
    year). Params: filters, start_time, end_time, max_items, next_token
 6. list_automation_event_steps: Steps for a specific automation event.
-   Params: event_id (required), max_items, next_token
+   Params: event_id (required), max_items, next_token. With `regions`, `found_in_region`
+   names the region holding the event and `regions_not_found` the regions without it.
 7. list_automation_event_summaries: Aggregated automation-event counts and savings.
-   Params: filters, start_date, end_date, max_items, next_token
+   Params: filters, start_date, end_date, max_items, next_token. If start_date and end_date
+   are omitted, the summary covers all events from the past year.
 8. list_automation_rules: Automation rules matching filters.
    Params: filters, max_items, next_token
 9. list_recommended_actions: Recommended actions matching filters.
@@ -284,9 +498,26 @@ Valid filter names by operation:
   CurrentResourceDetailsEbsVolumeType, ResourceTagsKey, ResourceTagsValue, AccountId,
   RestartNeeded
 
+Filter values:
+- ResourceType takes EbsVolume. RecommendedActionType and EventType take
+  SnapshotAndDeleteUnattachedEbsVolume or UpgradeEbsVolumeType. EventStatus takes Ready,
+  InProgress, Complete, Failed, Cancelled, RollbackReady, RollbackInProgress,
+  RollbackComplete or RollbackFailed. Status takes Active or Inactive. RuleType takes
+  OrganizationRule or AccountRule. Case and underscores are folded, and an unknown
+  ResourceType or EventStatus is rejected with the valid values (the API would return an
+  empty result).
+- RestartNeeded takes true or false. LookBackPeriodInDays takes a whole number of days.
+- CurrentResourceDetailsEbsVolumeType, ResourceTagsKey and ResourceTagsValue match
+  case-sensitive substrings of the resource details or tags, so a short value matches more
+  than intended (io matches every volume, not only io1). Use a full value such as gp2 or io1.
+  ResourceTagsKey and ResourceTagsValue each search keys and values, so a key filter also
+  matches tag values and the reverse. EBS volume types are lowercased for you.
+
 PAGINATION (list_* operations only; the get_* operations and list_tags_for_resource take
 neither max_items nor next_token):
-- max_items is the total number of items returned. Omit it to fetch every page (no limit).
+- max_items is the total number of items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result.
   Pass it, or narrow the filters, for queries that can be large.
 - With `regions`, max_items applies PER REGION: each region returns up to max_items items, so
   a response can hold up to max_items x len(regions) items.
@@ -375,17 +606,25 @@ async def compute_optimizer_automation(
         if filter_error is not None:
             return filter_error
 
+        # Fold filter values onto the API's spelling and reject values it would mishandle.
+        filters, filter_error = _normalize_filter_values(operation, filters)
+        if filter_error is not None:
+            return filter_error
+
         # Parse operation-specific structured inputs before creating one client
         # or fanning out across regions. Handlers still parse them when building
         # requests; this pass ensures malformed input fails once and consistently.
-        _validate_parseable_params(
+        parse_error = _validate_parseable_params(
             operation,
             start_time=start_time,
             end_time=end_time,
+            rule_type=rule_type,
             recommended_action_types=recommended_action_types,
             organization_scope=organization_scope,
             criteria=criteria,
         )
+        if parse_error is not None:
+            return parse_error
 
         requested_regions, regions_error = _resolve_requested_regions(operation, regions)
         if regions_error is not None:
@@ -733,6 +972,15 @@ async def _run_multi_region_list(
             hint=hint,
         )
 
+    # A region that returned not found does not hold the resource, so a single successful
+    # region is where it was found.
+    lookup: Dict[str, Any] = {}
+    if not_found_is_empty:
+        if successful_regions == 1:
+            lookup['found_in_region'] = outcomes.successful_regions[0]
+        if regions_not_found:
+            lookup['regions_not_found'] = regions_not_found
+
     return await _finalize_multi_region_list_response(
         ctx,
         operation,
@@ -742,6 +990,7 @@ async def _run_multi_region_list(
         outcomes.next_tokens,
         {region: region_paginations[region] for region in outcomes.successful_regions},
         region_errors,
+        lookup,
     )
 
 
@@ -754,15 +1003,13 @@ async def _finalize_multi_region_list_response(
     region_next_tokens: Dict[str, str],
     region_paginations: Dict[str, Dict[str, Any]],
     region_errors: Dict[str, Dict[str, Any]],
+    lookup: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build a merged multi-region list response, offloading to SQL when large."""
-    response_data: Dict[str, Any] = {list_key: items, 'regions_queried': regions_queried}
-    if region_errors:
-        response_data['region_errors'] = region_errors
-
-    offload_metadata: Dict[str, Any] = {'regions_queried': regions_queried}
+    offload_metadata: Dict[str, Any] = {'regions_queried': regions_queried, **(lookup or {})}
     if region_errors:
         offload_metadata['region_errors'] = region_errors
+    response_data: Dict[str, Any] = {list_key: items, **offload_metadata}
 
     response_data = await convert_response_if_needed(
         ctx,
@@ -852,6 +1099,7 @@ async def _get_automation_event_multi_region(
                 {
                     'automation_event': _format_automation_event(response),
                     'found_in_region': region,
+                    'regions_queried': list(regions),
                 },
             )
 
@@ -866,7 +1114,7 @@ async def _get_automation_event_multi_region(
             data,
             f'Could not determine whether automation event {event_id} exists because '
             f'{len(region_errors)} of {len(regions)} region(s) could not be searched. '
-            'Review region_errors and retry.',
+            'Review region_errors and follow retry_strategy.',
             error_type=_multi_region_error_type(region_errors, regions_not_found),
             operation='get_automation_event',
             service=_SERVICE_NAME,
@@ -987,26 +1235,51 @@ def _validate_parseable_params(
     operation: str,
     start_time: Optional[str],
     end_time: Optional[str],
+    rule_type: Optional[str],
     recommended_action_types: Optional[str],
     organization_scope: Optional[str],
     criteria: Optional[str],
-) -> None:
-    """Validate structured operation inputs before client creation or fan-out."""
+) -> Optional[Dict[str, Any]]:
+    """Validate structured operation inputs before client creation or fan-out.
+
+    A preview request is checked against the botocore input shape, so a bad criteria or
+    scope shape fails once here instead of once per region.
+
+    Returns:
+        An error response for an OrganizationRule preview without organization_scope,
+        otherwise None.
+
+    Raises:
+        ValueError: If a datetime or JSON input cannot be parsed.
+        ParamValidationError: If a preview request does not match the botocore input shape.
+    """
     if operation == 'list_automation_events':
         if start_time:
             _parse_datetime(start_time, 'start_time')
         if end_time:
             _parse_datetime(end_time, 'end_time')
 
-    if operation in {
-        'list_automation_rule_preview',
-        'list_automation_rule_preview_summaries',
-    }:
-        parse_json(recommended_action_types, 'recommended_action_types')
-        if organization_scope:
-            parse_json(organization_scope, 'organization_scope')
-        if criteria:
-            parse_json(criteria, 'criteria')
+    if operation in _PREVIEW_API_NAMES:
+        request = _rule_preview_request(
+            str(rule_type), str(recommended_action_types), organization_scope, criteria
+        )
+        # organizationScope is optional in the model, but AWS rejects an OrganizationRule
+        # without it in every region.
+        if rule_type == 'OrganizationRule' and 'organizationScope' not in request:
+            return _validation_error(
+                operation,
+                {'operation': operation, 'parameter': 'organization_scope'},
+                'An OrganizationRule preview requires organization_scope, e.g. '
+                '{"accountIds": ["111122223333"]}. Use rule_type AccountRule to preview only '
+                'the calling account.',
+            )
+        input_shape = _preview_input_shapes().get(operation)
+        if input_shape is not None:
+            report = ParamValidator().validate(request, input_shape)
+            if report.has_errors():
+                raise ParamValidationError(report=report.generate_report())
+
+    return None
 
 
 def _validate_filters(operation: str, filters: Optional[str]) -> Optional[Dict[str, Any]]:

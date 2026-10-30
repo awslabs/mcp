@@ -29,6 +29,7 @@ from ..utilities.aws_service_base import (
     parse_json,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from datetime import date, datetime, timezone
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional, Tuple
@@ -237,10 +238,15 @@ You can group results by dimensions such as:
 - REGION: AWS Region
 - USAGE_TYPE: Type of usage (e.g., BoxUsage:t2.micro)
 - INSTANCE_TYPE: EC2 instance type (e.g., t2.micro, m5.large)
-- PLATFORM: Operating system (e.g., Windows, Linux)
+- PLATFORM: Operating system (e.g., Linux/UNIX, Windows (Amazon VPC))
 - TENANCY: Instance tenancy. Exact, case-sensitive values: Shared, Dedicated, Host
 - RECORD_TYPE: Record type (e.g., Usage, Credit, Tax)
 - LEGAL_ENTITY_NAME: AWS seller of record
+
+Costs with no value for a grouped dimension come back under a placeholder such as NoRegion or
+NoTenancy, including in each comparison's cost_and_usage_selector. The placeholder is not a
+value: a filter on it matches nothing. To filter on those costs, pass the empty string:
+`{"Dimensions": {"Key": "REGION", "Values": [""]}}`.
 
 Note:
 - Time periods must start and end on the first day of a month, with a duration of exactly one month
@@ -251,8 +257,9 @@ Note:
   about multi-year data
 
 Pagination (both operations):
-- max_items: total number of comparisons or drivers returned. Omit it to fetch every page
-  (no limit). Pass it, or narrow group_by/filter, for comparisons that can be large (for
+- max_items: total number of comparisons or drivers returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow group_by/filter, for comparisons that can be large (for
   example grouped by USAGE_TYPE or LINKED_ACCOUNT).
 - If the result has complete_dataset: false, it is partial: call again with a larger
   max_items, continue with next_token, or say the result is partial.
