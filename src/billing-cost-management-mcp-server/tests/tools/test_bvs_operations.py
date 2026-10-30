@@ -837,14 +837,17 @@ class TestListBillingViews:
         assert call_kwargs['names'] == [{'searchOption': 'STARTS_WITH', 'searchValue': 'Custom'}]
 
     @patch(PATCH_BVS_CLIENT)
-    async def test_list_billing_views_with_source_account_id(
-        self, mock_create_client, mock_ctx, sample_billing_view_list_elements
-    ):
+    async def test_list_billing_views_with_source_account_id(self, mock_create_client, mock_ctx):
         """Test listing billing views with source account ID filter."""
-        mock_client = MagicMock()
-        mock_client.list_billing_views.return_value = {
-            'billingViews': [sample_billing_view_list_elements[1]],
+        billing_group_view = {
+            'arn': BILLING_VIEW_ARN_BILLING_GROUP,
+            'name': 'Billing Group View',
+            'billingViewType': 'BILLING_GROUP',
+            'ownerAccountId': ACCOUNT_ID_PRIMARY,
+            'sourceAccountId': ACCOUNT_ID_PRIMARY_2,
         }
+        mock_client = MagicMock()
+        mock_client.list_billing_views.return_value = {'billingViews': [billing_group_view]}
         mock_create_client.return_value = mock_client
 
         result = await list_billing_views(mock_ctx, source_account_id=ACCOUNT_ID_PRIMARY_2)
@@ -852,6 +855,102 @@ class TestListBillingViews:
         assert result['status'] == STATUS_SUCCESS
         call_kwargs = mock_client.list_billing_views.call_args[1]
         assert call_kwargs['sourceAccountId'] == ACCOUNT_ID_PRIMARY_2
+        assert result['data']['billing_views'][0]['source_account_id'] == ACCOUNT_ID_PRIMARY_2
+        assert 'hint' not in result
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_source_account_id_empty_result_has_hint(
+        self, mock_create_client, mock_ctx
+    ):
+        """A complete empty source_account_id result says it is not a membership answer."""
+        mock_client = MagicMock()
+        mock_client.list_billing_views.return_value = {'billingViews': []}
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_views(
+            mock_ctx, source_account_id=ACCOUNT_ID_PRIMARY, billing_view_types='["PRIMARY"]'
+        )
+
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['billing_views'] == []
+        hint = result['hint']
+        assert 'together with the other filters' in hint
+        assert 'does not mean no view includes the account' in hint
+        assert 'never PRIMARY or CUSTOM views' in hint
+        assert "with a time range, only that period's billing groups count" in hint
+        assert 'from the payer account' in hint
+        assert 'list-account-associations, then list-billing-groups' in hint
+        assert 'without source_account_id' in hint
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_source_account_id_empty_continuation_has_no_hint(
+        self, mock_create_client, mock_ctx
+    ):
+        """An empty continuation page says nothing about the whole query."""
+        mock_client = MagicMock()
+        mock_client.list_billing_views.return_value = {'billingViews': []}
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_views(
+            mock_ctx, source_account_id=ACCOUNT_ID_PRIMARY, next_token=NEXT_TOKEN_MORE
+        )
+
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['billing_views'] == []
+        assert 'hint' not in result
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_source_account_id_empty_partial_result_has_no_hint(
+        self, mock_create_client, mock_ctx
+    ):
+        """An empty first page whose next page fails is partial, so it gets no hint."""
+        mock_client = MagicMock()
+        mock_client.list_billing_views.side_effect = [
+            {'billingViews': [], 'nextToken': NEXT_TOKEN_MORE},
+            ClientError(
+                {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
+                'ListBillingViews',
+            ),
+        ]
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_views(mock_ctx, source_account_id=ACCOUNT_ID_PRIMARY)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['pagination']['complete_dataset'] is False
+        assert 'hint' not in result
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_source_account_id_error_has_no_hint(
+        self, mock_create_client, mock_ctx
+    ):
+        """A service error with source_account_id carries no source_account_id hint."""
+        mock_client = MagicMock()
+        mock_client.list_billing_views.side_effect = ClientError(
+            {'Error': {'Code': 'ValidationException', 'Message': 'bad sourceAccountId'}},
+            'ListBillingViews',
+        )
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_views(mock_ctx, source_account_id='12345')
+
+        assert result['status'] == 'error'
+        assert 'does not mean no view includes the account' not in result.get('hint', '')
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_empty_result_without_source_account_id_has_no_hint(
+        self, mock_create_client, mock_ctx
+    ):
+        """The hint is only for source_account_id; other empty results have none."""
+        mock_client = MagicMock()
+        mock_client.list_billing_views.return_value = {'billingViews': []}
+        mock_create_client.return_value = mock_client
+
+        names_json = json.dumps([{'searchOption': 'STARTS_WITH', 'searchValue': 'none'}])
+        result = await list_billing_views(mock_ctx, names=names_json)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert 'hint' not in result
 
     @patch(PATCH_BVS_CLIENT)
     async def test_list_billing_views_with_max_items(
