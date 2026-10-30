@@ -747,7 +747,7 @@ async def test_ce_real_get_dimension_values_passes_args_reload_identity_decorato
             start_date='2023-03-01',
             end_date='2023-03-31',
             search_string='Amazon',
-            filter='{}',
+            filter='{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}',
             next_token='abc',
             max_items=2,
         )
@@ -761,7 +761,7 @@ async def test_ce_real_get_dimension_values_passes_args_reload_identity_decorato
             '2023-03-01',
             '2023-03-31',
             'Amazon',
-            '{}',
+            '{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}',
             'abc',
             2,
             None,
@@ -815,7 +815,7 @@ async def test_ce_real_get_cost_forecast_passes_args_reload_identity_decorator(m
             start_date='2023-02-01',
             end_date='2023-02-28',
             granularity='MONTHLY',
-            filter='{}',
+            filter='{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}',
             prediction_interval_level=95,
         )
 
@@ -828,7 +828,7 @@ async def test_ce_real_get_cost_forecast_passes_args_reload_identity_decorator(m
             '2023-02-01',
             '2023-02-28',
             'MONTHLY',
-            '{}',
+            '{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}',
             95,
             None,
         )
@@ -1076,7 +1076,7 @@ async def test_ce_real_get_savings_plans_utilization_passes_args_reload_identity
             start_date='2023-01-01',
             end_date='2023-01-31',
             granularity='MONTHLY',
-            filter='{}',
+            filter='{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}',
             next_token='tkn',
             max_items=5,
         )
@@ -1090,7 +1090,7 @@ async def test_ce_real_get_savings_plans_utilization_passes_args_reload_identity
             '2023-01-01',
             '2023-01-31',
             'MONTHLY',
-            '{}',
+            '{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}',
         )
 
 
@@ -1799,6 +1799,12 @@ class TestCostExplorerDescriptionContract:
             'Use MONTHLY granularity for totals or rankings over whole months' in tool.description
         )
         assert tool.input_schema['properties']['granularity']['default'] == 'DAILY'
+
+    def test_description_says_an_empty_filter_is_rejected(self, tool):
+        """The filter grammar says to use double quotes and to omit filter for no filter."""
+        assert 'with double quotes; omit it for no filter, as an empty one is rejected' in (
+            tool.description
+        )
 
     def test_forecast_notes_say_monthly_periods_are_whole_months(self, tool):
         """MONTHLY forecasts widen to whole months, so a partial month is steered to DAILY."""

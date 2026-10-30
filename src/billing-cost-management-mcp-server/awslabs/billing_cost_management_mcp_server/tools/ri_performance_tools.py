@@ -25,6 +25,7 @@ from ..utilities.aws_service_base import (
     get_date_range,
     handle_aws_error,
     paginate_aws_items,
+    parse_filter,
     parse_json,
     whole_query_in_one_page,
     with_pagination,
@@ -398,8 +399,8 @@ async def get_reservation_coverage(
         else:
             request_params['Granularity'] = granularity
 
-        if filter_expr:
-            request_params['Filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
             # With several SERVICE values the API returns one entry per service for the same
             # period (grouped: groups of every service), none saying which service it holds.
             services = _selected_services(request_params['Filter'])
@@ -562,8 +563,8 @@ async def get_reservation_utilization(
         if not group_by:
             request_params['Granularity'] = granularity
 
-        if filter_expr:
-            request_params['Filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         if sort_by:
             request_params['SortBy'] = parse_json(sort_by, 'sort_by')

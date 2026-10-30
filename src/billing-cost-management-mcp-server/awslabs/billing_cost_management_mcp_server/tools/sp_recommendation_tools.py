@@ -20,6 +20,7 @@ from ..utilities.aws_service_base import (
     format_response,
     handle_aws_error,
     paginate_aws_items,
+    parse_filter,
     with_pagination,
 )
 from ..utilities.logging_utils import get_context_logger
@@ -256,8 +257,8 @@ async def get_savings_plans_purchase_recommendation(
         # Add optional parameters if provided
         if account_scope:
             request_params['AccountScope'] = account_scope
-        if filter_expr:
-            request_params['Filter'] = filter_expr
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         details, pages, pagination = await paginate_aws_items(
             ctx,

@@ -130,7 +130,7 @@ WINDOW LIMITS:
   forecast when the account has too little history, which is common for accounts with less
   than one full billing cycle.
 
-FILTER EXPRESSION GRAMMAR (the `filter` argument is an object or a JSON string):
+FILTER EXPRESSION GRAMMAR (the `filter` argument is an object or a JSON string with double quotes; omit it for no filter, as an empty one is rejected):
 The top-level object has exactly ONE of these keys:
 - Leaf keys: `Dimensions`, `Tags`, `CostCategories`
 - Logical keys: `And` and `Or` (each takes an array of expressions), `Not` (takes one

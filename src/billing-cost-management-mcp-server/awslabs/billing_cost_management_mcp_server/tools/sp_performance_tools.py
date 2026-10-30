@@ -25,6 +25,7 @@ from ..utilities.aws_service_base import (
     get_date_range,
     handle_aws_error,
     paginate_aws_items,
+    parse_filter,
     parse_json,
     whole_query_in_one_page,
     with_pagination,
@@ -301,8 +302,8 @@ async def get_savings_plans_coverage(
         else:
             request_params['Granularity'] = granularity
 
-        if filter_expr:
-            request_params['Filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         if sort_by:
             request_params['SortBy'] = parse_json(sort_by, 'sort_by')
@@ -372,8 +373,8 @@ async def get_savings_plans_utilization(
         }
 
         # Add optional parameters if provided
-        if filter_expr:
-            request_params['Filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         response = ce_client.get_savings_plans_utilization(**request_params)
 
@@ -464,8 +465,8 @@ async def get_savings_plans_utilization_details(
         request_params: dict = {'TimePeriod': {'Start': start, 'End': end}}
 
         # Add optional parameters if provided
-        if filter_expr:
-            request_params['Filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         if sort_by:
             request_params['SortBy'] = parse_json(sort_by, 'sort_by')
