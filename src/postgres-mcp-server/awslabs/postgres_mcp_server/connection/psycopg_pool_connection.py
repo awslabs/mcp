@@ -32,7 +32,7 @@ from datetime import datetime, timedelta
 from loguru import logger
 from psycopg.conninfo import make_conninfo
 from psycopg_pool import AsyncConnectionPool
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple
 
 
 # Path to the combined AWS CA bundle shipped inside the wheel by hatch_build.py.
@@ -233,36 +233,36 @@ def _read_credentials_from_secret(
         logger.debug(f'Retrieving secret value for {secret_arn}')
         get_secret_value_response = client.get_secret_value(SecretId=secret_arn)
         logger.debug('Successfully retrieved secret value')
-
-        if 'SecretString' not in get_secret_value_response:
-            logger.error('Secret does not contain a SecretString')
-            raise ValueError('Secret does not contain a SecretString')
-
-        secret = json.loads(get_secret_value_response['SecretString'])
-        logger.debug(f'Secret keys: {", ".join(secret.keys())}')
-
-        username = secret.get('username') or secret.get('user') or secret.get('Username')
-        password = secret.get('password') or secret.get('Password')
-
-        if not username:
-            logger.error(
-                f'Username not found in secret. Available keys: {", ".join(secret.keys())}'
-            )
-            raise ValueError(
-                f'Secret does not contain username. Available keys: {", ".join(secret.keys())}'
-            )
-
-        if require_password and not password:
-            logger.error('Password not found in secret')
-            raise ValueError(
-                f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
-            )
-
-        logger.debug(f'Successfully extracted credentials for user: {username}')
-        return username, password or None
     except Exception as e:
         logger.exception(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
-        raise ValueError(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
+        raise ValueError(f'Failed to retrieve credentials from Secrets Manager: {str(e)}') from e
+
+    if 'SecretString' not in get_secret_value_response:
+        logger.error('Secret does not contain a SecretString')
+        raise ValueError('Secret does not contain a SecretString')
+
+    secret = json.loads(get_secret_value_response['SecretString'])
+    if not isinstance(secret, dict):
+        raise ValueError('Secret must contain a JSON object')
+    logger.debug(f'Secret keys: {", ".join(secret.keys())}')
+
+    username = secret.get('username') or secret.get('user') or secret.get('Username')
+    password = secret.get('password') or secret.get('Password')
+
+    if not username:
+        logger.error(f'Username not found in secret. Available keys: {", ".join(secret.keys())}')
+        raise ValueError(
+            f'Secret does not contain username. Available keys: {", ".join(secret.keys())}'
+        )
+
+    if require_password and not password:
+        logger.error('Password not found in secret')
+        raise ValueError(
+            f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
+        )
+
+    logger.debug(f'Successfully extracted credentials for user: {username}')
+    return username, password or None
 
 
 def get_credentials_from_secret(
@@ -296,8 +296,9 @@ def get_credentials_from_secret(
         return 'test_user', 'test_password'
 
     username, password = _read_credentials_from_secret(secret_arn, region, require_password=True)
-    # require_password=True guarantees a non-empty password here.
-    return username, cast(str, password)
+    if not password:
+        raise ValueError('Secret does not contain password')
+    return username, password
 
 
 def get_username_from_secret(secret_arn: str, region: str, is_test: bool = False) -> str:

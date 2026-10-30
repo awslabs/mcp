@@ -1352,8 +1352,8 @@ def validate_secret_arn_at_startup(
         secret_arn: The ARN from --secret_arn.
         region: AWS region for Secrets Manager.
         require_password: Whether the secret must contain a password. Set to
-            False for PG_WIRE_IAM_PROTOCOL, where the password is a generated
-            IAM auth token and the secret only needs a username.
+            False for PG_WIRE_IAM_PROTOCOL or lazy startup with no connection
+            method selected, where only a username is needed for the probe.
 
     Raises:
         SystemExit: If the secret cannot be read. Exit code 1.
@@ -1396,6 +1396,7 @@ def main():
 
     parser.add_argument(
         '--connection_method',
+        choices=[method.name for method in ConnectionMethod],
         help='Connection method to the database. It can be RDS_API, PG_WIRE_PROTOCOL OR PG_WIRE_IAM_PROTOCOL)',
     )
     parser.add_argument('--db_cluster_arn', help='ARN of the RDS or Aurora Postgres cluster')
@@ -1549,9 +1550,12 @@ def main():
     # before any query is attempted. The probe is skipped only when no
     # ARNs are configured at all — the cluster's managed secret will be
     # discovered (and validated) lazily on the first connection attempt.
-    # With IAM auth the password is a generated token, so the secret only
-    # needs a username; don't require a password key in that mode.
-    secret_requires_password = args.connection_method != ConnectionMethod.PG_WIRE_IAM_PROTOCOL.name
+    # Only password-based methods require a password at startup. IAM uses a
+    # generated token, and lazy startup has not selected an auth method yet.
+    secret_requires_password = args.connection_method in (
+        ConnectionMethod.PG_WIRE_PROTOCOL.name,
+        ConnectionMethod.RDS_API.name,
+    )
     for target, arn in configured_secret_arns.items():
         try:
             validate_secret_arn_at_startup(
