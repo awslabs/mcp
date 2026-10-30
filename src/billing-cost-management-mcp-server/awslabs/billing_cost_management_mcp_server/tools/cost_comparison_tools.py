@@ -403,7 +403,7 @@ async def cost_comparison(
             metric_for_comparison,
             today,
         )
-        validate_comparison_filter(parse_json(filter, 'filter'))
+        validate_comparison_filter(parse_filter(filter))
 
         # Initialize Cost Explorer client using shared utility
         ce_client = create_aws_client('ce', region_name='us-east-1')

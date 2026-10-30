@@ -233,8 +233,9 @@ def parse_filter(
 ) -> Any:
     """Parse a filter expression, rejecting an empty one.
 
-    An empty filter (``''``, ``{}``, ``[]``, ``null``) is an error rather than "no filter":
-    dropping it would run the query unfiltered, and the result would read as a filtered one.
+    An empty filter (``''``, ``""``, ``{}``, ``[]``, ``null``) is an error rather than "no
+    filter": dropping it would run the query unfiltered, and the result would read as a
+    filtered one.
 
     Args:
         filter_expr: The filter, as an object or a JSON string. None means no filter.
@@ -252,7 +253,7 @@ def parse_filter(
     if isinstance(filter_expr, str):
         filter_expr = filter_expr.strip()
     parsed = parse_json(filter_expr, parameter_name)
-    if parsed is None or parsed == {} or parsed == []:
+    if parsed is None or parsed == {} or parsed == [] or parsed == '':
         raise ValueError(
             f'{parameter_name} is empty. Omit {parameter_name} to query without one, or pass '
             'a filter expression.'

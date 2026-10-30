@@ -49,6 +49,9 @@ from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+REGION_FILTER = '{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}'
+
+
 @pytest.fixture(scope='module', autouse=True)
 def _restore_real_tool_module():
     """Reload the module with the real FastMCP.tool after this file's tests.
@@ -955,6 +958,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             end_date='2023-01-31',
             search_string='Env',
             tag_key='Environment',
+            filter=REGION_FILTER,
             next_token='n2',
             max_items=3,
         )
@@ -969,6 +973,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             '2023-01-31',
             'Env',
             None,
+            None,
             'n1',
             2,
             None,
@@ -980,6 +985,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             '2023-01-31',
             'Env',
             'Environment',
+            REGION_FILTER,
             'n2',
             3,
             None,
@@ -1024,6 +1030,7 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
             end_date='2023-01-31',
             search_string='Dept',
             cost_category_name='Department',
+            filter=REGION_FILTER,
             next_token='p2',
             max_items=4,
         )
@@ -1037,6 +1044,7 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
             '2023-01-31',
             'Dept',
             None,  # cost_category_name omitted on the first call
+            None,
             'p1',
             2,
             None,
@@ -1048,6 +1056,7 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
             '2023-01-31',
             'Dept',
             'Department',
+            REGION_FILTER,
             'p2',
             4,
             None,
@@ -1322,6 +1331,7 @@ async def test_ce_real_get_tags_with_billing_view_arn(mock_context, sample_billi
             None,
             None,
             None,
+            None,
             sample_billing_view_arn,
         )
 
@@ -1352,6 +1362,7 @@ async def test_ce_real_get_cost_categories_with_billing_view_arn(
         mock_impl.assert_awaited_once_with(
             mock_context,
             fake_client,
+            None,
             None,
             None,
             None,
@@ -2104,8 +2115,9 @@ class TestCostExplorerDescriptionContract:
             'levels deep; a 5th is rejected.' in limits
         )
         assert (
-            'getDimensionValues (default COST_AND_USAGE context): `And` only; `Or` and `Not` are '
-            'rejected.' in limits
+            'getDimensionValues (default COST_AND_USAGE context), getTagsOrValues and '
+            'getCostCategories: `And` of leaves only (an `And` inside it is rejected); `Or` and '
+            '`Not` are rejected.' in limits
         )
         assert 'getSavingsPlansUtilization: `And` and `Not` only; `Or` is rejected.' in limits
 
@@ -2416,6 +2428,39 @@ async def test_group_by_is_rejected_where_the_api_has_no_group_by(
     assert 'getCostAndUsage and getCostAndUsageWithResources' in message
     assert 'Remove group_by' in res['hint']
     assert 'once per value' in res['hint']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('operation', sorted(NO_GROUP_BY_OPERATIONS))
+@pytest.mark.parametrize('group_by', ['[]', ' [] ', 'null'], ids=repr)
+async def test_empty_group_by_json_is_no_grouping(
+    mock_context, real_cost_explorer, operation, group_by
+):
+    """group_by '[]' is no grouping, as getCostAndUsage reads it, so the call goes through."""
+    handler, args = NO_GROUP_BY_OPERATIONS[operation]
+    with (
+        patch.object(real_cost_explorer, 'create_aws_client', return_value=MagicMock()),
+        patch.object(real_cost_explorer, handler, new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+        res = await real_cost_explorer.cost_explorer(
+            mock_context, operation=operation, group_by=group_by, **args
+        )
+
+    assert res['status'] == 'success'
+    mock_impl.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_description_lists_filter_for_tags_and_cost_categories():
+    """The tags and cost category operations list filter as optional."""
+    tool = await cost_explorer_server.get_tool('cost-explorer')
+    assert tool is not None and tool.description
+    description = ' '.join(tool.description.split())
+    assert 'Optional: start_date, end_date, tag_key, search_string, filter,' in description
+    assert (
+        'Optional: start_date, end_date, cost_category_name, search_string, filter,' in description
+    )
 
 
 @pytest.mark.asyncio
