@@ -26,6 +26,7 @@ from awslabs.aws_serverless_mcp_server.utils.cloudformation import (
 )
 from awslabs.aws_serverless_mcp_server.utils.const import (
     DEPLOYMENT_STATUS_DIR,
+    InvalidProjectNameError,
     get_deployment_status_file_path,
 )
 from datetime import datetime
@@ -140,9 +141,11 @@ async def get_deployment_status(project_name: str) -> Dict[str, Any]:
     Returns:
         Dict: Deployment status information
     """
+    # Only an invalid name means "not found". Other path errors (an untrusted status
+    # directory, a symlink escaping it) propagate so the real cause is reported.
     try:
         metadata_file = get_deployment_status_file_path(project_name)
-    except ValueError as e:
+    except InvalidProjectNameError as e:
         logger.warning(f'Rejected invalid project name: {str(e)}')
         return {
             'status': DeploymentStatus.NOT_FOUND,

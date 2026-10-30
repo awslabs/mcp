@@ -64,7 +64,7 @@ class TestDeploymentManagerComprehensive:
             '..',
             'a.b',  # dots are disallowed by the allowlist
             '',
-            'abc\n',  # trailing newline must not slip past the anchors
+            'abc\n',  # trailing newline must be rejected (fullmatch, not $)
             'a' * 129,  # longer than the CloudFormation stack name limit
         ],
     )
@@ -129,7 +129,7 @@ class TestDeploymentManagerComprehensive:
             with patch(
                 'awslabs.aws_serverless_mcp_server.utils.const.DEPLOYMENT_STATUS_DIR', link_dir
             ):
-                with pytest.raises(ValueError, match='not a directory'):
+                with pytest.raises(ValueError, match='is a symlink'):
                     get_deployment_status_file_path('my-project')
 
     @pytest.mark.skipif(sys.platform == 'win32', reason='POSIX permissions only')
@@ -194,6 +194,15 @@ class TestDeploymentManagerComprehensive:
 
         assert 'LEAKED' not in json.dumps(result)
         assert result['status'] == DeploymentStatus.NOT_FOUND
+
+    @pytest.mark.skipif(sys.platform == 'win32', reason='POSIX ownership only')
+    @pytest.mark.asyncio
+    async def test_get_deployment_status_reports_untrusted_dir(self, temp_deployment_dir):
+        """An untrusted status directory is reported as an error, not as "not found"."""
+        other_uid = os.stat(temp_deployment_dir).st_uid + 1
+        with patch('os.geteuid', return_value=other_uid):
+            with pytest.raises(ValueError, match='owned by another user'):
+                await get_deployment_status('my-project')
 
     @pytest.mark.asyncio
     async def test_initialize_deployment_status_rejects_traversal(

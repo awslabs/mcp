@@ -94,10 +94,29 @@ class DeployWebAppTool(BaseTool):
             )
             os.makedirs(DEPLOYMENT_STATUS_DIR, mode=0o700, exist_ok=True)
 
-            # Check if this is a destructive deployment type change
+            # Check if this is a destructive deployment type change. This also validates
+            # the status path before the background deploy starts, so a rejected path
+            # is reported here rather than after "initiated successfully".
             destructive_check = await self.check_destructive_deployment_change(
                 project_name, deployment_type
             )
+
+            if destructive_check.get('verificationFailed'):
+                return {
+                    'content': [
+                        {
+                            'type': 'text',
+                            'text': json.dumps(
+                                {
+                                    'success': False,
+                                    'message': 'Could not verify the existing deployment',
+                                    'error': destructive_check.get('warning'),
+                                },
+                                indent=2,
+                            ),
+                        }
+                    ]
+                }
 
             if destructive_check.get('isDestructive'):
                 return {
@@ -284,7 +303,8 @@ class DeployWebAppTool(BaseTool):
             new_type: New deployment type
 
         Returns:
-            Dict: Object with isDestructive flag and warning message
+            Dict: isDestructive, an optional warning, and verificationFailed=True when
+            the existing deployment could not be checked (also sets isDestructive=True).
         """
         try:
             # Check if there's an existing deployment
@@ -339,7 +359,9 @@ class DeployWebAppTool(BaseTool):
             # Fail closed: if the existing deployment cannot be checked (rejected path,
             # unreadable or corrupt status file), do not report the change as safe.
             logger.error(f'Error checking for destructive deployment change: {str(e)}')
-            return {
-                'isDestructive': True,
-                'warning': f'Cannot verify the existing deployment type for {project_name!r}: {e}',
-            }
+            warning = f'Cannot verify the existing deployment type for {project_name!r}: {e}.'
+            if isinstance(e, json.JSONDecodeError):
+                warning += (
+                    f' The status file in {DEPLOYMENT_STATUS_DIR} is corrupt; delete it and retry.'
+                )
+            return {'isDestructive': True, 'verificationFailed': True, 'warning': warning}

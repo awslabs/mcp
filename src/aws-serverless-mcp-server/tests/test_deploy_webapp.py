@@ -164,6 +164,8 @@ class TestDeployWebapp:
                 'test-project', 'backend'
             )
             assert result['isDestructive'] is True
+            assert result['verificationFailed'] is True
+            assert 'corrupt' not in result['warning']
             assert 'Test error' in result['warning']
 
     @pytest.mark.asyncio
@@ -177,6 +179,7 @@ class TestDeployWebapp:
                 'test-project', 'frontend'
             )
             assert result['isDestructive'] is True
+            assert 'corrupt; delete it' in result['warning']
 
     @pytest.mark.asyncio
     async def test_check_destructive_deployment_change_rejected_path_fails_closed(self):
@@ -198,6 +201,34 @@ class TestDeployWebapp:
 
         assert result['isDestructive'] is True
         assert 'Cannot verify' in result['warning']
+
+    @pytest.mark.asyncio
+    async def test_deploy_webapp_verification_failed(self):
+        """A failed check is reported as such, not as a destructive change."""
+        with patch.object(
+            DeployWebAppTool,
+            'check_destructive_deployment_change',
+            return_value={
+                'isDestructive': True,
+                'verificationFailed': True,
+                'warning': 'Cannot verify the existing deployment type',
+            },
+        ):
+            result = await DeployWebAppTool(MagicMock(), True).deploy_webapp(
+                AsyncMock(),
+                deployment_type='frontend',
+                project_name='test-project',
+                project_root=os.path.join(tempfile.gettempdir(), 'test-project'),
+                region=None,
+                frontend_configuration=None,
+                backend_configuration=None,
+            )
+
+        response_json = json.loads(result['content'][0]['text'])
+        assert response_json['success'] is False
+        assert response_json['message'] == 'Could not verify the existing deployment'
+        assert 'Cannot verify' in response_json['error']
+        assert 'Destructive' not in json.dumps(response_json)
 
     @pytest.mark.asyncio
     async def test_deploy_webapp_destructive_change(self):
