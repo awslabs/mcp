@@ -13,11 +13,13 @@
 # limitations under the License.
 """Tests for the models module."""
 
+import pytest
 from awslabs.aws_serverless_mcp_server.models import (
     BackendConfiguration,
     DeployWebAppRequest,
     FrontendConfiguration,
 )
+from pydantic import ValidationError
 
 
 class TestBackendConfiguration:
@@ -132,6 +134,19 @@ class TestFrontendConfiguration:
 
 class TestDeployWebAppRequest:
     """Tests for the DeployWebAppRequest model."""
+
+    @pytest.mark.parametrize('project_name', ['../evil', '/etc/passwd', 'a.b', '', 'abc\n'])
+    def test_rejects_invalid_project_name(self, project_name):
+        """Project names outside the allowlist are rejected at the request boundary."""
+        with pytest.raises(ValidationError):
+            DeployWebAppRequest(
+                deployment_type='frontend',
+                project_name=project_name,
+                project_root='/path/to/project',
+                region=None,
+                backend_configuration=None,
+                frontend_configuration=None,
+            )
 
     def test_valid_backend_deployment_request(self):
         """Test creating a valid backend deployment request."""

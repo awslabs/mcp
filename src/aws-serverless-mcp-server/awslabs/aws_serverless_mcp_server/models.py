@@ -14,6 +14,7 @@
 
 """Models for the AWS Serverless MCP Server."""
 
+from awslabs.aws_serverless_mcp_server.utils.const import PROJECT_NAME_PATTERN
 from pydantic import BaseModel, Field
 from typing import Any, Dict, Literal, Optional
 
@@ -69,7 +70,14 @@ class DeployWebAppRequest(BaseModel):
     deployment_type: Literal['backend', 'frontend', 'fullstack'] = Field(
         ..., description='Type of deployment'
     )
-    project_name: str = Field(..., description='Project name')
+    project_name: str = Field(
+        ...,
+        pattern=PROJECT_NAME_PATTERN.pattern,
+        description=(
+            'Project name. May contain only letters, digits, hyphens, and underscores, '
+            'up to 128 characters.'
+        ),
+    )
     project_root: str = Field(..., description='Absolute path to the project root directory')
     region: Optional[str] = Field(None, description='AWS Region to deploy to (e.g., us-east-1)')
     backend_configuration: Optional[BackendConfiguration] = Field(
