@@ -939,3 +939,46 @@ async def test_descriptions_state_future_billing_period_behavior():
     for name in rejected:
         description = ' '.join((tools[name].description or '').split())
         assert 'after the current month (UTC) fails with validation_error' in description, name
+
+
+@pytest.mark.asyncio
+async def test_descriptions_state_past_month_with_nothing_in_effect():
+    """Each tool says what a past month with nothing in effect returns: empty, managed plans, or an error."""
+    from awslabs.billing_cost_management_mcp_server.tools import billing_conductor_tools as bct
+
+    # Other tests reload this module under a patched FastMCP; reload the real one here.
+    real = importlib.reload(bct)
+    tools = {t.name: t for t in await real.billing_conductor_server.list_tools()}
+    expected = {
+        'list-billing-groups': 'A past month with no billing group in effect returns an empty list, not an error.',
+        'list-billing-group-cost-reports': (
+            'A past month with no billing group in effect returns an empty list, not an error.'
+        ),
+        'get-billing-group-cost-report': (
+            'A range with no data for the billing group (for example, before it existed) returns no '
+            'results, not an error.'
+        ),
+        'list-custom-line-items': (
+            'A past month with no custom line item in effect returns an empty list, not an error.'
+        ),
+        'list-pricing-rules': 'A past month with no pricing rule in effect returns an empty list, not an error.',
+        'list-pricing-plans': (
+            'AWS-managed pricing plans are listed for every month, so a past month with none of your '
+            'own pricing plans in effect still returns them rather than an empty list.'
+        ),
+        'list-resources-associated-to-custom-line-item': (
+            'fails with ResourceNotFoundException ("Custom line item does not exist."), not an empty list.'
+        ),
+        'list-pricing-rules-for-plan': (
+            'fails with ResourceNotFoundException ("Pricing plan does not exist."), not an empty list.'
+        ),
+        'list-pricing-plans-for-rule': (
+            'fails with ResourceNotFoundException ("Pricing rule does not exist."), not an empty list.'
+        ),
+    }
+    for name, text in expected.items():
+        description = ' '.join((tools[name].description or '').split())
+        assert text in description, name
+    # Account associations come from the payer's linked accounts, not Billing Conductor records.
+    description = ' '.join((tools['list-account-associations'].description or '').split())
+    assert 'in effect returns an empty list' not in description
