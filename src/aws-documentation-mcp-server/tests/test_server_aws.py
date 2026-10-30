@@ -24,7 +24,10 @@ from awslabs.aws_documentation_mcp_server.server_aws import (
     search_documentation,
     search_table,
 )
-from awslabs.aws_documentation_mcp_server.util import UnreadablePageError
+from awslabs.aws_documentation_mcp_server.util import (
+    DocumentationToolError,
+    UnreadablePageError,
+)
 from mcp.server.mcpserver import Context
 from typing import Any, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -618,26 +621,27 @@ class TestSearchDocumentation:
 
     @pytest.mark.asyncio
     async def test_search_documentation_http_error(self):
-        """Test searching AWS documentation with HTTP error."""
+        """A transport failure raises, so the model is not handed it as a result."""
         search_phrase = 'test'
         ctx = MockContext()
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.side_effect = httpx.HTTPError('Connection error')
 
-            response = await search_documentation(
-                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
-            )
-            results = response.search_results
-            assert len(results) == 1
-            assert results[0].rank_order == 1
-            assert results[0].url == ''
-            assert 'Error searching AWS docs: Connection error' in results[0].title
-            assert results[0].context is None
+            with pytest.raises(
+                DocumentationToolError, match='Error searching AWS docs: Connection error'
+            ):
+                await search_documentation(
+                    ctx,
+                    search_phrase=search_phrase,
+                    limit=10,
+                    product_types=None,
+                    guide_types=None,
+                )
 
     @pytest.mark.asyncio
     async def test_search_documentation_status_error(self):
-        """Test searching AWS documentation with status code error."""
+        """A 5xx raises and names the status, rather than returning it as a title."""
         search_phrase = 'test'
         ctx = MockContext()
 
@@ -647,20 +651,20 @@ class TestSearchDocumentation:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            response = await search_documentation(
-                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
-            )
-            results = response.search_results
-
-            assert len(results) == 1
-            assert results[0].rank_order == 1
-            assert results[0].url == ''
-            assert 'Error searching AWS docs - status code 500' in results[0].title
-            assert results[0].context is None
+            with pytest.raises(
+                DocumentationToolError, match='Error searching AWS docs - status code 500'
+            ):
+                await search_documentation(
+                    ctx,
+                    search_phrase=search_phrase,
+                    limit=10,
+                    product_types=None,
+                    guide_types=None,
+                )
 
     @pytest.mark.asyncio
     async def test_search_documentation_json_error(self):
-        """Test searching AWS documentation with JSON decode error."""
+        """An unparseable body raises rather than becoming a one-result response."""
         search_phrase = 'test'
         ctx = MockContext()
 
@@ -671,16 +675,14 @@ class TestSearchDocumentation:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            response = await search_documentation(
-                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
-            )
-            results = response.search_results
-
-            assert len(results) == 1
-            assert results[0].rank_order == 1
-            assert results[0].url == ''
-            assert 'Error parsing search results:' in results[0].title
-            assert results[0].context is None
+            with pytest.raises(DocumentationToolError, match='Error parsing search results:'):
+                await search_documentation(
+                    ctx,
+                    search_phrase=search_phrase,
+                    limit=10,
+                    product_types=None,
+                    guide_types=None,
+                )
 
     @pytest.mark.asyncio
     async def test_search_documentation_empty_results(self):
@@ -1147,23 +1149,21 @@ class TestRecommend:
 
     @pytest.mark.asyncio
     async def test_recommend_http_error(self):
-        """Test getting content recommendations with HTTP error."""
+        """A transport failure raises, so the model is not handed it as a recommendation."""
         url = 'https://docs.aws.amazon.com/test'
         ctx = MockContext()
 
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.side_effect = httpx.HTTPError('Connection error')
 
-            results = await recommend(ctx, url=url)
-
-            assert len(results) == 1
-            assert results[0].url == ''
-            assert 'Error getting recommendations: Connection error' in results[0].title
-            assert results[0].context is None
+            with pytest.raises(
+                DocumentationToolError, match='Error getting recommendations: Connection error'
+            ):
+                await recommend(ctx, url=url)
 
     @pytest.mark.asyncio
     async def test_recommend_status_error(self):
-        """Test getting content recommendations with status code error."""
+        """A 5xx raises and names the status, rather than returning it as a title."""
         url = 'https://docs.aws.amazon.com/test'
         ctx = MockContext()
 
@@ -1173,16 +1173,14 @@ class TestRecommend:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_response
 
-            results = await recommend(ctx, url=url)
-
-            assert len(results) == 1
-            assert results[0].url == ''
-            assert 'Error getting recommendations - status code 500' in results[0].title
-            assert results[0].context is None
+            with pytest.raises(
+                DocumentationToolError, match='Error getting recommendations - status code 500'
+            ):
+                await recommend(ctx, url=url)
 
     @pytest.mark.asyncio
     async def test_recommend_json_error(self):
-        """Test getting content recommendations with JSON decode error."""
+        """An unparseable body raises rather than becoming a one-result response."""
         url = 'https://docs.aws.amazon.com/test'
         ctx = MockContext()
 
@@ -1194,12 +1192,8 @@ class TestRecommend:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_response
 
-            results = await recommend(ctx, url=url)
-
-            assert len(results) == 1
-            assert results[0].url == ''
-            assert 'Error parsing recommendations:' in results[0].title
-            assert results[0].context is None
+            with pytest.raises(DocumentationToolError, match='Error parsing recommendations:'):
+                await recommend(ctx, url=url)
 
 
 class TestSearchTable:
