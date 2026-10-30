@@ -134,6 +134,7 @@ const sidebars: SidebarsConfig = {
           type: "category",
           label: "Cost & Operations",
           items: [
+            "servers/agent-cost-mcp-server",
             "servers/aws-pricing-mcp-server",
             "servers/cloudwatch-mcp-server",
             "servers/cloudwatch-applicationsignals-mcp-server",
