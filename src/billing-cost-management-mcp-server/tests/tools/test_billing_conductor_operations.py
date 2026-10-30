@@ -43,6 +43,7 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operatio
 )
 from botocore.exceptions import ClientError
 from botocore.stub import Stubber
+from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -2305,3 +2306,193 @@ class TestConductorPaginationContract:
         assert result['data']['billing_period'] == '2025-02'
         assert result['data']['pricing_plan_arn'] == PRICING_PLAN_ARN_2
         assert len(result['data']['pricing_rule_arns']) == 2
+
+
+# --- Future billing periods ---
+
+PATCH_BC_TODAY = (
+    'awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operations._utc_today'
+)
+# Pinned "today" for the future-period tests: the current billing period is 2026-10.
+TODAY = date(2026, 10, 28)
+
+# (operation, AWS method, result key, positional args before billing_period)
+CONFIG_LISTS = [
+    (list_billing_groups, 'list_billing_groups', 'BillingGroups', ()),
+    (list_account_associations, 'list_account_associations', 'LinkedAccounts', ()),
+    (list_custom_line_items, 'list_custom_line_items', 'CustomLineItems', ()),
+    (
+        list_resources_associated_to_custom_line_item,
+        'list_resources_associated_to_custom_line_item',
+        'AssociatedResources',
+        (CUSTOM_LINE_ITEM_ARN_1,),
+    ),
+    (list_pricing_rules, 'list_pricing_rules', 'PricingRules', ()),
+    (list_pricing_plans, 'list_pricing_plans', 'PricingPlans', ()),
+    (
+        list_pricing_rules_associated_to_pricing_plan,
+        'list_pricing_rules_associated_to_pricing_plan',
+        'PricingRuleArns',
+        (PRICING_PLAN_ARN_1,),
+    ),
+    (
+        list_pricing_plans_associated_with_pricing_rule,
+        'list_pricing_plans_associated_with_pricing_rule',
+        'PricingPlanArns',
+        (PRICING_RULE_ARN_1,),
+    ),
+]
+
+
+@pytest.mark.asyncio
+@patch(PATCH_BC_TODAY, return_value=TODAY)
+class TestFutureBillingPeriod:
+    """A billing period after the current UTC month is rejected or flagged."""
+
+    @pytest.mark.parametrize('period', ['2026-11', '2026-12', '2027-1', '2030-01'])
+    @patch(PATCH_BC_CLIENT)
+    async def test_cost_reports_reject_future_month(
+        self, mock_create_client, _today, mock_ctx, period
+    ):
+        """The service returns $0 rows for a future month, so it is refused before any call."""
+        result = await list_billing_group_cost_reports(mock_ctx, period)
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'validation_error'
+        assert f'billing_period {period} is after the current month (2026-10' in result['message']
+        mock_create_client.assert_not_called()
+
+    @pytest.mark.parametrize(
+        'period',
+        [None, '', '2026-10', '2026-9', '2024-01', '2026-13', 'bad', ' 2026-12', '2027-01\n'],
+    )
+    @patch(PATCH_BC_CLIENT)
+    async def test_cost_reports_current_past_or_malformed_reach_aws(
+        self, mock_create_client, _today, mock_ctx, period
+    ):
+        """Current and past months are sent; a malformed one is left to the service to reject."""
+        mock_client = MagicMock()
+        mock_client.list_billing_group_cost_reports.return_value = {'BillingGroupCostReports': []}
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_group_cost_reports(mock_ctx, period)
+
+        assert result['status'] == STATUS_SUCCESS
+        mock_client.list_billing_group_cost_reports.assert_called_once()
+
+    @pytest.mark.parametrize('start,end', [('2026-11', '2026-12'), ('2027-01', '2027-03')])
+    @patch(PATCH_BC_CLIENT)
+    async def test_cost_report_range_starting_in_future_rejected(
+        self, mock_create_client, _today, mock_ctx, start, end
+    ):
+        """A range that starts after the current month returns nothing, so it is refused."""
+        rng = json.dumps({'InclusiveStartBillingPeriod': start, 'ExclusiveEndBillingPeriod': end})
+
+        result = await get_billing_group_cost_report(mock_ctx, BILLING_GROUP_ARN_1, rng)
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'validation_error'
+        assert (
+            f'InclusiveStartBillingPeriod {start} is after the current month'
+            in (result['message'])
+        )
+        mock_create_client.assert_not_called()
+
+    @pytest.mark.parametrize(
+        'rng',
+        [
+            None,
+            {'InclusiveStartBillingPeriod': '2026-10', 'ExclusiveEndBillingPeriod': '2026-11'},
+            {'InclusiveStartBillingPeriod': '2026-09', 'ExclusiveEndBillingPeriod': '2027-01'},
+            {'ExclusiveEndBillingPeriod': '2027-01'},
+            ['2027-01'],
+        ],
+    )
+    @patch(PATCH_BC_CLIENT)
+    async def test_cost_report_range_starting_now_or_earlier_reaches_aws(
+        self, mock_create_client, _today, mock_ctx, rng
+    ):
+        """A range that starts in the current month or earlier is sent unchanged."""
+        mock_client = MagicMock()
+        mock_client.get_billing_group_cost_report.return_value = {
+            'BillingGroupCostReportResults': []
+        }
+        mock_create_client.return_value = mock_client
+
+        result = await get_billing_group_cost_report(
+            mock_ctx, BILLING_GROUP_ARN_1, json.dumps(rng) if rng else None
+        )
+
+        assert result['status'] == STATUS_SUCCESS
+        call_kwargs = mock_client.get_billing_group_cost_report.call_args[1]
+        assert call_kwargs.get('BillingPeriodRange') == rng
+
+    @pytest.mark.parametrize('op,method,key,args', CONFIG_LISTS)
+    @patch(PATCH_BC_CLIENT)
+    async def test_config_lists_flag_future_month(
+        self, mock_create_client, _today, mock_ctx, op, method, key, args
+    ):
+        """A future month is sent, and the result is marked as a projection."""
+        mock_client = MagicMock()
+        getattr(mock_client, method).return_value = {key: []}
+        mock_create_client.return_value = mock_client
+
+        result = await op(mock_ctx, *args, '2026-12')
+
+        assert result['status'] == STATUS_SUCCESS
+        assert getattr(mock_client, method).call_args[1]['BillingPeriod'] == '2026-12'
+        assert result['data']['billing_period_is_future'] is True
+        assert 'is a projection, not a record' in result['data']['billing_period_note']
+
+    @pytest.mark.parametrize('period', [None, '2026-10', '2024-01'])
+    @pytest.mark.parametrize('op,method,key,args', CONFIG_LISTS)
+    @patch(PATCH_BC_CLIENT)
+    async def test_config_lists_current_or_past_not_flagged(
+        self, mock_create_client, _today, mock_ctx, op, method, key, args, period
+    ):
+        """The current month, a past month, or no month carries no future flag."""
+        mock_client = MagicMock()
+        getattr(mock_client, method).return_value = {key: []}
+        mock_create_client.return_value = mock_client
+
+        result = await op(mock_ctx, *args, period)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert 'billing_period_is_future' not in result['data']
+        assert 'billing_period_note' not in result['data']
+
+
+@pytest.mark.parametrize(
+    'today,period,future',
+    [
+        (date(2026, 12, 31), '2027-01', True),
+        (date(2027, 1, 1), '2027-01', False),
+        (date(2027, 1, 1), '2026-12', False),
+        (date(2026, 10, 28), '2026-10', False),
+        (date(2026, 10, 28), '2026-11', True),
+        (date(2026, 10, 28), '2026-13', False),
+        (date(2026, 10, 28), '2026-00', False),
+        (date(2026, 10, 28), None, False),
+    ],
+)
+def test_is_future_billing_period_year_boundary(today, period, future):
+    """The comparison uses year then month; malformed or missing periods are never future."""
+    from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operations import (
+        _is_future_billing_period,
+    )
+
+    with patch(PATCH_BC_TODAY, return_value=today):
+        assert _is_future_billing_period(period) is future
+
+
+def test_utc_today_reads_the_utc_date():
+    """Today is the UTC date: 23:30 UTC on Oct 31 is still October wherever the host is."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        billing_conductor_operations as bco,
+    )
+
+    utc_now = datetime(2026, 10, 31, 23, 30, tzinfo=timezone.utc)
+    with patch.object(bco, 'datetime') as mock_datetime:
+        mock_datetime.now.side_effect = lambda tz=None: utc_now.astimezone(tz)
+        assert bco._current_billing_period() == '2026-10'
+        mock_datetime.now.assert_called_with(timezone.utc)

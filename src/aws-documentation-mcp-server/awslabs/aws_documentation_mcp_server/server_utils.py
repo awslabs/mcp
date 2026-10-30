@@ -27,6 +27,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     extract_sections_from_html,
     format_documentation_result,
     is_html_content,
+    rewrite_markdown_links,
     truncate_large_tables,
 )
 from collections import deque
@@ -69,6 +70,10 @@ DEFAULT_USER_AGENT = (
 
 
 _USE_SEARCH = 'Use search_documentation.'
+
+
+# Pages with a published Markdown variant serve it directly; the rest fall back to HTML.
+_READ_DOCUMENTATION_ACCEPT = 'text/markdown, text/html;q=0.9'
 
 
 # - '/a/index.html' 301s to '/a/' everywhere on the site
@@ -145,6 +150,7 @@ async def read_documentation_impl(
                 headers={
                     'User-Agent': DEFAULT_USER_AGENT,
                     'X-MCP-Session-Id': session_uuid,
+                    'Accept': _READ_DOCUMENTATION_ACCEPT,
                 },
                 timeout=30,
             )
@@ -168,6 +174,7 @@ async def read_documentation_impl(
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
 
+    # Normalize to Markdown, then clean up once regardless of which form the server sent.
     if is_html_content(page_raw, content_type):
         try:
             content = extract_content_from_html(page_raw)
@@ -179,10 +186,11 @@ async def read_documentation_impl(
             logger.error(error_msg)
             await ctx.error(error_msg)
             raise DocumentationToolError(error_msg) from e
-        content = truncate_large_tables(content, url=page.served)
     else:
         content = page_raw
 
+    content = rewrite_markdown_links(content, base_url=page.served)
+    content = truncate_large_tables(content, url=page.served)
     result = format_documentation_result(page.served, content, start_index, max_length)
     if note := page.message():
         result = f'<e>{note}</e>\n\n{result}'

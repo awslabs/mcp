@@ -20,6 +20,7 @@ contract, and the pagination token spelling, which is NextPageToken here and
 lowercase nextToken on the Savings Plans service.
 """
 
+import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools import (
     get_savings_plan_purchase_recommendation_details,
@@ -169,6 +170,44 @@ class TestGetSavingsPlansPurchaseRecommendation:
             == (sample_recommendation['SavingsPlansPurchaseRecommendation'])
         )
         assert result['data']['pagination'] == PAGINATION_COMPLETE
+        # A recommendation with details carries no explanatory message.
+        assert 'message' not in result
+
+    async def test_empty_recommendation_explains_itself(self, mock_context, mock_ce_client):
+        """An unsold combination returns an empty recommendation that is not a zero-savings answer.
+
+        Cost Explorer returns SavingsPlansPurchaseRecommendation: {} for DATABASE_SP with
+        THREE_YEARS or ALL_UPFRONT, the same as for a combination with no eligible usage.
+        """
+        mock_ce_client.get_savings_plans_purchase_recommendation.return_value = {
+            'Metadata': {'GenerationTimestamp': '2026-10-27T00:00:00Z'},
+            'SavingsPlansPurchaseRecommendation': {},
+            'ResponseMetadata': {'RequestId': 'req-1', 'HTTPStatusCode': 200},
+        }
+
+        result = await get_savings_plans_purchase_recommendation(
+            mock_context,
+            mock_ce_client,
+            'DATABASE_SP',
+            'THREE_YEARS',
+            'NO_UPFRONT',
+            'THIRTY_DAYS',
+            None,
+            None,
+            None,
+            None,
+        )
+
+        assert result['status'] == 'success'
+        assert result['data']['SavingsPlansPurchaseRecommendation'] == {
+            'SavingsPlansPurchaseRecommendationDetails': []
+        }
+        message = result['message']
+        assert 'DATABASE_SP, THREE_YEARS, NO_UPFRONT' in message
+        assert 'ONE_YEAR with NO_UPFRONT' in message
+        assert 'does not mean potential savings are zero' in message
+        # botocore's envelope is not part of the result.
+        assert 'ResponseMetadata' not in result['data']
 
     async def test_optional_parameters(self, mock_context, mock_ce_client):
         """Account scope, filter, and paging are added only when supplied."""
@@ -707,6 +746,21 @@ class TestSpRecommendationDispatch:
         )
 
         assert result['status'] == 'error'
+
+
+@pytest.mark.asyncio
+async def test_filter_doc_states_not_is_supported():
+    """The filter arg doc says Not is accepted around the LINKED_ACCOUNT dimension, with an example."""
+    tool = await sp_recommendation_server.get_tool('sp-recommendation')
+    assert tool is not None
+    filter_doc = ' '.join(tool.parameters['properties']['filter'].get('description', '').split())
+    assert 'optionally wrapped in a single Not to exclude those accounts' in filter_doc
+    example = json.JSONDecoder().raw_decode(filter_doc, filter_doc.index('{"Not"'))[0]
+    assert example == {
+        'Not': {'Dimensions': {'Key': 'LINKED_ACCOUNT', 'Values': ['111122223333']}}
+    }
+    assert 'MatchOptions, if given, must be EQUALS' in filter_doc
+    assert 'And, Or, and a Not inside another Not are not supported' in filter_doc
 
 
 def test_sp_recommendation_server_initialization():

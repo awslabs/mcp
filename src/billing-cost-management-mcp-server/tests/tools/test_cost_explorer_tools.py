@@ -90,10 +90,11 @@ def mock_ce_client():
         ]
     }
 
+    # The API returns DAILY bounds as UTC-midnight timestamps here, unlike get_cost_and_usage.
     mock_client.get_cost_and_usage_with_resources.return_value = {
         'ResultsByTime': [
             {
-                'TimePeriod': {'Start': '2023-01-01', 'End': '2023-01-02'},
+                'TimePeriod': {'Start': '2023-01-01T00:00:00Z', 'End': '2023-01-02T00:00:00Z'},
                 'Groups': [
                     {
                         'Keys': ['AWS Lambda'],
@@ -1757,6 +1758,40 @@ class TestCostExplorerDescriptionContract:
             # A wrong value only counts as a whole list item, so 'Aurora MySQL' is not 'Aurora'.
             assert not re.search(rf'[ (]{re.escape(value)}(?=[,);.]|$)', entry), value
 
+    @pytest.mark.parametrize(
+        'module_name, tool_name, server_attr',
+        [
+            ('cost_explorer_tools', 'cost-explorer', 'cost_explorer_server'),
+            ('cost_comparison_tools', 'cost-comparison', 'cost_comparison_server'),
+        ],
+    )
+    def test_empty_value_placeholder_is_filtered_as_empty_string(
+        self, module_name, tool_name, server_attr
+    ):
+        """Grouped results label an empty value NoRegion etc.; a filter must use "" instead.
+
+        Cost Explorer reports a cost with no value for a grouped dimension under a
+        placeholder key (NoRegion, NoTenancy, ...), but its filters match the stored empty
+        value, so a filter on the placeholder silently returns $0.
+        """
+        module = importlib.reload(
+            importlib.import_module(
+                f'awslabs.billing_cost_management_mcp_server.tools.{module_name}'
+            )
+        )
+        description = _registered_tool(getattr(module, server_attr), tool_name).description or ''
+        flat = ' '.join(description.split())
+        assert 'NoRegion' in flat
+        assert 'NoTenancy' in flat
+        assert 'a filter on it matches nothing' in flat
+        examples = [json.loads(m) for m in re.findall(r'`(\{"Dimensions": [^`]*\})`', description)]
+        assert {'Dimensions': {'Key': 'REGION', 'Values': ['']}} in examples
+
+    def test_filter_grammar_allows_one_empty_string_value(self, tool):
+        """The grammar's "Values must not be empty" rule does not forbid the [""] filter."""
+        grammar = tool.description.split('Values per leaf type:')[1].split('\n- Tags')[0]
+        assert '`[""]` (one empty string) is not' in grammar
+
     def test_description_prefers_monthly_for_whole_month_rankings(self, tool):
         """Whole-month totals and rankings are steered to MONTHLY; the code default stays DAILY."""
         assert 'DAILY granularity for periods <3 months' not in tool.description
@@ -1764,6 +1799,24 @@ class TestCostExplorerDescriptionContract:
             'Use MONTHLY granularity for totals or rankings over whole months' in tool.description
         )
         assert tool.input_schema['properties']['granularity']['default'] == 'DAILY'
+
+    def test_forecast_notes_say_monthly_periods_are_whole_months(self, tool):
+        """MONTHLY forecasts widen to whole months, so a partial month is steered to DAILY."""
+        cost = tool.description.split('4. getCostForecast')[1].split('5. getUsageForecast')[0]
+        usage = tool.description.split('5. getUsageForecast')[1].split('\n\n')[0]
+        assert 'each period is a whole calendar month' in cost
+        assert 'include its actual costs to date' in cost
+        assert '`period_note`' in cost
+        assert 'For part of a month, such as the rest of this month, use DAILY' in cost
+        assert 'MONTHLY periods are whole calendar months' in usage
+
+    def test_description_flags_partial_monthly_sp_utilization(self, tool):
+        """The getSavingsPlansUtilization notes flag partial MONTHLY entries and period_note."""
+        notes = tool.description.split('8. getSavingsPlansUtilization')[1].split('Returns:')[0]
+        assert "each entry's TimePeriod is its whole calendar month" in notes
+        assert "the current month's entry ends at the first day without data" in notes
+        assert 'cover only the requested days' in notes
+        assert '`period_note`' in notes
 
     def test_dimension_reference_keys_are_ce_dimensions(self, tool):
         """Every DIMENSION REFERENCE key except the TAG note is in botocore's ce Dimension enum."""
@@ -1981,3 +2034,158 @@ async def test_description_states_savings_plans_data_lag():
     )
     assert 'an unknown SAVINGS_PLANS_TYPE matches nothing' in tool.description
     assert 'report that no data is available for that window (not zero)' in tool.description
+
+
+@pytest.mark.asyncio
+async def test_ce_get_savings_plans_utilization_rejects_billing_view_arn(
+    mock_context, sample_billing_view_arn
+):
+    """GetSavingsPlansUtilization has no BillingViewArn, so the tool refuses the ARN.
+
+    Dropping it would return utilization for the primary view labelled as the caller's view.
+    """
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_savings_plans_utilization', new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_create_client.return_value = MagicMock()
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getSavingsPlansUtilization',
+            start_date='2024-01-01',
+            end_date='2024-02-01',
+            granularity='MONTHLY',
+            billing_view_arn=sample_billing_view_arn,
+        )
+
+        assert res['status'] == 'error'
+        assert res['error_type'] == 'validation_error'
+        assert 'billing_view_arn' in res['message']
+        assert 'getSavingsPlansUtilization' in res['message']
+        assert 'billing_view_arn' in res['hint']
+        mock_impl.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_ce_get_savings_plans_utilization_empty_billing_view_arn_is_absent(mock_context):
+    """An empty billing_view_arn means no view, as for the operations that send it."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_savings_plans_utilization', new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_create_client.return_value = MagicMock()
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getSavingsPlansUtilization',
+            start_date='2024-01-01',
+            end_date='2024-02-01',
+            billing_view_arn='',
+        )
+
+        assert res['status'] == 'success'
+        mock_impl.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_description_names_billing_view_operations():
+    """The description names which operations take billing_view_arn and which refuse it."""
+    tool = await cost_explorer_server.get_tool('cost-explorer')
+    assert tool is not None and tool.description
+    description = ' '.join(tool.description.split())
+    assert 'Most Cost Explorer operations support an optional billing_view_arn' not in description
+    assert (
+        'billing_view_arn is accepted by getCostAndUsage, getCostAndUsageWithResources, '
+        'getDimensionValues (COST_AND_USAGE context only), getCostForecast, getUsageForecast, '
+        'getTagsOrValues and getCostCategories'
+    ) in description
+    assert (
+        'getSavingsPlansUtilization (the AWS API has no billing view parameter) and '
+        'getDimensionValues with context RESERVATIONS or SAVINGS_PLANS (AWS does not apply the '
+        'view there) do not accept billing_view_arn'
+    ) in description
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('context', ['RESERVATIONS', 'SAVINGS_PLANS'])
+async def test_ce_get_dimension_values_rejects_billing_view_arn_outside_cost_and_usage(
+    mock_context, sample_billing_view_arn, context
+):
+    """AWS does not apply a billing view to RESERVATIONS or SAVINGS_PLANS dimension values.
+
+    Sending the ARN would return unscoped values labelled as the caller's view.
+    """
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_dimension_values', new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_create_client.return_value = MagicMock()
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getDimensionValues',
+            dimension='LINKED_ACCOUNT',
+            context=context,
+            billing_view_arn=sample_billing_view_arn,
+        )
+
+        assert res['status'] == 'error'
+        assert res['error_type'] == 'validation_error'
+        assert 'billing_view_arn' in res['message']
+        assert f'context={context}' in res['message']
+        assert 'Do **NOT** retry with the same billing_view_arn' in res['hint']
+        assert context not in res['hint']  # the hint is fixed text; the context is in message
+        mock_impl.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'context, billing_view_arn',
+    [
+        ('COST_AND_USAGE', 'arn:aws:billing::123456789012:billingview/custom-abc'),
+        ('SAVINGS_PLANS', None),
+        ('RESERVATIONS', ''),
+        ('savings_plans', 'arn:aws:billing::123456789012:billingview/custom-abc'),
+    ],
+)
+async def test_ce_get_dimension_values_billing_view_arn_allowed_cases(
+    mock_context, context, billing_view_arn
+):
+    """COST_AND_USAGE still sends the ARN; the other contexts run when no ARN is set.
+
+    A lowercase context goes to AWS unchanged, which rejects the context itself.
+    """
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_dimension_values', new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_create_client.return_value = MagicMock()
+        mock_impl.return_value = {'status': 'success', 'data': {'DimensionValues': []}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getDimensionValues',
+            dimension='LINKED_ACCOUNT',
+            context=context,
+            billing_view_arn=billing_view_arn,
+        )
+
+        assert res['status'] == 'success'
+        mock_impl.assert_awaited_once()
+        await_args = mock_impl.await_args
+        assert await_args is not None
+        assert await_args.args[-2:] == (billing_view_arn, context)

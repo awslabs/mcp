@@ -1178,8 +1178,204 @@ async def test_description_states_subscription_id_format_and_error():
     assert 'is a NUMERIC id' in description
     assert 'must contain only digits' in description
     assert 'returns no match' not in description
-    # Utilization accepts several SERVICE values; only coverage caps them at 2.
+    # Utilization accepts several SERVICE values; only coverage takes one per call.
     assert 'SERVICE filter takes a single value' not in description
+
+
+# GetReservationUtilization's filter dimensions, the same for every service. The public API
+# reference omits INSTANCE_TYPE_FAMILY, SUBSCRIPTION_ID and the SUBSCRIPTION_END_DATE_TIME_*
+# keys, and lists CACHE_ENGINE, DEPLOYMENT_OPTION and OPERATING_SYSTEM, which are rejected.
+UTILIZATION_FILTER_DIMENSIONS = {
+    'AZ',
+    'INSTANCE_TYPE',
+    'INSTANCE_TYPE_FAMILY',
+    'LINKED_ACCOUNT',
+    'PLATFORM',
+    'REGION',
+    'SCOPE',
+    'SERVICE',
+    'SUBSCRIPTION_END_DATE_TIME_AFTER',
+    'SUBSCRIPTION_END_DATE_TIME_BEFORE',
+    'SUBSCRIPTION_ID',
+    'TENANCY',
+}
+
+# SortBy keys each operation accepts; any other key returns "Unsupported sortKey".
+COVERAGE_SORT_KEYS = {
+    'CoverageHoursPercentage',
+    'CoverageNormalizedUnitsPercentage',
+    'OnDemandCost',
+    'OnDemandHours',
+    'OnDemandNormalizedUnits',
+    'ReservedHours',
+    'ReservedNormalizedUnits',
+    'TotalRunningHours',
+    'TotalRunningNormalizedUnits',
+    'Time',
+}
+UTILIZATION_SORT_KEYS = {
+    'AmortizedRecurringFee',
+    'AmortizedUpfrontFee',
+    'NetRISavings',
+    'OnDemandCostOfRIHoursUsed',
+    'PurchasedHours',
+    'PurchasedUnits',
+    'RealizedSavings',
+    'RICostForUnusedHours',
+    'TotalActualHours',
+    'TotalActualUnits',
+    'TotalAmortizedFee',
+    'TotalPotentialRISavings',
+    'UnrealizedSavings',
+    'UnusedHours',
+    'UnusedUnits',
+    'UtilizationPercentage',
+    'UtilizationPercentageInUnits',
+}
+
+
+def _section(description: str, heading: str) -> str:
+    """The paragraph that starts with heading, whitespace collapsed."""
+    block = description.split(heading, 1)[1].split('\n\n', 1)[0]
+    return ' '.join(block.split())
+
+
+def _keys_after(text: str, label: str) -> set:
+    """The comma-separated identifiers listed after "label:" up to the next "- " item or end."""
+    listed = text.split(f'{label}:', 1)[1].split(' - ', 1)[0]
+    return set(re.findall(r'[A-Za-z_]+', listed))
+
+
+@pytest.mark.asyncio
+async def test_description_states_coverage_filter_dimensions():
+    """Coverage filters take SERVICE plus the service's group_by keys; three keys never work."""
+    section = _section(
+        await _ri_description(), 'FILTER DIMENSIONS get_reservation_coverage (filter):'
+    )
+    assert 'SERVICE plus the same attributes that service takes for group_by above' in section
+    assert 'Tags and CostCategories expressions also work' in section
+    assert 'OPERATING_SYSTEM, INVOICING_ENTITY and SCOPE are rejected for every service' in section
+    assert 'Dimension ... is not allowed' in section
+
+
+def _utilization_filter_keys(section: str) -> set:
+    """Per "- " bullet of the utilization filter section, the key names before its ":"."""
+    keys = set()
+    for bullet in section.split(' - ')[1:]:
+        names = bullet.split(':', 1)[0]
+        keys |= {name.strip() for name in names.split(',')}
+    return keys
+
+
+@pytest.mark.asyncio
+async def test_description_lists_utilization_filter_dimensions():
+    """The documented utilization filter keys equal the keys the service accepts."""
+    section = _section(
+        await _ri_description(), 'FILTER DIMENSIONS get_reservation_utilization (filter)'
+    )
+    assert _utilization_filter_keys(section) == UTILIZATION_FILTER_DIMENSIONS
+    assert (
+        'CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION and OPERATING_SYSTEM are rejected here'
+        in section
+    )
+    # Unlike coverage, utilization takes Dimensions only.
+    assert 'and so are Tags and CostCategories expressions ("Tags expression is not allowed")' in (
+        section
+    )
+
+
+@pytest.mark.asyncio
+async def test_description_states_scope_values_are_exact():
+    """SCOPE matches exactly; a wrong case returns no RIs rather than an error."""
+    section = _section(
+        await _ri_description(), 'FILTER DIMENSIONS get_reservation_utilization (filter)'
+    )
+    assert 'exactly "Region" (regional RI) or "Availability Zone" (zonal RI), case-sensitive' in (
+        section
+    )
+    assert 'any other value (e.g. "region") returns no RIs and no error' in section
+
+
+@pytest.mark.asyncio
+async def test_description_states_subscription_end_filter_rules():
+    """BEFORE is exclusive, AFTER inclusive and not before start_date; Not is ignored."""
+    section = _section(
+        await _ri_description(), 'FILTER DIMENSIONS get_reservation_utilization (filter)'
+    )
+    assert 'Exactly one YYYY-MM-DD value each; a datetime or a second value is a' in section
+    assert 'BEFORE keeps RIs whose term ends before the date' in section
+    assert 'AFTER those that end on or after it' in section
+    assert 'The AFTER date must not be before start_date' in section
+    assert 'a BEFORE date must be later than the AFTER date' in section
+    assert 'Not has no effect on these two keys' in section
+    # Not in the public API reference, so the description says they may change.
+    assert 'Undocumented upstream, so they may change' in section
+
+
+@pytest.mark.asyncio
+async def test_description_lists_sort_keys_and_sort_order_shape():
+    """sort_by is {"Key", "SortOrder"}, upper case, with each operation's key list."""
+    section = _section(await _ri_description(), 'SORTING (sort_by):')
+    assert '{"Key": "<key>", "SortOrder": "DESCENDING"}' in section
+    assert 'SortOrder is required and upper case; "descending" is a ValidationException' in section
+    assert (
+        'any other key (with group_by, for utilization) returns "Unsupported sortKey"' in section
+    )
+    assert _keys_after(section, 'get_reservation_coverage') == COVERAGE_SORT_KEYS
+    assert _keys_after(section, 'get_reservation_utilization') == UTILIZATION_SORT_KEYS
+
+
+@pytest.mark.asyncio
+async def test_description_states_utilization_sorts_only_when_grouped():
+    """Ungrouped GetReservationUtilization never reads SortBy, so a bad key is not reported."""
+    section = _section(await _ri_description(), 'SORTING (sort_by):')
+    assert 'get_reservation_utilization applies sort_by only with group_by' in section
+    assert 'a wrong key is not reported' in section
+    assert 'SortOrder may be omitted' in section
+    assert "the response's sort_by_note says so" in section
+    assert 'a SortOrder other than ASCENDING or DESCENDING is still rejected' in section
+
+
+@pytest.mark.asyncio
+async def test_description_states_coverage_service_value_limit():
+    """The filter list points at the local one-SERVICE check, not at service behavior."""
+    description = await _ri_description()
+    section = _section(description, 'FILTER DIMENSIONS get_reservation_coverage (filter):')
+    assert 'Use one SERVICE value per call; more are rejected (see SERVICE above)' in section
+    # The tool rejects a second SERVICE value before any call, so no text may describe
+    # what Cost Explorer does with two or more.
+    flat = ' '.join(description.split())
+    assert 'at most 2' not in flat
+    assert 'merges both' not in flat
+
+
+@pytest.mark.asyncio
+async def test_description_states_filter_expression_shapes():
+    """Only a leaf, Not(leaf) or And of those; Or is rejected; one leaf per dimension."""
+    section = _section(await _ri_description(), 'FILTERING (both operations):')
+    assert 'Not of one leaf, or an And of leaves and Not-leaves' in section
+    assert 'Or anywhere, an And inside an And, or a Not around anything but a leaf' in section
+    assert 'Each dimension (tags excepted) may appear only once per filter' in section
+    assert 'within the limits above for SERVICE and the SUBSCRIPTION_END keys' in section
+    assert 'MatchOptions are rejected' in section
+    assert 'a miscased value (e.g. "US-EAST-1", "linux/unix") returns zeros or no RIs' in section
+    # The old text said only AND was supported; Not is accepted too.
+    assert 'supports only AND' not in section
+
+
+@pytest.mark.asyncio
+async def test_sort_by_arg_names_sort_order_not_direction():
+    """The arg doc uses the API's field names; "direction" is not one."""
+    tool = await ri_performance_server.get_tool('ri-performance')
+    assert tool is not None
+    sort_doc = tool.parameters['properties']['sort_by']['description']
+    assert '{"Key": "<key>", "SortOrder": "DESCENDING"}' in sort_doc
+    assert 'SortOrder is required: ASCENDING or DESCENDING, upper case only' in sort_doc
+    assert (
+        'get_reservation_utilization ignores sort_by without group_by '
+        '(the response then carries a sort_by_note)'
+    ) in sort_doc
+    assert 'direction' not in sort_doc
 
 
 @pytest.mark.asyncio
@@ -1208,6 +1404,46 @@ async def test_ungrouped_utilization_ignores_max_items_and_next_token(mock_conte
     )
 
     assert 'NextPageToken' not in client.get_reservation_utilization.call_args.kwargs
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'group_by, noted',
+    [(None, True), ('[{"Type": "DIMENSION", "Key": "SUBSCRIPTION_ID"}]', False)],
+)
+async def test_utilization_notes_sort_by_ignored_without_group_by(mock_context, group_by, noted):
+    """Without GroupBy the API ignores SortBy, even an invalid key; the response says so."""
+    client = MagicMock()
+    client.get_reservation_utilization.return_value = {'UtilizationsByTime': []}
+
+    result = await _call_tool(
+        client,
+        mock_context,
+        operation='get_reservation_utilization',
+        group_by=group_by,
+        sort_by='{"Key": "UnusedHours", "SortOrder": "DESCENDING"}',
+    )
+
+    # SortBy is still sent: the API validates SortOrder even when it ignores the key.
+    sort = client.get_reservation_utilization.call_args.kwargs['SortBy']
+    assert sort == {'Key': 'UnusedHours', 'SortOrder': 'DESCENDING'}
+    note = result['data'].get('sort_by_note')
+    if noted:
+        assert note is not None
+        assert 'not applied' in note and 'group_by' in note
+    else:
+        assert note is None
+
+
+@pytest.mark.asyncio
+async def test_utilization_without_sort_by_has_no_sort_note(mock_context):
+    """No sort_by, no note."""
+    client = MagicMock()
+    client.get_reservation_utilization.return_value = {'UtilizationsByTime': []}
+
+    result = await _call_tool(client, mock_context, operation='get_reservation_utilization')
+
+    assert 'sort_by_note' not in result['data']
 
 
 async def _call_tool(client, ctx, **kwargs):
@@ -1468,3 +1704,172 @@ async def test_description_states_utilization_data_lag():
     assert 'which the service sends without a message' in description
     assert 'not a failure and not zero utilization' in description
     assert 'do not resend the identical request' in description
+
+
+def _utilization_entry(start, end, hours):
+    return {'TimePeriod': {'Start': start, 'End': end}, 'Total': {'PurchasedHours': hours}}
+
+
+# A MONTHLY GetReservationUtilization request for 2026-01-24 to 2026-03-10, as the API returns
+# it: each entry is labelled with its whole calendar month, but the first holds only 8 days
+# and the last only 9.
+SNAPPED_UTILIZATION = {
+    'UtilizationsByTime': [
+        _utilization_entry('2026-01-01', '2026-02-01', '192'),
+        _utilization_entry('2026-02-01', '2026-03-01', '672'),
+        _utilization_entry('2026-03-01', '2026-04-01', '216'),
+    ],
+    'Total': {'PurchasedHours': '1080'},
+}
+
+
+async def _utilization(ctx, client, start, end, granularity='MONTHLY', group_by=None):
+    return await get_reservation_utilization(
+        ctx, client, start, end, granularity, group_by, None, None
+    )
+
+
+async def _coverage(ctx, client, start, end, granularity='MONTHLY'):
+    return await get_reservation_coverage(
+        ctx, client, start, end, granularity, None, None, None, None
+    )
+
+
+@pytest.mark.asyncio
+class TestResponsePeriods:
+    """The request is echoed, and a calendar-month label wider than the request is flagged."""
+
+    async def test_monthly_utilization_flags_both_snapped_ends(self, mock_context):
+        """A mid-month start and end are both labelled with the whole month and flagged."""
+        client = MagicMock()
+        client.get_reservation_utilization.return_value = SNAPPED_UTILIZATION
+
+        data = (await _utilization(mock_context, client, '2026-01-24', '2026-03-10'))['data']
+
+        assert data['requested_time_period'] == {'start': '2026-01-24', 'end': '2026-03-10'}
+        note = data['period_note']
+        assert 'first entry, labelled 2026-01-01 to 2026-02-01, covers only 2026-01-24' in note
+        assert (
+            'last entry, labelled 2026-03-01 to 2026-04-01, covers only the days before 2026-03-10'
+            in note
+        )
+        assert 'partial' in note
+        # The API's labels reach the caller untouched.
+        periods = [e['time_period'] for e in data['utilizations_by_time']]
+        assert periods[0] == {'start': '2026-01-01', 'end': '2026-02-01'}
+        assert periods[-1] == {'start': '2026-03-01', 'end': '2026-04-01'}
+
+    async def test_monthly_utilization_single_month_flags_one_entry(self, mock_context):
+        """One snapped entry is described as a single entry, not first and last."""
+        client = MagicMock()
+        client.get_reservation_utilization.return_value = {
+            'UtilizationsByTime': [_utilization_entry('2026-01-01', '2026-02-01', '336')],
+        }
+
+        data = (await _utilization(mock_context, client, '2026-01-01', '2026-01-15'))['data']
+
+        note = data['period_note']
+        assert 'entry labelled 2026-01-01 to 2026-02-01 covers only 2026-01-01 to 2026-01-15' in (
+            note
+        )
+        assert 'first entry' not in note
+
+    async def test_monthly_utilization_in_the_data_lag_ends_the_note_there(self, mock_context):
+        """The current month's label stops at the first day without data; the note says so."""
+        client = MagicMock()
+        client.get_reservation_utilization.return_value = {
+            'UtilizationsByTime': [
+                _utilization_entry('2026-09-01', '2026-10-01', '264'),
+                _utilization_entry('2026-10-01', '2026-10-27', '624'),
+            ],
+        }
+
+        data = (await _utilization(mock_context, client, '2026-09-20', '2026-10-28'))['data']
+
+        note = data['period_note']
+        assert 'Data from 2026-10-27 is not available yet and is not included.' in note
+        assert 'cover 2026-09-20 to 2026-10-27 (end exclusive) only' in note
+
+    async def test_daily_utilization_in_the_data_lag_has_no_note(self, mock_context):
+        """DAILY entries are not labelled with their month, so the lag gets no note."""
+        client = MagicMock()
+        client.get_reservation_utilization.return_value = {
+            'UtilizationsByTime': [_utilization_entry('2026-10-26', '2026-10-27', '24')],
+        }
+
+        data = (await _utilization(mock_context, client, '2026-10-26', '2026-10-28', 'DAILY'))[
+            'data'
+        ]
+
+        assert 'period_note' not in data
+
+    async def test_whole_month_utilization_has_no_note(self, mock_context):
+        """Labels that match the request need no note."""
+        client = MagicMock()
+        client.get_reservation_utilization.return_value = {
+            'UtilizationsByTime': [_utilization_entry('2026-01-01', '2026-02-01', '744')],
+        }
+
+        data = (await _utilization(mock_context, client, '2026-01-01', '2026-02-01'))['data']
+
+        assert data['requested_time_period'] == {'start': '2026-01-01', 'end': '2026-02-01'}
+        assert 'period_note' not in data
+
+    async def test_grouped_utilization_labelled_with_request_has_no_note(self, mock_context):
+        """Grouped by SUBSCRIPTION_ID, the API labels its one entry with the requested period."""
+        client = MagicMock()
+        client.get_reservation_utilization.return_value = {
+            'UtilizationsByTime': [
+                {
+                    'TimePeriod': {'Start': '2026-01-24', 'End': '2026-03-10'},
+                    'Groups': [],
+                    'Total': {},
+                }
+            ],
+        }
+
+        data = (
+            await _utilization(
+                mock_context, client, '2026-01-24', '2026-03-10', 'DAILY', GROUP_BY_SUBSCRIPTION
+            )
+        )['data']
+
+        assert data['requested_time_period'] == {'start': '2026-01-24', 'end': '2026-03-10'}
+        assert 'period_note' not in data
+
+    async def test_empty_utilization_echoes_request_without_note(self, mock_context):
+        """No entries: the request is still echoed and there is no note."""
+        client = MagicMock()
+        client.get_reservation_utilization.return_value = {'UtilizationsByTime': []}
+
+        data = (await _utilization(mock_context, client, '2026-01-24', '2026-03-10'))['data']
+
+        assert data['requested_time_period'] == {'start': '2026-01-24', 'end': '2026-03-10'}
+        assert 'period_note' not in data
+
+    async def test_coverage_echoes_request_without_note(self, mock_context):
+        """Coverage entries start and end at the requested dates; there is nothing to flag."""
+        client = MagicMock()
+        client.get_reservation_coverage.return_value = {
+            'CoveragesByTime': [
+                {'TimePeriod': {'Start': '2026-01-24', 'End': '2026-02-01'}, 'Total': {}},
+                {'TimePeriod': {'Start': '2026-02-01', 'End': '2026-03-01'}, 'Total': {}},
+            ],
+        }
+
+        data = (await _coverage(mock_context, client, '2026-01-24', '2026-03-01'))['data']
+
+        assert data['requested_time_period'] == {'start': '2026-01-24', 'end': '2026-03-01'}
+        assert 'period_note' not in data
+
+    async def test_description_explains_response_periods(self):
+        """The description explains the echo, the note and which operation snaps."""
+        description = ' '.join((await _ri_description()).split())
+        assert 'RESPONSE PERIODS' in description
+        assert '`requested_time_period`' in description
+        assert '`period_note`' in description
+        assert 'with its whole calendar month' in description
+        assert "the current month's entry ends at the first day without data" in description
+        assert 'but the figures cover only the requested days' in description
+        assert 'from the requested start to the requested end' not in description
+        assert 'get_reservation_coverage entries are not snapped' in description
