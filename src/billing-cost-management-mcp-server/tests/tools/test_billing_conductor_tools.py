@@ -961,14 +961,17 @@ async def test_descriptions_state_past_month_with_nothing_in_effect():
             'was not in effect (before it started or after it ended) fails with '
             'ResourceNotFoundException ("Custom line item does not exist."), not an empty list. '
             'A mistyped ARN can return the same error: confirm the ARN with list-custom-line-items'
+            ' for a recent month.'
         ),
         'list-pricing-rules-for-plan': (
             'fails with ResourceNotFoundException ("Pricing plan does not exist."), not an empty '
             'list. A mistyped ARN can return the same error: confirm the ARN with list-pricing-plans'
+            ' for a recent month.'
         ),
         'list-pricing-plans-for-rule': (
             'fails with ResourceNotFoundException ("Pricing rule does not exist."), not an empty '
             'list. A mistyped ARN can return the same error: confirm the ARN with list-pricing-rules'
+            ' for a recent month.'
         ),
     }
     for name, text in expected.items():
