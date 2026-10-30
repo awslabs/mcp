@@ -20,8 +20,10 @@ from ..utilities.aws_service_base import (
     format_response,
     handle_aws_error,
     paginate_aws_items,
+    parse_filter,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.logging_utils import get_context_logger
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
@@ -78,12 +80,16 @@ older recommendation in place with a timestamp that does not say so.
 IMPORTANT: get_savings_plans_purchase_recommendation requires savings_plans_type, term_in_years,
 payment_option, and lookback_period_in_days. None of them has a default — each changes the
 recommended commitment, so the caller must choose. Recommendations are precomputed and may be
-stale; the response carries the generation timestamp.
+stale; the response carries the generation timestamp. DATABASE_SP is sold only as ONE_YEAR with
+NO_UPFRONT. An empty recommendation (an unsold combination, or no eligible usage) comes with a
+message and does not mean potential savings are zero.
 
 PAGINATION (get_savings_plans_purchase_recommendation, where the items are the recommendation
 details, and list_savings_plans_purchase_recommendation_generation; the other operations take
 neither parameter):
-- max_items is the total number of items returned. Omit it to fetch every page (no limit). Pass it,
+- max_items is the total number of items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it,
   or narrow the filter, for queries that can be large.
 - If the response has complete_dataset: false, call again with a larger max_items, continue with
   next_token, or state in the answer that the result is partial.""",
@@ -109,14 +115,19 @@ async def sp_recommendation(
         ctx: The MCP context object
         operation: The operation to perform: 'get_savings_plans_purchase_recommendation', 'get_savings_plan_purchase_recommendation_details', 'start_savings_plans_purchase_recommendation_generation', or 'list_savings_plans_purchase_recommendation_generation'
         savings_plans_type: COMPUTE_SP, EC2_INSTANCE_SP, SAGEMAKER_SP, or DATABASE_SP. Required for get_savings_plans_purchase_recommendation.
+            DATABASE_SP is sold only as ONE_YEAR with NO_UPFRONT; any other term or payment option
+            returns no recommendation, which does not mean there is nothing to buy.
         term_in_years: ONE_YEAR or THREE_YEARS. Required for get_savings_plans_purchase_recommendation.
         payment_option: NO_UPFRONT, PARTIAL_UPFRONT, or ALL_UPFRONT. Required for get_savings_plans_purchase_recommendation. The API shape also accepts three
             LIGHT/MEDIUM/HEAVY_UTILIZATION values, which are Reserved Instance utilization levels and do not apply to Savings Plans.
         lookback_period_in_days: SEVEN_DAYS, THIRTY_DAYS, or SIXTY_DAYS. Required for get_savings_plans_purchase_recommendation.
         account_scope: PAYER or LINKED.
-        filter: Filter recommendations by Account ID. Includes Dimensions only,
-            with Key as LINKED_ACCOUNT and Value one or more Account IDs. AND and OR operators are
-            not supported. Applies to get_savings_plans_purchase_recommendation only.
+        filter: Filter recommendations by Account ID: a Dimensions expression with Key
+            LINKED_ACCOUNT and Values one or more Account IDs, optionally wrapped in a single Not to
+            exclude those accounts, for example
+            {"Not": {"Dimensions": {"Key": "LINKED_ACCOUNT", "Values": ["111122223333"]}}}.
+            MatchOptions, if given, must be EQUALS. And, Or, and a Not inside another Not are not
+            supported. Applies to get_savings_plans_purchase_recommendation only.
         recommendation_detail_id: Required for get_savings_plan_purchase_recommendation_details. Comes from the RecommendationDetailId field of a recommendation.
         generation_status: SUCCEEDED, PROCESSING, or FAILED. Filters list_savings_plans_purchase_recommendation_generation.
         recommendation_ids: Recommendation IDs to filter to.
@@ -221,7 +232,8 @@ async def get_savings_plans_purchase_recommendation(
             recommendations including the management account and member accounts if the value is
             set to PAYER. If the value is LINKED, recommendations are calculated for individual
             member accounts only.
-        filter_expr: Filter by Account ID with the LINKED_ACCOUNT dimension.
+        filter_expr: Filter by Account ID with the LINKED_ACCOUNT dimension, optionally wrapped in a
+            single Not to exclude those accounts.
         max_items: Total number of recommendation details to return. None fetches every page.
         next_token: The token from a previous response.
 
@@ -248,8 +260,8 @@ async def get_savings_plans_purchase_recommendation(
         # Add optional parameters if provided
         if account_scope:
             request_params['AccountScope'] = account_scope
-        if filter_expr:
-            request_params['Filter'] = filter_expr
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         details, pages, pagination = await paginate_aws_items(
             ctx,
@@ -265,15 +277,32 @@ async def get_savings_plans_purchase_recommendation(
         # them. Every field outside the details list (Metadata, the summary, the term and payment
         # option) is taken from the first page fetched: it repeats unchanged on later pages
         # because a token pins the recommendation version it was generated against. The
-        # top-level token is dropped because pagination reports it instead.
+        # top-level token is dropped because pagination reports it instead, and botocore's
+        # ResponseMetadata envelope is dropped because it is not part of the API's result.
         first_page = pages[0] if pages else {}
         merged_recommendation = dict(first_page.get('SavingsPlansPurchaseRecommendation') or {})
         merged_recommendation['SavingsPlansPurchaseRecommendationDetails'] = details
 
-        data = {k: v for k, v in first_page.items() if k != 'NextPageToken'}
+        data = {
+            k: v for k, v in first_page.items() if k not in ('NextPageToken', 'ResponseMetadata')
+        }
         data['SavingsPlansPurchaseRecommendation'] = merged_recommendation
 
-        return format_response('success', with_pagination(data, pagination))
+        # The API answers an unsold combination (such as DATABASE_SP with THREE_YEARS or
+        # ALL_UPFRONT) and a combination with no eligible usage alike, with an empty
+        # recommendation. Say so, so an empty list is not read as "no savings available".
+        message = None
+        if not details:
+            message = (
+                f'No Savings Plans purchase recommendation was returned for '
+                f'{savings_plans_type}, {term_in_years}, {payment_option}. Either this '
+                'combination is not sold (DATABASE_SP is sold only as ONE_YEAR with NO_UPFRONT), '
+                'or no eligible usage was found in the lookback period. This does not mean '
+                'potential savings are zero; try a supported combination or a different '
+                'lookback period before concluding there is nothing to buy.'
+            )
+
+        return format_response('success', with_pagination(data, pagination), message)
 
     except Exception as e:
         # Use shared error handler for consistent error reporting

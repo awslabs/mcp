@@ -22,11 +22,13 @@ These tests verify the functionality of the S3 Storage Lens query tools, includi
 - Query execution, monitoring, and result processing
 """
 
+import asyncio
 import fastmcp
 import importlib
 import json
 import os
 import pytest
+import re
 from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import (
     AthenaHandler,
     ColumnDefinition,
@@ -34,7 +36,9 @@ from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import 
     SchemaFormat,
     SchemaInfo,
     StorageLensQueryTool,
+    references_qualified_table,
     storage_lens_server,
+    validate_athena_name,
     validate_query_is_readonly_select,
 )
 from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base import handle_aws_error
@@ -180,7 +184,18 @@ def athena_handler(mock_context):
         handler = AthenaHandler(mock_context)
         # Replace the real Athena client with our mock
         handler.athena_client = mock_client_fn.return_value
+        _athena_ddl_succeeds(handler.athena_client)
         yield handler
+
+
+def _athena_ddl_succeeds(athena_client, table_location=None):
+    """Make a mock Athena client report every query SUCCEEDED and the table at table_location."""
+    athena_client.get_query_execution.return_value = {
+        'QueryExecution': {'Status': {'State': 'SUCCEEDED'}}
+    }
+    athena_client.get_table_metadata.return_value = {
+        'TableMetadata': {'Parameters': {'location': table_location}}
+    }
 
 
 @pytest.mark.asyncio
@@ -316,6 +331,9 @@ async def test_athena_handler_setup_table_integration(mock_context, mock_athena_
         return_value=mock_athena_client,
     ):
         athena_handler = AthenaHandler(mock_context)
+        mock_athena_client.get_table_metadata.return_value = {
+            'TableMetadata': {'Parameters': {'location': 's3://test-bucket/data/'}}
+        }
 
         # Create schema info for test
         schema_info = SchemaInfo(
@@ -350,6 +368,19 @@ def test_server_initialization():
         if instructions
         else False
     )
+
+
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_storage_lens_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import storage_lens_tools as module
+
+    importlib.reload(module)
 
 
 def _reload_storage_lens_with_identity_decorator():
@@ -405,24 +436,25 @@ async def test_storage_lens_real_placeholder_replacement_reload_identity_decorat
 
 
 @pytest.mark.asyncio
-async def test_storage_lens_real_from_insertion_reload_identity_decorator(mock_context):
-    """Test storage_lens_run_query from insertion with identity decorator."""
+async def test_storage_lens_real_unreferenced_table_rejected_reload_identity_decorator(
+    mock_context,
+):
+    """Test storage_lens_run_query rejects a FROM clause naming another table."""
     os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://bucket/prefix/'
 
     stl_mod = _reload_storage_lens_with_identity_decorator()
     real_fn = stl_mod.storage_lens_run_query  # type: ignore
 
     with patch.object(
-        stl_mod.StorageLensQueryTool, 'query_storage_lens', new_callable=AsyncMock
-    ) as mock_exec:
-        mock_exec.return_value = {'status': 'success', 'data': {'ok': True}}
-        # No {table}, but has a FROM clause -> tool injects db.table
+        stl_mod.ManifestHandler, 'get_manifest', new_callable=AsyncMock
+    ) as mock_get_manifest:
+        # No {table} and no qualified name -> rejected, not rewritten
         q = "SELECT * from something WHERE region='us-east-1'"
         res = await real_fn(mock_context, query=q)  # type: ignore
-        assert res['status'] == 'success'
-
-        # Check that the query tool was called
-        assert mock_exec.await_args is not None
+        assert res['status'] == 'error'
+        assert res['error_type'] == 'validation_error'
+        assert '{table}' in res['message']
+        mock_get_manifest.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -435,33 +467,15 @@ async def test_storage_lens_real_query_missing_table_reference_error_reload_iden
     stl_mod = _reload_storage_lens_with_identity_decorator()
     real_fn = stl_mod.storage_lens_run_query  # type: ignore
 
-    # Mock the ManifestHandler to avoid real S3 calls and allow the test to reach table validation
     with patch.object(
         stl_mod.ManifestHandler, 'get_manifest', new_callable=AsyncMock
     ) as mock_get_manifest:
-        mock_get_manifest.return_value = {
-            'reportFiles': [{'key': 'test/data/file.csv'}],
-            'destinationBucket': 'test-bucket',
-            'reportFormat': 'CSV',
-            'reportSchema': 'col1,col2',
-        }
-
-        with patch.object(stl_mod.ManifestHandler, 'extract_data_location') as mock_extract:
-            mock_extract.return_value = 's3://test-bucket/data/'
-
-            with patch.object(stl_mod.ManifestHandler, 'parse_schema') as mock_parse:
-                mock_parse.return_value = {
-                    'format': stl_mod.SchemaFormat.CSV,
-                    'columns': [{'name': 'col1', 'type': 'STRING'}],
-                    'skip_header': True,
-                }
-
-                # Mock the AthenaHandler to avoid real Athena calls
-                with patch.object(stl_mod.AthenaHandler, 'setup_table', new_callable=AsyncMock):
-                    res = await real_fn(mock_context, query='SELECT 42')  # type: ignore
-                    assert res['status'] == 'error'
-                    assert 'must either contain {table} placeholder' in res.get('message', '')
-                    assert res['error_type'] == 'validation_error'
+        res = await real_fn(mock_context, query='SELECT 42')  # type: ignore
+        assert res['status'] == 'error'
+        assert 'must reference the table with the {table} placeholder' in res.get('message', '')
+        assert res['error_type'] == 'validation_error'
+        # The table reference is checked before the manifest is read
+        mock_get_manifest.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -923,6 +937,7 @@ async def test_athena_handler_setup_table_csv(mock_context):
         'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
     ):
         athena_handler = AthenaHandler(mock_context)
+    _athena_ddl_succeeds(athena_handler.athena_client, 's3://test-bucket/data/')
 
     # Track what queries were executed
     executed_queries = []
@@ -1218,32 +1233,27 @@ async def test_storage_lens_query_tool_table_placeholder_replacement(
                 == 'SELECT * FROM custom_db.custom_table WHERE metric_name = "StorageBytes"'
             )
 
-            # Test case 2: Query with explicit FROM clause but no placeholder
+            # Test case 2: Query naming a table other than the configured one
             mock_execute_query.reset_mock()
-            await query_tool.query_storage_lens(
+            result = await query_tool.query_storage_lens(
                 query='SELECT * FROM custom_db.custom_table',
                 manifest_location='s3://test-bucket/manifest.json',
                 database_name='storage_lens_db',
                 table_name='storage_lens_metrics',
             )
 
-            expected_query = (
-                'select * FROM storage_lens_db.storage_lens_metrics custom_db.custom_table'
-            )
-            assert mock_execute_query.call_args_list[0][0][0] == expected_query
+            # Rejected rather than rewritten
+            assert result['error_type'] == 'validation_error'
+            mock_execute_query.assert_not_awaited()
 
             # Test case 3: Query with no placeholder and lowercase from clause
-            mock_execute_query.reset_mock()
-            await query_tool.query_storage_lens(
+            result = await query_tool.query_storage_lens(
                 query='SELECT * from something',
                 manifest_location='s3://test-bucket/manifest.json',
             )
 
-            # Should inject table name after from (implementation converts to lowercase)
-            assert (
-                mock_execute_query.call_args_list[0][0][0]
-                == 'select * FROM storage_lens_db.storage_lens_metrics something'
-            )
+            assert result['error_type'] == 'validation_error'
+            mock_execute_query.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -1450,6 +1460,71 @@ class TestQueryValidation:
             mock_instance.query_storage_lens.assert_not_awaited()
 
 
+# --- Local validation errors carry error_type, operation and service ---
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'query',
+    [
+        'DROP TABLE x',
+        'INSERT INTO t VALUES (1)',
+        'SELECT 1; DROP TABLE t',
+        '',
+        'SELECT FROM WHERE (',
+    ],
+)
+async def test_rejected_query_is_validation_error(mock_context, monkeypatch, query):
+    """A query rejected by the read-only check is a validation_error the caller must modify."""
+    monkeypatch.setenv('STORAGE_LENS_MANIFEST_LOCATION', 's3://bucket/prefix/')
+    stl_mod = _reload_storage_lens_with_identity_decorator()
+    with patch.object(stl_mod, 'StorageLensQueryTool') as MockTool:
+        res = await stl_mod.storage_lens_run_query(mock_context, query=query)  # type: ignore
+        MockTool.assert_not_called()
+    assert res['status'] == 'error'
+    assert res['message'].startswith('Query validation failed')
+    assert res['error_type'] == 'validation_error'
+    assert res['operation'] == 'storage_lens_run_query'
+    assert res['service'] == 'Storage Lens'
+    assert add_retry_guidance(res)['retry_strategy'] == 'modify_request'
+
+
+@pytest.mark.asyncio
+async def test_missing_manifest_location_is_validation_error(mock_context, monkeypatch):
+    """No manifest_location argument and no environment variable is a validation_error."""
+    monkeypatch.delenv('STORAGE_LENS_MANIFEST_LOCATION', raising=False)
+    stl_mod = _reload_storage_lens_with_identity_decorator()
+    res = await stl_mod.storage_lens_run_query(mock_context, query='SELECT 1')  # type: ignore
+    assert res['status'] == 'error'
+    assert 'Missing manifest location' in res['message']
+    assert res['error_type'] == 'validation_error'
+    assert res['operation'] == 'storage_lens_run_query'
+    assert res['service'] == 'Storage Lens'
+    assert add_retry_guidance(res)['retry_strategy'] == 'modify_request'
+
+
+@pytest.mark.asyncio
+async def test_description_states_dialect_and_csv_string_columns():
+    """The served description names the Trino dialect and that CSV export columns are strings."""
+    from awslabs.billing_cost_management_mcp_server.tools import storage_lens_tools as stl_mod
+
+    importlib.reload(stl_mod)
+    tool = await stl_mod.storage_lens_server.get_tool('storage-lens')
+    assert tool is not None
+    description = tool.description or ''
+    assert 'Athena engine version 3 (Trino SQL)' in description
+    assert 'In CSV exports every column is a string' in description
+    assert 'SUM(CAST(metric_value AS BIGINT))' in description
+    assert 'standard SQL' not in description
+
+
+def test_module_docstring_has_no_missing_file_pointer():
+    """The module docstring does not point at a reference file the package does not ship."""
+    from awslabs.billing_cost_management_mcp_server.tools import storage_lens_tools as stl_mod
+
+    assert 'storage_lens_metrics_reference.md' not in (stl_mod.__doc__ or '')
+
+
 # --- Direct unit tests for validate_query_is_readonly_select ---
 
 
@@ -1507,3 +1582,1162 @@ def test_validate_forbidden_node_in_walk():
         result = validate_query_is_readonly_select('SELECT 1')
         assert result is not None
         assert 'CREATE' in result
+
+
+def _query_tool_with_mocked_handlers(query_tool):
+    """Give a StorageLensQueryTool mocked manifest and Athena handlers that succeed."""
+    manifest_handler = MagicMock()
+    athena_handler = MagicMock()
+    manifest_handler.get_manifest = AsyncMock(return_value=CSV_MANIFEST)
+    manifest_handler.extract_data_location.return_value = 's3://test-bucket/data/'
+    manifest_handler.parse_schema.return_value = SchemaInfo(
+        format=SchemaFormat.CSV,
+        columns=[ColumnDefinition(name='bucket_name', type='STRING')],
+        skip_header=True,
+    )
+    athena_handler.determine_output_location.return_value = 's3://test-bucket/athena-results/'
+    athena_handler.setup_table = AsyncMock()
+    athena_handler.execute_query = AsyncMock(
+        return_value={'query_execution_id': 'test-id', 'status': 'STARTED'}
+    )
+    athena_handler.wait_for_query_completion = AsyncMock(
+        return_value={'Status': {'State': 'SUCCEEDED'}, 'Statistics': {}}
+    )
+    athena_handler.get_query_results = AsyncMock(return_value={'columns': [], 'rows': []})
+    query_tool.manifest_handler = manifest_handler
+    query_tool.athena_handler = athena_handler
+    return manifest_handler, athena_handler
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'query,expected',
+    [
+        # Mixed-case literal with the placeholder: only {table} changes.
+        (
+            "SELECT * FROM {table} WHERE bucket_name = 'MyBucket'",
+            "SELECT * FROM storage_lens_db.storage_lens_metrics WHERE bucket_name = 'MyBucket'",
+        ),
+        # Subquery and EXTRACT(... FROM ...) with the placeholder: no extra FROM rewrite.
+        (
+            'SELECT EXTRACT(YEAR FROM report_date) AS y FROM (SELECT * FROM {table}) t',
+            'SELECT EXTRACT(YEAR FROM report_date) AS y '
+            'FROM (SELECT * FROM storage_lens_db.storage_lens_metrics) t',
+        ),
+        # Qualified name: the query is sent exactly as written.
+        (
+            "SELECT * FROM storage_lens_db.storage_lens_metrics WHERE bucket_name = 'MyBucket'",
+            "SELECT * FROM storage_lens_db.storage_lens_metrics WHERE bucket_name = 'MyBucket'",
+        ),
+        # Qualified name in another case: matched case-insensitively, sent as written.
+        (
+            "SELECT * FROM Storage_Lens_DB.Storage_Lens_Metrics WHERE bucket_name = 'MyBucket'",
+            "SELECT * FROM Storage_Lens_DB.Storage_Lens_Metrics WHERE bucket_name = 'MyBucket'",
+        ),
+        # Quoted identifiers and spaces around the dot still name the table.
+        (
+            'SELECT * FROM "storage_lens_db"."storage_lens_metrics"',
+            'SELECT * FROM "storage_lens_db"."storage_lens_metrics"',
+        ),
+        (
+            'SELECT * FROM storage_lens_db . storage_lens_metrics',
+            'SELECT * FROM storage_lens_db . storage_lens_metrics',
+        ),
+        # Athena's default catalog prefix names the same table.
+        (
+            'SELECT * FROM AwsDataCatalog.storage_lens_db.storage_lens_metrics',
+            'SELECT * FROM AwsDataCatalog.storage_lens_db.storage_lens_metrics',
+        ),
+    ],
+)
+async def test_query_storage_lens_sends_query_text_unchanged_except_placeholder(
+    storage_lens_query_tool, query, expected
+):
+    """String literals, subqueries and case reach Athena as the caller wrote them."""
+    query_tool, _, _ = storage_lens_query_tool
+    _, athena_handler = _query_tool_with_mocked_handlers(query_tool)
+
+    result = await query_tool.query_storage_lens(
+        query=query, manifest_location='s3://test-bucket/manifest.json'
+    )
+
+    assert result['status'] == 'success'
+    athena_handler.execute_query.assert_awaited_once_with(
+        expected, 'storage_lens_db', 's3://test-bucket/athena-results/'
+    )
+    assert result['data']['query'] == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'query',
+    [
+        "SELECT * FROM metrics WHERE bucket_name = 'MyBucket'",
+        'SELECT * FROM (SELECT bucket_name FROM metrics) t',
+        'SELECT EXTRACT(YEAR FROM report_date) FROM metrics',
+        'SELECT 42',
+        # Bare table name: the database must be named.
+        'SELECT * FROM storage_lens_metrics',
+        # The qualified name appears, but not as the table read.
+        'SELECT * FROM storage_lens_db.storage_lens_metrics_v2',
+        "SELECT * FROM other_db.t WHERE x = 'storage_lens_db.storage_lens_metrics'",
+        'SELECT * FROM other_db.t -- storage_lens_db.storage_lens_metrics',
+        # {table} only in a comment or string literal: the query still reads another table.
+        'SELECT * FROM other_db.t -- {table}',
+        "SELECT * FROM other_db.t WHERE x = '{table}'",
+        # Same database and table in another catalog.
+        'SELECT * FROM othercat.storage_lens_db.storage_lens_metrics',
+    ],
+)
+async def test_query_storage_lens_rejects_query_without_table_reference(
+    storage_lens_query_tool, query
+):
+    """A query naming neither {table} nor the qualified table is rejected, not rewritten."""
+    query_tool, _, _ = storage_lens_query_tool
+    manifest_handler, athena_handler = _query_tool_with_mocked_handlers(query_tool)
+
+    result = await query_tool.query_storage_lens(
+        query=query, manifest_location='s3://test-bucket/manifest.json'
+    )
+
+    assert result['status'] == 'error'
+    assert result['error_type'] == 'validation_error'
+    assert '{table}' in result['message']
+    assert 'storage_lens_db.storage_lens_metrics' in result['message']
+    # Rejected before any AWS call: no manifest read, no table setup, no query.
+    manifest_handler.get_manifest.assert_not_awaited()
+    athena_handler.setup_table.assert_not_awaited()
+    athena_handler.execute_query.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'query,accepted',
+    [
+        ("SELECT * FROM custom_db.custom_table WHERE bucket_name = 'MyBucket'", True),
+        ('SELECT * FROM mydb.tbl', False),
+        ('SELECT * FROM custom_db.custom_table_2', False),
+        ('SELECT * FROM storage_lens_db.storage_lens_metrics', False),
+    ],
+)
+async def test_query_storage_lens_qualified_name_uses_custom_database_and_table(
+    storage_lens_query_tool, query, accepted
+):
+    """The qualified-name check uses the database_name and table_name passed in."""
+    query_tool, _, _ = storage_lens_query_tool
+    _, athena_handler = _query_tool_with_mocked_handlers(query_tool)
+
+    result = await query_tool.query_storage_lens(
+        query=query,
+        manifest_location='s3://test-bucket/manifest.json',
+        database_name='custom_db',
+        table_name='custom_table',
+    )
+
+    if accepted:
+        assert result['status'] == 'success'
+        athena_handler.execute_query.assert_awaited_once_with(
+            query, 'custom_db', 's3://test-bucket/athena-results/'
+        )
+    else:
+        assert result['error_type'] == 'validation_error'
+        assert 'custom_db.custom_table' in result['message']
+        athena_handler.execute_query.assert_not_awaited()
+
+
+def test_references_qualified_table_unparseable_query_is_false():
+    """An unparseable query does not count as naming the table."""
+    assert not references_qualified_table(
+        'SELECT * FROM storage_lens_db.storage_lens_metrics WHERE (',
+        'storage_lens_db',
+        'storage_lens_metrics',
+    )
+    # The same query without the dangling parenthesis does name it.
+    assert references_qualified_table(
+        'SELECT * FROM storage_lens_db.storage_lens_metrics',
+        'storage_lens_db',
+        'storage_lens_metrics',
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'database_name,table_name,bad_arg',
+    [
+        ('storage_lens_db; DROP DATABASE x', 'storage_lens_metrics', 'database_name'),
+        ('storage_lens_db', 't (x int) --', 'table_name'),
+        ('storage-lens-db', 'storage_lens_metrics', 'database_name'),
+        ('_db', 'storage_lens_metrics', 'database_name'),
+        ('storage_lens_db', '1metrics', 'table_name'),
+        ('storage_lens_db', '', 'table_name'),
+        ('a' * 256, 'storage_lens_metrics', 'database_name'),
+        ('storage_lens_db\n', 'storage_lens_metrics', 'database_name'),
+        ('storage_lens_db', 'm\u00e9trics', 'table_name'),
+        (None, 'storage_lens_metrics', 'database_name'),
+    ],
+)
+async def test_query_storage_lens_rejects_unsafe_database_or_table_name(
+    storage_lens_query_tool, database_name, table_name, bad_arg
+):
+    """Names are written unquoted into DDL and the query, so anything but a plain identifier is rejected."""
+    query_tool, _, _ = storage_lens_query_tool
+    manifest_handler, athena_handler = _query_tool_with_mocked_handlers(query_tool)
+
+    result = await query_tool.query_storage_lens(
+        query='SELECT * FROM {table}',
+        manifest_location='s3://test-bucket/manifest.json',
+        database_name=database_name,
+        table_name=table_name,
+    )
+
+    assert result['status'] == 'error'
+    assert result['error_type'] == 'validation_error'
+    assert bad_arg in result['message']
+    manifest_handler.get_manifest.assert_not_awaited()
+    athena_handler.setup_table.assert_not_awaited()
+    athena_handler.execute_query.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_query_storage_lens_accepts_longest_plain_identifier(storage_lens_query_tool):
+    """A 255-character identifier of letters, digits and underscores is accepted."""
+    query_tool, _, _ = storage_lens_query_tool
+    _, athena_handler = _query_tool_with_mocked_handlers(query_tool)
+    database_name = 'Db_1' + 'a' * 251
+
+    result = await query_tool.query_storage_lens(
+        query='SELECT * FROM {table}',
+        manifest_location='s3://test-bucket/manifest.json',
+        database_name=database_name,
+        table_name='t',
+    )
+
+    assert result['status'] == 'success'
+    athena_handler.execute_query.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'database_name,table_name,bad_arg',
+    [
+        ('db; DROP DATABASE x', 't', 'database_name'),
+        ('db', 't (x int) --', 'table_name'),
+    ],
+)
+async def test_athena_handler_setup_table_rejects_unsafe_name_before_ddl(
+    mock_context, database_name, table_name, bad_arg
+):
+    """setup_table checks the names before any CREATE DATABASE / CREATE TABLE is sent."""
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
+    ):
+        athena_handler = AthenaHandler(mock_context)
+    athena_handler.execute_query = AsyncMock()
+
+    with pytest.raises(ValueError, match=bad_arg):
+        await athena_handler.setup_table(
+            database_name,
+            table_name,
+            SchemaInfo(format=SchemaFormat.CSV, columns=[], skip_header=True),
+            's3://test-bucket/data/',
+            's3://test-bucket/athena-results/',
+        )
+    athena_handler.execute_query.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_query_storage_lens_accepts_uppercase_names(storage_lens_query_tool):
+    """Uppercase letters are accepted; Athena lowercases names itself."""
+    query_tool, _, _ = storage_lens_query_tool
+    _, athena_handler = _query_tool_with_mocked_handlers(query_tool)
+
+    result = await query_tool.query_storage_lens(
+        query='SELECT * FROM {table}',
+        manifest_location='s3://test-bucket/manifest.json',
+        database_name='My_DB',
+        table_name='Metrics_2',
+    )
+
+    assert result['status'] == 'success'
+    athena_handler.execute_query.assert_awaited_once_with(
+        'SELECT * FROM My_DB.Metrics_2', 'My_DB', 's3://test-bucket/athena-results/'
+    )
+
+
+def test_validate_athena_name_truncates_echoed_value():
+    """A long rejected value is not echoed back in full."""
+    with pytest.raises(ValueError) as excinfo:
+        validate_athena_name('table_name', 'x;' * 500)
+    assert len(str(excinfo.value)) < 200
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'method,args',
+    [
+        ('create_database', ('db; DROP DATABASE x', 's3://b/out/')),
+        (
+            'create_table_for_csv',
+            (
+                'db',
+                't (x int) --',
+                SchemaInfo(format=SchemaFormat.CSV, columns=[], skip_header=True),
+                's3://b/d/',
+                's3://b/out/',
+            ),
+        ),
+        (
+            'create_table_for_parquet',
+            (
+                'db--',
+                't',
+                SchemaInfo(format=SchemaFormat.PARQUET, columns=[], skip_header=False),
+                's3://b/d/',
+                's3://b/out/',
+            ),
+        ),
+        (
+            'create_table_for_parquet',
+            (
+                'db',
+                't--',
+                SchemaInfo(format=SchemaFormat.PARQUET, columns=[], skip_header=False),
+                's3://b/d/',
+                's3://b/out/',
+            ),
+        ),
+    ],
+)
+async def test_athena_handler_ddl_builders_reject_unsafe_names(mock_context, method, args):
+    """Each method that writes a name into DDL checks it before sending anything."""
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
+    ):
+        athena_handler = AthenaHandler(mock_context)
+    athena_handler.execute_query = AsyncMock()
+
+    with pytest.raises(ValueError, match='must start with a letter'):
+        await getattr(athena_handler, method)(*args)
+    athena_handler.execute_query.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_storage_lens_run_query_rejects_unsafe_table_name(mock_context):
+    """Through the MCP tool function, an unsafe table_name is a validation_error before any AWS call."""
+    stl_mod = _reload_storage_lens_with_identity_decorator()
+    real_fn = stl_mod.storage_lens_run_query  # type: ignore
+
+    with (
+        patch.dict(os.environ, {'STORAGE_LENS_MANIFEST_LOCATION': 's3://bucket/prefix/'}),
+        patch.object(stl_mod, 'create_aws_client'),
+        patch.object(
+            stl_mod.ManifestHandler, 'get_manifest', new_callable=AsyncMock
+        ) as mock_get_manifest,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context, query='SELECT * FROM {table}', table_name='t; DROP TABLE x'
+        )
+        assert res['status'] == 'error'
+        assert res['error_type'] == 'validation_error'
+        assert 'table_name' in res['message']
+        mock_get_manifest.assert_not_awaited()
+
+
+_CSV_SCHEMA = SchemaInfo(
+    format=SchemaFormat.CSV,
+    columns=[ColumnDefinition(name='bucket_name', type='STRING')],
+    skip_header=True,
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('method', ['create_table_for_csv', 'create_table_for_parquet'])
+@pytest.mark.parametrize(
+    'column_name,data_location,expected',
+    [
+        ('a` STRING) --', 's3://b/d', 'column names'),
+        ('bucket name', 's3://b/d', 'column names'),
+        ('bucket_name', "s3://b/d' --", 'data location'),
+        ('bucket_name', 's3://b/d' + chr(92), 'data location'),
+        ('bucket_name', 'hdfs://b/d', 'data location'),
+    ],
+)
+async def test_athena_handler_ddl_rejects_unsafe_manifest_values(
+    mock_context, method, column_name, data_location, expected
+):
+    """Column names and the data location come from the manifest; unsafe ones never reach DDL."""
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
+    ):
+        athena_handler = AthenaHandler(mock_context)
+    athena_handler.execute_query = AsyncMock()
+    schema = SchemaInfo(
+        format=SchemaFormat.CSV,
+        columns=[ColumnDefinition(name=column_name, type='STRING')],
+        skip_header=True,
+    )
+
+    with pytest.raises(ValueError, match=expected):
+        await getattr(athena_handler, method)('db', 't', schema, data_location, 's3://b/out/')
+    athena_handler.execute_query.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_athena_handler_ddl_writes_safe_manifest_values(mock_context):
+    """Plain column names and an s3:// location are written into the DDL as before."""
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
+    ):
+        athena_handler = AthenaHandler(mock_context)
+    _athena_ddl_succeeds(athena_handler.athena_client)
+    athena_handler.execute_query = AsyncMock()
+
+    await athena_handler.create_table_for_parquet(
+        'db', 't', _CSV_SCHEMA, 's3://b/data/prefix', 's3://b/out/'
+    )
+
+    await_args = athena_handler.execute_query.await_args
+    assert await_args is not None
+    ddl = await_args.args[0]
+    assert '`bucket_name` STRING' in ddl
+    assert "LOCATION 's3://b/data/prefix'" in ddl
+
+
+@pytest.mark.parametrize(
+    'query', ["SELECT * FROM {table} WHERE x = 'abc", 'SELECT "abc FROM {table}']
+)
+def test_unbalanced_quote_is_a_validation_failure_not_an_exception(query):
+    """An unbalanced quote (a sqlglot TokenError, not a ParseError) fails both checks cleanly."""
+    assert not references_qualified_table(query, 'db', 't')
+    result = validate_query_is_readonly_select(query)
+    assert result is not None
+    assert 'unable to parse SQL' in result
+
+
+@pytest.mark.asyncio
+async def test_athena_handler_setup_table_checks_manifest_values_before_any_ddl(mock_context):
+    """An unsafe manifest column name stops setup_table before CREATE DATABASE is sent."""
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
+    ):
+        athena_handler = AthenaHandler(mock_context)
+    athena_handler.execute_query = AsyncMock()
+    schema = SchemaInfo(
+        format=SchemaFormat.CSV,
+        columns=[ColumnDefinition(name='a` STRING) --', type='STRING')],
+        skip_header=True,
+    )
+
+    with pytest.raises(ValueError, match='column names'):
+        await athena_handler.setup_table('db', 't', schema, 's3://b/d', 's3://b/out/')
+    athena_handler.execute_query.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('method', ['create_table_for_csv', 'create_table_for_parquet'])
+async def test_athena_handler_ddl_rejects_unknown_column_type(mock_context, method):
+    """A column type outside STRING/BIGINT/DOUBLE never reaches DDL."""
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
+    ):
+        athena_handler = AthenaHandler(mock_context)
+    athena_handler.execute_query = AsyncMock()
+    schema = SchemaInfo(
+        format=SchemaFormat.CSV,
+        columns=[ColumnDefinition(name='a', type="STRING) LOCATION 's3://x/' --")],
+        skip_header=True,
+    )
+
+    with pytest.raises(ValueError, match='Column types'):
+        await getattr(athena_handler, method)('db', 't', schema, 's3://b/d', 's3://b/out/')
+    athena_handler.execute_query.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('manifest', [CSV_MANIFEST, PARQUET_MANIFEST], ids=['csv', 'parquet'])
+async def test_athena_handler_setup_table_accepts_documented_manifests(mock_context, manifest):
+    """The documented Storage Lens manifest shapes pass the DDL checks and the DDL is sent."""
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
+    ):
+        athena_handler = AthenaHandler(mock_context)
+        manifest_handler = ManifestHandler(mock_context)
+    _athena_ddl_succeeds(
+        athena_handler.athena_client, manifest_handler.extract_data_location(manifest)
+    )
+    athena_handler.execute_query = AsyncMock()
+
+    await athena_handler.setup_table(
+        'storage_lens_db',
+        'storage_lens_metrics',
+        manifest_handler.parse_schema(manifest),
+        manifest_handler.extract_data_location(manifest),
+        's3://b/out/',
+    )
+
+    ddl = athena_handler.execute_query.await_args_list[-1].args[0]
+    assert 'CREATE EXTERNAL TABLE IF NOT EXISTS storage_lens_db.storage_lens_metrics' in ddl
+    assert '`metric_value`' in ddl
+    assert "LOCATION 's3://" in ddl
+
+
+# --- The table follows the manifest: a stale LOCATION is re-pointed, each DDL completes first ---
+
+
+def _manifest_for_day(day: str, base: dict = CSV_MANIFEST) -> dict:
+    """A manifest whose report files sit in the dt=<day> folder, as Storage Lens writes them."""
+    manifest = json.loads(json.dumps(base))
+    for report_file in manifest['reportFiles']:
+        report_file['key'] = report_file['key'].replace('dt=2020-11-03', f'dt={day}')
+    return manifest
+
+
+def _day_location(day: str) -> str:
+    return (
+        's3://amzn-s3-demo-destination-bucket/DestinationPrefix/StorageLens/123456789012/'
+        f'my-dashboard-configuration-id/V_1/reports/dt={day}'
+    )
+
+
+class _FakeAthena:
+    """Athena with one table: DDL takes effect only once polled, and SELECTs record what they read.
+
+    A SELECT started while a DDL has not been seen to complete records 'ddl pending', because
+    Athena runs queries concurrently and the SELECT may start before the table exists or moves.
+    With instant_ddl, DDL takes effect when it starts, which isolates the LOCATION check.
+    """
+
+    def __init__(
+        self,
+        existing_location=None,
+        metadata_has_location=True,
+        instant_ddl=False,
+        partition_keys=(),
+        input_format='org.apache.hadoop.mapred.TextInputFormat',
+        serde_lib='',
+        polls_before_done=0,
+    ):
+        self.location = existing_location
+        self.input_format = input_format
+        self.serde_lib = serde_lib
+        self.polls_before_done = polls_before_done
+        self._polls: dict[str, int] = {}
+        self.partition_keys = [{'Name': name, 'Type': 'string'} for name in partition_keys]
+        self.instant_ddl = instant_ddl
+        self.metadata_has_location = metadata_has_location
+        self.statements: list[str] = []
+        self.reads: list[str | None] = []
+        self.read_by_id: dict[str, str | None] = {}
+        self._pending: dict[str, str] = {}
+
+    def start_query_execution(self, QueryString, QueryExecutionContext, ResultConfiguration):
+        execution_id = f'q{len(self.statements)}'
+        self.statements.append(QueryString)
+        if QueryString.lstrip().upper().startswith(('CREATE', 'ALTER')):
+            self._pending[execution_id] = QueryString
+            if self.instant_ddl:
+                self.get_query_execution(execution_id)
+        else:
+            read = 'ddl pending' if self._pending else self.location
+            self.reads.append(read)
+            self.read_by_id[execution_id] = read
+        return {'QueryExecutionId': execution_id}
+
+    def get_query_execution(self, QueryExecutionId):
+        polls = self._polls[QueryExecutionId] = self._polls.get(QueryExecutionId, 0) + 1
+        if polls <= self.polls_before_done:
+            return {'QueryExecution': {'Status': {'State': 'RUNNING'}}}
+        ddl = self._pending.pop(QueryExecutionId, '')
+        location = re.search(r"LOCATION '([^']*)'", ddl)
+        if ddl.lstrip().upper().startswith('ALTER') and location:
+            self.location = location.group(1)
+        elif 'CREATE EXTERNAL TABLE IF NOT EXISTS' in ddl and self.location is None and location:
+            self.location = location.group(1)
+        return {
+            'QueryExecution': {
+                'Status': {'State': 'SUCCEEDED'},
+                'Statistics': {
+                    'TotalExecutionTimeInMillis': 1,
+                    'DataScannedInBytes': 1,
+                    'EngineExecutionTimeInMillis': 1,
+                },
+            }
+        }
+
+    def get_table_metadata(self, CatalogName, DatabaseName, TableName):
+        assert self.location is not None, 'table read before CREATE TABLE completed'
+        parameters = {'EXTERNAL': 'TRUE'}
+        if self.input_format:
+            parameters['inputformat'] = self.input_format
+        if self.serde_lib:
+            parameters['serde.serialization.lib'] = self.serde_lib
+        if self.metadata_has_location:
+            parameters['location'] = self.location
+        return {
+            'TableMetadata': {
+                'Name': TableName,
+                'PartitionKeys': self.partition_keys,
+                'Parameters': parameters,
+            }
+        }
+
+    def get_query_results(self, QueryExecutionId):
+        """A SELECT returns one row naming the folder it read."""
+        if QueryExecutionId not in self.read_by_id:
+            return {'ResultSet': {'ResultSetMetadata': {'ColumnInfo': []}, 'Rows': []}}
+        header = {'Data': [{'VarCharValue': 'read'}]}
+        row = {'Data': [{'VarCharValue': str(self.read_by_id[QueryExecutionId])}]}
+        return {
+            'ResultSet': {
+                'ResultSetMetadata': {'ColumnInfo': [{'Label': 'read'}]},
+                'Rows': [header, row],
+            }
+        }
+
+
+def _query_tool_over(fake_athena, manifests_by_key, mock_context):
+    s3_client = MagicMock()
+    s3_client.get_object.side_effect = lambda Bucket, Key: {
+        'Body': MagicMock(read=lambda: json.dumps(manifests_by_key[Key]).encode('utf-8'))
+    }
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client',
+        side_effect=lambda service: {'s3': s3_client, 'athena': fake_athena}[service],
+    ):
+        return StorageLensQueryTool(mock_context)
+
+
+_DAY1_MANIFEST_URI = 's3://b/manifests/dt=2026-10-27/manifest.json'
+_DAY2_MANIFEST_URI = 's3://b/manifests/dt=2026-10-28/manifest.json'
+_PARQUET_MANIFEST_URI = 's3://b/manifests/dt=2026-10-28/parquet/manifest.json'
+_CUSTOM_MANIFEST_URI = 's3://b/manifests/custom/manifest.json'
+_CUSTOM_MANIFEST = json.loads(json.dumps(CSV_MANIFEST))
+_CUSTOM_MANIFEST['reportFiles'][0]['key'] = 'copies/storage-lens/report.csv'
+_MANIFESTS = {
+    'manifests/dt=2026-10-27/manifest.json': _manifest_for_day('2026-10-27'),
+    'manifests/dt=2026-10-28/manifest.json': _manifest_for_day('2026-10-28'),
+    'manifests/dt=2026-10-28/parquet/manifest.json': _manifest_for_day(
+        '2026-10-28', PARQUET_MANIFEST
+    ),
+    'manifests/custom/manifest.json': _CUSTOM_MANIFEST,
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('instant_ddl', [False, True], ids=['athena', 'instant-ddl'])
+async def test_later_manifest_is_read_not_the_first_days_folder(mock_context, instant_ddl):
+    """Day 2's query reads day 2's folder, though the table was created over day 1's."""
+    fake = _FakeAthena(instant_ddl=instant_ddl)
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        first = await tool.query_storage_lens('SELECT 1 FROM {table}', _DAY1_MANIFEST_URI)
+        second = await tool.query_storage_lens('SELECT 1 FROM {table}', _DAY2_MANIFEST_URI)
+
+    assert first['status'] == 'success' and second['status'] == 'success'
+    assert fake.reads == [_day_location('2026-10-27'), _day_location('2026-10-28')]
+    assert second['data']['data_location'] == fake.reads[1]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('instant_ddl', [False, True], ids=['athena', 'instant-ddl'])
+async def test_table_created_by_an_older_version_is_repointed(mock_context, instant_ddl):
+    """An existing table left on an old dt= folder is moved with ALTER TABLE ... SET LOCATION."""
+    fake = _FakeAthena(existing_location=_day_location('2026-01-01'), instant_ddl=instant_ddl)
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        result = await tool.query_storage_lens('SELECT 1 FROM {table}', _DAY2_MANIFEST_URI)
+
+    assert result['status'] == 'success'
+    assert fake.reads == [_day_location('2026-10-28')]
+    alters = [s for s in fake.statements if s.lstrip().upper().startswith('ALTER')]
+    assert alters == [
+        f"ALTER TABLE storage_lens_db.storage_lens_metrics SET LOCATION '{_day_location('2026-10-28')}'"
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('suffix', ['', '/'])
+async def test_table_already_on_the_manifest_folder_is_not_altered(mock_context, suffix):
+    """No ALTER is sent when the table already reads the manifest's folder (trailing / or not)."""
+    fake = _FakeAthena(existing_location=_day_location('2026-10-28') + suffix)
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        result = await tool.query_storage_lens('SELECT 1 FROM {table}', _DAY2_MANIFEST_URI)
+
+    assert result['status'] == 'success'
+    assert not [s for s in fake.statements if s.lstrip().upper().startswith('ALTER')]
+    assert fake.reads == [_day_location('2026-10-28') + suffix]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'existing_location,metadata_has_location,partition_keys',
+    [
+        ('s3://my-bucket/cur/data', True, ()),
+        ('s3://my-bucket/StorageLens/1/c/V_1/reports', True, ('dt',)),
+        (_day_location('2026-01-01'), True, ('dt',)),
+        (_day_location('2026-01-01'), False, ()),
+    ],
+    ids=['other-folder', 'partitioned-on-reports', 'partitioned-on-a-day', 'no-location'],
+)
+async def test_table_not_made_by_this_tool_is_left_unchanged(
+    mock_context, existing_location, metadata_has_location, partition_keys
+):
+    """Only an unpartitioned table on a report day folder is moved; another table is queried as is."""
+    fake = _FakeAthena(
+        existing_location=existing_location,
+        metadata_has_location=metadata_has_location,
+        partition_keys=partition_keys,
+    )
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        result = await tool.query_storage_lens('SELECT 1 FROM {table}', _DAY2_MANIFEST_URI)
+
+    assert result['status'] == 'success'
+    assert not [s for s in fake.statements if s.lstrip().upper().startswith('ALTER')]
+    assert fake.reads == [existing_location]
+
+
+@pytest.mark.asyncio
+async def test_first_query_waits_for_the_table_to_exist(mock_context):
+    """The SELECT starts only after CREATE DATABASE and CREATE TABLE have completed."""
+    fake = _FakeAthena()
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        await tool.query_storage_lens('SELECT 1 FROM {table}', _DAY1_MANIFEST_URI)
+
+    assert fake.reads == [_day_location('2026-10-27')]
+
+
+@pytest.mark.asyncio
+async def test_failed_repoint_stops_before_the_select(mock_context):
+    """If ALTER TABLE fails, the error is returned and the stale table is never read."""
+    fake = _FakeAthena(existing_location=_day_location('2026-01-01'))
+    real_get = fake.get_query_execution
+
+    def get_query_execution(QueryExecutionId):
+        if fake._pending.get(QueryExecutionId, '').lstrip().upper().startswith('ALTER'):
+            fake._pending.pop(QueryExecutionId)
+            return {
+                'QueryExecution': {
+                    'Status': {'State': 'FAILED', 'StateChangeReason': 'AccessDenied'}
+                }
+            }
+        return real_get(QueryExecutionId)
+
+    fake.get_query_execution = get_query_execution
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        result = await tool.query_storage_lens('SELECT 1 FROM {table}', _DAY2_MANIFEST_URI)
+
+    assert result['status'] == 'error'
+    assert 'Athena table setup (ALTER TABLE' in result['message']
+    assert (
+        f"SET LOCATION '{_day_location('2026-10-28')}') failed: AccessDenied" in result['message']
+    )
+    assert result['error_type'] != 'validation_error'
+    assert fake.reads == []
+
+
+# --- The example queries sum one record_type level ---
+
+
+async def _storage_lens_description() -> str:
+    from awslabs.billing_cost_management_mcp_server.tools import storage_lens_tools as stl_mod
+
+    importlib.reload(stl_mod)
+    tool = await stl_mod.storage_lens_server.get_tool('storage-lens')
+    assert tool is not None
+    return tool.description or ''
+
+
+def _example_queries(description: str) -> dict[int, str]:
+    examples = description.split('Example queries:', 1)[1]
+    parts = re.split(r'^(\d+)\. [^\n]*\n', examples, flags=re.MULTILINE)
+    return {int(number): query.strip() for number, query in zip(parts[1::2], parts[2::2])}
+
+
+_EXPECTED_LEVEL = {1: 'BUCKET', 2: 'ACCOUNT', 3: 'BUCKET', 4: 'ACCOUNT', 5: 'ACCOUNT', 6: 'BUCKET'}
+
+
+@pytest.mark.asyncio
+async def test_every_example_query_filters_one_record_type():
+    """Each example sums one aggregation level, so ACCOUNT, BUCKET and PREFIX rows are not added up."""
+    queries = _example_queries(await _storage_lens_description())
+    assert sorted(queries) == sorted(_EXPECTED_LEVEL)
+    for number, query in queries.items():
+        assert f"record_type = '{_EXPECTED_LEVEL[number]}'" in query, number
+        assert query.count('record_type') == 1, number
+        assert validate_query_is_readonly_select(query) is None, number
+        assert references_qualified_table(
+            query.replace('{table}', 'storage_lens_db.storage_lens_metrics'),
+            'storage_lens_db',
+            'storage_lens_metrics',
+        ), number
+
+
+@pytest.mark.asyncio
+async def test_description_says_filter_one_record_type_before_sum_and_one_day_per_table():
+    """The description warns about nested record_type levels and says which day the table holds."""
+    description = await _storage_lens_description()
+    assert 'filter to exactly one record_type before SUM' in description
+    assert 'The record_value column is URL-encoded' in description
+    assert "The table holds one day's report: the one the manifest describes" in description
+
+
+@pytest.mark.asyncio
+async def test_ddl_that_does_not_succeed_raises(mock_context, athena_handler):
+    """A DDL statement that ends CANCELLED (not FAILED) still stops setup before the next step."""
+    athena_handler.athena_client.start_query_execution.return_value = {'QueryExecutionId': 'q'}
+    athena_handler.athena_client.get_query_execution.return_value = {
+        'QueryExecution': {'Status': {'State': 'CANCELLED'}}
+    }
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        with pytest.raises(RuntimeError, match='cancelled: no reason given'):
+            await athena_handler.create_database('db', 's3://b/out/')
+    athena_handler.athena_client.get_table_metadata.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ddl_that_ends_in_an_unexpected_state_raises(mock_context, athena_handler):
+    """A DDL whose wait returns without SUCCEEDED (the timeout fallback) raises, naming the step."""
+    athena_handler.athena_client.start_query_execution.return_value = {'QueryExecutionId': 'q'}
+    athena_handler.wait_for_query_completion = AsyncMock(return_value={'status': 'ERROR'})
+    with pytest.raises(RuntimeError, match=r'setup did not succeed \(CREATE DATABASE'):
+        await athena_handler.create_database('db', 's3://b/out/')
+
+
+@pytest.mark.asyncio
+async def test_cancelled_query_raises_with_its_reason(mock_context, athena_handler):
+    """A cancelled query raises with Athena's reason instead of returning a status-less dict."""
+    athena_handler.athena_client.get_query_execution.return_value = {
+        'QueryExecution': {'Status': {'State': 'CANCELLED', 'StateChangeReason': 'by user'}}
+    }
+    with pytest.raises(RuntimeError, match='Query cancelled: by user'):
+        await athena_handler.wait_for_query_completion('q')
+
+
+@pytest.mark.asyncio
+async def test_table_is_not_moved_off_a_report_folder(mock_context):
+    """A manifest outside a report day folder is refused, not moved to or read from day 1."""
+    fake = _FakeAthena(existing_location=_day_location('2026-10-27'))
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        result = await tool.query_storage_lens('SELECT 1 FROM {table}', _CUSTOM_MANIFEST_URI)
+
+    assert result['status'] == 'error'
+    assert result['error_type'] == 'validation_error'
+    assert 'which is not one' in result['message']
+    assert 'Pass a different table_name' in result['message']
+    assert not [s for s in fake.statements if s.lstrip().upper().startswith('ALTER')]
+    assert fake.reads == []
+
+
+@pytest.mark.asyncio
+async def test_new_table_for_a_custom_folder_is_queried(mock_context):
+    """With a fresh table_name, a manifest outside a report folder gets its own table."""
+    fake = _FakeAthena()
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        result = await tool.query_storage_lens(
+            'SELECT 1 FROM {table}', _CUSTOM_MANIFEST_URI, table_name='custom_copy'
+        )
+
+    assert result['status'] == 'success'
+    assert fake.reads == ['s3://amzn-s3-demo-destination-bucket/copies/storage-lens']
+
+
+@pytest.mark.parametrize(
+    'location,matches',
+    [
+        (_day_location('2026-10-27'), True),
+        (_day_location('2026-10-27') + '/', True),
+        ('s3://b/StorageLens/o-abc123/cfg/V_1/reports/dt=2026-10-27', True),
+        ('s3://b/StorageLens/1/cfg/reports/dt=2026-10-27', False),
+        ('s3://b/prefix/reports/dt=2026-10-27', False),
+        ('s3://b/StorageLens/1/cfg/V_1/reports/dt=latest', False),
+        ('s3://b/StorageLens/1/cfg/V_1/reports/dt=2026-10-27/sub', False),
+        ('s3://b/StorageLens/1/cfg/V_1/manifests/dt=2026-10-27', False),
+        ('s3://b/StorageLens/1/cfg/V_1/reports', False),
+    ],
+)
+def test_report_folder_pattern(location, matches):
+    """Only a single day's Storage Lens report folder counts as one this tool created."""
+    from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import (
+        _REPORT_FOLDER_PATTERN,
+    )
+
+    assert bool(_REPORT_FOLDER_PATTERN.fullmatch(location)) is matches
+
+
+_TEXT_INPUT_FORMAT = 'org.apache.hadoop.mapred.TextInputFormat'
+_PARQUET_INPUT_FORMAT = 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'input_format,manifest_uri,table_format',
+    [
+        (_TEXT_INPUT_FORMAT, _PARQUET_MANIFEST_URI, 'CSV'),
+        (_PARQUET_INPUT_FORMAT, _DAY2_MANIFEST_URI, 'Parquet'),
+    ],
+    ids=['csv-table-parquet-report', 'parquet-table-csv-report'],
+)
+@pytest.mark.parametrize('use_serde', [False, True], ids=['inputformat', 'serde-only'])
+async def test_table_of_the_other_format_is_not_repointed(
+    mock_context, input_format, manifest_uri, table_format, use_serde
+):
+    """A table is not pointed at files of the other format; the caller is told to use another name."""
+    serde = {
+        _TEXT_INPUT_FORMAT: 'org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe',
+        _PARQUET_INPUT_FORMAT: 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe',
+    }[input_format]
+    fake = _FakeAthena(
+        existing_location=_day_location('2026-10-27'),
+        input_format='' if use_serde else input_format,
+        serde_lib=serde if use_serde else '',
+    )
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        result = await tool.query_storage_lens('SELECT 1 FROM {table}', manifest_uri)
+
+    assert result['status'] == 'error'
+    assert result['error_type'] == 'validation_error'
+    assert f'created for {table_format} report files' in result['message']
+    assert 'Pass a different table_name' in result['message']
+    assert not [s for s in fake.statements if s.lstrip().upper().startswith('ALTER')]
+    assert fake.reads == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'input_format,serde_lib',
+    [
+        (_PARQUET_INPUT_FORMAT, ''),
+        ('', 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'),
+        (_PARQUET_INPUT_FORMAT, 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'),
+    ],
+    ids=['inputformat', 'serde-only', 'both-agree'],
+)
+async def test_table_of_the_same_format_is_repointed(mock_context, input_format, serde_lib):
+    """A Parquet table, known by its inputformat or else its SerDe, is re-pointed to Parquet."""
+    fake = _FakeAthena(
+        existing_location=_day_location('2026-10-27'),
+        input_format=input_format,
+        serde_lib=serde_lib,
+    )
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        result = await tool.query_storage_lens('SELECT 1 FROM {table}', _PARQUET_MANIFEST_URI)
+
+    assert result['status'] == 'success'
+    assert fake.reads == [_day_location('2026-10-28')]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('statement', ['CREATE DATABASE', 'CREATE EXTERNAL TABLE'])
+async def test_concurrent_create_is_not_an_error(mock_context, statement):
+    """IF NOT EXISTS losing a race to another call (AlreadyExists) still runs the query."""
+    fake = _FakeAthena()
+    real_get = fake.get_query_execution
+
+    def get_query_execution(QueryExecutionId):
+        ddl = fake._pending.get(QueryExecutionId, '')
+        if ddl.lstrip().startswith(statement):
+            real_get(QueryExecutionId)
+            return {
+                'QueryExecution': {
+                    'Status': {
+                        'State': 'FAILED',
+                        'StateChangeReason': 'AlreadyExistsException: it already exists',
+                    }
+                }
+            }
+        return real_get(QueryExecutionId)
+
+    fake.get_query_execution = get_query_execution
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        result = await tool.query_storage_lens('SELECT 1 FROM {table}', _DAY1_MANIFEST_URI)
+
+    assert result['status'] == 'success'
+    assert fake.reads == [_day_location('2026-10-27')]
+
+
+@pytest.mark.asyncio
+async def test_alter_already_exists_failure_is_not_swallowed(mock_context, athena_handler):
+    """Only IF NOT EXISTS statements treat AlreadyExists as done."""
+    athena_handler.athena_client.start_query_execution.return_value = {'QueryExecutionId': 'q'}
+    athena_handler.athena_client.get_query_execution.return_value = {
+        'QueryExecution': {'Status': {'State': 'FAILED', 'StateChangeReason': 'already exists'}}
+    }
+    with pytest.raises(RuntimeError, match=r'Athena table setup \(ALTER TABLE db.t'):
+        await athena_handler.run_ddl("ALTER TABLE db.t SET LOCATION 's3://b/x'", 'db', 's3://o/')
+
+
+@pytest.mark.asyncio
+async def test_cancelled_or_timed_out_setup_names_the_statement(mock_context, athena_handler):
+    """A cancelled or timed-out setup statement says which statement it was."""
+    athena_handler.athena_client.start_query_execution.return_value = {'QueryExecutionId': 'q'}
+    athena_handler.athena_client.get_query_execution.return_value = {
+        'QueryExecution': {'Status': {'State': 'CANCELLED', 'StateChangeReason': 'limit'}}
+    }
+    with pytest.raises(
+        RuntimeError, match=r'setup \(CREATE DATABASE IF NOT EXISTS db\) cancelled'
+    ):
+        await athena_handler.create_database('db', 's3://b/out/')
+
+    athena_handler.athena_client.get_query_execution.return_value = {
+        'QueryExecution': {'Status': {'State': 'RUNNING'}}
+    }
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        with pytest.raises(
+            TimeoutError, match=r'setup \(CREATE DATABASE IF NOT EXISTS db\) timed out'
+        ):
+            await athena_handler.create_database('db', 's3://b/out/')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'manifest_uri',
+    [_DAY2_MANIFEST_URI, _PARQUET_MANIFEST_URI],
+    ids=['csv-report', 'parquet-report'],
+)
+@pytest.mark.parametrize(
+    'input_format,serde_lib',
+    [
+        ('', ''),
+        ('org.apache.hadoop.hive.ql.io.orc.OrcInputFormat', ''),
+        ('', 'org.openx.data.jsonserde.JsonSerDe'),
+        ('org.apache.hadoop.hive.ql.io.SymlinkTextInputFormat', ''),
+        (_TEXT_INPUT_FORMAT, 'org.openx.data.jsonserde.JsonSerDe'),
+        (_PARQUET_INPUT_FORMAT, 'org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe'),
+    ],
+    ids=['none', 'orc', 'json-serde', 'symlink', 'text-input-json-serde', 'formats-disagree'],
+)
+async def test_table_of_unknown_format_is_not_repointed(
+    mock_context, manifest_uri, input_format, serde_lib
+):
+    """A table that is neither CSV nor Parquet, or records no format, is refused, not re-pointed."""
+    fake = _FakeAthena(
+        existing_location=_day_location('2026-10-27'),
+        input_format=input_format,
+        serde_lib=serde_lib,
+    )
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        result = await tool.query_storage_lens('SELECT 1 FROM {table}', manifest_uri)
+
+    assert result['status'] == 'error'
+    assert result['error_type'] == 'validation_error'
+    assert 'has no recognised report format' in result['message']
+    assert 'Pass a different table_name' in result['message']
+    assert not [s for s in fake.statements if s.lstrip().upper().startswith('ALTER')]
+    assert fake.reads == []
+
+
+@pytest.mark.asyncio
+async def test_parallel_calls_for_different_days_do_not_mix(mock_context):
+    """Two parallel calls on one table each read their own manifest's day, not the other's."""
+    # The table starts on a third day, so both calls must ALTER it
+    fake = _FakeAthena(existing_location=_day_location('2026-10-26'), polls_before_done=1)
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    real_sleep = asyncio.sleep
+
+    async def yield_once(_delay):
+        await real_sleep(0)
+
+    with patch('asyncio.sleep', side_effect=yield_once):
+        day1, day2 = await asyncio.gather(
+            tool.query_storage_lens('SELECT 1 FROM {table}', _DAY1_MANIFEST_URI),
+            tool.query_storage_lens('SELECT 1 FROM {table}', _DAY2_MANIFEST_URI),
+        )
+
+    assert day1['status'] == 'success' and day2['status'] == 'success'
+    assert sorted(str(read) for read in fake.reads) == [
+        _day_location('2026-10-27'),
+        _day_location('2026-10-28'),
+    ]
+    # Each call's SELECT read the folder its own response reports
+    assert day1['data']['rows'] == [{'read': _day_location('2026-10-27')}]
+    assert day2['data']['rows'] == [{'read': _day_location('2026-10-28')}]
+    assert day1['data']['data_location'] == _day_location('2026-10-27')
+    assert day2['data']['data_location'] == _day_location('2026-10-28')
+    assert len([s for s in fake.statements if s.lstrip().upper().startswith('ALTER')]) == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'input_format,serde_lib',
+    [
+        ('', 'org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe'),
+        ('', 'org.apache.hadoop.hive.serde2.OpenCSVSerde'),
+        (_TEXT_INPUT_FORMAT, 'org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe'),
+        (_TEXT_INPUT_FORMAT, 'org.apache.hadoop.hive.serde2.OpenCSVSerde'),
+    ],
+    ids=['lazy-simple', 'open-csv', 'tool-created-csv', 'open-csv-with-inputformat'],
+)
+async def test_csv_table_known_by_its_serde_is_repointed(mock_context, input_format, serde_lib):
+    """A CSV table, by its SerDe alone or with TextInputFormat as Athena DDL records it, is re-pointed."""
+    fake = _FakeAthena(
+        existing_location=_day_location('2026-10-27'),
+        input_format=input_format,
+        serde_lib=serde_lib,
+    )
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        result = await tool.query_storage_lens('SELECT 1 FROM {table}', _DAY2_MANIFEST_URI)
+
+    assert result['status'] == 'success'
+    assert fake.reads == [_day_location('2026-10-28')]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'input_format,manifest_uri,table_format',
+    [
+        (_PARQUET_INPUT_FORMAT, _DAY2_MANIFEST_URI, 'Parquet'),
+        (_TEXT_INPUT_FORMAT, _PARQUET_MANIFEST_URI, 'CSV'),
+    ],
+    ids=['parquet-table-csv-report', 'csv-table-parquet-report'],
+)
+async def test_table_on_the_folder_but_of_the_other_format_is_refused(
+    mock_context, input_format, manifest_uri, table_format
+):
+    """A table already on the manifest's folder but created for the other format is not read."""
+    fake = _FakeAthena(existing_location=_day_location('2026-10-28'), input_format=input_format)
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        result = await tool.query_storage_lens('SELECT 1 FROM {table}', manifest_uri)
+
+    assert result['status'] == 'error'
+    assert result['error_type'] == 'validation_error'
+    assert f'created for {table_format} report files' in result['message']
+    assert fake.reads == []
+
+
+@pytest.mark.asyncio
+async def test_table_on_the_folder_of_unknown_format_is_queried(mock_context):
+    """A table already on the manifest's folder whose format is not recorded is queried as before."""
+    fake = _FakeAthena(existing_location=_day_location('2026-10-28'), input_format='')
+    tool = _query_tool_over(fake, _MANIFESTS, mock_context)
+    with patch('asyncio.sleep', new_callable=AsyncMock):
+        result = await tool.query_storage_lens('SELECT 1 FROM {table}', _DAY2_MANIFEST_URI)
+
+    assert result['status'] == 'success'
+    assert fake.reads == [_day_location('2026-10-28')]
+
+
+@pytest.mark.asyncio
+async def test_failed_create_is_not_taken_for_a_lost_race(mock_context, athena_handler):
+    """'already exists' in the statement text, not Athena's reason, does not hide a failure."""
+    athena_handler.athena_client.start_query_execution.return_value = {'QueryExecutionId': 'q'}
+    athena_handler.athena_client.get_query_execution.return_value = {
+        'QueryExecution': {'Status': {'State': 'FAILED', 'StateChangeReason': 'AccessDenied'}}
+    }
+    with pytest.raises(RuntimeError, match='failed: AccessDenied'):
+        await athena_handler.run_ddl(
+            "CREATE EXTERNAL TABLE IF NOT EXISTS db.t (a STRING) LOCATION 's3://b/already exists/'",
+            'db',
+            's3://o/',
+        )

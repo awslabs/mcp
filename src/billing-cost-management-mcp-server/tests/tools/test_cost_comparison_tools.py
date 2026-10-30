@@ -23,21 +23,25 @@ These tests verify the functionality of cost comparison tools, including:
 """
 
 import boto3
+import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.cost_comparison_tools import (
     COMPARISON_METRICS,
     DRIVER_METRICS,
     GET_COST_AND_USAGE_COMPARISONS,
     GET_COST_COMPARISON_DRIVERS,
+    MAX_FILTER_DEPTH,
     _months_before,
     _utc_today,
     cost_comparison,
     cost_comparison_server,
     get_cost_and_usage_comparisons,
     get_cost_comparison_drivers,
+    validate_comparison_filter,
     validate_comparison_request,
 )
 from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+    MODIFY_REQUEST,
     add_retry_guidance,
 )
 from botocore.exceptions import ClientError
@@ -847,6 +851,135 @@ class TestGetCostComparisonDrivers:
         assert result['message'] == 'API error'
 
 
+# Two consecutive whole months that pass the dispatcher's local date checks.
+_COMPARISON_ARGS = {
+    'baseline_start_date': month(2)[0],
+    'baseline_end_date': month(2)[1],
+    'comparison_start_date': month(1)[0],
+    'comparison_end_date': month(1)[1],
+    'metric_for_comparison': 'BlendedCost',
+}
+
+
+@pytest.fixture
+def real_cost_comparison():
+    """Yield the cost_comparison_tools module with the undecorated cost_comparison tool.
+
+    The module is reloaded with FastMCP.tool patched to an identity decorator, then
+    reloaded again on teardown so the registered server is restored.
+    """
+    import fastmcp
+    import importlib
+    from awslabs.billing_cost_management_mcp_server.tools import cost_comparison_tools as mod
+
+    with patch.object(fastmcp.FastMCP, 'tool', lambda self, *a, **k: lambda fn: fn):
+        importlib.reload(mod)
+    try:
+        yield mod
+    finally:
+        importlib.reload(mod)
+
+
+@pytest.mark.asyncio
+class TestCostComparison:
+    """Tests for the cost_comparison tool dispatcher."""
+
+    @pytest.mark.parametrize(
+        'operation,handler,other',
+        [
+            (
+                'getCostAndUsageComparisons',
+                'get_cost_and_usage_comparisons',
+                'get_cost_comparison_drivers',
+            ),
+            (
+                'getCostComparisonDrivers',
+                'get_cost_comparison_drivers',
+                'get_cost_and_usage_comparisons',
+            ),
+        ],
+    )
+    async def test_routes_operation_with_all_parameters(
+        self, mock_context, real_cost_comparison, operation, handler, other
+    ):
+        """Each operation calls its own handler with every argument in order."""
+        mod = real_cost_comparison
+        ce_client = MagicMock()
+        handler_mock = AsyncMock(return_value={'status': 'success', 'data': {}})
+        other_mock = AsyncMock()
+        group_by = '[{"Type": "DIMENSION", "Key": "SERVICE"}]'
+        filter_json = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon EC2"]}}'
+        view_arn = 'arn:aws:billing::123456789012:billingview/view-1'
+
+        with (
+            patch.object(mod, 'create_aws_client', return_value=ce_client),
+            patch.object(mod, handler, handler_mock),
+            patch.object(mod, other, other_mock),
+        ):
+            result = await mod.cost_comparison(  # type: ignore[reportCallIssue]
+                mock_context,
+                operation=operation,
+                group_by=group_by,
+                filter=filter_json,
+                max_items=50,
+                billing_view_arn=view_arn,
+                **_COMPARISON_ARGS,
+            )
+
+        assert result == {'status': 'success', 'data': {}}
+        other_mock.assert_not_called()
+        assert handler_mock.call_args.args == (
+            mock_context,
+            ce_client,
+            *_COMPARISON_ARGS.values(),
+            group_by,
+            filter_json,
+            50,
+            None,
+            view_arn,
+        )
+
+    async def test_unsupported_operation(self, mock_context, real_cost_comparison):
+        """An unknown operation returns an error without calling either handler."""
+        mod = real_cost_comparison
+        with (
+            patch.object(mod, 'create_aws_client', return_value=MagicMock()),
+            patch.object(mod, 'get_cost_and_usage_comparisons', AsyncMock()) as comparisons,
+            patch.object(mod, 'get_cost_comparison_drivers', AsyncMock()) as drivers,
+        ):
+            result = await mod.cost_comparison(  # type: ignore[reportCallIssue]
+                mock_context, operation='unsupportedOperation', **_COMPARISON_ARGS
+            )
+
+        assert result['status'] == 'error'
+        assert 'Unsupported operation' in result['message']
+        # A request error the caller can fix: modify_request, not do_not_retry.
+        assert result['error_type'] == 'validation_error'
+        assert add_retry_guidance(result)['retry_strategy'] == MODIFY_REQUEST
+        comparisons.assert_not_called()
+        drivers.assert_not_called()
+
+    async def test_handler_exception_returns_error_response(
+        self, mock_context, real_cost_comparison
+    ):
+        """An exception from a handler comes back as an error response."""
+        mod = real_cost_comparison
+        with (
+            patch.object(mod, 'create_aws_client', return_value=MagicMock()),
+            patch.object(
+                mod,
+                'get_cost_and_usage_comparisons',
+                AsyncMock(side_effect=RuntimeError('API error')),
+            ),
+        ):
+            result = await mod.cost_comparison(  # type: ignore[reportCallIssue]
+                mock_context, operation='getCostAndUsageComparisons', **_COMPARISON_ARGS
+            )
+
+        assert result['status'] == 'error'
+        assert 'API error' in result['message']
+
+
 def test_cost_comparison_server_initialization():
     """Test that the cost_comparison_server is properly initialized."""
     # Verify the server name
@@ -919,7 +1052,8 @@ def dispatch_ce_client():
 
 
 async def _call(ctx, client, operation, baseline, comparison, **kwargs):
-    with patch(f'{MODULE}.create_aws_client', return_value=client):
+    with patch(f'{MODULE}.create_aws_client', return_value=client) as create:
+        client.created = create
         return await cost_comparison(
             ctx,
             operation=operation,
@@ -940,6 +1074,9 @@ def _assert_local_validation_error(result, client, *needles):
         assert needle in result['message'], (needle, result['message'])
     client.get_cost_and_usage_comparisons.assert_not_called()
     client.get_cost_comparison_drivers.assert_not_called()
+    created = getattr(client, 'created', None)
+    if created is not None:
+        created.assert_not_called()
 
 
 def _client_error(code, message, request_id='r1'):
@@ -1211,6 +1348,187 @@ class TestCostComparisonDispatcherValidation:
         create.assert_not_called()
 
 
+EC2 = 'Amazon Elastic Compute Cloud - Compute'
+
+
+def _service(values, match_options=None):
+    """A SERVICE Dimensions filter, optionally with MatchOptions."""
+    dimensions = {'Key': 'SERVICE', 'Values': values}
+    if match_options is not None:
+        dimensions['MatchOptions'] = match_options
+    return {'Dimensions': dimensions}
+
+
+def _nest(expression, how):
+    """``expression`` at the top level or inside each logical operator."""
+    other = _service([EC2])
+    return {
+        'top': expression,
+        'not': {'Not': expression},
+        'and': {'And': [other, expression]},
+        'or': {'Or': [other, expression]},
+        'or_not': {'Or': [other, {'Not': expression}]},
+    }[how]
+
+
+NESTINGS = ['top', 'not', 'and', 'or', 'or_not']
+
+
+@pytest.mark.asyncio
+class TestCostComparisonFilterValidation:
+    """Filters the comparison APIs mishandle fail locally with no AWS call."""
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    @pytest.mark.parametrize('how', NESTINGS)
+    @pytest.mark.parametrize(
+        'option', ['CASE_INSENSITIVE', 'STARTS_WITH', 'ENDS_WITH', 'CONTAINS', 'ABSENT']
+    )
+    async def test_ignored_dimension_match_option_rejected(
+        self, mock_context, dispatch_ce_client, operation, how, option
+    ):
+        """CE ignores these MatchOptions and matches values exactly: a silent $0 or total."""
+        flt = _nest(_service([EC2.lower()], ['EQUALS', option]), how)
+        result = await _call(
+            mock_context, dispatch_ce_client, operation, month(2), month(1), filter=json.dumps(flt)
+        )
+        _assert_local_validation_error(
+            result, dispatch_ce_client, option, 'exactly', 'getDimensionValues'
+        )
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    @pytest.mark.parametrize('kind', ['Tags', 'CostCategories'])
+    @pytest.mark.parametrize('option', ['CASE_INSENSITIVE', 'STARTS_WITH', 'CONTAINS'])
+    async def test_ignored_tag_and_cost_category_match_option_rejected(
+        self, mock_context, dispatch_ce_client, operation, kind, option
+    ):
+        """Tags and cost categories honor only ABSENT besides the default."""
+        flt = {kind: {'Key': 'team', 'Values': ['web'], 'MatchOptions': [option]}}
+        result = await _call(
+            mock_context, dispatch_ce_client, operation, month(2), month(1), filter=json.dumps(flt)
+        )
+        _assert_local_validation_error(result, dispatch_ce_client, option, kind)
+
+    @pytest.mark.parametrize('kind', ['Tags', 'CostCategories'])
+    @pytest.mark.parametrize('how', NESTINGS)
+    async def test_absent_with_values_rejected(self, mock_context, dispatch_ce_client, kind, how):
+        """The comparison APIs drop Values when ABSENT is set, so the result ignores them."""
+        flt = _nest({kind: {'Key': 'team', 'Values': ['web'], 'MatchOptions': ['ABSENT']}}, how)
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            'getCostAndUsageComparisons',
+            month(2),
+            month(1),
+            filter=json.dumps(flt),
+        )
+        _assert_local_validation_error(result, dispatch_ce_client, 'ABSENT ignores its Values')
+
+    async def test_filter_nested_too_deep_rejected(self, mock_context, dispatch_ce_client):
+        """A filter nested deep enough to fail in Cost Explorer fails locally; one level less passes.
+
+        Live, getCostComparisonDrivers accepts 96 Not, And or Or levels and returns
+        InternalFailure at 97; both operations reject 98 with "Value is too deeply nested".
+        """
+        assert MAX_FILTER_DEPTH == 97
+        deepest_allowed = _service([EC2])
+        for _ in range(MAX_FILTER_DEPTH - 1):
+            deepest_allowed = {'Not': deepest_allowed}
+        validate_comparison_filter(deepest_allowed)
+        too_deep = (
+            '{"Not": ' * MAX_FILTER_DEPTH + json.dumps(_service([EC2])) + '}' * MAX_FILTER_DEPTH
+        )
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            'getCostAndUsageComparisons',
+            month(2),
+            month(1),
+            filter=too_deep,
+        )
+        _assert_local_validation_error(
+            result, dispatch_ce_client, f'nested {MAX_FILTER_DEPTH} or more'
+        )
+        too_wide_and = _service([EC2])
+        for _ in range(MAX_FILTER_DEPTH):
+            too_wide_and = {'And': [_service([EC2]), too_wide_and]}
+        with pytest.raises(ValueError, match='or more And/Or/Not levels'):
+            validate_comparison_filter(too_wide_and)
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    @pytest.mark.parametrize('how', NESTINGS)
+    async def test_resource_id_filter_rejected(
+        self, mock_context, dispatch_ce_client, operation, how
+    ):
+        """CE fails a RESOURCE_ID filter with InternalFailure, which retrying never fixes."""
+        flt = _nest({'Dimensions': {'Key': 'RESOURCE_ID', 'Values': ['i-0abc']}}, how)
+        result = await _call(
+            mock_context, dispatch_ce_client, operation, month(2), month(1), filter=json.dumps(flt)
+        )
+        _assert_local_validation_error(
+            result, dispatch_ce_client, 'RESOURCE_ID', 'getCostAndUsageWithResources'
+        )
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    @pytest.mark.parametrize(
+        'flt',
+        [
+            _service([EC2]),
+            _service([EC2], ['EQUALS']),
+            _service([EC2], ['EQUALS', 'CASE_SENSITIVE']),
+            {'Not': _service([EC2], [])},
+            {'Dimensions': {'Key': 'USAGE_TYPE_GROUP', 'Values': ['EC2: Running Hours']}},
+            {'Tags': {'Key': 'team', 'MatchOptions': ['ABSENT']}},
+            {'CostCategories': {'Key': 'env', 'Values': ['prod'], 'MatchOptions': ['EQUALS']}},
+            {'CostCategories': {'Key': 'env', 'MatchOptions': ['ABSENT']}},
+            {'And': [_service([EC2]), {'Tags': {'Key': 'team', 'Values': ['web']}}]},
+        ],
+        ids=[
+            'no_options',
+            'equals',
+            'equals_case_sensitive',
+            'not_empty_options',
+            'usage_type_group',
+            'tag_absent',
+            'cost_category_equals',
+            'cost_category_absent',
+            'and',
+        ],
+    )
+    async def test_supported_filter_reaches_ce_unchanged(
+        self, mock_context, dispatch_ce_client, operation, flt
+    ):
+        """Filters the comparison APIs honor are sent as given."""
+        result = await _call(
+            mock_context, dispatch_ce_client, operation, month(2), month(1), filter=json.dumps(flt)
+        )
+        assert result['status'] == 'success', result
+        call = getattr(dispatch_ce_client, CE_METHOD[operation])
+        assert call.call_args.kwargs['Filter'] == flt
+
+    async def test_shapes_left_to_botocore_are_skipped(self):
+        """Non-dict children are botocore's to reject; checks still reach the dict ones."""
+        validate_comparison_filter({'And': ['junk', 3, None], 'Not': [], 'Or': 'x'})
+        validate_comparison_filter({'Dimensions': {'Key': 'SERVICE', 'MatchOptions': 'x'}})
+        with pytest.raises(ValueError, match='RESOURCE_ID'):
+            validate_comparison_filter(
+                {'And': ['junk', 3, None, {'Dimensions': {'Key': 'RESOURCE_ID', 'Values': []}}]}
+            )
+
+    async def test_invalid_filter_json_is_a_validation_error(
+        self, mock_context, dispatch_ce_client
+    ):
+        """A filter that is not JSON still fails locally, as before."""
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            'getCostAndUsageComparisons',
+            month(2),
+            month(1),
+            filter='{not json',
+        )
+        _assert_local_validation_error(result, dispatch_ce_client, 'Invalid JSON format')
+
+
 class TestValidateComparisonRequest:
     """Boundaries of the rules, at a fixed date."""
 
@@ -1291,3 +1609,8 @@ async def test_description_states_the_enforced_rules():
         'UsageQuantity: Usage amounts in their respective units. getCostAndUsageComparisons only'
         in description
     )
+    assert 'MatchOptions other than EQUALS and CASE_SENSITIVE (the default)' in description
+    assert 'ABSENT together with Values' in description
+    assert 'A RESOURCE_ID filter' in description
+    assert 'Nesting of 97 or more And/Or/Not levels' in description
+    assert 'Keys and values match exactly, including case' in description

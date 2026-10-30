@@ -26,13 +26,15 @@ from ..utilities.aws_service_base import (
     get_date_range,
     handle_aws_error,
     paginate_aws_items,
+    parse_filter,
     parse_json,
     parse_metrics,
     with_pagination,
 )
 from ..utilities.sql_utils import convert_response_if_needed
+from ..utilities.time_utils import monthly_period_note
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastmcp import Context
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -174,7 +176,7 @@ async def get_cost_and_usage(
         # Parse JSON inputs
         metrics_list = parse_metrics(metrics)
         group_by_list = parse_json(group_by, 'group_by')
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {
@@ -187,7 +189,7 @@ async def get_cost_and_usage(
         if group_by_list:
             request_params['GroupBy'] = group_by_list
 
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         if billing_view_arn:
@@ -269,7 +271,7 @@ async def get_cost_and_usage_with_resources(
         # Parse JSON inputs
         metrics_list = parse_metrics(metrics)
         group_by_list = parse_json(group_by, 'group_by')
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {
@@ -282,7 +284,7 @@ async def get_cost_and_usage_with_resources(
         if group_by_list:
             request_params['GroupBy'] = group_by_list
 
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         if billing_view_arn:
@@ -356,7 +358,7 @@ async def get_dimension_values(
         await ctx.info(f'Using date range: {start} to {end}')
 
         # Parse JSON filter if provided
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {'TimePeriod': {'Start': start, 'End': end}, 'Dimension': dimension}
@@ -365,7 +367,7 @@ async def get_dimension_values(
         if search_string:
             request_params['SearchString'] = search_string
 
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         if billing_view_arn:
@@ -399,6 +401,53 @@ async def get_dimension_values(
     except Exception as e:
         # Use shared error handling
         return await handle_aws_error(ctx, e, 'getDimensionValues', 'Cost Explorer')
+
+
+def _forecast_period_note(
+    start_date: str,
+    end_date: str,
+    granularity: str,
+    response: Dict[str, Any],
+    measure: str,
+) -> Dict[str, str]:
+    """Say when a MONTHLY forecast covers a wider period than the one requested.
+
+    With MONTHLY granularity Cost Explorer widens the request to whole calendar months:
+    the start moves back to the 1st and the end forward to the next 1st. A first month
+    that starts before today (UTC, as Cost Explorer dates are) holds that month's actual
+    values to date as well as the forecast, and so does Total.
+
+    Args:
+        start_date: Requested start date (YYYY-MM-DD)
+        end_date: Requested end date (YYYY-MM-DD, exclusive)
+        granularity: Requested granularity; only MONTHLY is widened
+        response: GetCostForecast or GetUsageForecast response
+        measure: What the forecast measures ('costs' or 'usage'), used in the note
+
+    Returns:
+        ``{'period_note': ...}`` when the returned periods differ from the request,
+        otherwise an empty dict.
+    """
+    periods = response.get('ForecastResultsByTime') or []
+    if granularity != 'MONTHLY' or not periods:
+        return {}
+    covered_start = (periods[0].get('TimePeriod') or {}).get('Start')
+    covered_end = (periods[-1].get('TimePeriod') or {}).get('End')
+    if not covered_start or not covered_end:
+        return {}
+    if (covered_start, covered_end) == (start_date, end_date):
+        return {}
+    note = (
+        f'Cost Explorer returned whole calendar months: the result covers {covered_start} '
+        f'to {covered_end} (end exclusive), not the requested {start_date} to {end_date}.'
+    )
+    if covered_start < datetime.now(timezone.utc).strftime('%Y-%m-%d'):
+        note += (
+            f' The first period and Total include actual {measure} from {covered_start} to'
+            ' date, not only the forecast.'
+        )
+    note += ' For part of a month, use DAILY granularity and sum the days.'
+    return {'period_note': note}
 
 
 async def get_cost_forecast(
@@ -447,7 +496,7 @@ async def get_cost_forecast(
         await ctx.info(f'Using forecast date range: {start_date} to {end_date}')
 
         # Parse JSON filter if provided
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {
@@ -458,7 +507,7 @@ async def get_cost_forecast(
         }
 
         # Add filters if provided
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         if billing_view_arn:
@@ -467,6 +516,8 @@ async def get_cost_forecast(
         # Make API call
         await ctx.info('Calling getCostForecast API')
         response = ce_client.get_cost_forecast(**request_params)
+        period_note = _forecast_period_note(start_date, end_date, granularity, response, 'costs')
+        response = {**period_note, **response}
 
         # Forecast responses can be large with DAILY granularity over months —
         # offload through the SQL gate so callers get a queryable table.
@@ -478,6 +529,7 @@ async def get_cost_forecast(
             granularity=granularity,
             start_date=start_date,
             end_date=end_date,
+            **period_note,
         )
 
         return format_response('success', table_response)
@@ -532,7 +584,7 @@ async def get_usage_forecast(
         await ctx.info(f'Using forecast date range: {start_date} to {end_date}')
 
         # Parse JSON filter if provided
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {
@@ -543,7 +595,7 @@ async def get_usage_forecast(
         }
 
         # Add filters if provided
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         if billing_view_arn:
@@ -552,6 +604,8 @@ async def get_usage_forecast(
         # Make API call
         await ctx.info('Calling getUsageForecast API')
         response = ce_client.get_usage_forecast(**request_params)
+        period_note = _forecast_period_note(start_date, end_date, granularity, response, 'usage')
+        response = {**period_note, **response}
 
         table_response = await convert_response_if_needed(
             ctx,
@@ -561,6 +615,7 @@ async def get_usage_forecast(
             granularity=granularity,
             start_date=start_date,
             end_date=end_date,
+            **period_note,
         )
 
         return format_response('success', table_response)
@@ -752,18 +807,29 @@ async def get_savings_plans_utilization(
         await ctx.info(f'Using date range: {start} to {end}')
 
         # Parse JSON filter if provided
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {'TimePeriod': {'Start': start, 'End': end}, 'Granularity': granularity}
 
         # Add optional parameters
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         response = ce_client.get_savings_plans_utilization(**request_params)
+        # MONTHLY entries are labelled with their whole calendar month even where the figures
+        # cover only part of it (the requested start or end falls inside the month).
+        period_note = monthly_period_note(
+            start,
+            end,
+            [
+                entry.get('TimePeriod')
+                for entry in response.get('SavingsPlansUtilizationsByTime') or []
+            ],
+            granularity,
+        )
 
-        return format_response('success', response)
+        return format_response('success', {**period_note, **response})
 
     except Exception as e:
         # Use shared error handling
