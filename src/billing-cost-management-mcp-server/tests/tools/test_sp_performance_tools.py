@@ -403,8 +403,10 @@ class TestGetSavingsPlansUtilizationDetails:
         'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_items'
     )
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.parse_json')
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.parse_filter')
     async def test_get_savings_plans_utilization_details_with_filter(
         self,
+        mock_parse_filter,
         mock_parse_json,
         mock_paginate_response,
         mock_get_date_range,
@@ -423,7 +425,7 @@ class TestGetSavingsPlansUtilizationDetails:
         )
 
         mock_filter = {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1']}}
-        mock_parse_json.return_value = mock_filter
+        mock_parse_filter.return_value = mock_filter
 
         # Execute
         result = await get_savings_plans_utilization_details(
@@ -436,7 +438,7 @@ class TestGetSavingsPlansUtilizationDetails:
         )
 
         # Assert
-        mock_parse_json.assert_called_once_with('filter_json', 'filter')
+        mock_parse_filter.assert_called_once_with('filter_json')
 
         request_params = mock_paginate_response.call_args[0][3]
         assert 'Filter' in request_params
@@ -593,8 +595,10 @@ class TestGetSavingsPlansUtilization:
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.parse_json')
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.parse_filter')
     async def test_get_savings_plans_utilization_with_filter(
         self,
+        mock_parse_filter,
         mock_parse_json,
         mock_get_date_range,
         mock_context,
@@ -605,7 +609,7 @@ class TestGetSavingsPlansUtilization:
         mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
 
         mock_filter = {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1']}}
-        mock_parse_json.return_value = mock_filter
+        mock_parse_filter.return_value = mock_filter
 
         # Execute
         result = await get_savings_plans_utilization(
@@ -618,7 +622,7 @@ class TestGetSavingsPlansUtilization:
         )
 
         # Assert
-        mock_parse_json.assert_called_once_with('filter_json', 'filter')
+        mock_parse_filter.assert_called_once_with('filter_json')
 
         request_params = mock_ce_client.get_savings_plans_utilization.call_args[1]
         assert request_params['Filter'] == mock_filter
@@ -764,8 +768,10 @@ class TestGetSavingsPlansCoverage:
         'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_items'
     )
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.parse_json')
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.parse_filter')
     async def test_get_savings_plans_coverage_with_options(
         self,
+        mock_parse_filter,
         mock_parse_json,
         mock_paginate_response,
         mock_get_date_range,
@@ -785,7 +791,8 @@ class TestGetSavingsPlansCoverage:
         mock_group_by = [{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
         mock_filter = {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1']}}
 
-        mock_parse_json.side_effect = [mock_metrics, mock_group_by, mock_filter]
+        mock_parse_json.side_effect = [mock_metrics, mock_group_by]
+        mock_parse_filter.return_value = mock_filter
 
         # Execute
         result = await get_savings_plans_coverage(
@@ -802,7 +809,7 @@ class TestGetSavingsPlansCoverage:
         # Assert
         mock_parse_json.assert_any_call('metrics_json', 'metrics')
         mock_parse_json.assert_any_call('group_by_json', 'group_by')
-        mock_parse_json.assert_any_call('filter_json', 'filter')
+        mock_parse_filter.assert_called_once_with('filter_json')
 
         request_params = mock_paginate_response.call_args[0][3]
         assert request_params['Metrics'] == mock_metrics
@@ -1496,6 +1503,53 @@ class TestSpPerformanceEnvelope:
         assert data['requested_time_period'] == {'start': '2026-08-17', 'end': '2026-10-01'}
         # The calendar-month labels reach the caller untouched.
         assert data['savings_plans_utilizations'] == entries
+        assert (
+            'first entry, labelled 2026-08-01 to 2026-09-01, covers only 2026-08-17'
+            in (data['period_note'])
+        )
+
+    @patch(f'{SP_TOOLS}.get_date_range')
+    async def test_utilization_flags_a_snapped_end(self, mock_dates, mock_context):
+        """A mid-month end is labelled with the whole month too; period_note says so."""
+        mock_dates.return_value = ('2026-08-01', '2026-09-10')
+        client = MagicMock()
+        client.get_savings_plans_utilization.return_value = {
+            'SavingsPlansUtilizationsByTime': [
+                {'TimePeriod': {'Start': '2026-08-01', 'End': '2026-09-01'}},
+                {'TimePeriod': {'Start': '2026-09-01', 'End': '2026-10-01'}},
+            ],
+            'Total': API_DETAILS_TOTAL,
+        }
+
+        result = await get_savings_plans_utilization(
+            mock_context, client, '2026-08-01', '2026-09-10', 'MONTHLY', None
+        )
+
+        note = result['data']['period_note']
+        assert (
+            'last entry, labelled 2026-09-01 to 2026-10-01, covers only the days before 2026-09-10'
+            in (note)
+        )
+        assert 'first entry' not in note
+
+    @patch(f'{SP_TOOLS}.get_date_range')
+    async def test_utilization_matching_request_has_no_note(self, mock_dates, mock_context):
+        """Whole-month requests need no note."""
+        mock_dates.return_value = ('2026-08-01', '2026-10-01')
+        client = MagicMock()
+        client.get_savings_plans_utilization.return_value = {
+            'SavingsPlansUtilizationsByTime': [
+                {'TimePeriod': {'Start': '2026-08-01', 'End': '2026-09-01'}},
+                {'TimePeriod': {'Start': '2026-09-01', 'End': '2026-10-01'}},
+            ],
+            'Total': API_DETAILS_TOTAL,
+        }
+
+        result = await get_savings_plans_utilization(
+            mock_context, client, '2026-08-01', '2026-10-01', 'MONTHLY', None
+        )
+
+        assert 'period_note' not in result['data']
 
     @pytest.mark.parametrize('pages', [1, 2])
     async def test_coverage_makes_one_call_per_page_and_reports_no_total(
@@ -1608,6 +1662,7 @@ class TestSpPerformanceDescription:
         assert 'most recent 2-3 days (counting today) is not processed yet' in description
         assert 'excluding only today is not enough' in description
         assert 'succeeds but silently leaves them out' in description
+        assert 'the last DAILY entry can end before end_date' in description
         assert (
             'A start_date at least 3 days before today is usually past that delay' in description
         )
@@ -1638,7 +1693,12 @@ class TestSpPerformanceDescription:
         """The request echo is named and the caller is pointed at the API's periods."""
         description = await self._description()
         assert 'requested_time_period' in description
-        assert 'figures cover\n  only 2026-08-17 onward' in description
+        flat = ' '.join(description.split())
+        assert 'figures cover only the requested days' in flat
+        assert 'holding only the days before 2026-09-10' in flat
+        assert '`period_note` says when this happened' in flat
+        assert "the current month's entry ends at the first day without data" in flat
+        assert 'from the requested start to the requested end' not in flat
         assert 'they are not snapped' in description
         assert 'covers only the Savings Plans on its own page' in description
         assert 'Coverage has no `total`' in description

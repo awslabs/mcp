@@ -291,6 +291,21 @@ class TestListAccountActivities:
         client.list_account_activities.assert_not_called()
 
 
+@pytest.mark.parametrize('operation', ['get_account_plan_state', 'list_account_activities'])
+@pytest.mark.parametrize('filter_value', ['', '{}'])
+async def test_empty_filter_is_refused_for_plan_operations(mock_context, operation, filter_value):
+    """An empty filter is refused like any other, not silently ignored."""
+    client = MagicMock()
+
+    result = await _call(mock_context, client, operation=operation, filter=filter_value)
+
+    assert result['status'] == 'error'
+    assert result['error_type'] == 'validation_error'
+    assert result['data']['invalid_parameter'] == 'filter'
+    client.get_account_plan_state.assert_not_called()
+    client.list_account_activities.assert_not_called()
+
+
 async def test_unsupported_operation_lists_every_operation(mock_context):
     """The error for an unknown operation names all three operations."""
     result = await _call(mock_context, MagicMock(), operation='upgrade_account_plan')

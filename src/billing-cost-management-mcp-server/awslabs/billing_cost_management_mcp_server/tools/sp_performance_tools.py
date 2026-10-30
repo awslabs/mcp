@@ -25,11 +25,14 @@ from ..utilities.aws_service_base import (
     get_date_range,
     handle_aws_error,
     paginate_aws_items,
+    parse_filter,
     parse_json,
     whole_query_in_one_page,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.logging_utils import get_context_logger
+from ..utilities.time_utils import monthly_period_note
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
 
@@ -63,14 +66,17 @@ COVERAGE grouping and filtering (get_savings_plans_coverage):
   ParamValidationError typed validation_error).
 
 DATES AND DATA FRESHNESS (all three operations):
+- If `start_date` is omitted, the tool uses 30 days before today; if `end_date` is
+  omitted, it uses today (exclusive, so today is not included).
 - start_date must be within the last 13 months (the Cost Explorer lookback); an
   older start_date returns a ValidationException.
 - Savings Plans data for the most recent 2-3 days (counting today) is not processed
   yet: yesterday is usually still missing, so excluding only today is not enough. A
   start_date inside those days returns a DataUnavailableException, which the service
   sends without a message. A window that only reaches into those days succeeds but
-  silently leaves them out, so the last entry can end before end_date. A start_date at
-  least 3 days before today is usually past that delay.
+  silently leaves them out, so the last DAILY entry can end before end_date (MONTHLY
+  labels: see RESPONSE PERIODS). A start_date at least 3 days before today is usually
+  past that delay.
 - A DataUnavailableException means there is no data for THIS window and filter: the
   window is too recent, no plan was active in it, or a filter value matches nothing
   (an unknown SAVINGS_PLANS_TYPE, for example, returns this error, not a
@@ -121,9 +127,13 @@ SORTING (sort_by; get_savings_plans_coverage and get_savings_plans_utilization_d
 
 RESPONSE PERIODS (all three operations):
 - `requested_time_period` echoes the start_date/end_date that were sent.
-- MONTHLY utilization labels each entry with its calendar month: a 2026-08-17 start
-  returns a first entry whose TimePeriod starts 2026-08-01, but its figures cover
-  only 2026-08-17 onward. Report that month as starting at the requested start.
+- MONTHLY utilization labels each entry's TimePeriod with its whole calendar month (the
+  current month's entry ends at the first day without data instead), but the figures
+  cover only the requested days. A 2026-08-17 to 2026-09-10 request returns
+  a first entry labelled 2026-08-01 to 2026-09-01 holding only 2026-08-17 onward, and a
+  last entry labelled 2026-09-01 to 2026-10-01 holding only the days before 2026-09-10.
+  `period_note` says when this happened and the range the figures cover. Report those
+  months as partial, not as whole months; `total` also covers only that range.
 - MONTHLY coverage entries start at the requested start; they are not snapped.
 - Utilization details returns `time_period`: the requested start, and an end the API
   may move earlier to the first day without complete data. Report that period.
@@ -132,12 +142,16 @@ RESPONSE PERIODS (all three operations):
 IMPORTANT: For get_savings_plans_coverage, `granularity` and `group_by` are mutually
 exclusive. If `group_by` is provided, `granularity` is ignored (the Cost Explorer
 GetSavingsPlansCoverage API does not allow both). Valid `group_by` dimensions for
-coverage are SERVICE, REGION, or INSTANCE_TYPE_FAMILY.
+coverage are SERVICE, REGION, or INSTANCE_TYPE_FAMILY. If `metrics` is omitted, coverage uses
+["SpendCoveredBySavingsPlans"] (the only valid value). `granularity` does not apply to
+get_savings_plans_utilization_details.
 
 PAGINATION (get_savings_plans_coverage, where an item is one period x group entry, and
 get_savings_plans_utilization_details, where an item is one Savings Plan;
 get_savings_plans_utilization is not paginated and takes neither parameter):
-- max_items is the total number of items returned. Omit it to fetch every page (no limit). Pass it,
+- max_items is the total number of items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it,
   or narrow the date range or filter, for queries that can be large.
 - If the response has complete_dataset: false, call again with a larger max_items, continue with
   next_token, or state in the answer that the result is partial.
@@ -295,8 +309,8 @@ async def get_savings_plans_coverage(
         else:
             request_params['Granularity'] = granularity
 
-        if filter_expr:
-            request_params['Filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         if sort_by:
             request_params['SortBy'] = parse_json(sort_by, 'sort_by')
@@ -366,8 +380,8 @@ async def get_savings_plans_utilization(
         }
 
         # Add optional parameters if provided
-        if filter_expr:
-            request_params['Filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         response = ce_client.get_savings_plans_utilization(**request_params)
 
@@ -377,9 +391,15 @@ async def get_savings_plans_utilization(
         formatted_response: Dict[str, Any] = {
             'savings_plans_utilizations': utilizations_by_time,
             # The API has no top-level period. A MONTHLY entry's TimePeriod is labelled with its
-            # calendar month even when the requested start falls later in that month.
+            # whole calendar month even when the requested start or end falls inside that month.
             'requested_time_period': {'start': start, 'end': end},
             'granularity': granularity,
+            **monthly_period_note(
+                start,
+                end,
+                [entry.get('TimePeriod') for entry in utilizations_by_time],
+                granularity,
+            ),
         }
 
         if total is not None:
@@ -452,8 +472,8 @@ async def get_savings_plans_utilization_details(
         request_params: dict = {'TimePeriod': {'Start': start, 'End': end}}
 
         # Add optional parameters if provided
-        if filter_expr:
-            request_params['Filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         if sort_by:
             request_params['SortBy'] = parse_json(sort_by, 'sort_by')

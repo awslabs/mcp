@@ -23,9 +23,10 @@ from ..utilities.aws_service_base import (
     format_response,
     handle_aws_error,
     paginate_aws_items,
-    parse_json,
+    parse_filter,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.time_utils import format_timestamp_to_utc_iso
 from botocore.exceptions import ClientError
 from fastmcp import Context, FastMCP
@@ -82,7 +83,9 @@ FILTER (optional JSON string):
 - USAGE_PERCENTAGE is actual usage as a percent of the limit. It takes GREATER_THAN_OR_EQUAL and one number from 0 to 100 (80 means 80%). Only USAGE_PERCENTAGE takes GREATER_THAN_OR_EQUAL.
 
 PAGINATION:
-- max_items: total usage rows returned. Omit it to fetch every page (no limit). Pass it, or narrow the filter, when the account has many Free Tier rows.
+- max_items: total usage rows returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow the filter, when the account has many Free Tier rows.
 - A partial result has `complete_dataset: false` and a warning. The summary then covers only the returned rows, so its counts undercount. Call again with a larger max_items, continue with next_token (the `pagination.next_token` from that response, sent with the same filter), or state in the answer that the result is partial.
 - A continuation call's summary covers only that call's rows.
 
@@ -130,7 +133,10 @@ async def free_tier_usage(
             return await get_free_tier_usage_data(
                 ctx, freetier_client, filter, max_items=max_items, next_token=next_token
             )
-        elif operation in ('get_account_plan_state', 'list_account_activities') and filter:
+        elif (
+            operation in ('get_account_plan_state', 'list_account_activities')
+            and filter is not None
+        ):
             return _unsupported_argument('filter', operation)
         elif operation == 'get_account_plan_state' and (
             max_items is not None or next_token is not None
@@ -287,8 +293,8 @@ async def get_free_tier_usage_data(
     try:
         # Create request parameters. The token and page size are added per page.
         request_params: Dict[str, Any] = {}
-        if filter_expr:
-            request_params['filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['filter'] = parse_filter(filter_expr)
             filter_error = _filter_error(request_params['filter'])
             if filter_error:
                 return format_response(

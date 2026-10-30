@@ -69,7 +69,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 
 ### AWS Invoicing
 
-- **Invoice summaries**: List invoice-level details (invoice ID, type, billing period, issued/due dates, issuing entity, and amounts with discount/tax/fee breakdowns across base, tax, and payment currencies) for an account or a single invoice, filtered by month or date range
+- **Invoice summaries**: List invoice-level details (invoice ID, type, billing period, issued/due dates, issuing entity, and amounts with discount/tax/fee breakdowns across base, tax, and payment currencies) for an account (filtered by month or date range) or a single invoice
 - **Invoice units**: List and retrieve invoice unit definitions (groups of accounts that receive a separate invoice, with their receiver account and linked-account rules), filtered by name, receiver, or member account; and fetch invoice receiver profiles (legal name, address, tax registration number) for a set of accounts
 - **Procurement portal preferences**: List and retrieve procurement portal connections (SAP Business Network, Coupa) and e-invoice delivery / purchase-order retrieval settings
 
@@ -240,6 +240,8 @@ Cost Explorer:
 - ce:GetCostAndUsageComparisons
 - ce:GetCostComparisonDrivers
 - ce:GetAnomalies
+- ce:GetAnomalyMonitors
+- ce:GetAnomalySubscriptions
 - ce:GetCostAndUsage
 - ce:GetCostAndUsageComparisons
 - ce:GetCostAndUsageWithResources
@@ -298,7 +300,7 @@ Compute Optimizer Automation:
 - ec2:DescribeVolumes (required by ListRecommendedActions and ListAutomationRulePreview)
 
 AWS Budgets:
-- budgets:ViewBudget (also covers budget notifications, per-budget and account-wide)
+- budgets:ViewBudget (also covers budget notifications, per-budget and account-wide, and budget performance history)
 - budgets:DescribeBudgetActionsForBudget (required for budget actions by budget name)
 - budgets:DescribeBudgetActionsForAccount (required for account-wide budget actions)
 
@@ -331,6 +333,12 @@ Storage Lens (Athena and S3):
 - athena:GetTableMetadata
 - athena:ListDatabases
 - athena:ListTableMetadata
+- glue:GetDatabase
+- glue:CreateDatabase
+- glue:GetTable
+- glue:CreateTable
+- glue:GetPartitions (Athena checks it, with glue:UpdateTable, for ALTER TABLE ... SET LOCATION)
+- glue:UpdateTable (points the table at another day's report folder)
 - s3:GetObject
 - s3:ListBucket
 - s3:PutObject
@@ -451,6 +459,8 @@ The server currently supports the following AWS services
    - get_cost_comparison_drivers
    - get_cost_and_usage_comparisons
    - get_anomalies
+   - get_anomaly_monitors
+   - get_anomaly_subscriptions
    - get_cost_and_usage
    - get_cost_and_usage_with_resources
    - get_dimension_values
@@ -463,6 +473,7 @@ The server currently supports the following AWS services
    - describe_budgets
    - describe_budget_actions (DescribeBudgetActionsForBudget / DescribeBudgetActionsForAccount)
    - describe_budget_notifications (DescribeNotificationsForBudget / DescribeBudgetNotificationsForAccount)
+   - describe_budget_performance_history
 
 3. **AWS Free Tier**
    - get_free_tier_usage
