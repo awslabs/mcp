@@ -53,9 +53,11 @@ async def initialize_deployment_status(
         framework: Framework used for the deployment
         region: AWS region for the deployment (optional)
     """
-    try:
-        metadata_file = get_deployment_status_file_path(project_name)
+    # Resolved outside the try so a rejected path stops the deployment instead of
+    # being logged and ignored.
+    metadata_file = get_deployment_status_file_path(project_name)
 
+    try:
         # Create the metadata file with minimal information
         metadata = {
             'projectName': project_name,
@@ -90,8 +92,9 @@ async def store_deployment_metadata(project_name: str, metadata: Dict[str, Any])
         try:
             with open(metadata_file, 'r', encoding='utf-8') as f:
                 existing_metadata = json.load(f)
-        except Exception:  # nosec B110
-            # File might not exist yet, that's ok
+        except FileNotFoundError:
+            # File might not exist yet, that's ok. Any other error (e.g. a corrupt
+            # file) is left to the outer handler so the file is not overwritten.
             pass
 
         # Merge with new metadata

@@ -158,12 +158,46 @@ class TestDeployWebapp:
 
     @pytest.mark.asyncio
     async def test_check_destructive_deployment_change_exception(self):
-        """Test checking for destructive deployment change with an exception."""
+        """An error while checking is reported as destructive, not safe."""
         with patch('os.path.exists', side_effect=Exception('Test error')):
             result = await DeployWebAppTool.check_destructive_deployment_change(
                 'test-project', 'backend'
             )
-            assert result['isDestructive'] is False
+            assert result['isDestructive'] is True
+            assert 'Test error' in result['warning']
+
+    @pytest.mark.asyncio
+    async def test_check_destructive_deployment_change_corrupt_file_fails_closed(self):
+        """A corrupt status file is reported as destructive, not safe."""
+        with (
+            patch('os.path.exists', return_value=True),
+            patch('builtins.open', mock_open(read_data='{not json')),
+        ):
+            result = await DeployWebAppTool.check_destructive_deployment_change(
+                'test-project', 'frontend'
+            )
+            assert result['isDestructive'] is True
+
+    @pytest.mark.asyncio
+    async def test_check_destructive_deployment_change_rejected_path_fails_closed(self):
+        """A rejected status path is reported as destructive, not safe."""
+        with tempfile.TemporaryDirectory() as parent:
+            status_dir = os.path.join(parent, 'status')
+            os.mkdir(status_dir)
+            # Outside file matches the new type, so reading it would report "safe".
+            with open(os.path.join(parent, 'secret.json'), 'w') as f:
+                json.dump({'deploymentType': 'frontend'}, f)
+
+            with patch(
+                'awslabs.aws_serverless_mcp_server.utils.const.DEPLOYMENT_STATUS_DIR',
+                status_dir,
+            ):
+                result = await DeployWebAppTool.check_destructive_deployment_change(
+                    '../secret', 'frontend'
+                )
+
+        assert result['isDestructive'] is True
+        assert 'Cannot verify' in result['warning']
 
     @pytest.mark.asyncio
     async def test_deploy_webapp_destructive_change(self):

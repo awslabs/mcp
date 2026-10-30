@@ -32,6 +32,7 @@ from awslabs.aws_serverless_mcp_server.tools.webapps.utils.deploy_service import
 )
 from awslabs.aws_serverless_mcp_server.utils.const import (
     DEPLOYMENT_STATUS_DIR,
+    PROJECT_NAME_PATTERN,
     get_deployment_status_file_path,
 )
 from loguru import logger
@@ -55,7 +56,13 @@ class DeployWebAppTool(BaseTool):
         deployment_type: Literal['backend', 'frontend', 'fullstack'] = Field(
             description='Type of deployment'
         ),
-        project_name: str = Field(description='Project name'),
+        project_name: str = Field(
+            pattern=PROJECT_NAME_PATTERN.pattern,
+            description=(
+                'Project name. May contain only letters, digits, hyphens, and underscores, '
+                'up to 128 characters.'
+            ),
+        ),
         project_root: str = Field(description='Absolute path to the project root directory'),
         region: Optional[str] = Field(
             default=None, description='AWS Region to deploy to (e.g., us-east-1)'
@@ -85,7 +92,7 @@ class DeployWebAppTool(BaseTool):
                 backend_configuration=backend_configuration,
                 frontend_configuration=frontend_configuration,
             )
-            os.makedirs(DEPLOYMENT_STATUS_DIR, exist_ok=True)
+            os.makedirs(DEPLOYMENT_STATUS_DIR, mode=0o700, exist_ok=True)
 
             # Check if this is a destructive deployment type change
             destructive_check = await self.check_destructive_deployment_change(
@@ -329,5 +336,10 @@ class DeployWebAppTool(BaseTool):
 
             return {'isDestructive': False}
         except Exception as e:
+            # Fail closed: if the existing deployment cannot be checked (rejected path,
+            # unreadable or corrupt status file), do not report the change as safe.
             logger.error(f'Error checking for destructive deployment change: {str(e)}')
-            return {'isDestructive': False}  # Default to non-destructive on error
+            return {
+                'isDestructive': True,
+                'warning': f'Cannot verify the existing deployment type for {project_name!r}: {e}',
+            }
