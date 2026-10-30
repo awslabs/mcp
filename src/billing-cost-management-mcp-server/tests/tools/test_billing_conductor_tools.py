@@ -203,6 +203,20 @@ def test_cost_report_descriptions_state_margin_sign_and_unit(tool_name):
     assert 'percentage of billing group margin' not in description
 
 
+@pytest.mark.parametrize(
+    'tool_name', ['list-billing-group-cost-reports', 'get-billing-group-cost-report']
+)
+def test_cost_report_descriptions_say_how_to_read_amount_strings(tool_name):
+    """Amounts are strings that can use exponent form; decimal_values gives them plain."""
+    tool = asyncio.run(billing_conductor_server.get_tool(tool_name))
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert 'exponent form ("5.0E-7")' in description
+    assert '`decimal_values`' in description
+    assert 'MONETARY AMOUNTS ARE STRINGS' in description
+    assert 'parse them as decimals, never floats' in description
+
+
 def test_list_pricing_rules_tool_registered():
     """Test that the list_pricing_rules tool is registered."""
     tool = asyncio.run(billing_conductor_server.get_tool('list-pricing-rules'))

@@ -234,6 +234,11 @@ The tool returns cost report information for each billing group:
 - Margin percentage (margin divided by AWS cost, as a fraction, not a percent: -0.25 means -25%;
   "0.0" when the AWS cost is 0)
 - Currency (displayed currency)
+- `decimal_values` (aws_cost, proforma_cost, margin and margin_percentage, digit for digit, as
+  strings in plain decimal notation)
+- MONETARY AMOUNTS ARE STRINGS. They can come in exponent form ("5.0E-7") and with floating-point
+  rounding digits ("-12.340000000000003"). `decimal_values` removes the exponent but keeps every
+  digit; parse them as decimals, never floats, and round only for display.
 
 You can filter cost reports by:
 - BillingGroupArns: Filter by specific billing group ARNs (1 to 100 ARNs)
@@ -298,6 +303,11 @@ The tool returns margin summary report results for the billing group:
 - Margin percentage (margin divided by AWS cost, as a fraction, not a percent: -0.25 means -25%;
   "0.0" when the AWS cost is 0)
 - Currency (displayed currency)
+- `decimal_values` (aws_cost, proforma_cost, margin and margin_percentage, digit for digit, as
+  strings in plain decimal notation)
+- MONETARY AMOUNTS ARE STRINGS. They can come in exponent form ("5.0E-7") and with floating-point
+  rounding digits ("-12.340000000000003"). `decimal_values` removes the exponent but keeps every
+  digit; parse them as decimals, never floats, and round only for display.
 
 You can customize the report by:
 - BillingPeriodRange: JSON string {"InclusiveStartBillingPeriod": "YYYY-MM",
