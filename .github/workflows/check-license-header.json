@@ -54,7 +54,7 @@
       "**/NOTICE",
       "**/uv.lock",
       "**/pyproject.toml",
-      "**/*.toml.example",
+      "**/*.example",
       "**/*.yaml",
       "**/*.yml",
       "**/*.png",
