@@ -35,6 +35,19 @@ from typing import Any, Dict, List, Optional, Union
 
 COST_EXPLORER_SERVICE_NAME = 'Cost Explorer'
 
+# Operations whose AWS API has no GroupBy. The handlers never send group_by, so a caller who
+# passes it would get one ungrouped result that reads as if it were split by the dimension.
+OPERATIONS_WITHOUT_GROUP_BY = frozenset(
+    {
+        'getDimensionValues',
+        'getCostForecast',
+        'getUsageForecast',
+        'getTagsOrValues',
+        'getCostCategories',
+        'getSavingsPlansUtilization',
+    }
+)
+
 cost_explorer_server = FastMCP(
     name='cost-explorer-tools', instructions='Tools for working with AWS Cost Explorer API'
 )
@@ -83,6 +96,9 @@ IMPORTANT USAGE GUIDELINES:
 - Always remember that the end_date is exclusive
 - Never filter on a dimension value you are guessing; group_by that dimension instead and read
   the exact values back with their costs
+- group_by works only with getCostAndUsage and getCostAndUsageWithResources; the other
+  operations reject it. Forecasts return one total per period: for a forecast per Region (or
+  any other value), run one forecast per value with that value in the filter
 
 REPORTING $0:
 An empty result is indistinguishable from a genuine zero, so a wrong filter value or a wrong
@@ -133,8 +149,8 @@ WINDOW LIMITS:
 FILTER EXPRESSION GRAMMAR (the `filter` argument is an object or a JSON string):
 The top-level object has exactly ONE of these keys:
 - Leaf keys: `Dimensions`, `Tags`, `CostCategories`
-- Logical keys: `And` and `Or` (each takes an array of expressions), `Not` (takes one
-  expression)
+- Logical keys: `And` and `Or` (each takes an array of at least 2 expressions), `Not` (takes
+  one expression)
 
 Leaf shape:
 `{"<Dimensions|Tags|CostCategories>": {"Key": "...", "Values": [...], "MatchOptions": [...]}}`
@@ -164,6 +180,12 @@ Correct filter examples:
 - `{"Tags": {"Key": "team", "MatchOptions": ["ABSENT"]}}`
 - `{"And": [{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Elastic Compute Cloud - Compute"]}}, {"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}]}`
 
+Limits by operation (a filter outside them returns ValidationException):
+- getCostAndUsage, getCostAndUsageWithResources: `And`, `Or` and `Not` nest up to 4 levels
+  deep; a 5th is rejected.
+- getDimensionValues (default COST_AND_USAGE context): `And` only; `Or` and `Not` are rejected.
+- getSavingsPlansUtilization: `And` and `Not` only; `Or` is rejected.
+
 ## OPERATIONS
 
 1) getCostAndUsage — account-level historical cost/usage
@@ -175,7 +197,8 @@ Correct filter examples:
    Required: operation="getCostAndUsageWithResources", filter, granularity, start_date, end_date
    Optional: metrics, group_by, max_items, next_token, billing_view_arn
    Notes: RESOURCE_ID must be included in either filter OR group_by parameters. The range must be within the last 14 days (start_date no earlier than 14 days ago). Hourly granularity is only available for EC2-Instances resource-level data. All other resource-level data is available at daily granularity.
-   Example: {"operation": "getCostAndUsageWithResources", "start_date": "__WEEK_AGO__", "end_date": "__TODAY__", "granularity": "DAILY", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"SERVICE\\", \\"Values\\": [\\"Amazon Elastic Compute Cloud - Compute\\"]}}", "group_by": "[{\\"Type\\": \\"DIMENSION\\", \\"Key\\": \\"RESOURCE_ID\\"}]"}
+   Services: works for every service the account has opted in to resource-level data (Cost Explorer settings), not only EC2. Any filter works: a SERVICE filter is not required, though the API reference says SERVICE = Amazon Elastic Compute Cloud - Compute is.
+   Example: {"operation": "getCostAndUsageWithResources", "start_date": "__WEEK_AGO__", "end_date": "__TODAY__", "granularity": "DAILY", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"SERVICE\\", \\"Values\\": [\\"Amazon Relational Database Service\\"]}}", "group_by": "[{\\"Type\\": \\"DIMENSION\\", \\"Key\\": \\"RESOURCE_ID\\"}]"}
    Returns: Cost data with resource-level granularity
 
 3. getDimensionValues - List of available values for specified dimension
@@ -183,7 +206,7 @@ Correct filter examples:
    Optional: context, search_string, filter, max_items, next_token, billing_view_arn
    Example: {"operation": "getDimensionValues", "dimension": "SERVICE", "start_date": "__PREV_MONTH_START__", "end_date": "__MONTH_START__"}
    Returns: List of values for specified dimension (see PAGINATION)
-   Notes: Each context accepts its own dimensions. COST_AND_USAGE (the default) takes the DIMENSION REFERENCE keys below; RESOURCE_ID needs a window within the last 14 days. RESERVATIONS takes only AZ, INSTANCE_TYPE, INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PLATFORM, REGION, SCOPE, SERVICE, TENANCY. SAVINGS_PLANS takes only INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PAYMENT_OPTION, REGION, SAVINGS_PLAN_ARN, SAVINGS_PLANS_TYPE. TAG is not a dimension in any context: to list a cost-allocation tag key's values use operation=getTagsOrValues (with tag_key); passing dimension=TAG is rejected.
+   Notes: Each context accepts its own dimensions. COST_AND_USAGE (the default) takes the DIMENSION REFERENCE keys below except SCOPE and TAG; RESOURCE_ID needs a window within the last 14 days. RESERVATIONS takes only AZ, INSTANCE_TYPE, INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PLATFORM, REGION, SCOPE, SERVICE, TENANCY. SAVINGS_PLANS takes only INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PAYMENT_OPTION, REGION, SAVINGS_PLAN_ARN, SAVINGS_PLANS_TYPE. TAG is not a dimension in any context: to list a cost-allocation tag key's values use operation=getTagsOrValues (with tag_key); passing dimension=TAG is rejected.
 
 4. getCostForecast - Future cost projections
    Required: operation="getCostForecast", metric, granularity
@@ -198,7 +221,7 @@ Correct filter examples:
    Optional: start_date, end_date, prediction_interval_level, billing_view_arn
    Example 1: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "__NEXT_MONTH_START__", "end_date": "__FOUR_MONTHS_AHEAD_START__", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE_GROUP\\", \\"Values\\": [\\"EC2: Running Hours\\"]}}"}
    Example 2: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "filter": "{\\"And\\": [{\\"Dimensions\\": {\\"Key\\": \\"SERVICE\\", \\"Values\\": [\\"Amazon Elastic Compute Cloud - Compute\\"]}}, {\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE\\", \\"Values\\": [\\"BoxUsage:p4de.24xlarge\\"]}}]}"}
-   Example 3: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE\\", \\"Values\\": [\\"BoxUsage:p4de.24xlarge\\", \\"Reservation:p4de.24xlarge\\", \\"UnusedBox:p4de.24xlarge\\"]}}", "group_by": "[{\\"Type\\": \\"DIMENSION\\", \\"Key\\": \\"REGION\\"}]"}
+   Example 3 (one Region): {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "filter": "{\\"And\\": [{\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE_GROUP\\", \\"Values\\": [\\"EC2: Running Hours\\"]}}, {\\"Dimensions\\": {\\"Key\\": \\"REGION\\", \\"Values\\": [\\"us-east-1\\"]}}]}"}
    Notes: Valid values for metric is: USAGE_QUANTITY, NORMALIZED_USAGE_AMOUNT. Valid values for granularity is: DAILY, MONTHLY. Filter is REQUIRED and must specify USAGE_TYPE or USAGE_TYPE_GROUP to define what usage units to forecast. Dates default and are limited as for getCostForecast, and MONTHLY periods are whole calendar months as described there.
    Returns: Usage forecast for specified time period and granularity
 
@@ -224,9 +247,13 @@ Correct filter examples:
    Returns: Savings Plans utilization for the specified time period
 
 DIMENSION REFERENCE:
+Unless an entry says otherwise, a key works as a filter key and a group_by key in
+getCostAndUsage and getCostAndUsageWithResources, as a filter key in the forecasts, and as a
+getDimensionValues dimension.
 - AZ: The Availability Zone (e.g., us-east-1a)
 - BILLING_ENTITY: Who bills the charge - "AWS" for AWS services, "AWS Marketplace" for
   third-party Marketplace purchases. This is the key for Marketplace spend, NOT LEGAL_ENTITY_NAME
+- CACHE_ENGINE: The Amazon ElastiCache engine
 - DATABASE_ENGINE: The database engine (e.g., Aurora MySQL, Aurora PostgreSQL, MySQL, PostgreSQL)
 - DEPLOYMENT_OPTION: Deployment option (e.g., Single-AZ, Multi-AZ)
 - INSTANCE_TYPE: The EC2 instance type (e.g., m4.xlarge)
@@ -235,20 +262,32 @@ DIMENSION REFERENCE:
 - INVOICING_ENTITY: The AWS entity that issued the invoice (e.g., Amazon Web Services, Inc.)
 - LEGAL_ENTITY_NAME: The AWS seller of record (e.g., Amazon Web Services, Inc.); it does not
   separate Marketplace from AWS charges
-- LINKED_ACCOUNT: AWS member accounts
+- LINKED_ACCOUNT: AWS member accounts, as 12-digit account IDs in every operation. With the
+  default match, any other value, such as an account name, is rejected with ValidationException
+  (a forecast with CONTAINS, STARTS_WITH or ENDS_WITH is not checked and returns
+  DataUnavailableException, which reads like missing history).
+  LINKED_ACCOUNT_NAME is not a filter key. To map a name to its ID, call getDimensionValues with dimension
+  LINKED_ACCOUNT: each value is an ID and its attributes carry the account name (`description`)
 - OPERATING_SYSTEM: OS type (e.g., Linux/UNIX, Windows (Amazon VPC))
 - OPERATION: The API operation behind a charge (e.g., RunInstances, PutObject; for Amazon Bedrock, model-invocation operations). The dimension is OPERATION — there is no API_OPERATION dimension.
 - PLATFORM: EC2 operating system (e.g., Linux/UNIX, Windows (Amazon VPC))
 - PURCHASE_TYPE: Purchase option (e.g., On Demand Instances, Standard Reserved Instances, Savings
   Plans)
 - REGION: AWS Region
-- RESOURCE_ID: Resource identifier. Only for getCostAndUsageWithResources (last 14 days)
+- RESERVATION_ID: The Reserved Instance a cost belongs to
+- RESOURCE_ID: Resource identifier, last 14 days only. A filter and group_by key in getCostAndUsageWithResources, and a getDimensionValues dimension and filter key; not usable in getCostAndUsage or the forecasts
+- SAVINGS_PLAN_ARN: The ARN of the Savings Plan a cost belongs to
+- SAVINGS_PLANS_TYPE: The type of Savings Plan a cost belongs to
+- SCOPE: Reserved Instance scope. Only a getDimensionValues dimension in the RESERVATIONS
+  context; not a filter or group_by key in the other operations (the forecast API reference
+  lists it as a filter key, but the service rejects it)
 - SERVICE: AWS service (e.g., Amazon DynamoDB)
 - TAG: Cost allocation tag — valid as a GroupBy Type (`[{"Type":"TAG","Key":"<tag_key>"}]`) and inside filter `Tags` leaves, but NOT a getDimensionValues dimension in any context; to list a tag key's values use operation=getTagsOrValues (with tag_key).
 - TENANCY: EC2 tenancy. Exact, case-sensitive values: Shared, Dedicated (Dedicated Instance),
   Host (Dedicated Host)
 - USAGE_TYPE: Usage type (e.g., DataTransfer-In-Bytes)
-- USAGE_TYPE_GROUP: Group of related usage types (e.g., EC2: Running Hours)
+- USAGE_TYPE_GROUP: Group of related usage types (e.g., EC2: Running Hours). Filter only: not a
+  group_by key
 - RECORD_TYPE: Charge type. Values are case-sensitive: Usage, DiscountedUsage (RI-covered
   usage), SavingsPlanCoveredUsage, SavingsPlanNegation, SavingsPlanRecurringFee,
   SavingsPlanUpfrontFee, Recurring (RI recurring fee), Upfront (RI upfront fee), Support, Other
@@ -324,6 +363,7 @@ async def cost_explorer(
         granularity: Granularity of the returned data (DAILY, MONTHLY, etc.)
         metrics: Metrics to include in the response, as a list or a JSON string
         group_by: How to group the results, as a list of objects or a JSON string
+            (getCostAndUsage and getCostAndUsageWithResources only)
         filter: Filter to apply to the results, as an object or a JSON string
         dimension: Dimension to get values for (getDimensionValues)
         search_string: Search string to filter dimension values
@@ -369,6 +409,26 @@ async def cost_explorer(
     # Route to the appropriate operation handler
     try:
         await ctx.info(f'Routing to operation: {operation}')
+
+        if group_by and operation in OPERATIONS_WITHOUT_GROUP_BY:
+            return format_response(
+                'error',
+                {
+                    'message': (
+                        f'group_by is not supported for {operation}: its AWS API has no '
+                        'GroupBy, so the result would not be grouped. group_by works only '
+                        'with getCostAndUsage and getCostAndUsageWithResources.'
+                    )
+                },
+                error_type='validation_error',
+                operation=operation,
+                service=COST_EXPLORER_SERVICE_NAME,
+                hint=(
+                    'Remove group_by. For cost per dimension value, use getCostAndUsage with '
+                    'group_by; for a forecast or utilization per value (e.g. per Region), call '
+                    'once per value with that value in filter. Do **NOT** retry with group_by.'
+                ),
+            )
 
         if operation == 'getCostAndUsage':
             return await get_cost_and_usage(
