@@ -1232,3 +1232,139 @@ class TestCloudWatchHandler:
 
         # Verify that get_query_results was called twice
         assert mock_logs_client.get_query_results.call_count == 2
+
+
+async def _query_for(mock_context, filter_pattern=None, search_text=None, start_query=None):
+    """Run get_cloudwatch_logs with a mocked client; return (result, query sent)."""
+    handler = CloudWatchHandler(MagicMock(), allow_sensitive_data_access=True)
+    logs = MagicMock()
+    logs.start_query.side_effect = start_query
+    logs.start_query.return_value = {'queryId': 'q'}
+    logs.get_query_results.return_value = {'status': 'Complete', 'results': []}
+    with (
+        patch(
+            'awslabs.eks_mcp_server.cloudwatch_handler.AwsHelper.create_boto3_client',
+            return_value=logs,
+        ),
+        patch('time.sleep'),
+    ):
+        result = await handler.get_cloudwatch_logs(
+            mock_context,
+            resource_type='cluster',
+            cluster_name='prod',
+            log_type='control-plane',
+            resource_name=None,
+            minutes=15,
+            start_time=None,
+            end_time=None,
+            limit=50,
+            fields=None,
+            filter_pattern=filter_pattern,
+            search_text=search_text,
+        )
+    return result, logs.start_query.call_args.kwargs['queryString']
+
+
+def _search_regex(query):
+    """Pull the /(?i).../ pattern out of the search_text stage."""
+    import re
+
+    stage = next(line for line in query.splitlines() if 'like /(?i)' in line)
+    return re.compile(stage.split('like /', 1)[1][:-1].replace(r'\/', '/'))
+
+
+class TestSearchText:
+    """search_text is plain text: escaped and wrapped by the server."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'text,log_line',
+        [
+            ('ERROR', 'level=error something broke'),
+            ('retry(3)', 'call failed, retry(3) scheduled'),
+            ('a.b', 'host a.b is down'),
+            ('[warn]', 'msg [warn] disk low'),
+            ('(', 'unbalanced ( here'),
+            ('cost $5+tax?', 'cost $5+tax? ok'),
+            ('C:\\temp', 'path C:\\temp missing'),
+            ('{x}|y^', 'raw {x}|y^ end'),
+            ('a/b', 'route a/b failed'),
+            ('field=value', 'got field=value here'),
+            # Phrases that start with an Insights command word are still text.
+            ('limit exceeded', 'rate limit exceeded for user'),
+            ('kube-system', 'namespace kube-system ok'),
+            ('filter @message', 'raw text filter @message seen'),
+        ],
+    )
+    async def test_matches_text_literally(self, mock_context, text, log_line):
+        """The stage finds the text, ignores case, and symbols are not wildcards."""
+        import re
+
+        _, query = await _query_for(mock_context, search_text=text)
+        regex = _search_regex(query)
+        assert regex.search(log_line)
+        near_miss = re.sub(re.escape(text), 'Z' + text[1:], log_line, count=1, flags=re.I)
+        assert not regex.search(near_miss)
+
+    @pytest.mark.asyncio
+    async def test_newline_cannot_add_a_stage(self, mock_context):
+        """A line break in the text cannot start a new query step."""
+        _, query = await _query_for(mock_context, search_text='a\n| stats count(*)')
+        assert '\n| stats' not in query
+        assert _search_regex(query).search('a | stats count(*)')
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('blank', [None, '', '   '])
+    async def test_blank_adds_nothing(self, mock_context, blank):
+        _, query = await _query_for(mock_context, search_text=blank)
+        assert 'like /' not in query
+
+
+class TestFilterPattern:
+    """filter_pattern is a full Insights command and is passed through unchanged."""
+
+    @pytest.mark.asyncio
+    async def test_command_passes_through(self, mock_context):
+        _, query = await _query_for(mock_context, filter_pattern='filter status >= 500')
+        assert '\n| filter status >= 500\n' in query
+
+    @pytest.mark.asyncio
+    async def test_both_slots_add_two_stages(self, mock_context):
+        _, query = await _query_for(
+            mock_context, search_text='timeout', filter_pattern='filter status >= 500'
+        )
+        assert '| filter @message like /(?i)timeout/\n| filter status >= 500' in query
+
+    @pytest.mark.asyncio
+    async def test_error_shows_query_to_agent(self, mock_context):
+        """When CloudWatch rejects a query, the agent sees the query it caused."""
+        result, _ = await _query_for(
+            mock_context,
+            filter_pattern='ERROR',
+            start_query=Exception('MalformedQueryException: unexpected symbol found ERROR'),
+        )
+        text = result.content[0].text
+        assert result.is_error
+        assert 'Query sent to CloudWatch Logs Insights:' in text
+        assert '| ERROR' in text
+
+    @pytest.mark.asyncio
+    async def test_error_before_query_has_no_query_text(self, mock_context):
+        """An error raised before the query is built does not show an empty query."""
+        handler = CloudWatchHandler(MagicMock(), allow_sensitive_data_access=True)
+        result = await handler.get_cloudwatch_logs(
+            mock_context,
+            resource_type='cluster',
+            cluster_name='prod',
+            log_type='control-plane',
+            resource_name=None,
+            minutes=15,
+            start_time='not-a-date',
+            end_time=None,
+            limit=50,
+            fields=None,
+            filter_pattern=None,
+            search_text=None,
+        )
+        assert result.is_error
+        assert 'Query sent' not in result.content[0].text

@@ -502,14 +502,14 @@ Retrieves logs from CloudWatch for a specific resource within an EKS cluster.
 Features:
 
 * Fetches logs based on resource type (pod, node, container), resource name, and log type.
-* Allows filtering by time range (minutes, start/end time), log content (filter_pattern), and number of entries.
+* Allows filtering by time range (minutes, start/end time), plain text in log messages (search_text), a full Logs Insights command (filter_pattern), and number of entries.
 * Supports specifying custom fields to be included in the query results.
 * Requires `--allow-sensitive-data-access` server flag to be enabled.
 
 Parameters:
 
 * cluster_name, log_type (application, host, performance, control-plane, custom), resource_type (pod, node, container, cluster),
-resource_name (optional), minutes (optional), start_time (optional), end_time (optional), limit (optional), filter_pattern (optional), fields (optional)
+resource_name (optional), minutes (optional), start_time (optional), end_time (optional), limit (optional), filter_pattern (optional), fields (optional), search_text (optional)
 
 #### `get_cloudwatch_metrics`
 

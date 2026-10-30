@@ -16,6 +16,7 @@
 
 import datetime
 import json
+import re
 import time
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
@@ -125,11 +126,15 @@ class CloudWatchHandler:
         ),
         filter_pattern: Optional[str] = Field(
             None,
-            description='Additional CloudWatch Logs filter pattern to apply. Uses CloudWatch Logs Insights syntax (e.g., "ERROR", "field=value"). IMPORTANT: Use this to narrow down results for specific issues.',
+            description='A full CloudWatch Logs Insights command added to the query, e.g. \'filter level = "ERROR"\' or \'filter status >= 500\'. It must start with a command such as "filter". Matching is case-sensitive unless a /regex/ starts with (?i). To find plain text such as "ERROR", use search_text instead. Syntax: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-Filter.html',
         ),
         fields: Optional[str] = Field(
             None,
             description='Custom fields to include in the query results (defaults to "@timestamp, @message"). Use CloudWatch Logs Insights field syntax. IMPORTANT: Only specify if you need fields beyond the default timestamp and message.',
+        ),
+        search_text: Optional[str] = Field(
+            None,
+            description='Plain text to find in log messages, e.g. "ERROR", "OOMKilled", "retry(3)". Matched literally and ignoring case; no query syntax is needed.',
         ),
     ) -> CallToolResult:
         """Get logs from CloudWatch for a specific resource.
@@ -153,7 +158,8 @@ class CloudWatchHandler:
 
         ## Usage Tips
         - Start with a small time range (15-30 minutes) and expand if needed
-        - Use filter_pattern to narrow down results (e.g., "ERROR", "exception")
+        - Use search_text to find text in log messages (e.g., "ERROR", "exception")
+        - Use filter_pattern for field conditions (e.g., 'filter status >= 500')
         - For JSON logs, the tool automatically parses nested structures
         - Combine with get_k8s_events for comprehensive troubleshooting
         - Use resource_type="cluster" when querying cluster-level logs to avoid filtering by cluster name twice
@@ -168,12 +174,14 @@ class CloudWatchHandler:
             start_time: Start time in ISO format (overrides minutes)
             end_time: End time in ISO format (defaults to now)
             limit: Maximum number of log entries to return
-            filter_pattern: Additional CloudWatch Logs filter pattern
+            filter_pattern: A full CloudWatch Logs Insights command, e.g. 'filter status >= 500'
             fields: Custom fields to include in the query results
+            search_text: Plain text to find in log messages, matched literally and ignoring case
 
         Returns:
             CloudWatchLogsResponse with log entries and resource information
         """
+        query = ''
         try:
             # Check if sensitive data access is allowed
             if not self.allow_sensitive_data_access:
@@ -211,6 +219,16 @@ class CloudWatchHandler:
             # This prevents filtering by cluster name twice when the resource type is "cluster"
             if resource_type != 'cluster' and resource_name is not None:
                 query += f"\n| filter @message like '{resource_name}'"
+
+            # Plain text search, built by the server so it is always valid.
+            # isinstance skips the pydantic FieldInfo default when called directly.
+            if isinstance(search_text, str) and search_text.strip():
+                # Line breaks become spaces, so the text stays in one query step.
+                text = ' '.join(search_text.splitlines()).strip()
+                # re.escape makes symbols like ( . [ match literally; '/' ends the
+                # /regex/, so it is escaped too. (?i) ignores case.
+                pattern = re.escape(text).replace('/', r'\/')
+                query += f'\n| filter @message like /(?i){pattern}/'
 
             # Add additional filter pattern if provided
             if filter_pattern:
@@ -290,6 +308,9 @@ class CloudWatchHandler:
         except Exception as e:
             resource_name_str = f' {resource_name}' if resource_name is not None else ''
             error_message = f'Failed to get logs for {resource_type}{resource_name_str}: {str(e)}'
+            if query:
+                # The agent cannot see the query it caused; show it so it can fix its input.
+                error_message += f'\nQuery sent to CloudWatch Logs Insights:\n{query.strip()}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CallToolResult(
