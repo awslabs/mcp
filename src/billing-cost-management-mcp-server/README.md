@@ -331,6 +331,12 @@ Storage Lens (Athena and S3):
 - athena:GetTableMetadata
 - athena:ListDatabases
 - athena:ListTableMetadata
+- glue:GetDatabase
+- glue:CreateDatabase
+- glue:GetTable
+- glue:CreateTable
+- glue:GetPartitions (Athena checks it, with glue:UpdateTable, for ALTER TABLE ... SET LOCATION)
+- glue:UpdateTable (points the table at another day's report folder)
 - s3:GetObject
 - s3:ListBucket
 - s3:PutObject

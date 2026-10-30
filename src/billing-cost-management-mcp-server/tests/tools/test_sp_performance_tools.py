@@ -403,8 +403,10 @@ class TestGetSavingsPlansUtilizationDetails:
         'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_items'
     )
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.parse_json')
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.parse_filter')
     async def test_get_savings_plans_utilization_details_with_filter(
         self,
+        mock_parse_filter,
         mock_parse_json,
         mock_paginate_response,
         mock_get_date_range,
@@ -423,7 +425,7 @@ class TestGetSavingsPlansUtilizationDetails:
         )
 
         mock_filter = {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1']}}
-        mock_parse_json.return_value = mock_filter
+        mock_parse_filter.return_value = mock_filter
 
         # Execute
         result = await get_savings_plans_utilization_details(
@@ -436,7 +438,7 @@ class TestGetSavingsPlansUtilizationDetails:
         )
 
         # Assert
-        mock_parse_json.assert_called_once_with('filter_json', 'filter')
+        mock_parse_filter.assert_called_once_with('filter_json')
 
         request_params = mock_paginate_response.call_args[0][3]
         assert 'Filter' in request_params
@@ -593,8 +595,10 @@ class TestGetSavingsPlansUtilization:
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.parse_json')
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.parse_filter')
     async def test_get_savings_plans_utilization_with_filter(
         self,
+        mock_parse_filter,
         mock_parse_json,
         mock_get_date_range,
         mock_context,
@@ -605,7 +609,7 @@ class TestGetSavingsPlansUtilization:
         mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
 
         mock_filter = {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1']}}
-        mock_parse_json.return_value = mock_filter
+        mock_parse_filter.return_value = mock_filter
 
         # Execute
         result = await get_savings_plans_utilization(
@@ -618,7 +622,7 @@ class TestGetSavingsPlansUtilization:
         )
 
         # Assert
-        mock_parse_json.assert_called_once_with('filter_json', 'filter')
+        mock_parse_filter.assert_called_once_with('filter_json')
 
         request_params = mock_ce_client.get_savings_plans_utilization.call_args[1]
         assert request_params['Filter'] == mock_filter
@@ -764,8 +768,10 @@ class TestGetSavingsPlansCoverage:
         'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_items'
     )
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.parse_json')
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.parse_filter')
     async def test_get_savings_plans_coverage_with_options(
         self,
+        mock_parse_filter,
         mock_parse_json,
         mock_paginate_response,
         mock_get_date_range,
@@ -785,7 +791,8 @@ class TestGetSavingsPlansCoverage:
         mock_group_by = [{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
         mock_filter = {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1']}}
 
-        mock_parse_json.side_effect = [mock_metrics, mock_group_by, mock_filter]
+        mock_parse_json.side_effect = [mock_metrics, mock_group_by]
+        mock_parse_filter.return_value = mock_filter
 
         # Execute
         result = await get_savings_plans_coverage(
@@ -802,7 +809,7 @@ class TestGetSavingsPlansCoverage:
         # Assert
         mock_parse_json.assert_any_call('metrics_json', 'metrics')
         mock_parse_json.assert_any_call('group_by_json', 'group_by')
-        mock_parse_json.assert_any_call('filter_json', 'filter')
+        mock_parse_filter.assert_called_once_with('filter_json')
 
         request_params = mock_paginate_response.call_args[0][3]
         assert request_params['Metrics'] == mock_metrics
