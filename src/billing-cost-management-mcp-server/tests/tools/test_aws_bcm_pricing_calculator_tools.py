@@ -2610,6 +2610,148 @@ class TestStatusFilterValidation:
         create_client.assert_not_called()
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'given,sent',
+        [
+            (['VALID'], ['VALID']),
+            (['valid', ' Invalid '], ['VALID', 'INVALID']),
+            (['VALID', 'valid', 'ACTION_NEEDED'], ['VALID', 'ACTION_NEEDED']),
+        ],
+    )
+    async def test_status_list_is_sent_as_one_or_filter(self, given, sent):
+        """A list of statuses is normalized and sent as one STATUS filter, which the API ORs."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(client, status_filter=given)
+
+        assert result['status'] == 'success'
+        filters = client.list_workload_estimates.call_args.kwargs['filters']
+        assert filters == [{'name': 'STATUS', 'values': sent, 'matchOption': 'EQUALS'}]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'given,invalid',
+        [
+            (['VALID', 'COMPLETE'], ['COMPLETE']),
+            (['done', 'VALID', '  '], ['done', '  ']),
+            (['VALID', 7], [7]),
+        ],
+    )
+    async def test_status_list_with_unknown_values_is_rejected(self, given, invalid):
+        """Every unknown entry is named in one validation_error, with no AWS call."""
+        client = MagicMock()
+
+        result, create_client, get_prefs = await self._list(client, status_filter=given)
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['data'] == {'invalid_parameter': 'status_filter', 'value': invalid}
+        for status in ('UPDATING', 'VALID', 'INVALID', 'ACTION_NEEDED'):
+            assert status in result['message']
+        for entry in invalid:
+            assert repr(entry) in result['message']
+        create_client.assert_not_called()
+        get_prefs.assert_not_called()
+        client.list_workload_estimates.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'given,sent',
+        [
+            ('["valid", "INVALID"]', ['VALID', 'INVALID']),
+            (' ["ACTION_NEEDED"] ', ['ACTION_NEEDED']),
+        ],
+    )
+    async def test_json_array_string_is_read_as_a_list(self, given, sent):
+        """A list sent as a JSON array string is handled like the list itself."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(client, status_filter=given)
+
+        assert result['status'] == 'success'
+        filters = client.list_workload_estimates.call_args.kwargs['filters']
+        assert filters == [{'name': 'STATUS', 'values': sent, 'matchOption': 'EQUALS'}]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('given', ['[VALID', '["VALID"'])
+    async def test_malformed_json_array_string_is_rejected_as_given(self, given):
+        """A string that only looks like a JSON array is checked as one status and refused."""
+        client = MagicMock()
+
+        result, create_client, _ = await self._list(client, status_filter=given)
+
+        assert result['error_type'] == 'validation_error'
+        assert result['data'] == {'invalid_parameter': 'status_filter', 'value': given}
+        assert f'Invalid status_filter: {given}.' in result['message']
+        create_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('given', ['', None])
+    async def test_empty_string_or_none_sends_no_status_filter(self, given):
+        """An empty string or None still means no status filter."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(client, status_filter=given)
+
+        assert result['status'] == 'success'
+        assert 'filters' not in client.list_workload_estimates.call_args.kwargs
+
+    @pytest.mark.asyncio
+    async def test_empty_status_list_is_rejected(self):
+        """An empty list is refused locally; the service answers it with an internal-error message."""
+        client = MagicMock()
+
+        result, create_client, _ = await self._list(client, status_filter=[])
+
+        assert result['error_type'] == 'validation_error'
+        assert result['data'] == {'invalid_parameter': 'status_filter', 'value': []}
+        assert 'at least one status' in result['message']
+        create_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_core_passes_a_status_list_through(self, mock_context):
+        """The tool entry point accepts a list and sends every status in one filter."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
+                return_value=client,
+            ),
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences',
+                new=AsyncMock(return_value={'account_types': ['management account']}),
+            ),
+        ):
+            result = await bcm_pricing_calc_core(
+                mock_context,
+                operation='list_workload_estimates',
+                status_filter=['valid', 'INVALID'],
+            )
+
+        assert result['status'] == 'success'
+        assert client.list_workload_estimates.call_args.kwargs['filters'] == [
+            {'name': 'STATUS', 'values': ['VALID', 'INVALID'], 'matchOption': 'EQUALS'}
+        ]
+
+    @pytest.mark.asyncio
+    async def test_schema_accepts_a_string_or_a_list(self):
+        """The served schema takes one status or a list, and the description says a list is ORed."""
+        tool = await bcm_pricing_calculator_server.get_tool('bcm-pricing-calc')
+        assert tool is not None
+        prop = tool.parameters['properties']['status_filter']
+        types = {t.get('type') for t in prop['anyOf']}
+        assert {'string', 'array', 'null'} <= types
+        array = next(t for t in prop['anyOf'] if t.get('type') == 'array')
+        assert array['items'] == {'type': 'string'}
+        text = ' '.join(prop['description'].split())
+        assert 'or a list of them' in text
+        assert 'matches any of them' in text
+
+    @pytest.mark.asyncio
     async def test_schema_lists_status_values(self):
         """The served status_filter description lists the accepted values."""
         tool = await bcm_pricing_calculator_server.get_tool('bcm-pricing-calc')
