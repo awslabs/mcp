@@ -132,6 +132,32 @@ class TestDeploymentManagerComprehensive:
                 with pytest.raises(ValueError, match='is a symlink'):
                     get_deployment_status_file_path('my-project')
 
+    def test_path_helper_rejects_status_dir_that_is_a_file(self):
+        """A status directory path that is a regular file is rejected."""
+        from awslabs.aws_serverless_mcp_server.utils.const import (
+            get_deployment_status_file_path,
+        )
+
+        with tempfile.TemporaryDirectory() as parent:
+            not_a_dir = os.path.join(parent, 'deployments')
+            with open(not_a_dir, 'w') as f:
+                f.write('')
+            with patch(
+                'awslabs.aws_serverless_mcp_server.utils.const.DEPLOYMENT_STATUS_DIR', not_a_dir
+            ):
+                with pytest.raises(ValueError, match='not a directory'):
+                    get_deployment_status_file_path('my-project')
+
+    def test_path_helper_treats_different_drives_as_escape(self, temp_deployment_dir):
+        """Paths that commonpath cannot compare (different Windows drives) are rejected."""
+        from awslabs.aws_serverless_mcp_server.utils.const import (
+            get_deployment_status_file_path,
+        )
+
+        with patch('os.path.commonpath', side_effect=ValueError('different drives')):
+            with pytest.raises(ValueError, match='escapes the deployment status directory'):
+                get_deployment_status_file_path('my-project')
+
     @pytest.mark.skipif(sys.platform == 'win32', reason='POSIX permissions only')
     def test_path_helper_removes_group_and_other_write(self, temp_deployment_dir):
         """Group and other write access on our own status directory is removed."""
