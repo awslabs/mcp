@@ -56,6 +56,7 @@ from .compute_optimizer_automation_operations import (
     _collect_recommended_actions,
     _format_automation_event,
     _parse_datetime,
+    _rule_preview_request,
     create_compute_optimizer_automation_client,
     get_automation_event,
     get_automation_rule,
@@ -72,6 +73,8 @@ from .compute_optimizer_automation_operations import (
     list_tags_for_resource,
 )
 from botocore import xform_name
+from botocore.exceptions import ParamValidationError
+from botocore.validate import ParamValidator
 from fastmcp import Context, FastMCP
 from functools import lru_cache
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
@@ -112,6 +115,24 @@ _SINGLE_REGION_OPERATIONS = {
     'get_enrollment_configuration',
     'list_accounts',
 }
+
+_PREVIEW_API_NAMES = {
+    'list_automation_rule_preview': 'ListAutomationRulePreview',
+    'list_automation_rule_preview_summaries': 'ListAutomationRulePreviewSummaries',
+}
+
+
+@lru_cache(maxsize=1)
+def _preview_input_shapes() -> Dict[str, Any]:
+    """Return {preview operation: botocore input shape}, or {} if the model cannot be loaded."""
+    try:
+        service_model: Any = botocore.session.get_session().get_service_model(_BOTO_SERVICE_NAME)
+        return {
+            operation: service_model.operation_model(api_name).input_shape
+            for operation, api_name in _PREVIEW_API_NAMES.items()
+        }
+    except Exception:
+        return {}
 
 
 @lru_cache(maxsize=1)
@@ -436,15 +457,17 @@ Supported operations (pass via the `operation` parameter):
 1. get_enrollment_configuration: Current Automation enrollment status for the account.
    Params: (none)
 2. get_automation_event: Details about a single automation event (one execution of a
-   recommended action). Params: event_id (required)
+   recommended action). Params: event_id (required). With `regions`, `found_in_region` names
+   the region holding the event.
 3. get_automation_rule: Details about a single automation rule, including its criteria
-   and tags. Params: rule_arn (required)
+   ({} for a rule with no conditions) and tags. Params: rule_arn (required)
 4. list_accounts: Organization accounts enrolled in Compute Optimizer and whether they
    enabled Automation (management/delegated-admin only). Params: max_items, next_token
 5. list_automation_events: Automation events matching filters (created within the past
    year). Params: filters, start_time, end_time, max_items, next_token
 6. list_automation_event_steps: Steps for a specific automation event.
-   Params: event_id (required), max_items, next_token
+   Params: event_id (required), max_items, next_token. With `regions`, `found_in_region`
+   names the region holding the event and `regions_not_found` the regions without it.
 7. list_automation_event_summaries: Aggregated automation-event counts and savings.
    Params: filters, start_date, end_date, max_items, next_token
 8. list_automation_rules: Automation rules matching filters.
@@ -587,14 +610,17 @@ async def compute_optimizer_automation(
         # Parse operation-specific structured inputs before creating one client
         # or fanning out across regions. Handlers still parse them when building
         # requests; this pass ensures malformed input fails once and consistently.
-        _validate_parseable_params(
+        parse_error = _validate_parseable_params(
             operation,
             start_time=start_time,
             end_time=end_time,
+            rule_type=rule_type,
             recommended_action_types=recommended_action_types,
             organization_scope=organization_scope,
             criteria=criteria,
         )
+        if parse_error is not None:
+            return parse_error
 
         requested_regions, regions_error = _resolve_requested_regions(operation, regions)
         if regions_error is not None:
@@ -942,6 +968,15 @@ async def _run_multi_region_list(
             hint=hint,
         )
 
+    # A region that returned not found does not hold the resource, so a single successful
+    # region is where it was found.
+    lookup: Dict[str, Any] = {}
+    if not_found_is_empty:
+        if successful_regions == 1:
+            lookup['found_in_region'] = outcomes.successful_regions[0]
+        if regions_not_found:
+            lookup['regions_not_found'] = regions_not_found
+
     return await _finalize_multi_region_list_response(
         ctx,
         operation,
@@ -951,6 +986,7 @@ async def _run_multi_region_list(
         outcomes.next_tokens,
         {region: region_paginations[region] for region in outcomes.successful_regions},
         region_errors,
+        lookup,
     )
 
 
@@ -963,15 +999,13 @@ async def _finalize_multi_region_list_response(
     region_next_tokens: Dict[str, str],
     region_paginations: Dict[str, Dict[str, Any]],
     region_errors: Dict[str, Dict[str, Any]],
+    lookup: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build a merged multi-region list response, offloading to SQL when large."""
-    response_data: Dict[str, Any] = {list_key: items, 'regions_queried': regions_queried}
-    if region_errors:
-        response_data['region_errors'] = region_errors
-
-    offload_metadata: Dict[str, Any] = {'regions_queried': regions_queried}
+    offload_metadata: Dict[str, Any] = {'regions_queried': regions_queried, **(lookup or {})}
     if region_errors:
         offload_metadata['region_errors'] = region_errors
+    response_data: Dict[str, Any] = {list_key: items, **offload_metadata}
 
     response_data = await convert_response_if_needed(
         ctx,
@@ -1061,6 +1095,7 @@ async def _get_automation_event_multi_region(
                 {
                     'automation_event': _format_automation_event(response),
                     'found_in_region': region,
+                    'regions_queried': list(regions),
                 },
             )
 
@@ -1196,26 +1231,51 @@ def _validate_parseable_params(
     operation: str,
     start_time: Optional[str],
     end_time: Optional[str],
+    rule_type: Optional[str],
     recommended_action_types: Optional[str],
     organization_scope: Optional[str],
     criteria: Optional[str],
-) -> None:
-    """Validate structured operation inputs before client creation or fan-out."""
+) -> Optional[Dict[str, Any]]:
+    """Validate structured operation inputs before client creation or fan-out.
+
+    A preview request is checked against the botocore input shape, so a bad criteria or
+    scope shape fails once here instead of once per region.
+
+    Returns:
+        An error response for an OrganizationRule preview without organization_scope,
+        otherwise None.
+
+    Raises:
+        ValueError: If a datetime or JSON input cannot be parsed.
+        ParamValidationError: If a preview request does not match the botocore input shape.
+    """
     if operation == 'list_automation_events':
         if start_time:
             _parse_datetime(start_time, 'start_time')
         if end_time:
             _parse_datetime(end_time, 'end_time')
 
-    if operation in {
-        'list_automation_rule_preview',
-        'list_automation_rule_preview_summaries',
-    }:
-        parse_json(recommended_action_types, 'recommended_action_types')
-        if organization_scope:
-            parse_json(organization_scope, 'organization_scope')
-        if criteria:
-            parse_json(criteria, 'criteria')
+    if operation in _PREVIEW_API_NAMES:
+        request = _rule_preview_request(
+            str(rule_type), str(recommended_action_types), organization_scope, criteria
+        )
+        # organizationScope is optional in the model, but AWS rejects an OrganizationRule
+        # without it in every region.
+        if rule_type == 'OrganizationRule' and 'organizationScope' not in request:
+            return _validation_error(
+                operation,
+                {'operation': operation, 'parameter': 'organization_scope'},
+                'An OrganizationRule preview requires organization_scope, e.g. '
+                '{"accountIds": ["111122223333"]}. Use rule_type AccountRule to preview only '
+                'the calling account.',
+            )
+        input_shape = _preview_input_shapes().get(operation)
+        if input_shape is not None:
+            report = ParamValidator().validate(request, input_shape)
+            if report.has_errors():
+                raise ParamValidationError(report=report.generate_report())
+
+    return None
 
 
 def _validate_filters(operation: str, filters: Optional[str]) -> Optional[Dict[str, Any]]:

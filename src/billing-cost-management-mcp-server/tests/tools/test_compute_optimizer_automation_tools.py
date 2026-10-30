@@ -35,6 +35,9 @@ from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automati
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automation_tools import (
     compute_optimizer_automation as automation_fn,
 )
+from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+    add_retry_guidance,
+)
 from awslabs.billing_cost_management_mcp_server.utilities.regional_fanout import (
     encode_regional_next_token,
     parse_regional_next_token,
@@ -395,6 +398,25 @@ class TestGetOperations:
             'region': [{'comparison': 'StringEquals', 'values': ['us-east-1']}]
         }
         assert rule['tags'] == [{'key': 'env', 'value': 'prod'}]
+
+    @pytest.mark.parametrize('criteria', [None, {}])
+    async def test_get_automation_rule_without_criteria_reports_empty_criteria(
+        self, mock_ctx, criteria
+    ):
+        """A rule with no conditions reports criteria as {}, so it is not read as unread."""
+        response = {
+            'ruleArn': RULE_ARN,
+            'ruleType': 'AccountRule',
+            'recommendedActionTypes': ['UpgradeEbsVolumeType'],
+        }
+        if criteria is not None:
+            response['criteria'] = criteria
+        client = MagicMock()
+        client.get_automation_rule.return_value = response
+
+        result = await ops.get_automation_rule(mock_ctx, client, RULE_ARN)
+
+        assert result['data']['automation_rule']['criteria'] == {}
 
     async def test_get_enrollment_configuration(self, mock_ctx):
         """get_enrollment_configuration formats the API response."""
@@ -1621,6 +1643,12 @@ def test_multi_region_guidance(region_errors, regions_not_found, expected):
 # tests assert against this list rather than any list built into the tool.
 _REGIONS = ['us-east-1', 'eu-west-1', 'ap-south-1', 'sa-east-1', 'us-west-2']
 
+# Preview operation -> the response key holding its items.
+_PREVIEW_OPERATIONS = {
+    'list_automation_rule_preview': 'previewResults',
+    'list_automation_rule_preview_summaries': 'previewResultSummaries',
+}
+
 
 def _list_factory(method, list_key, region_pages, errors=()):
     """Build a per-region client factory for a fan-out list operation.
@@ -1698,6 +1726,164 @@ class TestMultiRegionFanOut:
         mock_create.assert_not_called()
         mock_ctx.warning.assert_awaited_once()
         mock_ctx.error.assert_not_awaited()
+
+    @pytest.mark.parametrize('operation', sorted(_PREVIEW_OPERATIONS))
+    @pytest.mark.parametrize('organization_scope', [None, '{}', 'null'])
+    async def test_organization_rule_without_scope_fails_before_fan_out(
+        self, mock_ctx, operation, organization_scope
+    ):
+        """AWS rejects an OrganizationRule preview without scope in every region; fail once."""
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            result = await automation_fn(
+                mock_ctx,
+                operation=operation,
+                regions=_REGIONS,
+                rule_type='OrganizationRule',
+                recommended_action_types='["UpgradeEbsVolumeType"]',
+                organization_scope=organization_scope,
+            )
+
+        _assert_classified_error(result, 'validation_error', operation)
+        assert add_retry_guidance(result)['retry_strategy'] == 'modify_request'
+        assert result['data']['parameter'] == 'organization_scope'
+        assert 'organization_scope' in result['message']
+        assert 'AccountRule' in result['message']
+        assert 'region_errors' not in result['data']
+        mock_create.assert_not_called()
+
+    @pytest.mark.parametrize('operation', sorted(_PREVIEW_OPERATIONS))
+    async def test_account_rule_without_scope_is_sent(self, mock_ctx, operation):
+        """An AccountRule preview needs no organization_scope."""
+        factory = _list_factory(operation, _PREVIEW_OPERATIONS[operation], {})
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation=operation,
+                regions=_REGIONS,
+                rule_type='AccountRule',
+                recommended_action_types='["UpgradeEbsVolumeType"]',
+            )
+
+        assert result['status'] == STATUS_SUCCESS
+        assert mock_create.call_count == len(_REGIONS)
+
+    @pytest.mark.parametrize('operation', sorted(_PREVIEW_OPERATIONS))
+    @pytest.mark.parametrize('regions', [None, _REGIONS])
+    @pytest.mark.parametrize(
+        ('kwargs', 'path'),
+        [
+            (
+                {'criteria': '{"region": [{"comparison": "StringEquals", "value": ["x"]}]}'},
+                'criteria.region[0]',
+            ),
+            (
+                {
+                    'criteria': '{"ebsVolumeType": {"comparison": "StringEquals", "values": ["gp2"]}}'
+                },
+                'criteria.ebsVolumeType',
+            ),
+            ({'criteria': '{"name": [{"comparison": "StringEquals", "values": ["x"]}]}'}, 'name'),
+            (
+                {
+                    'criteria': '{"lookBackPeriodInDays": '
+                    '[{"comparison": "NumericGreaterThan", "values": ["60"]}]}'
+                },
+                'criteria.lookBackPeriodInDays[0].values[0]',
+            ),
+            ({'organization_scope': '{"accountIds": []}'}, 'organizationScope.accountIds'),
+            ({'organization_scope': '{"accounts": ["123456789012"]}'}, 'organizationScope'),
+            ({'recommended_action_types': '"UpgradeEbsVolumeType"'}, 'recommendedActionTypes'),
+        ],
+    )
+    async def test_malformed_preview_request_fails_before_any_client(
+        self, mock_ctx, operation, regions, kwargs, path
+    ):
+        """A request botocore would reject in every region is rejected once, with its message."""
+        params = {
+            'rule_type': 'AccountRule',
+            'recommended_action_types': '["UpgradeEbsVolumeType"]',
+            **kwargs,
+        }
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            result = await automation_fn(mock_ctx, operation=operation, regions=regions, **params)
+
+        _assert_classified_error(result, 'validation_error', operation)
+        assert result['boto_error_type'] == 'ParamValidationError'
+        assert add_retry_guidance(result)['retry_strategy'] == 'modify_request'
+        assert path in result['message']
+        assert 'region(s) failed' not in result['message']
+        assert 'region_errors' not in result.get('data', {})
+        mock_create.assert_not_called()
+
+    async def test_preview_request_is_sent_when_model_load_fails(self, mock_ctx):
+        """Without the botocore model the local shape check is skipped and AWS validates."""
+        automation_tools._preview_input_shapes.cache_clear()
+        factory = _list_factory('list_automation_rule_preview', 'previewResults', {})
+        try:
+            with (
+                patch(
+                    'botocore.session.Session.get_service_model', side_effect=RuntimeError('boom')
+                ),
+                patch(
+                    f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client',
+                    side_effect=factory,
+                ) as mock_create,
+            ):
+                assert automation_tools._preview_input_shapes() == {}
+                result = await automation_fn(
+                    mock_ctx,
+                    operation='list_automation_rule_preview',
+                    regions=_TWO_REGIONS,
+                    rule_type='AccountRule',
+                    recommended_action_types='["UpgradeEbsVolumeType"]',
+                    criteria='{"region": [{"comparison": "StringEquals", "value": ["x"]}]}',
+                )
+        finally:
+            automation_tools._preview_input_shapes.cache_clear()
+
+        assert result['status'] == STATUS_SUCCESS
+        assert mock_create.call_count == len(_TWO_REGIONS)
+
+    @pytest.mark.parametrize('operation', sorted(_PREVIEW_OPERATIONS))
+    async def test_valid_criteria_for_every_field_is_sent(self, mock_ctx, operation):
+        """Every criteria field in its model shape passes local validation unchanged."""
+        criteria = {
+            'region': [{'comparison': 'StringEquals', 'values': ['us-east-1']}],
+            'resourceArn': [{'comparison': 'StringLike', 'values': ['arn:aws:ec2:*']}],
+            'ebsVolumeType': [{'comparison': 'StringEquals', 'values': ['gp2']}],
+            'restartNeeded': [{'comparison': 'StringEquals', 'values': ['false']}],
+            'resourceTag': [
+                {'key': 'env', 'comparison': 'StringNotEqualsIfExists', 'values': ['prod']}
+            ],
+            'ebsVolumeSizeInGib': [{'comparison': 'NumericGreaterThan', 'values': [100]}],
+            'lookBackPeriodInDays': [{'comparison': 'NumericGreaterThanEquals', 'values': [60]}],
+            'estimatedMonthlySavings': [{'comparison': 'NumericGreaterThan', 'values': [1.5]}],
+        }
+        clients = {}
+
+        def factory(region=None):
+            client = MagicMock()
+            getattr(client, operation).return_value = {_PREVIEW_OPERATIONS[operation]: []}
+            clients[region] = client
+            return client
+
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation=operation,
+                regions=_REGIONS,
+                rule_type='OrganizationRule',
+                recommended_action_types='["UpgradeEbsVolumeType"]',
+                organization_scope='{"accountIds": ["123456789012"]}',
+                criteria=json.dumps(criteria),
+            )
+
+        assert result['status'] == STATUS_SUCCESS
+        assert getattr(clients['us-east-1'], operation).call_args.kwargs['criteria'] == criteria
 
     async def test_merges_items_across_regions(self, mock_ctx):
         """A list op queries each requested region and merges the items."""
@@ -2192,6 +2378,76 @@ class TestMultiRegionFanOut:
         assert data['pagination']['items_returned'] == 1
         assert data['automation_event_steps'][0]['region'] == 'ap-south-1'
         assert 'region_errors' not in data
+        assert data['found_in_region'] == 'ap-south-1'
+        assert data['regions_not_found'] == [r for r in _REGIONS if r != 'ap-south-1']
+        assert data['regions_queried'] == _REGIONS
+
+    async def test_event_steps_found_with_a_failed_region(self, mock_ctx):
+        """The event's region is reported alongside the regions that failed or lack it."""
+
+        def factory(region=None):
+            client = MagicMock()
+            if region == 'ap-south-1':
+                client.list_automation_event_steps.return_value = {
+                    'automationEventSteps': [{'stepId': 's1'}]
+                }
+            elif region == 'us-west-2':
+                client.list_automation_event_steps.side_effect = RuntimeError('timeout')
+            else:
+                client.list_automation_event_steps.side_effect = _NOT_FOUND
+            return client
+
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_automation_event_steps',
+                regions=_REGIONS,
+                event_id=EVENT_ID,
+            )
+
+        data = result['data']
+        assert result['status'] == STATUS_SUCCESS
+        assert data['found_in_region'] == 'ap-south-1'
+        assert sorted(data['regions_not_found']) == ['eu-west-1', 'sa-east-1', 'us-east-1']
+        assert list(data['region_errors']) == ['us-west-2']
+
+    async def test_event_steps_several_successful_regions_name_no_region(self, mock_ctx):
+        """found_in_region is left out when more than one region returned the event."""
+        factory = _list_factory('list_automation_event_steps', 'automationEventSteps', {})
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_automation_event_steps',
+                regions=_TWO_REGIONS,
+                event_id=EVENT_ID,
+            )
+
+        assert result['status'] == STATUS_SUCCESS
+        assert 'found_in_region' not in result['data']
+        assert 'regions_not_found' not in result['data']
+
+    async def test_other_list_operations_carry_no_event_lookup_fields(self, mock_ctx):
+        """found_in_region and regions_not_found are specific to the event steps lookup."""
+        factory = _list_factory(
+            'list_recommended_actions',
+            'recommendedActions',
+            {'us-east-1': {'recommendedActions': [{'recommendedActionId': 'a1'}]}},
+            errors=('eu-west-1',),
+        )
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx, operation='list_recommended_actions', regions=_TWO_REGIONS
+            )
+
+        assert result['status'] == STATUS_SUCCESS
+        assert 'found_in_region' not in result['data']
+        assert 'regions_not_found' not in result['data']
 
     async def test_event_steps_all_regions_not_found_returns_not_found(self, mock_ctx):
         """Not-found from every region is a definite absent-resource result."""
@@ -2243,6 +2499,7 @@ class TestMultiRegionFanOut:
         assert result['status'] == STATUS_SUCCESS
         assert result['data']['pagination']['items_returned'] == 0
         assert result['data']['automation_event_steps'] == []
+        assert result['data']['found_in_region'] == 'ap-south-1'
 
     async def test_event_steps_partial_search_failure_is_indeterminate(self, mock_ctx):
         """A failed region prevents not-found regions from proving absence."""
@@ -2302,6 +2559,7 @@ class TestMultiRegionGetAutomationEvent:
 
         assert result['status'] == STATUS_SUCCESS
         assert result['data']['found_in_region'] == 'ap-south-1'
+        assert result['data']['regions_queried'] == _REGIONS
         assert result['data']['automation_event']['event_id'] == EVENT_ID
 
     async def test_not_found_anywhere(self, mock_ctx):
@@ -2691,6 +2949,33 @@ class TestMultiRegionSqlOffload:
         )
         assert error is None
         assert regions_tokens == {'us-east-1': 'more-pages'}
+
+    async def test_offloaded_event_steps_keep_the_event_region(self, mock_ctx):
+        """found_in_region and regions_not_found survive the SQL conversion."""
+        steps = [{'stepId': f's{i}', 'resourceId': 'r' * 1000} for i in range(60)]
+
+        def factory(region=None):
+            client = MagicMock()
+            if region == 'eu-west-1':
+                client.list_automation_event_steps.return_value = {'automationEventSteps': steps}
+            else:
+                client.list_automation_event_steps.side_effect = _NOT_FOUND
+            return client
+
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_automation_event_steps',
+                regions=_REGIONS,
+                event_id=EVENT_ID,
+            )
+
+        data = result['data']
+        assert data['data_stored'] is True
+        assert data['found_in_region'] == 'eu-west-1'
+        assert len(data['regions_not_found']) == len(_REGIONS) - 1
 
 
 _TWO_REGIONS = ['us-east-1', 'eu-west-1']
