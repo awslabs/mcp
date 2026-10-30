@@ -27,6 +27,7 @@ from ..utilities.constants import (
     ACTION_TYPE_PURCHASE_RESERVED_INSTANCE,
     ACTION_TYPE_PURCHASE_SAVINGS_PLAN,
     ACTION_TYPE_STOP,
+    DYNAMODB_PAYMENT_OPTION_MAP,
     LOOKBACK_PERIOD_MAP,
     OFFERING_CLASS_MAP,
     PAYMENT_OPTION_MAP,
@@ -82,6 +83,9 @@ COMMITMENT PURCHASE DETAILS:
   "warning" inside additional_details still says no row matched).
 - Savings Plans recommendations carry no break-even. They return EstimatedROI (estimated savings /
   Savings Plan cost x 100 over the lookback period), which is not a payback period.
+- DynamoDB reserved capacity: Cost Optimization Hub shows the payment option as PartialUpfront,
+  and Cost Explorer returns the same recommendation as Heavy_Utilization. These are two names for
+  one payment option, not a mismatch.
 
 RESPONSE FORMATTING INSTRUCTIONS:
 The tool may return both raw recommendation data and a formatting template.
@@ -524,8 +528,11 @@ async def get_reserved_instances_recommendation(
 
     # Map payment option
     payment_option = config.get('paymentOption')
-    if payment_option and payment_option in PAYMENT_OPTION_MAP:
-        params['PaymentOption'] = PAYMENT_OPTION_MAP[payment_option]
+    payment_option_map = (
+        DYNAMODB_PAYMENT_OPTION_MAP if ri_key == 'dynamoDbReservedCapacity' else PAYMENT_OPTION_MAP
+    )
+    if payment_option and payment_option in payment_option_map:
+        params['PaymentOption'] = payment_option_map[payment_option]
 
     # Only proceed if we have the required parameters
     if not all(key in params for key in ['Service', 'TermInYears', 'PaymentOption']):
