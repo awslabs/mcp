@@ -1989,9 +1989,8 @@ class TestForecastFilterNoMatch:
         assert result['hint'] == cost_explorer_operations._FORECAST_FILTER_NO_DATA_HINT
 
     @pytest.mark.parametrize('func, api, metric', _FORECASTS)
-    @pytest.mark.parametrize('filter_expr', [None, {}, '{}'])
     async def test_unfiltered_data_unavailable_keeps_default_guidance(
-        self, mock_context, mock_ce_client, func, api, metric, filter_expr
+        self, mock_context, mock_ce_client, func, api, metric
     ):
         """Without a filter sent, the error keeps the shared do_not_retry guidance."""
         from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
@@ -2002,13 +2001,24 @@ class TestForecastFilterNoMatch:
 
         getattr(mock_ce_client, api).side_effect = _data_unavailable(_OPERATION_NAMES[api])
 
-        result = add_retry_guidance(
-            await func(mock_context, mock_ce_client, metric=metric, filter_expr=filter_expr)
-        )
+        result = add_retry_guidance(await func(mock_context, mock_ce_client, metric=metric))
 
         assert 'Filter' not in getattr(mock_ce_client, api).call_args[1]
         assert result['retry_strategy'] == DO_NOT_RETRY
         assert result['hint'] == classify_error('DataUnavailableException')[1]
+
+    @pytest.mark.parametrize('func, api, metric', _FORECASTS)
+    @pytest.mark.parametrize('filter_expr', [{}, '{}'])
+    async def test_empty_filter_is_rejected_without_the_forecast_hint(
+        self, mock_context, mock_ce_client, func, api, metric, filter_expr
+    ):
+        """An empty filter is a validation_error before any call, never the no-match hint."""
+        result = await func(mock_context, mock_ce_client, metric=metric, filter_expr=filter_expr)
+
+        getattr(mock_ce_client, api).assert_not_called()
+        assert result['error_type'] == 'validation_error'
+        assert 'retry_strategy' not in result
+        assert 'hint' not in result
 
     @pytest.mark.parametrize('func, api, metric', _FORECASTS)
     async def test_other_errors_with_a_filter_are_unchanged(

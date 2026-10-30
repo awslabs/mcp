@@ -26,6 +26,7 @@ from ..utilities.aws_service_base import (
     get_date_range,
     handle_aws_error,
     paginate_aws_items,
+    parse_filter,
     parse_json,
     parse_metrics,
     with_pagination,
@@ -176,7 +177,7 @@ async def get_cost_and_usage(
         # Parse JSON inputs
         metrics_list = parse_metrics(metrics)
         group_by_list = parse_json(group_by, 'group_by')
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {
@@ -189,7 +190,7 @@ async def get_cost_and_usage(
         if group_by_list:
             request_params['GroupBy'] = group_by_list
 
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         if billing_view_arn:
@@ -271,7 +272,7 @@ async def get_cost_and_usage_with_resources(
         # Parse JSON inputs
         metrics_list = parse_metrics(metrics)
         group_by_list = parse_json(group_by, 'group_by')
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {
@@ -284,7 +285,7 @@ async def get_cost_and_usage_with_resources(
         if group_by_list:
             request_params['GroupBy'] = group_by_list
 
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         if billing_view_arn:
@@ -358,7 +359,7 @@ async def get_dimension_values(
         await ctx.info(f'Using date range: {start} to {end}')
 
         # Parse JSON filter if provided
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {'TimePeriod': {'Start': start, 'End': end}, 'Dimension': dimension}
@@ -367,7 +368,7 @@ async def get_dimension_values(
         if search_string:
             request_params['SearchString'] = search_string
 
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         if billing_view_arn:
@@ -520,7 +521,7 @@ async def get_cost_forecast(
         await ctx.info(f'Using forecast date range: {start_date} to {end_date}')
 
         # Parse JSON filter if provided
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {
@@ -531,7 +532,7 @@ async def get_cost_forecast(
         }
 
         # Add filters if provided
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         if billing_view_arn:
@@ -610,7 +611,7 @@ async def get_usage_forecast(
         await ctx.info(f'Using forecast date range: {start_date} to {end_date}')
 
         # Parse JSON filter if provided
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {
@@ -621,7 +622,7 @@ async def get_usage_forecast(
         }
 
         # Add filters if provided
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         if billing_view_arn:
@@ -834,13 +835,13 @@ async def get_savings_plans_utilization(
         await ctx.info(f'Using date range: {start} to {end}')
 
         # Parse JSON filter if provided
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {'TimePeriod': {'Start': start, 'End': end}, 'Granularity': granularity}
 
         # Add optional parameters
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         response = ce_client.get_savings_plans_utilization(**request_params)
