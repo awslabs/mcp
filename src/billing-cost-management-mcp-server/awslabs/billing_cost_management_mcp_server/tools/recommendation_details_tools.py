@@ -74,13 +74,14 @@ COMMITMENT PURCHASE DETAILS:
   from the kept rows: it totals every row Cost Explorer returned, which for RIs spans other
   instance types and regions, so use the kept row(s) for this recommendation. Non-EC2 RI rows are
   not matched on instance type or region; an EC2 row whose Region name is not a known Region is
-  kept and the note names it. A top-level "note" key in additional_details counts dropped rows;
-  "warning" means none matched.
+  kept and the note names it. A "note" key in additional_details counts dropped rows; a
+  "warning" key there means Cost Explorer returned rows but none for this recommendation.
 - When the Cost Explorer or Compute Optimizer lookup fails or is skipped,
   the response leads with a warning and additional_details holds only an error;
   base_recommendation is still valid. A lookup that runs but finds nothing
-  returns empty results and no top-level warning (a commitment lookup's own
-  "warning" inside additional_details still says no row matched).
+  returns empty results and no response-level warning (a commitment lookup whose
+  rows are all for other recommendations still adds its own "warning" inside
+  additional_details).
 - Savings Plans recommendations carry no break-even. They return EstimatedROI (estimated savings /
   Savings Plan cost x 100 over the lookback period), which is not a payback period.
 - DynamoDB reserved capacity: Cost Optimization Hub shows the payment option as PartialUpfront,

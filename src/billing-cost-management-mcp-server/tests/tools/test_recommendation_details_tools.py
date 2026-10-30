@@ -2405,6 +2405,22 @@ async def test_process_recommendation_empty_lookup_has_no_warning(mock_context):
 
 
 @pytest.mark.asyncio
+async def test_process_recommendation_commitment_no_match_warns_only_inside_details(mock_context):
+    """A commitment lookup whose rows are all for another account warns inside additional_details."""
+    ce = MagicMock()
+    ce.get_savings_plans_purchase_recommendation.return_value = _sp_response([PAYER])
+
+    with patch.object(recommendation_details_tools, 'create_aws_client', return_value=ce):
+        result = await process_recommendation(mock_context, _sp_rec())
+
+    assert 'warning' not in result
+    assert (
+        'returned no SavingsPlansPurchaseRecommendationDetails row'
+        in (result['additional_details']['warning'])
+    )
+
+
+@pytest.mark.asyncio
 async def test_rec_details_description_documents_lookup_warning():
     """The served description says missing details lead with a warning."""
     tools = {t.name: t for t in await recommendation_details_server.list_tools()}
@@ -2414,7 +2430,7 @@ async def test_rec_details_description_documents_lookup_warning():
     assert 'the response leads with a warning' in description
     assert 'base_recommendation is still valid' in description
     # Commitment lookups add their own additional_details.warning when no row matches.
-    assert 'returns empty results and no top-level warning' in description
+    assert 'returns empty results and no response-level warning' in description
     assert 'details are unavailable' not in description
 
 
