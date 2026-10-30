@@ -53,6 +53,12 @@ from pydantic import Field
 from typing import Annotated, Any, AsyncIterator, Dict, List, Optional, Tuple
 
 
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup
+else:
+    from builtins import BaseExceptionGroup
+
+
 # Max identifier length in bytes (NAMEDATALEN - 1, default compile-time constant)
 MAX_IDENTIFIER_BYTES = 63
 
@@ -168,6 +174,19 @@ class ConnectionValidationError(Exception):
     attribute) under the 'enforce' policy, or an inability to verify the
     role's privileges (fail-closed).
     """
+
+
+class _StartupRefusedError(ConnectionValidationError):
+    """Mark a deliberate validation refusal before MCP begins serving."""
+
+
+def _is_startup_refusal(error: BaseException) -> bool:
+    """Recognize only startup refusals, including nested AnyIO exception groups."""
+    if isinstance(error, _StartupRefusedError):
+        return True
+    if isinstance(error, BaseExceptionGroup):
+        return all(_is_startup_refusal(child) for child in error.exceptions)
+    return False
 
 
 # Determine whether the connected role is over-privileged: a superuser, a
@@ -357,7 +376,7 @@ def attach_privilege_advisory(llm_response: str, db_connection: AbstractDBConnec
 
 
 @asynccontextmanager
-async def server_lifespan(server: MCPServer) -> AsyncIterator[None]:
+async def server_lifespan(server: MCPServer) -> AsyncIterator[Dict[str, Any]]:
     """Validate startup PG-wire state and close cached connections on MCP's loop."""
     global startup_pg_wire_connection
 
@@ -372,14 +391,14 @@ async def server_lifespan(server: MCPServer) -> AsyncIterator[None]:
                 logger.success('Successfully validated database connection to Postgres')
             except ConnectionValidationError as e:
                 logger.error(f'Refusing to start: {e}')
-                raise
+                raise _StartupRefusedError(str(e)) from e
             except Exception as e:
                 logger.error(
                     f'Failed to validate database connection to Postgres: {e}. Exit the MCP server'
                 )
                 raise
 
-        yield
+        yield {}
     finally:
         # Pools and their locks are loop-bound after validation/tool use, so
         # close them before MCP tears down this same serving loop.
@@ -1644,7 +1663,15 @@ def main():
                         sys.exit(1)
 
         logger.info('Postgres MCP server started')
-        mcp.run()
+        try:
+            mcp.run()
+        except (_StartupRefusedError, BaseExceptionGroup) as e:
+            # stdio's AnyIO task group wraps lifespan failures. Translate only
+            # deliberate startup refusals after those task groups have unwound;
+            # an unrelated failure (even in a mixed group) must retain its traceback.
+            if not _is_startup_refusal(e):
+                raise
+            raise SystemExit(1) from None
         logger.info('Postgres MCP server stopped')
     finally:
         # The lifespan closes loop-bound pools on MCP's serving loop. Keep this

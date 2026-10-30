@@ -16,6 +16,9 @@
 import asyncio
 import json
 import pytest
+import subprocess
+import sys
+import textwrap
 from awslabs.postgres_mcp_server import server as server_module
 from awslabs.postgres_mcp_server.connection.db_connection_map import (
     ConnectionMethod,
@@ -33,7 +36,14 @@ from awslabs.postgres_mcp_server.server import (
     main,
     run_query,
 )
+from mcp.shared.memory import create_client_server_memory_streams
 from unittest.mock import AsyncMock, MagicMock, patch
+
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup
+else:
+    from builtins import BaseExceptionGroup
 
 
 class TestRunQueryErrorHandling:
@@ -960,6 +970,21 @@ class TestMainStartupValidation:
 class TestPsycopgStartupLifespan:
     """Regression coverage for loop ownership of startup PG-wire connections."""
 
+    @pytest.fixture(autouse=True)
+    def preserve_startup_configuration(self):
+        """Restore configuration changed by main(), including failed startup paths."""
+        with patch.multiple(
+            server_module,
+            readonly_query=server_module.readonly_query,
+            privilege_check_policy=server_module.privilege_check_policy,
+            configured_ca_bundle=server_module.configured_ca_bundle,
+            configured_sslmode=server_module.configured_sslmode,
+            configured_secret_arns=server_module.configured_secret_arns.copy(),
+            configured_default_secret_arn=server_module.configured_default_secret_arn,
+            startup_pg_wire_connection=server_module.startup_pg_wire_connection,
+        ):
+            yield
+
     def test_startup_validation_and_first_query_share_mcp_loop(self):
         """A startup PG-wire pool is never bound to a temporary asyncio.run loop."""
 
@@ -1036,7 +1061,7 @@ class TestPsycopgStartupLifespan:
             port=5432,
             database='postgres',
             readonly=True,
-            secret_arn='test-secret',
+            secret_arn='',
             db_user='test-user',
             region='us-east-1',
             is_test=True,
@@ -1055,19 +1080,24 @@ class TestPsycopgStartupLifespan:
             return connection, '{}'
 
         def run_on_mcp_loop():
-            async def serve():
-                async with server_module.server_lifespan(server_module.mcp):
-                    result = await server_module.run_query(
-                        sql='SELECT 1',
-                        ctx=DummyCtx(),
-                        connection_method=ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
-                        cluster_identifier='test-cluster',
-                        db_endpoint='test.endpoint',
-                        database='postgres',
-                    )
-                    assert result == [{'one': 1}]
+            async def first_tool_call(*_args, **_kwargs):
+                result = await server_module.run_query(
+                    sql='SELECT 1',
+                    ctx=DummyCtx(),
+                    connection_method=ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
+                    cluster_identifier='test-cluster',
+                    db_endpoint='test.endpoint',
+                    database='postgres',
+                )
+                assert result == [{'one': 1}]
 
-            asyncio.run(serve())
+            async def serve():
+                async with create_client_server_memory_streams() as (_, streams):
+                    lowlevel = server_module.mcp._lowlevel_server
+                    await lowlevel.run(*streams, lowlevel.create_initialization_options())
+
+            with patch('mcp.server.lowlevel.server.serve_dual_era_loop', first_tool_call):
+                asyncio.run(serve())
 
         with (
             patch(
@@ -1096,6 +1126,8 @@ class TestPsycopgStartupLifespan:
                     'test.endpoint',
                     '--database',
                     'postgres',
+                    '--privilege_check',
+                    'enforce',
                 ],
             ),
         ):
@@ -1103,6 +1135,243 @@ class TestPsycopgStartupLifespan:
 
         assert executed_sql == [server_module.POSTGRES_PRIVILEGE_QUERY, 'SELECT 1']
         assert connection_map.map == {}
+
+    @pytest.mark.asyncio
+    async def test_registered_lifespan_without_startup_connection_serves_and_cleans_up(self):
+        """Dynamic-connect startup still enters the registered lifespan and closes its map."""
+        events = []
+
+        async def close():
+            events.append('closed')
+
+        connection = MagicMock()
+        connection.close = close
+        connection_map = DBConnectionMap()
+        connection_map.set(ConnectionMethod.RDS_API, 'cluster', 'endpoint', 'db', connection)
+
+        async def serve(*_args, **_kwargs):
+            assert _kwargs['lifespan_state'] == {}
+            events.append('served')
+
+        async def unexpected_validation(*_args):
+            pytest.fail('No startup connection should be validated')
+
+        with (
+            patch.object(server_module, 'startup_pg_wire_connection', None),
+            patch.object(server_module, 'db_connection_map', connection_map),
+            patch.object(server_module, 'validate_connection', unexpected_validation),
+            patch('mcp.server.lowlevel.server.serve_dual_era_loop', serve),
+        ):
+            async with create_client_server_memory_streams() as (_, streams):
+                lowlevel = server_module.mcp._lowlevel_server
+                await lowlevel.run(*streams, lowlevel.create_initialization_options())
+
+        assert events == ['served', 'closed']
+        assert connection_map.map == {}
+
+    @pytest.mark.asyncio
+    async def test_registered_lifespan_propagates_unexpected_validation_error(self):
+        """An unexpected validation bug prevents serving, propagates, and closes the pool."""
+        events = []
+
+        async def close():
+            events.append('closed')
+
+        connection = MagicMock()
+        connection.close = close
+        connection_map = DBConnectionMap()
+        connection_map.set(ConnectionMethod.PG_WIRE_PROTOCOL, 'c', 'e', 'db', connection)
+        failure = RuntimeError('unexpected validation failure')
+
+        async def validate(*_args):
+            raise failure
+
+        async def serve(*_args, **_kwargs):
+            pytest.fail('Serving must not start after validation fails')
+
+        with (
+            patch.object(server_module, 'startup_pg_wire_connection', connection),
+            patch.object(server_module, 'db_connection_map', connection_map),
+            patch.object(server_module, 'validate_connection', validate),
+            patch('mcp.server.lowlevel.server.serve_dual_era_loop', serve),
+        ):
+            async with create_client_server_memory_streams() as (_, streams):
+                lowlevel = server_module.mcp._lowlevel_server
+                with pytest.raises(RuntimeError) as caught:
+                    await lowlevel.run(*streams, lowlevel.create_initialization_options())
+            assert server_module.startup_pg_wire_connection is None
+
+        assert caught.value is failure
+        assert events == ['closed']
+        assert connection_map.map == {}
+
+    def test_enforce_refusal_exits_cleanly_through_real_stdio(self):
+        """A real stdio startup refusal exits 1 after cleanup without grouped tracebacks."""
+        program = textwrap.dedent("""\
+            import sys
+            from awslabs.postgres_mcp_server import server
+            from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod
+            from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
+
+            connection = PsycopgPoolConnection(
+                host='test.endpoint', port=5432, database='postgres', readonly=True,
+                secret_arn='', db_user='test-user', region='us-east-1', is_test=True,
+            )
+            async def execute_query(sql, parameters=None):
+                assert sql == server.POSTGRES_PRIVILEGE_QUERY
+                return {
+                    'columnMetadata': [
+                        {'name': 'is_superuser'}, {'name': 'is_bypassrls'},
+                        {'name': 'is_rds_superuser'},
+                    ],
+                    'records': [[{'booleanValue': True}, {'booleanValue': False},
+                                 {'booleanValue': False}]],
+                }
+            async def close():
+                print('startup connection closed', file=sys.stderr)
+            def create_connection(**kwargs):
+                server.db_connection_map.set(
+                    ConnectionMethod.PG_WIRE_PROTOCOL, 'test-cluster', 'test.endpoint',
+                    'postgres', connection,
+                )
+                return connection, '{}'
+            connection.execute_query = execute_query
+            connection.close = close
+            server.internal_create_connection = create_connection
+            server.main()
+            """)
+        result = subprocess.run(
+            [
+                sys.executable,
+                '-c',
+                program,
+                '--db_type',
+                'APG',
+                '--connection_method',
+                'PG_WIRE_PROTOCOL',
+                '--db_cluster_arn',
+                'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                '--db_endpoint',
+                'test.endpoint',
+                '--database',
+                'postgres',
+                '--privilege_check',
+                'enforce',
+            ],
+            input=json.dumps(
+                {
+                    'jsonrpc': '2.0',
+                    'id': 1,
+                    'method': 'initialize',
+                    'params': {
+                        'protocolVersion': '2025-11-25',
+                        'capabilities': {},
+                        'clientInfo': {'name': 'startup-regression', 'version': '1'},
+                    },
+                }
+            )
+            + '\n',
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+
+        assert result.returncode == 1, result.stderr
+        assert 'Refusing to start:' in result.stderr
+        assert 'over-privileged Postgres role' in result.stderr
+        assert result.stderr.count('startup connection closed') == 1
+        assert result.stdout == '', 'Startup refusal must not answer the MCP initialize request'
+        for unwanted in ('Traceback', 'ExceptionGroup', 'BaseExceptionGroup'):
+            assert unwanted not in result.stderr, result.stderr
+
+    @pytest.mark.parametrize('shape', ['direct', 'nested', 'mixed', 'base_mixed'])
+    def test_main_handles_only_deliberate_startup_refusal(self, shape):
+        """Direct and nested refusals exit cleanly; a mixed group retains every error."""
+        connection = PsycopgPoolConnection(
+            host='test.endpoint',
+            port=5432,
+            database='postgres',
+            readonly=True,
+            secret_arn='',
+            db_user='test-user',
+            region='us-east-1',
+            is_test=True,
+        )
+        connection_map = DBConnectionMap()
+        connection_map.set(ConnectionMethod.PG_WIRE_PROTOCOL, 'c', 'e', 'db', connection)
+        grouped = []
+        argv = TestMainStartupValidation()._argv()
+        argv[argv.index('RDS_API')] = 'PG_WIRE_PROTOCOL'
+
+        async def serve(*_args, **_kwargs):
+            pytest.fail('Serving must not start after validation refuses the connection')
+
+        def run():
+            async def startup():
+                async with create_client_server_memory_streams() as (_, streams):
+                    lowlevel = server_module.mcp._lowlevel_server
+                    await lowlevel.run(*streams, lowlevel.create_initialization_options())
+
+            try:
+                asyncio.run(startup())
+            except ConnectionValidationError as refusal:
+                if shape == 'direct':
+                    raise
+                nested = BaseExceptionGroup('nested', [refusal])
+                leaves: list[BaseException] = [nested]
+                if shape == 'mixed':
+                    leaves.append(RuntimeError('unrelated serving failure'))
+                elif shape == 'base_mixed':
+                    leaves.append(KeyboardInterrupt())
+                failure = BaseExceptionGroup('outer', leaves)
+                grouped.append(failure)
+                raise failure
+
+        with (
+            patch('sys.argv', argv + ['--privilege_check', 'enforce']),
+            patch.object(server_module, 'db_connection_map', connection_map),
+            patch.object(
+                server_module, 'internal_create_connection', return_value=(connection, '{}')
+            ),
+            patch.object(
+                server_module,
+                'validate_connection',
+                AsyncMock(side_effect=ConnectionValidationError('over-privileged role')),
+            ),
+            patch.object(server_module.mcp, 'run', run),
+            patch('mcp.server.lowlevel.server.serve_dual_era_loop', serve),
+        ):
+            if shape in ('mixed', 'base_mixed'):
+                with pytest.raises(BaseExceptionGroup) as caught:
+                    server_module.main()
+                assert caught.value is grouped[0]
+            else:
+                with pytest.raises(SystemExit) as caught:
+                    server_module.main()
+                assert caught.value.code == 1
+            assert server_module.startup_pg_wire_connection is None
+
+        assert connection_map.map == {}
+
+    @pytest.mark.parametrize('grouped', [False, True])
+    def test_main_propagates_unrelated_validation_errors(self, grouped):
+        """A validation error outside startup is never mistaken for a deliberate refusal."""
+        validation_error = ConnectionValidationError('unrelated validation error')
+        failure = (
+            BaseExceptionGroup('outer', [BaseExceptionGroup('nested', [validation_error])])
+            if grouped
+            else validation_error
+        )
+
+        with (
+            patch('sys.argv', ['server.py']),
+            patch.object(server_module.mcp, 'run', side_effect=failure),
+            patch.object(server_module, 'db_connection_map', DBConnectionMap()),
+        ):
+            with pytest.raises(type(failure)) as caught:
+                server_module.main()
+
+        assert caught.value is failure
 
 
 class TestCreateClusterBootstrapExemption:
