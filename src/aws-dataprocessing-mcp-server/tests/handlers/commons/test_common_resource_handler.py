@@ -650,7 +650,11 @@ async def test_list_s3_buckets_error_handling(handler, mock_s3_client):
     """Test error handling when listing S3 buckets fails."""
     handler.s3_client = mock_s3_client
     mock_s3_client.list_buckets.side_effect = ClientError(
-        {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'ListBuckets'
+        {
+            'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'},
+            'ResponseMetadata': {'HTTPStatusCode': 403, 'RequestId': 's3-request-id'},
+        },
+        'ListBuckets',
     )
 
     ctx = Mock()
@@ -659,6 +663,15 @@ async def test_list_s3_buckets_error_handling(handler, mock_s3_client):
 
     assert response.is_error
     assert 'AWS Error' in response.content[0].text
+    assert result.structured_content == {
+        'error': {
+            'code': 'AccessDenied',
+            'error_type': 'ClientError',
+            'message': 'Access denied',
+            'http_status': 403,
+            'request_id': 's3-request-id',
+        }
+    }
 
 
 @pytest.mark.asyncio

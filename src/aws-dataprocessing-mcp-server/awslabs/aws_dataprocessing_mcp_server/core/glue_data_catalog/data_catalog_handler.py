@@ -49,7 +49,8 @@ from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
     UpdateConnectionData,
     UpdatePartitionData,
 )
-from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
+from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper, ClientFactory
+from awslabs.aws_dataprocessing_mcp_server.utils.error_helper import create_error_result
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
@@ -68,16 +69,24 @@ class DataCatalogManager:
     permissions and handles tagging of resources for MCP management.
     """
 
-    def __init__(self, allow_write: bool = False, allow_sensitive_data_access: bool = False):
+    def __init__(
+        self,
+        allow_write: bool = False,
+        allow_sensitive_data_access: bool = False,
+        client_factory: Optional[ClientFactory] = None,
+    ):
         """Initialize the Data Catalog Manager.
 
         Args:
             allow_write: Whether to enable write operations (create-connection, update-connection, delete-connection, create-partition, delete-partition. update-partition, create-catalog, delete-catalog)
             allow_sensitive_data_access: Whether to allow access to sensitive data
+            client_factory: Optional service-aware boto3 client factory
         """
         self.allow_write = allow_write
         self.allow_sensitive_data_access = allow_sensitive_data_access
-        self.glue_client = AwsHelper.create_boto3_client('glue')
+        self._provided_client_factory = client_factory
+        self.client_factory = client_factory or AwsHelper.create_boto3_client
+        self.glue_client = self.client_factory('glue')
 
     async def create_connection(
         self,
@@ -148,10 +157,7 @@ class DataCatalogManager:
             error_message = f'Failed to create connection {connection_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def delete_connection(
         self, ctx: Context, connection_name: str, catalog_id: Optional[str] = None
@@ -179,8 +185,10 @@ class DataCatalogManager:
             try:
                 # Construct the ARN for the connection
                 region = AwsHelper.get_or_default_aws_region()
-                account_id = catalog_id or AwsHelper.get_aws_account_id()
-                partition = AwsHelper.get_aws_partition()
+                account_id = catalog_id or AwsHelper.get_aws_account_id(
+                    self._provided_client_factory
+                )
+                partition = AwsHelper.get_aws_partition(self._provided_client_factory)
                 connection_arn = (
                     f'arn:{partition}:glue:{region}:{account_id}:connection/{connection_name}'
                 )
@@ -197,10 +205,7 @@ class DataCatalogManager:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Connection {connection_name} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return CallToolResult(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                    )
+                    return create_error_result(e, error_message)
                 else:
                     raise e
 
@@ -237,10 +242,7 @@ class DataCatalogManager:
             error_message = f'Failed to delete connection {connection_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def get_connection(
         self,
@@ -338,10 +340,7 @@ class DataCatalogManager:
             error_message = f'Failed to get connection {connection_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def list_connections(
         self,
@@ -445,10 +444,7 @@ class DataCatalogManager:
             )
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def update_connection(
         self,
@@ -480,8 +476,10 @@ class DataCatalogManager:
             try:
                 # Construct the ARN for the connection
                 region = AwsHelper.get_or_default_aws_region()
-                account_id = catalog_id or AwsHelper.get_aws_account_id()
-                partition = AwsHelper.get_aws_partition()
+                account_id = catalog_id or AwsHelper.get_aws_account_id(
+                    self._provided_client_factory
+                )
+                partition = AwsHelper.get_aws_partition(self._provided_client_factory)
                 connection_arn = (
                     f'arn:{partition}:glue:{region}:{account_id}:connection/{connection_name}'
                 )
@@ -499,10 +497,7 @@ class DataCatalogManager:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Connection {connection_name} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return CallToolResult(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                    )
+                    return create_error_result(e, error_message)
                 else:
                     raise e
 
@@ -540,10 +535,7 @@ class DataCatalogManager:
             error_message = f'Failed to update connection {connection_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def test_connection(
         self,
@@ -603,10 +595,7 @@ class DataCatalogManager:
             error_message = f'Failed to test connection{" " + connection_name if connection_name else ""}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def batch_delete_connection(
         self,
@@ -630,8 +619,8 @@ class DataCatalogManager:
         try:
             # Verify each connection is MCP-managed before batch delete
             region = AwsHelper.get_or_default_aws_region()
-            account_id = catalog_id or AwsHelper.get_aws_account_id()
-            partition = AwsHelper.get_aws_partition()
+            account_id = catalog_id or AwsHelper.get_aws_account_id(self._provided_client_factory)
+            partition = AwsHelper.get_aws_partition(self._provided_client_factory)
 
             non_managed = []
             for name in connection_name_list:
@@ -688,10 +677,7 @@ class DataCatalogManager:
             error_message = f'Failed to batch delete connections: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def describe_connection_type(
         self,
@@ -749,10 +735,7 @@ class DataCatalogManager:
             error_message = f'Failed to describe connection type {connection_type}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def list_connection_types(
         self,
@@ -820,10 +803,7 @@ class DataCatalogManager:
             )
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def list_entities(
         self,
@@ -903,10 +883,7 @@ class DataCatalogManager:
             error_message = f'Failed to list entities for connection {connection_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def describe_entity(
         self,
@@ -991,10 +968,7 @@ class DataCatalogManager:
             error_message = f'Failed to describe entity {entity_name} for connection {connection_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def get_entity_records(
         self,
@@ -1088,10 +1062,7 @@ class DataCatalogManager:
             error_message = f'Failed to get entity records for {entity_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def create_partition(
         self,
@@ -1167,10 +1138,7 @@ class DataCatalogManager:
             error_message = f'Failed to create partition in table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def delete_partition(
         self,
@@ -1213,8 +1181,10 @@ class DataCatalogManager:
 
                 # Construct the ARN for the partition
                 region = AwsHelper.get_or_default_aws_region()
-                account_id = catalog_id or AwsHelper.get_aws_account_id()
-                partition = AwsHelper.get_aws_partition()
+                account_id = catalog_id or AwsHelper.get_aws_account_id(
+                    self._provided_client_factory
+                )
+                partition = AwsHelper.get_aws_partition(self._provided_client_factory)
                 partition_arn = f'arn:{partition}:glue:{region}:{account_id}:partition/{database_name}/{table_name}/{"/".join(partition_values)}'
 
                 # Check if the partition is managed by MCP
@@ -1231,10 +1201,7 @@ class DataCatalogManager:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Partition in table {database_name}.{table_name} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return CallToolResult(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                    )
+                    return create_error_result(e, error_message)
                 else:
                     raise e
 
@@ -1278,10 +1245,7 @@ class DataCatalogManager:
             error_message = f'Failed to delete partition from table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def get_partition(
         self,
@@ -1388,10 +1352,7 @@ class DataCatalogManager:
             error_message = f'Failed to get partition from table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def list_partitions(
         self,
@@ -1503,10 +1464,7 @@ class DataCatalogManager:
             error_message = f'Failed to list partitions in table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def update_partition(
         self,
@@ -1550,8 +1508,10 @@ class DataCatalogManager:
 
                 # Construct the ARN for the partition
                 region = AwsHelper.get_or_default_aws_region()
-                account_id = catalog_id or AwsHelper.get_aws_account_id()
-                partition = AwsHelper.get_aws_partition()
+                account_id = catalog_id or AwsHelper.get_aws_account_id(
+                    self._provided_client_factory
+                )
+                partition = AwsHelper.get_aws_partition(self._provided_client_factory)
                 partition_arn = f'arn:{partition}:glue:{region}:{account_id}:partition/{database_name}/{table_name}/{"/".join(partition_values)}'
 
                 # Check if the partition is managed by MCP
@@ -1579,10 +1539,7 @@ class DataCatalogManager:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Partition in table {database_name}.{table_name} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return CallToolResult(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                    )
+                    return create_error_result(e, error_message)
                 else:
                     raise e
 
@@ -1626,10 +1583,7 @@ class DataCatalogManager:
             error_message = f'Failed to update partition in table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def create_catalog(
         self,
@@ -1700,10 +1654,7 @@ class DataCatalogManager:
             error_message = f'Failed to create catalog {catalog_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def delete_catalog(self, ctx: Context, catalog_id: str) -> CallToolResult:
         """Delete a catalog from AWS Glue.
@@ -1730,8 +1681,10 @@ class DataCatalogManager:
 
                 # Construct the ARN for the catalog
                 region = AwsHelper.get_or_default_aws_region()
-                account_id = AwsHelper.get_aws_account_id()  # Get actual account ID
-                partition = AwsHelper.get_aws_partition()
+                account_id = AwsHelper.get_aws_account_id(
+                    self._provided_client_factory
+                )  # Get actual account ID
+                partition = AwsHelper.get_aws_partition(self._provided_client_factory)
                 catalog_arn = f'arn:{partition}:glue:{region}:{account_id}:catalog/{catalog_id}'
 
                 # Check if the catalog is managed by MCP
@@ -1748,10 +1701,7 @@ class DataCatalogManager:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Catalog {catalog_id} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return CallToolResult(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                    )
+                    return create_error_result(e, error_message)
                 else:
                     raise e
 
@@ -1781,10 +1731,7 @@ class DataCatalogManager:
             error_message = f'Failed to delete catalog {catalog_id}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def get_catalog(self, ctx: Context, catalog_id: str) -> CallToolResult:
         """Get details of a catalog from AWS Glue.
@@ -1858,10 +1805,7 @@ class DataCatalogManager:
             error_message = f'Failed to get catalog {catalog_id}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def import_catalog_to_glue(
         self,
@@ -1915,10 +1859,7 @@ class DataCatalogManager:
             error_message = f'Failed to import Athena data catalog {catalog_id} to Glue: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def list_catalogs(
         self,
@@ -2001,7 +1942,4 @@ class DataCatalogManager:
             )
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)

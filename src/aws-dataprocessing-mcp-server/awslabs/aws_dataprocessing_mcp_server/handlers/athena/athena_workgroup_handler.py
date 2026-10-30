@@ -19,7 +19,8 @@ from awslabs.aws_dataprocessing_mcp_server.models.athena_models import (
     ListWorkGroupsData,
     UpdateWorkGroupData,
 )
-from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
+from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper, ClientFactory
+from awslabs.aws_dataprocessing_mcp_server.utils.error_helper import create_error_result
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
@@ -33,18 +34,27 @@ from typing import Annotated, Any, Dict, Optional
 class AthenaWorkGroupHandler:
     """Handler for Amazon Athena WorkGroup operations."""
 
-    def __init__(self, mcp, allow_write: bool = False, allow_sensitive_data_access: bool = False):
+    def __init__(
+        self,
+        mcp,
+        allow_write: bool = False,
+        allow_sensitive_data_access: bool = False,
+        client_factory: Optional[ClientFactory] = None,
+    ):
         """Initialize the Athena WorkGroup handler.
 
         Args:
             mcp: The MCP server instance
             allow_write: Whether to enable write access (default: False)
             allow_sensitive_data_access: Whether to allow access to sensitive data (default: False)
+            client_factory: Optional service-aware boto3 client factory
         """
         self.mcp = mcp
         self.allow_write = allow_write
         self.allow_sensitive_data_access = allow_sensitive_data_access
-        self.athena_client = AwsHelper.create_boto3_client('athena')
+        self._provided_client_factory = client_factory
+        self.client_factory = client_factory or AwsHelper.create_boto3_client
+        self.athena_client = self.client_factory('athena')
 
         # Register tools
         self.mcp.tool(name='manage_aws_athena_workgroups')(self.manage_aws_athena_workgroups)
@@ -209,7 +219,7 @@ class AthenaWorkGroupHandler:
 
                 # Verify that the workgroup is managed by MCP before deleting
                 workgroup_tags = AwsHelper.get_resource_tags_athena_workgroup(
-                    self.athena_client, name
+                    self.athena_client, name, client_factory=self._provided_client_factory
                 )
                 if not AwsHelper.verify_resource_managed_by_mcp(workgroup_tags):
                     error_message = f'Cannot delete workgroup {name} - it is not managed by the MCP server (missing required tags)'
@@ -294,7 +304,7 @@ class AthenaWorkGroupHandler:
 
                 # Verify that the workgroup is managed by MCP before deleting
                 workgroup_tags = AwsHelper.get_resource_tags_athena_workgroup(
-                    self.athena_client, name
+                    self.athena_client, name, client_factory=self._provided_client_factory
                 )
                 if not AwsHelper.verify_resource_managed_by_mcp(workgroup_tags):
                     error_message = f'Cannot update workgroup {name} - it is not managed by the MCP server (missing required tags)'
@@ -346,7 +356,4 @@ class AthenaWorkGroupHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_athena_workgroups: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
