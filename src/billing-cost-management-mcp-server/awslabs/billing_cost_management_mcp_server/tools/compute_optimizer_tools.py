@@ -29,6 +29,7 @@ from ..utilities.aws_service_base import (
     parse_json,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.logging_utils import get_context_logger
 from ..utilities.time_utils import timestamp_to_utc_iso_string
 from botocore import xform_name
@@ -157,8 +158,9 @@ get_ec2_instance_recommendations, get_auto_scaling_group_recommendations, and
 get_rds_recommendations accept `cpu_vendor_architectures`.
 
 PAGINATION:
-- `max_items` is the total number of recommendations returned. Omit it to fetch every page
-  (no limit). Pass it, or narrow `filters` / `resource_arns`, for queries that can be large.
+- `max_items` is the total number of recommendations returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow `filters` / `resource_arns`, for queries that can be large.
 - Top-N (get_idle_recommendations only): `order_by` + `max_items=N`, e.g. the 10 idle
   resources with the highest savings is the default order with max_items=10.
 - If the response has `complete_dataset: false`, call again with a larger `max_items`,

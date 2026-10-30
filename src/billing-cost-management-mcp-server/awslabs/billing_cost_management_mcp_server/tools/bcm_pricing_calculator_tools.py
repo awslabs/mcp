@@ -26,6 +26,7 @@ from ..utilities.aws_service_base import (
     paginate_aws_items,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.error_contract import add_retry_guidance
 from datetime import datetime, timezone
 from fastmcp import Context, FastMCP
@@ -271,7 +272,9 @@ USE THIS TOOL FOR:
    Returns: Retrieves the current preferences for AWS Billing and Cost Management Pricing Calculator.
 
 ## PAGINATION (list_workload_estimates, list_workload_estimate_usage only)
-- max_items: total items returned. Omit it to fetch every page (no limit). Pass it, or narrow the filters, when an estimate can have many usage lines.
+- max_items: total items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow the filters, when an estimate can have many usage lines.
 - A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token (the `pagination.next_token` from that response, sent with every other parameter unchanged), or state in the answer that the result is partial.
 - Counts cover only the items in that response; a continuation call does not repeat earlier items.
 """,

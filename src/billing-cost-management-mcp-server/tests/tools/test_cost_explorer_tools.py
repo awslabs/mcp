@@ -1798,6 +1798,10 @@ class TestCostExplorerDescriptionContract:
         assert (
             'Use MONTHLY granularity for totals or rankings over whole months' in tool.description
         )
+        assert (
+            'If granularity is omitted, every operation that takes it uses DAILY'
+            in tool.description
+        )
         assert tool.input_schema['properties']['granularity']['default'] == 'DAILY'
 
     def test_forecast_notes_say_monthly_periods_are_whole_months(self, tool):
@@ -2013,7 +2017,8 @@ def test_description_documents_max_items_paging():
     description = cost_explorer_tools.COST_EXPLORER_DESCRIPTION
     assert isinstance(description, str)
     assert 'max_items' in description
-    assert 'Omit it to fetch every page' in description
+    assert 'Omit it to fetch every page' not in description
+    assert 'fetches every page for up to 300 seconds' in description
     assert 'complete_dataset: false' in description
     assert 'next_token' in description
     for removed in ('max_pages', 'max_results', 'automatic pagination', 'Pagination is automatic'):

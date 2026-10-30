@@ -29,6 +29,7 @@ from ..utilities.aws_service_base import (
     whole_query_in_one_page,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.logging_utils import get_context_logger
 from ..utilities.time_utils import monthly_period_note
 from fastmcp import Context, FastMCP
@@ -64,6 +65,8 @@ COVERAGE grouping and filtering (get_savings_plans_coverage):
   ParamValidationError typed validation_error).
 
 DATES AND DATA FRESHNESS (all three operations):
+- If `start_date` is omitted, the tool uses 30 days before today; if `end_date` is
+  omitted, it uses today (exclusive, so today is not included).
 - start_date must be within the last 13 months (the Cost Explorer lookback); an
   older start_date returns a ValidationException.
 - Savings Plans data for the most recent 2-3 days (counting today) is not processed
@@ -138,12 +141,16 @@ RESPONSE PERIODS (all three operations):
 IMPORTANT: For get_savings_plans_coverage, `granularity` and `group_by` are mutually
 exclusive. If `group_by` is provided, `granularity` is ignored (the Cost Explorer
 GetSavingsPlansCoverage API does not allow both). Valid `group_by` dimensions for
-coverage are SERVICE, REGION, or INSTANCE_TYPE_FAMILY.
+coverage are SERVICE, REGION, or INSTANCE_TYPE_FAMILY. If `metrics` is omitted, coverage uses
+["SpendCoveredBySavingsPlans"] (the only valid value). `granularity` does not apply to
+get_savings_plans_utilization_details.
 
 PAGINATION (get_savings_plans_coverage, where an item is one period x group entry, and
 get_savings_plans_utilization_details, where an item is one Savings Plan;
 get_savings_plans_utilization is not paginated and takes neither parameter):
-- max_items is the total number of items returned. Omit it to fetch every page (no limit). Pass it,
+- max_items is the total number of items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it,
   or narrow the date range or filter, for queries that can be large.
 - If the response has complete_dataset: false, call again with a larger max_items, continue with
   next_token, or state in the answer that the result is partial.

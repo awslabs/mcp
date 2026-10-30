@@ -37,6 +37,7 @@ from ..utilities.aws_service_base import (
     partial_data_warning,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.error_contract import classify_error, combine_guidance
 from ..utilities.regional_fanout import (
     collect_regional_pages,
@@ -469,7 +470,8 @@ Supported operations (pass via the `operation` parameter):
    Params: event_id (required), max_items, next_token. With `regions`, `found_in_region`
    names the region holding the event and `regions_not_found` the regions without it.
 7. list_automation_event_summaries: Aggregated automation-event counts and savings.
-   Params: filters, start_date, end_date, max_items, next_token
+   Params: filters, start_date, end_date, max_items, next_token. If start_date and end_date
+   are omitted, the summary covers all events from the past year.
 8. list_automation_rules: Automation rules matching filters.
    Params: filters, max_items, next_token
 9. list_recommended_actions: Recommended actions matching filters.
@@ -513,7 +515,9 @@ Filter values:
 
 PAGINATION (list_* operations only; the get_* operations and list_tags_for_resource take
 neither max_items nor next_token):
-- max_items is the total number of items returned. Omit it to fetch every page (no limit).
+- max_items is the total number of items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result.
   Pass it, or narrow the filters, for queries that can be large.
 - With `regions`, max_items applies PER REGION: each region returns up to max_items items, so
   a response can hold up to max_items x len(regions) items.

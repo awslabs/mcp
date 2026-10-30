@@ -22,6 +22,7 @@ every request parameter and response field.
 """
 
 from ..utilities.aws_service_base import format_response
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .invoicing_operations import list_invoice_summaries as _list_invoice_summaries
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
@@ -113,7 +114,9 @@ async def _invoicing(
    Other filters (optional):
      - invoicing_entity: filter by the AWS legal selling entity (seller of record) name. Examples: "Amazon Web Services, Inc." (US), "Amazon Web Services EMEA SARL" (Europe/Middle East/Africa), "Amazon Web Services Australia Pty Ltd" (Australia), "Amazon Web Services Japan G.K." (Japan). Also applies with invoice_id. An empty list for an invoice_id means the invoice was not found, is not accessible, or belongs to a different entity.
    Pagination:
-     - max_items: total invoice summaries returned. Omit it to fetch every page (no limit). Pass it, or narrow the filters, for queries that can be large.
+     - max_items: total invoice summaries returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow the filters, for queries that can be large.
      - next_token: the `pagination.next_token` from a previous response, to continue where it stopped. Send every other parameter unchanged.
      - A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token, or state in the answer that the result is partial. `pagination.items_returned` counts only this response, and a continuation call does not repeat earlier items.
    Returns: `data.invoice_summaries`, a list where each item contains:

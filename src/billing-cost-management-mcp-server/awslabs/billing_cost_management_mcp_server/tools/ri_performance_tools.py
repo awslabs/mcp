@@ -29,6 +29,7 @@ from ..utilities.aws_service_base import (
     whole_query_in_one_page,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.time_utils import monthly_period_note
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
@@ -172,12 +173,13 @@ not both.
 PAGINATION (applies only when group_by is set; an item is one group of the queried period):
 - Without group_by, both operations return every time period in one response, so max_items,
   max_pages and next_token do not apply (get_reservation_utilization ignores them).
-- get_reservation_coverage: max_items is the total number of groups returned. Omit it to fetch
-  every page (no limit). Pass it, or narrow the filter, for queries that can be large.
+- get_reservation_coverage: max_items is the total number of groups returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow the filter, for queries that can be large.
   Top-N: sort_by + max_items=N.
 - get_reservation_utilization takes max_pages (pages of 500 groups) instead of max_items, because
-  its next_token only works with the same page size. Continue with next_token; omit max_pages to
-  fetch every page.
+  its next_token only works with the same page size. Continue with next_token; if max_pages is
+  omitted, the tool fetches every page, with the same 300-second limit.
 - If the response has complete_dataset: false, call again with a larger max_items or max_pages,
   continue with next_token, or state in the answer that the result is partial.
 - With group_by, the API's period `total` sums only the groups on its own page, so `total` is
