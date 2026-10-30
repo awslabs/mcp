@@ -118,6 +118,23 @@ async def _fake_search_genomics_files_offset_path(
     }
 
 
+async def _fake_search_genomics_files_with_metadata_first(
+    ctx: Any = None,
+    continuation_token: Optional[str] = None,
+    offset: int = 0,
+) -> Dict[str, Any]:
+    """Mimic a search response whose list-valued metadata precedes its results."""
+    return {
+        'storage_systems_searched': ['s3', 'efs'],
+        'results': [{'path': f's3://b/f{i}.fastq'} for i in range(3)],
+        'pagination': {
+            'offset': 0,
+            'has_more': True,
+            'continuation_token': 'search-token-2',
+        },
+    }
+
+
 async def _fake_list_with_no_list_field(
     ctx: Any = None,
     next_token: Optional[str] = None,
@@ -275,6 +292,16 @@ class TestSearchHasMoreIdiom:
         assert result['pagination']['isComplete'] is True
         assert result['pagination']['returnedCount'] == 1
         assert 'nextToken' not in result['pagination']
+
+    @pytest.mark.asyncio
+    async def test_returned_count_ignores_metadata_list_before_results(self):
+        wrapped = paginating(
+            'SearchGenomicsFiles', _fake_search_genomics_files_with_metadata_first
+        )
+        result = await wrapped(continuation_token=None)
+
+        assert result['pagination']['returnedCount'] == len(result['results'])
+        assert result['pagination']['returnedCount'] != len(result['storage_systems_searched'])
 
     @pytest.mark.asyncio
     async def test_has_more_with_no_usable_token_does_not_fabricate_one(self):
