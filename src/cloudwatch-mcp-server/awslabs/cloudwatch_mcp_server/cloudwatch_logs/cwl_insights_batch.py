@@ -220,18 +220,13 @@ async def _start_and_poll(
 
 
 def _hit_output_limit(result: Dict) -> bool:
-    """Return True if the query likely hit the 10 000-record output cap.
+    """Return True if the query returned as many rows as GetQueryResults can hand back.
 
-    Uses recordsMatched from statistics when available, falls back to result count.
+    Only the number of returned rows answers this. ``statistics.recordsMatched`` counts
+    the log events that matched the query string, which is an input count, not an output
+    count. A ``stats ... by bin(1h)`` query can match millions of events and return a
+    handful of rows, so recordsMatched says nothing about whether the output was cut off.
     """
-    stats = result.get('statistics', {})
-    records_matched = stats.get('recordsMatched', 0)
-
-    # If statistics available, use recordsMatched
-    if records_matched > 0:
-        return records_matched >= MAX_OUTPUT_RECORDS
-
-    # Fallback to result count
     return len(result.get('results', [])) >= MAX_OUTPUT_RECORDS
 
 
