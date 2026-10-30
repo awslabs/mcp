@@ -38,6 +38,7 @@ from botocore.awsrequest import AWSResponse
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
 from fastmcp import Context
+from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -386,6 +387,8 @@ class TestFormatBudgets:
         """Empty scope fields are left out, as an empty CostFilters already was.
 
         A regression guard: the old code emitted none of these except cost_filters.
+        FilterExpression is not among them: an unfiltered budget has none, and a present but
+        empty one is a filter the SDK could not read (TestFilterExpressionIncomplete).
         """
         budgets_list = [
             {
@@ -393,7 +396,6 @@ class TestFormatBudgets:
                 'BudgetType': 'COST',
                 'TimeUnit': 'MONTHLY',
                 'CostFilters': {},
-                'FilterExpression': {},
                 'Metrics': [],
                 'CostTypes': {},
                 'BillingViewArn': '',
@@ -405,7 +407,6 @@ class TestFormatBudgets:
 
         for key in (
             'cost_filters',
-            'filter_expression',
             'metrics',
             'cost_types',
             'billing_view_arn',
@@ -1029,6 +1030,174 @@ class TestBudgetFilterExpressionParsing:
 
         assert response['Budgets'][0]['FilterExpression'] == self.FILTER_EXPRESSION
 
+    @pytest.mark.parametrize(
+        'wire_filter, parsed_filter',
+        [
+            ({'FutureLeaf': {'Key': 'k'}}, {}),
+            (
+                {'And': [{'FutureLeaf': {}}, {'Tags': {'Key': 'team'}}]},
+                {'And': [{}, {'Tags': {'Key': 'team'}}]},
+            ),
+            ({'Not': {'FutureLeaf': {}}}, {'Not': {}}),
+        ],
+    )
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_unknown_filter_member_is_flagged_incomplete(
+        self, mock_create_aws_client, mock_context, wire_filter, parsed_filter
+    ):
+        """A filter member this botocore does not know parses as {} and is flagged, not dropped.
+
+        At the top level the parsed filter is falsy, so without the flag the budget read as
+        unfiltered.
+        """
+        budget = {**self._budget(), 'FilterExpression': wire_filter}
+        mock_create_aws_client.return_value = self._client_returning({'Budget': budget})
+
+        result = await describe_budgets(mock_context, '123456789012', 'Feature Budget')
+
+        formatted = result['data']['budgets'][0]
+        assert formatted['filter_expression'] == parsed_filter
+        assert formatted['filter_expression_incomplete'] is True
+        assert 'could not be read' in formatted['filter_expression_note']
+
+
+class TestFilterExpressionIncomplete:
+    """format_budgets flags a filter with an unreadable node and leaves a readable one alone."""
+
+    def _budget(self, filter_expression):
+        return {
+            'BudgetName': 'b',
+            'BudgetType': 'COST',
+            'TimeUnit': 'MONTHLY',
+            'FilterExpression': filter_expression,
+        }
+
+    @pytest.mark.parametrize(
+        'filter_expression',
+        [
+            {},
+            {'And': [{}, {'Tags': {'Key': 'team', 'Values': ['a']}}]},
+            {'Or': [{'Dimensions': {'Key': 'SERVICE', 'Values': ['x']}}, None]},
+            {'Not': {}},
+            {'And': [{'Not': {}}, {'Tags': {'Key': 'team', 'Values': ['a']}}]},
+        ],
+    )
+    def test_unreadable_node_is_flagged(self, filter_expression):
+        """An empty or null node anywhere in the tree flags the filter as incomplete."""
+        result = format_budgets([self._budget(filter_expression)])[0]
+
+        assert result['filter_expression'] == filter_expression
+        assert result['filter_expression_incomplete'] is True
+        assert 'calculated_spend' in result['filter_expression_note']
+
+    @pytest.mark.parametrize(
+        'filter_expression',
+        [
+            {'Dimensions': {'Key': 'SERVICE', 'Values': []}},
+            {
+                'And': [
+                    {'ProductAttributes': {'Key': 'model', 'Values': ['m']}},
+                    {'Not': {'Dimensions': {'Key': 'RECORD_TYPE', 'Values': ['Credit']}}},
+                ]
+            },
+            {'Or': [{'CostCategories': {'Key': 'c', 'Values': ['v']}}, {'Tags': {'Key': 't'}}]},
+        ],
+    )
+    def test_readable_filter_is_not_flagged(self, filter_expression):
+        """A filter whose every node has a member is returned without the flag."""
+        result = format_budgets([self._budget(filter_expression)])[0]
+
+        assert result['filter_expression'] == filter_expression
+        assert 'filter_expression_incomplete' not in result
+        assert 'filter_expression_note' not in result
+
+    def test_budget_without_filter_has_no_filter_fields(self):
+        """An unfiltered budget (the API omits FilterExpression) gets no filter field or note."""
+        budget = {'BudgetName': 'b', 'BudgetType': 'COST', 'TimeUnit': 'MONTHLY'}
+
+        result = format_budgets([budget])[0]
+
+        for key in (
+            'filter_expression',
+            'filter_expression_incomplete',
+            'filter_expression_note',
+            'forecast_note',
+        ):
+            assert key not in result
+
+    def test_product_attributes_and_unreadable_node_get_both_notes(self):
+        """A filter with a ProductAttributes leaf and an unreadable node carries both notes."""
+        filter_expression = {'And': [{'ProductAttributes': {'Key': 'model', 'Values': ['m']}}, {}]}
+
+        result = format_budgets([self._budget(filter_expression)])[0]
+
+        assert result['filter_expression_incomplete'] is True
+        assert 'forecast_note' in result
+
+
+class TestProductAttributesForecastNote:
+    """COST and USAGE budgets filtered by product attributes get no forecast, and say so."""
+
+    PA_LEAF = {'ProductAttributes': {'Key': 'feature', 'Values': ['On-demand Inference']}}
+
+    def _budget(self, filter_expression, budget_type='COST', forecast=False):
+        spend: Dict[str, Any] = {'ActualSpend': {'Amount': '10.0', 'Unit': 'USD'}}
+        if forecast:
+            spend['ForecastedSpend'] = {'Amount': '20.0', 'Unit': 'USD'}
+        return {
+            'BudgetName': 'b',
+            'BudgetType': budget_type,
+            'TimeUnit': 'MONTHLY',
+            'BudgetLimit': {'Amount': '15.0', 'Unit': 'USD'},
+            'CalculatedSpend': spend,
+            'FilterExpression': filter_expression,
+        }
+
+    @pytest.mark.parametrize('budget_type', ['COST', 'USAGE'])
+    @pytest.mark.parametrize(
+        'filter_expression',
+        [
+            PA_LEAF,
+            {
+                'And': [
+                    PA_LEAF,
+                    {'Not': {'Dimensions': {'Key': 'RECORD_TYPE', 'Values': ['Credit']}}},
+                ]
+            },
+            {'Or': [{'Tags': {'Key': 't', 'Values': ['a']}}, PA_LEAF]},
+            {'Not': PA_LEAF},
+        ],
+    )
+    def test_product_attribute_budget_gets_forecast_note(self, budget_type, filter_expression):
+        """A ProductAttributes leaf at any depth adds the note; status stays from actual spend."""
+        result = format_budgets([self._budget(filter_expression, budget_type)])[0]
+
+        assert result['status'] == 'OK'
+        assert 'forecasted_spend' not in result['calculated_spend']
+        assert 'does not forecast' in result['forecast_note']
+        assert 'FORECASTED_TO_EXCEED' in result['forecast_note']
+
+    def test_product_attribute_budget_with_a_forecast_gets_no_note(self):
+        """If a response ever carries a forecast, the note is left out so it cannot contradict status."""
+        result = format_budgets([self._budget(self.PA_LEAF, forecast=True)])[0]
+
+        assert result['status'] == 'FORECASTED_TO_EXCEED'
+        assert 'forecast_note' not in result
+
+    @pytest.mark.parametrize(
+        'filter_expression, budget_type',
+        [
+            ({'Dimensions': {'Key': 'SERVICE', 'Values': ['x']}}, 'COST'),
+            ({'Not': {'Tags': {'Key': 't', 'Values': ['a']}}}, 'USAGE'),
+            (PA_LEAF, 'RI_UTILIZATION'),
+        ],
+    )
+    def test_other_budgets_get_no_forecast_note(self, filter_expression, budget_type):
+        """No ProductAttributes leaf, or a budget type without spend forecasts: no note."""
+        result = format_budgets([self._budget(filter_expression, budget_type)])[0]
+
+        assert 'forecast_note' not in result
+
 
 def test_budget_server_initialization():
     """Test that the budget_server is properly initialized."""
@@ -1049,6 +1218,18 @@ def test_budgets_description_states_scope_and_health():
     assert 'Dimensions, Tags, CostCategories and ProductAttributes' in description
     assert "means AWS has stopped updating the budget's spend" in description
     assert 'cannot read its billing view or filter' not in description
+
+
+def test_budgets_description_states_product_attribute_and_incomplete_filter_gotchas():
+    """The description says product-attribute budgets have no forecast and explains the flag."""
+    tool = asyncio.run(budget_server.get_tool('budgets'))
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert (
+        'AWS does not forecast a COST or USAGE budget filtered by ProductAttributes' in description
+    )
+    assert 'its alerts can fire only on actual spend, not on a forecast' in description
+    assert '`filter_expression_incomplete` is true' in description
 
 
 # ---------------------------------------------------------------------------
