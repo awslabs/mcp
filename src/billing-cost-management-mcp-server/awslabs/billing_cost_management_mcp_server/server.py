@@ -187,6 +187,7 @@ TOOLS:
 - budget: Retrieve AWS budget information
 - budget-performance-history: Budgeted vs actual amounts per past period for one budget (which months were over budget)
 - cost-anomaly: Identify cost anomalies in AWS accounts
+- cost-anomaly-monitors: List the anomaly monitors (what is tracked) and alert subscriptions (who is alerted)
 - cost-comparison: Compare costs between time periods
 - free-tier-usage: Monitor AWS Free Tier usage
 - rec-details: Get enhanced cost optimization recommendations
@@ -213,7 +214,7 @@ For financial analysis:
 2. Look for cost optimization opportunities with compute-optimizer or cost-optimization
 3. For S3-specific optimizations, use storage-lens
 4. For budget monitoring, use the budget tool
-5. For anomaly detection, use the cost-anomaly tool
+5. For anomaly detection, use the cost-anomaly tool; use cost-anomaly-monitors to find monitor ARNs and see who is alerted
 
 For optimization recommendations:
 1. Use cost-optimization to get recommendations for cost optimization across services. This includes including Idle resources, Rightsizing for savings, RI/SP.
@@ -289,6 +290,7 @@ def setup():
         'bcm-pricing-calc',
         'budget',
         'cost-anomaly',
+        'cost-anomaly-monitors',
         'cost-comparison',
         'free-tier-usage',
         'rec-details',

@@ -207,13 +207,29 @@ def _filter_members() -> Dict[str, Any]:
         return {}
 
 
+# Values the API accepts and returns that the installed botocore model does not list yet.
+# They are merged into the botocore enum so they normalize and appear in valid_filter_values.
+# Remove an entry once the botocore cost-optimization-hub model includes it.
+_SUPPLEMENTAL_FILTER_VALUES: Dict[str, Tuple[str, ...]] = {
+    'resourceTypes': ('DatabaseSavingsPlans',),
+}
+
+
 def _filter_model() -> Dict[str, Optional[List[str]]]:
-    """Return {filter key: enum values, or None} for the list-valued filter keys."""
-    return {
+    """Return {filter key: enum values, or None} for the list-valued filter keys.
+
+    The botocore enum is extended with _SUPPLEMENTAL_FILTER_VALUES.
+    """
+    model: Dict[str, Optional[List[str]]] = {
         name: (list(shape.member.enum) if getattr(shape.member, 'enum', None) else None)
         for name, shape in _filter_members().items()
         if shape.type_name == 'list'
     }
+    for name, extra in _SUPPLEMENTAL_FILTER_VALUES.items():
+        known = model.get(name)
+        if known:
+            model[name] = [*known, *(value for value in extra if value not in known)]
+    return model
 
 
 def _filter_item_fields() -> Dict[str, List[str]]:
@@ -368,6 +384,19 @@ def _validate_order_by(
     return None
 
 
+DEDUPLICATION_NOTE_DEFAULT = (
+    'Cost Optimization Hub returned its deduplicated view: one action per resource and one '
+    'Savings Plans/Reserved Instances purchase option per covered usage, chosen first by the '
+    "account's commitment preference (term and payment option), then by savings. Alternatives "
+    'are hidden; call again with include_all_recommendations=true to compare purchase options.'
+)
+DEDUPLICATION_NOTE_ALL = (
+    'Includes alternatives for the same resource or the same usage. Alternatives are '
+    'mutually exclusive, so do not add their estimated savings together. For a '
+    'deduplicated total, use list_recommendation_summaries.'
+)
+
+
 cost_optimization_hub_server = FastMCP(
     name='cost-optimization-hub-tools',
     instructions='Tools for working with AWS Cost Optimization Hub API',
@@ -459,11 +488,49 @@ EstimatedMonthlyCost, RestartNeeded, ImplementationEffort, AccountId, RollbackPo
 Region, ResourceType, ActionType, ResourceArn, ResourceId, EstimatedSavingsPercentage.
 ('list_recommendation_summaries' does not support order_by.)
 
+Deduplication (list_recommendations, 'include_all_recommendations'):
+- By default (false or omitted) Cost Optimization Hub deduplicates what it returns.
+  For each resource it keeps one action, the one with the highest estimated savings.
+  For Savings Plans and Reserved Instances (discounts for a 1- or 3-year commitment
+  to a set spend or usage) it keeps one recommended purchase option per covered usage
+  and hides the alternatives. The option kept is the one closest to the account's
+  commitment preference (term and payment option, see get_preferences), then the one
+  with the highest savings, so a hidden term or payment option can save more. For
+  example, unless 'filters' rule them out, it shows Compute Savings Plans and hides
+  EC2 Instance Savings Plans and EC2 Reserved Instances, and in accounts that get
+  Database Savings Plans recommendations it hides the RDS, ElastiCache and OpenSearch
+  Reserved Instances and DynamoDB reserved capacity they cover. In a management (payer) account it keeps the
+  organization-wide options (summary ends "(Payer account level)") and hides the
+  options sized for one account ("(Linked account level)"). Filter 'accountIds' to
+  member accounts, without the management account, to see those for member
+  accounts; include_all_recommendations=true lists all of them.
+- Which option is kept depends on 'filters': filtering resourceTypes to options the
+  default hid (e.g. ["Ec2ReservedInstances"]) returns those, still deduplicated
+  among the filtered types. It does not mean they save more than the option the
+  default kept.
+- Set include_all_recommendations=true to compare purchase options or to list every
+  action for a resource. That list includes alternatives for the same resource or the
+  same usage; alternatives are mutually exclusive, so do not add their estimated
+  savings together. For a deduplicated total, use list_recommendation_summaries.
+- list_recommendation_summaries always deduplicates and does not take
+  include_all_recommendations. It uses its own rules (it lowers Savings Plans/RI
+  savings by what rightsizing or removing the covered resources would already save),
+  so its per-type counts and savings need not match list_recommendations.
+
 Available Filter Parameters (pass as JSON string):
-- resourceTypes: ['Ec2Instance', 'LambdaFunction', 'EbsVolume', 'EcsService', 'Ec2AutoScalingGroup', 'Ec2InstanceSavingsPlans', 'ComputeSavingsPlans', 'SageMakerSavingsPlans', 'Ec2ReservedInstances', 'RdsReservedInstances', 'OpenSearchReservedInstances', 'RedshiftReservedInstances', 'ElastiCacheReservedInstances', 'RdsDbInstanceStorage', 'RdsDbInstance', 'AuroraDbClusterStorage', 'DynamoDbReservedCapacity', 'MemoryDbReservedInstances', 'NatGateway', 'DynamoDBTable', 'ElastiCacheCluster', 'MemoryDBCluster', 'DocumentDBCluster', 'WorkSpaces', 'SageMakerEndpoint']
+- resourceTypes: ['Ec2Instance', 'LambdaFunction', 'EbsVolume', 'EcsService', 'Ec2AutoScalingGroup', 'Ec2InstanceSavingsPlans', 'ComputeSavingsPlans', 'SageMakerSavingsPlans', 'Ec2ReservedInstances', 'RdsReservedInstances', 'OpenSearchReservedInstances', 'RedshiftReservedInstances', 'ElastiCacheReservedInstances', 'RdsDbInstanceStorage', 'RdsDbInstance', 'AuroraDbClusterStorage', 'DynamoDbReservedCapacity', 'MemoryDbReservedInstances', 'NatGateway', 'DynamoDBTable', 'ElastiCacheCluster', 'MemoryDBCluster', 'DocumentDBCluster', 'WorkSpaces', 'SageMakerEndpoint', 'DatabaseSavingsPlans']
+  DatabaseSavingsPlans: list_recommendations returns these recommendations.
+  list_recommendation_summaries accepts the filter but returns nothing for it and leaves them
+  out of its totals and groups, so list and summary totals differ by those savings.
 - actionTypes: ['Rightsize', 'Stop', 'Upgrade', 'PurchaseSavingsPlans', 'PurchaseReservedInstances', 'MigrateToGraviton', 'Delete', 'ScaleIn']
 - implementationEfforts: ['VeryLow', 'Low', 'Medium', 'High', 'VeryHigh']
-- regions: AWS region codes (e.g., ["us-east-1", "us-west-2"])
+- regions: AWS region codes (e.g., ["us-east-1", "us-west-2"]).
+  Savings Plans recommendations are reported differently by each operation.
+  list_recommendations reports them with the region "Global", so a region code such as
+  "us-east-1" drops every Savings Plans recommendation and regions=["Global"] returns them.
+  list_recommendation_summaries attributes their savings to the regions where the usage ran,
+  so "us-east-1" returns them and "Global" returns $0. The same region filter can therefore
+  show no Savings Plans in the list and a positive amount in the summaries.
 - accountIds: List of AWS account IDs
 - restartNeeded: boolean
 - tags: List of {"key": ..., "value": ...} objects, e.g.
@@ -524,7 +591,12 @@ async def cost_optimization_hub(
         group_by: Optional grouping parameter. For list_recommendation_summaries any
             of the recommendation dimensions, or 'TagKey:<tag key>'; for
             list_efficiency_metrics only AccountId or Region.
-        include_all_recommendations: Whether to include all recommendations
+        include_all_recommendations: For list_recommendations only. False or
+            omitted (default): one deduplicated recommendation per resource, and
+            one Savings Plans/Reserved Instances purchase option per covered usage,
+            chosen first by the account's commitment preference; Cost Optimization Hub
+            hides the alternatives. True: every recommendation,
+            including alternatives whose savings must not be added together.
         next_token: Pagination token to resume from a previous response.
             Applies to list_recommendations, list_recommendation_summaries, and
             list_efficiency_metrics.
@@ -690,6 +762,11 @@ async def cost_optimization_hub(
                         'next_token': next_token,
                         'order_by': order_by,
                     }
+                    result['data']['deduplication_note'] = (
+                        DEDUPLICATION_NOTE_ALL
+                        if include_all_recommendations
+                        else DEDUPLICATION_NOTE_DEFAULT
+                    )
 
                 return result
 

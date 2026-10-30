@@ -263,10 +263,14 @@ DIMENSION REFERENCE:
   values present in the account.
 
 BILLING VIEW SUPPORT:
-Most Cost Explorer operations support an optional billing_view_arn parameter that allows you to scope
-your query to a specific billing view. If not provided, the query defaults to the account's primary
-billing view. You can use the list-billing-views and get-billing-view tools upon request to discover
-available billing views and their ARNs.
+billing_view_arn is accepted by getCostAndUsage, getCostAndUsageWithResources, getDimensionValues
+(COST_AND_USAGE context only), getCostForecast, getUsageForecast, getTagsOrValues and
+getCostCategories, and scopes the query to that billing view. If not provided, the query defaults
+to the account's primary billing view. getSavingsPlansUtilization (the AWS API has no billing view
+parameter) and getDimensionValues with context RESERVATIONS or SAVINGS_PLANS (AWS does not apply
+the view there) do not accept billing_view_arn; setting it returns a validation_error. You can use
+the list-billing-views and get-billing-view tools upon request to discover available billing views
+and their ARNs.
 
 Billing view types:
 - PRIMARY: Default view with all cost data for the account/org. Use for standard cost analysis.
@@ -331,7 +335,10 @@ async def cost_explorer(
         prediction_interval_level: Confidence level for forecasts
         tag_key: Tag key to get values for
         cost_category_name: Cost category to get values for
-        billing_view_arn: Optional ARN of a billing view to scope the query
+        billing_view_arn: Optional ARN of a billing view to scope the query. Rejected for
+            getSavingsPlansUtilization, whose API has no billing view parameter, and for
+            getDimensionValues with context RESERVATIONS or SAVINGS_PLANS, where AWS does not
+            apply the view
         context: The context for (getDimensionValues), which can be COST_AND_USAGE (the default),
             RESERVATIONS, or SAVINGS_PLANS. SAVINGS_PLANS scopes values to the plans an account owns.
 
@@ -427,6 +434,33 @@ async def cost_explorer(
                     ),
                 )
 
+            # In the RESERVATIONS and SAVINGS_PLANS contexts AWS accepts BillingViewArn but does
+            # not apply the view: the values are the same as without it, including accounts
+            # outside the view, and a well-formed ARN that names no view is not rejected. Refuse
+            # it rather than return unscoped values the caller believes are scoped to their view.
+            # Match the exact spelling: AWS rejects any other case of context on its own.
+            if billing_view_arn and context in ('RESERVATIONS', 'SAVINGS_PLANS'):
+                return format_response(
+                    'error',
+                    {
+                        'message': (
+                            'billing_view_arn is not supported for getDimensionValues with '
+                            f'context={context}: AWS does not apply the billing view in this '
+                            "context, so the values cover the calling account's own data (its "
+                            'primary billing view), including accounts outside the view.'
+                        )
+                    },
+                    error_type='validation_error',
+                    operation=operation,
+                    service=COST_EXPLORER_SERVICE_NAME,
+                    hint=(
+                        'Remove billing_view_arn to list the values for the calling '
+                        "account's own data, and say that they are not scoped to the requested "
+                        'view: they can include accounts the view does not cover. Do **NOT** '
+                        'retry with the same billing_view_arn.'
+                    ),
+                )
+
             return await get_dimension_values(
                 ctx,
                 ce_client,
@@ -515,6 +549,32 @@ async def cost_explorer(
             )
 
         elif operation == 'getSavingsPlansUtilization':
+            # GetSavingsPlansUtilization has no BillingViewArn, so the ARN cannot be sent.
+            # Refuse it: dropping it would return primary-view data the caller believes is
+            # scoped to their view.
+            if billing_view_arn:
+                return format_response(
+                    'error',
+                    {
+                        'message': (
+                            'billing_view_arn is not supported for getSavingsPlansUtilization: '
+                            'the GetSavingsPlansUtilization API has no billing view parameter, '
+                            "so it always reports the calling account's own data (its primary "
+                            'billing view).'
+                        )
+                    },
+                    error_type='validation_error',
+                    operation=operation,
+                    service=COST_EXPLORER_SERVICE_NAME,
+                    hint=(
+                        'Remove billing_view_arn to get Savings Plans utilization for the calling '
+                        "account's own data, and say that it is not scoped to the requested view: "
+                        'it can cover more accounts than the view (the whole organization when '
+                        'called from a management account). Do **NOT** retry with the same '
+                        'billing_view_arn.'
+                    ),
+                )
+
             return await get_savings_plans_utilization(
                 ctx, ce_client, start_date, end_date, granularity, filter
             )
