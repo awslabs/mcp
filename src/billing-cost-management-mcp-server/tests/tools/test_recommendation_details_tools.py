@@ -846,6 +846,7 @@ class TestGetReservedInstancesRecommendation:
             'TermInYears': 'ONE_YEAR',
             'PaymentOption': 'HEAVY_UTILIZATION',
             'LookbackPeriodInDays': 'THIRTY_DAYS',
+            'AccountScope': 'PAYER',
         }
         assert result['Recommendations'][0]['PaymentOption'] == 'Heavy_Utilization'
         output = _ce_model().operation_model('GetReservationPurchaseRecommendation').output_shape
@@ -2254,7 +2255,13 @@ async def test_savings_plans_coh_terms_reach_cost_explorer(
             'THREE_YEARS',
             'ALL_UPFRONT',
         ),
-        (COH_DYNAMODB_RC_THREE_YEAR, 'Amazon DynamoDB Service', 'THREE_YEARS', 'PARTIAL_UPFRONT'),
+        # DynamoDB reserved capacity's PartialUpfront is HEAVY_UTILIZATION in Cost Explorer.
+        (
+            COH_DYNAMODB_RC_THREE_YEAR,
+            'Amazon DynamoDB Service',
+            'THREE_YEARS',
+            'HEAVY_UTILIZATION',
+        ),
         (COH_EC2_RI_ONE_YEAR, 'Amazon Elastic Compute Cloud - Compute', 'ONE_YEAR', 'ALL_UPFRONT'),
     ],
 )
