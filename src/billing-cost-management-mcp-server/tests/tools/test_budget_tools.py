@@ -36,7 +36,7 @@ from awslabs.billing_cost_management_mcp_server.tools.budget_tools import (
 )
 from botocore.awsrequest import AWSResponse
 from botocore.exceptions import ClientError
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -413,6 +413,147 @@ class TestFormatBudgets:
         ):
             assert key not in result[0]
 
+    def test_format_budgets_with_planned_budget_limits(self):
+        """A planned budget returns its per-period limits, oldest first, keyed by UTC date.
+
+        Without them a planned budget's budget_limit looked like a fixed limit.
+        """
+        budgets_list = [
+            {
+                'BudgetName': 'Planned Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '200.0', 'Unit': 'USD'},
+                'PlannedBudgetLimits': {
+                    # 2026-02-01 and 2026-01-01 00:00 UTC, out of order as a map may be.
+                    '1769904000': {'Amount': '200.0', 'Unit': 'USD'},
+                    '1767225600': {'Amount': '100.0', 'Unit': 'USD'},
+                },
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['planned_budget_limits'] == [
+            {'period_start': '2026-01-01', 'amount': '100.0', 'unit': 'USD'},
+            {'period_start': '2026-02-01', 'amount': '200.0', 'unit': 'USD'},
+        ]
+        assert result[0]['budget_limit']['amount'] == '200.0'
+
+    def test_format_budgets_planned_limit_with_unparseable_key(self):
+        """A key that is not epoch seconds, or an empty limit, is kept rather than dropped."""
+        budgets_list = [
+            {
+                'BudgetName': 'Planned Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'PlannedBudgetLimits': {
+                    'not-a-number': {'Amount': '5.0', 'Unit': 'USD'},
+                    '1767225600': None,
+                },
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['planned_budget_limits'] == [
+            {'period_start': '2026-01-01', 'amount': None, 'unit': None},
+            {'period_start': 'not-a-number', 'amount': '5.0', 'unit': 'USD'},
+        ]
+
+    def test_format_budgets_with_auto_adjust(self):
+        """An auto-adjusting budget says how its limit is recomputed and when it last was."""
+        budgets_list = [
+            {
+                'BudgetName': 'Auto Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '150.0', 'Unit': 'USD'},
+                'AutoAdjustData': {
+                    'AutoAdjustType': 'HISTORICAL',
+                    'HistoricalOptions': {
+                        'BudgetAdjustmentPeriod': 6,
+                        'LookBackAvailablePeriods': 4,
+                    },
+                    # boto3 returns a zone-aware local time; the output is UTC.
+                    'LastAutoAdjustTime': datetime(
+                        2026, 10, 3, 8, 30, tzinfo=timezone(timedelta(hours=-4))
+                    ),
+                },
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['auto_adjust'] == {
+            'auto_adjust_type': 'HISTORICAL',
+            'budget_adjustment_period': 6,
+            'look_back_available_periods': 4,
+            'last_auto_adjust_time': '2026-10-03T12:30:00',
+        }
+
+    def test_format_budgets_auto_adjust_epoch_time(self):
+        """An epoch-seconds LastAutoAdjustTime is returned as the same UTC string."""
+        budgets_list = [
+            {
+                'BudgetName': 'Auto Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'AutoAdjustData': {
+                    'AutoAdjustType': 'HISTORICAL',
+                    'HistoricalOptions': {'BudgetAdjustmentPeriod': 3},
+                    'LastAutoAdjustTime': 1791030600,
+                },
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['auto_adjust'] == {
+            'auto_adjust_type': 'HISTORICAL',
+            'budget_adjustment_period': 3,
+            'last_auto_adjust_time': '2026-10-03T12:30:00',
+        }
+
+    def test_format_budgets_forecast_auto_adjust_without_history(self):
+        """A FORECAST budget has no HistoricalOptions, so only the fields present are returned."""
+        budgets_list = [
+            {
+                'BudgetName': 'Forecast Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'AutoAdjustData': {'AutoAdjustType': 'FORECAST'},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['auto_adjust'] == {'auto_adjust_type': 'FORECAST'}
+
+    def test_format_budgets_fixed_budget_has_no_plan_or_auto_adjust(self):
+        """A fixed budget, or one with empty plan fields, gets neither field."""
+        budgets_list = [
+            {
+                'BudgetName': 'Fixed Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '100.0', 'Unit': 'USD'},
+            },
+            {
+                'BudgetName': 'Empty Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'PlannedBudgetLimits': {},
+                'AutoAdjustData': {},
+            },
+        ]
+
+        result = format_budgets(budgets_list)
+
+        for budget in result:
+            assert 'planned_budget_limits' not in budget
+            assert 'auto_adjust' not in budget
+
     def test_format_budgets_status_exceeded(self):
         """Test format_budgets correctly calculates EXCEEDED status."""
         # Setup
@@ -624,6 +765,22 @@ class TestFormatBudgets:
         result = format_budgets(budgets_list)
 
         assert 'status' not in result[0]
+
+    def test_format_budgets_status_ok_without_forecast(self):
+        """A spend budget under its limit with no forecast is OK."""
+        budgets_list = [
+            {
+                'BudgetName': 'Cost Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '100.0', 'Unit': 'USD'},
+                'CalculatedSpend': {'ActualSpend': {'Amount': '50.0', 'Unit': 'USD'}},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['status'] == 'OK'
 
 
 @pytest.mark.asyncio
@@ -1307,6 +1464,16 @@ class TestBudgetsPaginationContract:
         assert _strip_paging(first) == _strip_paging(second) == {'AccountId': ACCOUNT}
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.get_aws_account_id')
+    async def test_budgets_tool_entrypoint_error_is_handled(self, mock_get_id, mock_context):
+        """A failure resolving the account ID is returned as an error, not raised."""
+        mock_get_id.side_effect = Exception('sts down')
+
+        result = await budgets(mock_context)
+
+        mock_get_id.assert_awaited_once()
+        assert result['status'] == 'error'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.get_aws_account_id')
     @patch(PATCH_BUDGETS_CLIENT)
     async def test_budgets_tool_resolves_account_and_forwards_paging(
         self, mock_create, mock_get_id, mock_context
@@ -1432,3 +1599,50 @@ class TestBudgetsPaginationContract:
             params = set(tools[name].parameters['properties'])
             assert {'max_items', 'next_token'} <= params, name
             assert not {'max_results', 'max_pages'} & params, name
+
+
+@pytest.mark.asyncio
+async def test_budgets_description_names_zero_spend_traps_and_limit_fields():
+    """The description warns that a filtered 0 can be a filter matching nothing.
+
+    It also states the CostTypes credit and refund default and names the planned and
+    auto-adjusting limit fields, which the old description left out.
+    """
+    tools = {t.name: t for t in await budget_server.list_tools()}
+    description = ' '.join((tools['budgets'].description or '').split())
+
+    for text in (
+        'An `actual_spend` of 0 on a filtered budget does not prove there was no spend',
+        'service codes such as `AmazonEC2`',
+        '`Amazon Elastic Compute Cloud - Compute`',
+        '`cost_filters` keys are combined with AND',
+        'run the equivalent filter, metric and billing view with `cost-explorer`',
+        'a tag value of `""` matches costs that have no value for that tag key',
+        '`IncludeCredit` and `IncludeRefund` default to true',
+        '`planned_budget_limits`',
+        '`auto_adjust`',
+        'when an RI or Savings Plans budget returns it',
+        'past periods are included',
+        'periods before the first one with cost are left out',
+    ):
+        assert text in description, text
+
+
+@pytest.mark.asyncio
+async def test_budgets_description_drops_disproved_claims():
+    """Claims the service contradicts stay out of the description.
+
+    A SERVICE_CODE filter fails in the budget's spend calculation, so it is not a fix for a
+    service-code filter; planned limits include past periods; and an RI or Savings Plans budget
+    in the filter-expression form returns no cost_types at all.
+    """
+    tools = {t.name: t for t in await budget_server.list_tools()}
+    description = ' '.join((tools['budgets'].description or '').split())
+
+    for text in (
+        'service codes belong under',
+        'current or future period',
+        'it is always `IncludeSubscription`',
+        'is how many had cost data',
+    ):
+        assert text not in description, text

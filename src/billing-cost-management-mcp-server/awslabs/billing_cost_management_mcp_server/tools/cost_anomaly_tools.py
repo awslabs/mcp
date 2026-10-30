@@ -466,3 +466,230 @@ async def get_anomalies(
     except Exception as e:
         # Use shared error handler for consistent error reporting
         return await handle_aws_error(ctx, e, 'get_anomalies', 'Cost Explorer')
+
+
+# Monitors and subscriptions page with NextPageToken. The service rejects only a MaxResults
+# below 1; 100 per page keeps each page small.
+GET_ANOMALY_MONITORS = PageSpec(
+    result_key='AnomalyMonitors',
+    token_param='NextPageToken',
+    token_key_in_response='NextPageToken',
+    page_max=100,
+    page_size_param='MaxResults',
+)
+GET_ANOMALY_SUBSCRIPTIONS = PageSpec(
+    result_key='AnomalySubscriptions',
+    token_param='NextPageToken',
+    token_key_in_response='NextPageToken',
+    page_max=100,
+    page_size_param='MaxResults',
+)
+
+MONITOR_OPERATIONS = ('list_monitors', 'list_subscriptions')
+
+
+@cost_anomaly_server.tool(
+    name='cost-anomaly-monitors',
+    description="""Lists the Cost Anomaly Detection monitors and alert subscriptions defined in the account,
+using the Cost Explorer GetAnomalyMonitors and GetAnomalySubscriptions APIs. Use it to see what
+the monitor behind an anomaly tracks and who is alerted; use cost-anomaly for the anomalies.
+This tool is read-only.
+
+operation (required): list_monitors or list_subscriptions; any other value is a validation_error.
+1. list_monitors: returns data.monitors.
+   - monitor_type DIMENSIONAL tracks each value of monitor_dimension (SERVICE, LINKED_ACCOUNT,
+     TAG or COST_CATEGORY) separately, and dimensional_value_count is how many values it tracks.
+     An anomaly's dimension_value from such a monitor is one of those values: a service name for
+     SERVICE, an account ID for LINKED_ACCOUNT. For TAG and COST_CATEGORY, monitor_specification
+     names the tag or cost category key.
+   - monitor_type CUSTOM tracks the costs that monitor_specification (a Cost Explorer filter
+     expression) selects; monitor_dimension is null.
+2. list_subscriptions: returns data.subscriptions.
+   - A subscription alerts its subscribers about anomalies from the monitors in
+     monitor_arn_list whose impact meets threshold_expression. Its dimensions are
+     ANOMALY_TOTAL_IMPACT_ABSOLUTE (USD) and ANOMALY_TOTAL_IMPACT_PERCENTAGE (percent); And
+     requires every condition, Or any. threshold is a deprecated absolute-USD field and can be
+     null: read threshold_expression.
+   - frequency DAILY or WEEKLY sends an email digest; IMMEDIATE sends to an SNS topic.
+     subscribers holds email addresses or SNS topic ARNs; status DECLINED means the subscriber has
+     declined (unsubscribed from) the alerts.
+   - Subscriptions decide who is alerted, not what is detected: cost-anomaly also returns
+     anomalies below every threshold.
+   - An empty monitor_arn_list means the subscription is attached to no monitor, so it sends
+     no alerts.
+
+monitor_arn (optional): list_monitors returns only that monitor; list_subscriptions returns
+only the subscriptions attached to it. On either operation, a monitor ARN in this account that
+matches no monitor returns an empty list, not an error; a malformed ARN is a ValidationException
+and another account's ARN is an AccessDeniedException.
+
+Pagination:
+- max_items: total monitors or subscriptions returned. Omit it to fetch every page.
+- If the result has complete_dataset: false, it is partial: call again with a larger
+  max_items, continue with next_token, or say the result is partial.""",
+)
+async def cost_anomaly_monitors(
+    ctx: Context,
+    operation: str,
+    monitor_arn: Optional[str] = None,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Lists Cost Anomaly Detection monitors or alert subscriptions.
+
+    Args:
+        ctx: The MCP context object
+        operation: Required. 'list_monitors' or 'list_subscriptions'.
+        monitor_arn: Optional monitor ARN. list_monitors returns only that monitor;
+            list_subscriptions returns only the subscriptions attached to it.
+        max_items: Optional total number of items to return. None fetches every page.
+        next_token: Optional pagination token from a previous response.
+
+    Returns:
+        Dict containing the monitors or subscriptions and a pagination block
+    """
+    if operation not in MONITOR_OPERATIONS:
+        return format_response(
+            'error',
+            {'invalid_parameter': 'operation', 'value': operation},
+            f'Unsupported operation: {operation}. Use one of: {", ".join(MONITOR_OPERATIONS)}.',
+            error_type='validation_error',
+            operation='cost_anomaly_monitors',
+            service='Cost Explorer',
+        )
+
+    if monitor_arn is not None:
+        monitor_arn = monitor_arn.strip()
+    if monitor_arn == '':
+        return format_response(
+            'error',
+            {'invalid_parameter': 'monitor_arn'},
+            'monitor_arn is empty. Pass a monitor ARN, or omit monitor_arn to list them all.',
+            error_type='validation_error',
+            operation='cost_anomaly_monitors',
+            service='Cost Explorer',
+        )
+
+    try:
+        ce_client = create_aws_client('ce', region_name='us-east-1')
+        if operation == 'list_monitors':
+            return await list_anomaly_monitors(ctx, ce_client, monitor_arn, max_items, next_token)
+        return await list_anomaly_subscriptions(ctx, ce_client, monitor_arn, max_items, next_token)
+    except Exception as e:
+        return await handle_aws_error(ctx, e, 'cost_anomaly_monitors', 'Cost Explorer')
+
+
+async def list_anomaly_monitors(
+    ctx: Context,
+    ce_client: Any,
+    monitor_arn: Optional[str],
+    max_items: Optional[int],
+    next_token: Optional[str],
+) -> Dict[str, Any]:
+    """Lists anomaly monitors using the Cost Explorer GetAnomalyMonitors API.
+
+    Args:
+        ctx: The MCP context
+        ce_client: Cost Explorer client
+        monitor_arn: Optional ARN of the one monitor to return
+        max_items: Total monitors to return. None fetches every page.
+        next_token: Pagination token from a previous response
+
+    Returns:
+        Dict containing monitor data
+    """
+    try:
+        request_params: Dict[str, Any] = {}
+        if monitor_arn:
+            request_params['MonitorArnList'] = [monitor_arn]
+
+        monitors, _, pagination = await paginate_aws_items(
+            ctx,
+            'GetAnomalyMonitors',
+            ce_client.get_anomaly_monitors,
+            request_params,
+            GET_ANOMALY_MONITORS,
+            max_items=max_items,
+            next_token=next_token,
+        )
+
+        formatted = [
+            {
+                'monitor_arn': monitor.get('MonitorArn'),
+                'monitor_name': monitor.get('MonitorName'),
+                'monitor_type': monitor.get('MonitorType'),
+                'monitor_dimension': monitor.get('MonitorDimension'),
+                'monitor_specification': monitor.get('MonitorSpecification'),
+                'dimensional_value_count': monitor.get('DimensionalValueCount'),
+                'creation_date': monitor.get('CreationDate'),
+                'last_updated_date': monitor.get('LastUpdatedDate'),
+                'last_evaluated_date': monitor.get('LastEvaluatedDate'),
+            }
+            for monitor in monitors
+        ]
+        return format_response('success', with_pagination({'monitors': formatted}, pagination))
+
+    except Exception as e:
+        return await handle_aws_error(ctx, e, 'get_anomaly_monitors', 'Cost Explorer')
+
+
+async def list_anomaly_subscriptions(
+    ctx: Context,
+    ce_client: Any,
+    monitor_arn: Optional[str],
+    max_items: Optional[int],
+    next_token: Optional[str],
+) -> Dict[str, Any]:
+    """Lists anomaly alert subscriptions using the Cost Explorer GetAnomalySubscriptions API.
+
+    Args:
+        ctx: The MCP context
+        ce_client: Cost Explorer client
+        monitor_arn: Optional monitor ARN; only subscriptions attached to it are returned
+        max_items: Total subscriptions to return. None fetches every page.
+        next_token: Pagination token from a previous response
+
+    Returns:
+        Dict containing subscription data
+    """
+    try:
+        request_params: Dict[str, Any] = {}
+        if monitor_arn:
+            request_params['MonitorArn'] = monitor_arn
+
+        subscriptions, _, pagination = await paginate_aws_items(
+            ctx,
+            'GetAnomalySubscriptions',
+            ce_client.get_anomaly_subscriptions,
+            request_params,
+            GET_ANOMALY_SUBSCRIPTIONS,
+            max_items=max_items,
+            next_token=next_token,
+        )
+
+        formatted = [
+            {
+                'subscription_arn': subscription.get('SubscriptionArn'),
+                'subscription_name': subscription.get('SubscriptionName'),
+                'account_id': subscription.get('AccountId'),
+                'monitor_arn_list': subscription.get('MonitorArnList', []),
+                'frequency': subscription.get('Frequency'),
+                'threshold_expression': subscription.get('ThresholdExpression'),
+                'threshold': subscription.get('Threshold'),
+                'subscribers': [
+                    {
+                        'address': subscriber.get('Address'),
+                        'type': subscriber.get('Type'),
+                        'status': subscriber.get('Status'),
+                    }
+                    for subscriber in subscription.get('Subscribers', [])
+                ],
+            }
+            for subscription in subscriptions
+        ]
+        return format_response(
+            'success', with_pagination({'subscriptions': formatted}, pagination)
+        )
+
+    except Exception as e:
+        return await handle_aws_error(ctx, e, 'get_anomaly_subscriptions', 'Cost Explorer')
