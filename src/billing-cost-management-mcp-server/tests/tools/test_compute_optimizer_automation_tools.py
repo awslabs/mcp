@@ -104,6 +104,34 @@ async def test_tool_registered_with_name():
     assert tool.name == 'compute-optimizer-automation'
 
 
+async def test_description_documents_account_scope_and_value_formats():
+    """The description states the org scope and the criteria shape and case rule."""
+    tool = await compute_optimizer_automation_server.get_tool('compute-optimizer-automation')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    # Management and delegated-admin callers see member accounts' data.
+    assert '**Account scope:**' in description
+    scope = description.split('**Account scope:**')[1].split('Supported operations')[0]
+    assert 'member accounts' in scope
+    assert 'AccountId' in scope
+    # The criteria shape, its fields, and the restartNeeded case rule.
+    assert '{"<field>": [{"comparison": "<operator>", "values": [...]}]}' in description
+    for field in (
+        'region',
+        'resourceArn',
+        'ebsVolumeType',
+        'restartNeeded',
+        'ebsVolumeSizeInGib',
+        'lookBackPeriodInDays',
+        'estimatedMonthlySavings',
+        'resourceTag',
+    ):
+        assert f'`{field}`' in description
+    assert 'restartNeeded takes "true" or "false" in lowercase' in description
+    assert 'OrganizationRule needs organization_scope' in description
+
+
 def test_valid_operations_list():
     """VALID_OPERATIONS covers exactly the 13 supported read operations."""
     assert len(VALID_OPERATIONS) == 13
@@ -742,6 +770,107 @@ class TestListRulePreview:
         assert kwargs['criteria'] == {
             'region': [{'comparison': 'StringEquals', 'values': ['us-east-1']}]
         }
+
+    @pytest.mark.parametrize(
+        'operation', ['list_automation_rule_preview', 'list_automation_rule_preview_summaries']
+    )
+    async def test_restart_needed_values_folded_to_lowercase(self, mock_ctx, operation):
+        """The restartNeeded values are lowercased, since AWS matches only "true"/"false".
+
+        Other criteria fields keep their case.
+        """
+        client = MagicMock()
+        getattr(client, operation).return_value = {}
+        criteria = {
+            'restartNeeded': [
+                {'comparison': 'StringEquals', 'values': ['False', 'TRUE']},
+                {'comparison': 'StringNotLike', 'values': ['T*']},
+            ],
+            'ebsVolumeType': [{'comparison': 'StringEquals', 'values': ['GP2']}],
+        }
+
+        await getattr(ops, operation)(
+            mock_ctx,
+            client,
+            rule_type='AccountRule',
+            recommended_action_types='["UpgradeEbsVolumeType"]',
+            criteria=json.dumps(criteria),
+        )
+
+        _, kwargs = getattr(client, operation).call_args
+        assert kwargs['criteria'] == {
+            'restartNeeded': [
+                {'comparison': 'StringEquals', 'values': ['false', 'true']},
+                {'comparison': 'StringNotLike', 'values': ['t*']},
+            ],
+            'ebsVolumeType': [{'comparison': 'StringEquals', 'values': ['GP2']}],
+        }
+
+    async def test_restart_needed_folded_on_multi_region_tool_call(self, mock_ctx):
+        """Through the tool with regions, every region receives the lowercased criteria."""
+        criteria = '{"restartNeeded": [{"comparison": "StringEquals", "values": ["True"]}]}'
+        clients = {}
+
+        def make_client(region=None):
+            client = MagicMock()
+            client.list_automation_rule_preview.return_value = {'previewResults': []}
+            clients[region] = client
+            return client
+
+        with patch(
+            f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client', side_effect=make_client
+        ):
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_automation_rule_preview',
+                regions=['us-east-1', 'eu-west-1'],
+                rule_type='AccountRule',
+                recommended_action_types='["UpgradeEbsVolumeType"]',
+                criteria=criteria,
+            )
+
+        assert result['status'] == STATUS_SUCCESS
+        assert set(clients) == {'us-east-1', 'eu-west-1'}
+        for client in clients.values():
+            _, kwargs = client.list_automation_rule_preview.call_args
+            assert kwargs['criteria'] == {
+                'restartNeeded': [{'comparison': 'StringEquals', 'values': ['true']}]
+            }
+
+    @pytest.mark.parametrize(
+        'criteria, expected',
+        [
+            ({'restartNeeded': 'True'}, {'restartNeeded': 'True'}),
+            ({'restartNeeded': ['True']}, {'restartNeeded': ['True']}),
+            (
+                {'restartNeeded': [{'comparison': 'StringEquals', 'values': 'True'}]},
+                {'restartNeeded': [{'comparison': 'StringEquals', 'values': 'True'}]},
+            ),
+            (
+                {'restartNeeded': [{'comparison': 'StringEquals', 'values': [True, 'True']}]},
+                {'restartNeeded': [{'comparison': 'StringEquals', 'values': [True, 'true']}]},
+            ),
+            (['restartNeeded'], ['restartNeeded']),
+        ],
+    )
+    async def test_restart_needed_fold_leaves_other_shapes(self, mock_ctx, criteria, expected):
+        """Only string values in a well-formed condition are lowercased.
+
+        Any other shape reaches AWS as given, so AWS still reports its own error.
+        """
+        client = MagicMock()
+        client.list_automation_rule_preview.return_value = {}
+
+        await ops.list_automation_rule_preview(
+            mock_ctx,
+            client,
+            rule_type='AccountRule',
+            recommended_action_types='["UpgradeEbsVolumeType"]',
+            criteria=json.dumps(criteria),
+        )
+
+        _, kwargs = client.list_automation_rule_preview.call_args
+        assert kwargs['criteria'] == expected
 
 
 @pytest.mark.asyncio
