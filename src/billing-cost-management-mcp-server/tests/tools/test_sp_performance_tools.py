@@ -1686,6 +1686,8 @@ class TestSpPerformanceDescription:
         assert 'DAILY, MONTHLY or HOURLY' in granularity_doc
         assert 'hourly granularity opt-in' in granularity_doc
         assert 'YYYY-MM-DDTHH:MM:SSZ' in granularity_doc
+        assert 'Hourly data granularity is an opt-in only feature' in granularity_doc
+        assert 'not a permissions problem' in granularity_doc
 
     async def test_lists_utilization_details_filter_dimensions(self):
         """Every GetSavingsPlansUtilizationDetails filter dimension is named."""
