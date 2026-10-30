@@ -2417,6 +2417,80 @@ async def test_cancelled_query_raises_with_its_reason(mock_context, athena_handl
         await athena_handler.wait_for_query_completion('q')
 
 
+def _cancelled(reason):
+    return {'QueryExecution': {'Status': {'State': 'CANCELLED', 'StateChangeReason': reason}}}
+
+
+def _tool_whose_query_ends(storage_lens_query_tool, athena_handler, execution):
+    """A query tool with real Athena polling whose query ends with ``execution``."""
+    tool, _, _ = storage_lens_query_tool
+    tool.manifest_handler = MagicMock()
+    tool.manifest_handler.get_manifest = AsyncMock(return_value=CSV_MANIFEST)
+    tool.manifest_handler.extract_data_location.return_value = 's3://bucket/data/'
+    athena_handler.setup_table = AsyncMock()
+    athena_handler.execute_query = AsyncMock(return_value={'query_execution_id': 'q'})
+    athena_handler.athena_client.get_query_execution.return_value = execution
+    tool.athena_handler = athena_handler
+    return tool
+
+
+async def _query(tool):
+    return await tool.query_storage_lens(
+        query='SELECT * FROM {table}',
+        manifest_location='s3://bucket/manifest.json',
+        database_name='db',
+        table_name='t',
+        output_location='s3://bucket/out/',
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'reason, retry_strategy, phrase',
+    [
+        (
+            'Query cancelled by user',
+            'retry_same_request',
+            'Query cancelled: Query cancelled by user',
+        ),
+        (
+            'Bytes scanned limit was exceeded',
+            'modify_request',
+            "ask for the workgroup's data scanned limit to be raised",
+        ),
+    ],
+    ids=['stopped', 'scan_limit'],
+)
+async def test_cancelled_query_says_whether_a_retry_can_succeed(
+    storage_lens_query_tool, athena_handler, reason, retry_strategy, phrase
+):
+    """A stopped query can succeed if sent again; one over the scan limit is cancelled again.
+
+    error_type stays unknown_runtimeerror, as before: only retry_strategy changes.
+    """
+    tool = _tool_whose_query_ends(storage_lens_query_tool, athena_handler, _cancelled(reason))
+
+    res = await _query(tool)
+
+    assert res['status'] == 'error'
+    assert res['error_type'] == 'unknown_runtimeerror'
+    assert phrase in res['message']
+    assert add_retry_guidance(res)['retry_strategy'] == retry_strategy
+
+
+@pytest.mark.asyncio
+async def test_failed_query_keeps_its_error_type_mapping(storage_lens_query_tool, athena_handler):
+    """A FAILED query is not given a cancel's retry_strategy."""
+    failed = {'QueryExecution': {'Status': {'State': 'FAILED', 'StateChangeReason': 'bad SQL'}}}
+    tool = _tool_whose_query_ends(storage_lens_query_tool, athena_handler, failed)
+
+    res = await _query(tool)
+
+    assert res['error_type'] == 'validation_error'
+    assert 'retry_strategy' not in res
+    assert add_retry_guidance(res)['retry_strategy'] == 'modify_request'
+
+
 @pytest.mark.asyncio
 async def test_table_is_not_moved_off_a_report_folder(mock_context):
     """A manifest outside a report day folder is refused, not moved to or read from day 1."""
