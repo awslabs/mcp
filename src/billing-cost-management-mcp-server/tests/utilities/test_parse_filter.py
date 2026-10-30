@@ -51,7 +51,9 @@ class TestParseFilter:
 
         assert isinstance(parsed, dict) and 'Dimensions' in parsed
 
-    @pytest.mark.parametrize('value', ['', '   ', '{}', {}, '[]', [], 'null'], ids=repr)
+    @pytest.mark.parametrize(
+        'value', ['', '   ', '""', ' "" ', '{}', {}, '[]', [], 'null'], ids=repr
+    )
     def test_empty_is_rejected(self, value):
         """An empty filter would match everything, so it is an error, not "no filter"."""
         with pytest.raises(ValueError) as excinfo:

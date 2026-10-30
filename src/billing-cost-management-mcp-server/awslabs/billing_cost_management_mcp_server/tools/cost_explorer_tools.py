@@ -17,7 +17,12 @@
 Updated to use shared utility functions.
 """
 
-from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
+from ..utilities.aws_service_base import (
+    create_aws_client,
+    format_response,
+    handle_aws_error,
+    parse_json,
+)
 from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .cost_explorer_operations import (
     get_cost_and_usage,
@@ -188,7 +193,8 @@ Correct filter examples:
 Limits by operation (a filter outside them returns ValidationException):
 - getCostAndUsage, getCostAndUsageWithResources: `And`, `Or` and `Not` nest up to 4 levels
   deep; a 5th is rejected.
-- getDimensionValues (default COST_AND_USAGE context): `And` only; `Or` and `Not` are rejected.
+- getDimensionValues (default COST_AND_USAGE context), getTagsOrValues and getCostCategories:
+  `And` of leaves only (an `And` inside it is rejected); `Or` and `Not` are rejected.
 - getSavingsPlansUtilization: `And` and `Not` only; `Or` is rejected.
 
 ## OPERATIONS
@@ -237,19 +243,19 @@ Limits by operation (a filter outside them returns ValidationException):
 
 6. getTagsOrValues - Available cost allocation tags or values
    Required: operation="getTagsOrValues"
-   Optional: start_date, end_date, tag_key, search_string, max_items, next_token, billing_view_arn
+   Optional: start_date, end_date, tag_key, search_string, filter, max_items, next_token, billing_view_arn
    Defaults: If start_date is omitted, the tool uses 30 days before today; if end_date is omitted, it uses today (exclusive, so today is not included).
    Example 1: {"operation": "getTagsOrValues"}
    Example 2: {"operation": "getTagsOrValues", "tag_key": "Environment"}
-   Returns: List of available cost allocation tags (see PAGINATION). If tag values for a particular key are needed, pass the tag key as a parameter. The tag key list holds at most 5,000 keys in total.
+   Returns: List of available cost allocation tags (see PAGINATION). If tag values for a particular key are needed, pass the tag key as a parameter. The tag key list holds at most 5,000 keys in total. A filter keeps only the keys (or values) found on costs that match it, e.g. the tags used in one Region.
 
 7. getCostCategories - Available cost categories or values inside a category
    Required: operation="getCostCategories"
-   Optional: start_date, end_date, cost_category_name, search_string, max_items, next_token, billing_view_arn
+   Optional: start_date, end_date, cost_category_name, search_string, filter, max_items, next_token, billing_view_arn
    Defaults: If start_date is omitted, the tool uses 30 days before today; if end_date is omitted, it uses today (exclusive, so today is not included).
    Example 1 (list category names): {"operation": "getCostCategories", "start_date": "__SIX_MONTHS_AGO_START__", "end_date": "__MONTH_START__"}
    Example 2 (list values inside a category): {"operation": "getCostCategories", "cost_category_name": "CostCenters", "start_date": "__SIX_MONTHS_AGO_START__", "end_date": "__MONTH_START__"}
-   Notes: Without cost_category_name the response contains CostCategoryNames. With cost_category_name set the response contains CostCategoryValues for that category. The category name list holds at most 5,000 names in total. See PAGINATION.
+   Notes: Without cost_category_name the response contains CostCategoryNames. With cost_category_name set the response contains CostCategoryValues for that category. The category name list holds at most 5,000 names in total. A filter keeps only the names (or values) found on costs that match it. See PAGINATION.
 
 8. getSavingsPlansUtilization - Savings Plans utilization data
    Required: operation="getSavingsPlansUtilization"
@@ -424,7 +430,8 @@ async def cost_explorer(
     try:
         await ctx.info(f'Routing to operation: {operation}')
 
-        if group_by and operation in OPERATIONS_WITHOUT_GROUP_BY:
+        # Parsed first, so '[]' means no grouping here as it does in getCostAndUsage
+        if operation in OPERATIONS_WITHOUT_GROUP_BY and parse_json(group_by, 'group_by'):
             return format_response(
                 'error',
                 {
@@ -601,6 +608,7 @@ async def cost_explorer(
                 end_date,
                 search_string,
                 tag_key,
+                filter,
                 next_token,
                 max_items,
                 billing_view_arn,
@@ -617,6 +625,7 @@ async def cost_explorer(
                 end_date,
                 search_string,
                 cost_category_name,
+                filter,
                 next_token,
                 max_items,
                 billing_view_arn,
