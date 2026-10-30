@@ -78,7 +78,9 @@ older recommendation in place with a timestamp that does not say so.
 IMPORTANT: get_savings_plans_purchase_recommendation requires savings_plans_type, term_in_years,
 payment_option, and lookback_period_in_days. None of them has a default — each changes the
 recommended commitment, so the caller must choose. Recommendations are precomputed and may be
-stale; the response carries the generation timestamp.
+stale; the response carries the generation timestamp. DATABASE_SP is sold only as ONE_YEAR with
+NO_UPFRONT. An empty recommendation (an unsold combination, or no eligible usage) comes with a
+message and does not mean potential savings are zero.
 
 PAGINATION (get_savings_plans_purchase_recommendation, where the items are the recommendation
 details, and list_savings_plans_purchase_recommendation_generation; the other operations take
@@ -109,6 +111,8 @@ async def sp_recommendation(
         ctx: The MCP context object
         operation: The operation to perform: 'get_savings_plans_purchase_recommendation', 'get_savings_plan_purchase_recommendation_details', 'start_savings_plans_purchase_recommendation_generation', or 'list_savings_plans_purchase_recommendation_generation'
         savings_plans_type: COMPUTE_SP, EC2_INSTANCE_SP, SAGEMAKER_SP, or DATABASE_SP. Required for get_savings_plans_purchase_recommendation.
+            DATABASE_SP is sold only as ONE_YEAR with NO_UPFRONT; any other term or payment option
+            returns no recommendation, which does not mean there is nothing to buy.
         term_in_years: ONE_YEAR or THREE_YEARS. Required for get_savings_plans_purchase_recommendation.
         payment_option: NO_UPFRONT, PARTIAL_UPFRONT, or ALL_UPFRONT. Required for get_savings_plans_purchase_recommendation. The API shape also accepts three
             LIGHT/MEDIUM/HEAVY_UTILIZATION values, which are Reserved Instance utilization levels and do not apply to Savings Plans.
@@ -269,15 +273,32 @@ async def get_savings_plans_purchase_recommendation(
         # them. Every field outside the details list (Metadata, the summary, the term and payment
         # option) is taken from the first page fetched: it repeats unchanged on later pages
         # because a token pins the recommendation version it was generated against. The
-        # top-level token is dropped because pagination reports it instead.
+        # top-level token is dropped because pagination reports it instead, and botocore's
+        # ResponseMetadata envelope is dropped because it is not part of the API's result.
         first_page = pages[0] if pages else {}
         merged_recommendation = dict(first_page.get('SavingsPlansPurchaseRecommendation') or {})
         merged_recommendation['SavingsPlansPurchaseRecommendationDetails'] = details
 
-        data = {k: v for k, v in first_page.items() if k != 'NextPageToken'}
+        data = {
+            k: v for k, v in first_page.items() if k not in ('NextPageToken', 'ResponseMetadata')
+        }
         data['SavingsPlansPurchaseRecommendation'] = merged_recommendation
 
-        return format_response('success', with_pagination(data, pagination))
+        # The API answers an unsold combination (such as DATABASE_SP with THREE_YEARS or
+        # ALL_UPFRONT) and a combination with no eligible usage alike, with an empty
+        # recommendation. Say so, so an empty list is not read as "no savings available".
+        message = None
+        if not details:
+            message = (
+                f'No Savings Plans purchase recommendation was returned for '
+                f'{savings_plans_type}, {term_in_years}, {payment_option}. Either this '
+                'combination is not sold (DATABASE_SP is sold only as ONE_YEAR with NO_UPFRONT), '
+                'or no eligible usage was found in the lookback period. This does not mean '
+                'potential savings are zero; try a supported combination or a different '
+                'lookback period before concluding there is nothing to buy.'
+            )
+
+        return format_response('success', with_pagination(data, pagination), message)
 
     except Exception as e:
         # Use shared error handler for consistent error reporting

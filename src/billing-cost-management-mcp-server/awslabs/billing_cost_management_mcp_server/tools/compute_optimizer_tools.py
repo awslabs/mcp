@@ -58,7 +58,7 @@ USE THIS TOOL FOR:
   or Unused (use get_idle_recommendations). For general idle detection or cost-savings
   recommendations, use cost-optimization instead.
 
-**Note:** Compute Optimizer is a regional service. Specify a `region` to get recommendations for resources in that region. If omitted, defaults to AWS_REGION env var or us-east-1.
+**Note:** Compute Optimizer is a regional service. Specify a `region` to get recommendations for resources in that region. If omitted, defaults to AWS_REGION env var or us-east-1. The response's `applied_region` names the region that was queried; an empty result covers only that region.
 
 This tool supports the following operations:
 1. get_ec2_instance_recommendations: Get recommendations for EC2 instances
@@ -239,6 +239,10 @@ async def compute_optimizer(
             if error:
                 return error
 
+        # Resolve the default here (same rule as create_aws_client) so the response can
+        # say which region was queried; an empty result is otherwise unattributable.
+        region = region or os.environ.get('AWS_REGION', 'us-east-1')
+
         # Initialize Compute Optimizer client using shared utility
         co_client = create_aws_client('compute-optimizer', region_name=region)
 
@@ -274,7 +278,7 @@ async def compute_optimizer(
                             'enrollment_status': status,
                             'operation': operation,
                             'aws_error_code': 'ComputeOptimizerNotActive',
-                            'aws_region': region or os.environ.get('AWS_REGION', 'us-east-1'),
+                            'aws_region': region,
                         },
                         'Compute Optimizer is not active. Please activate the service in the AWS Console first.',
                         error_type='enrollment_error',
@@ -296,7 +300,7 @@ async def compute_optimizer(
 
         # Process the operation
         if operation == 'get_ec2_instance_recommendations':
-            return await get_ec2_instance_recommendations(
+            result = await get_ec2_instance_recommendations(
                 ctx,
                 co_client,
                 max_items,
@@ -307,7 +311,7 @@ async def compute_optimizer(
                 cpu_vendor_architectures=cpu_architectures,
             )
         elif operation == 'get_auto_scaling_group_recommendations':
-            return await get_auto_scaling_group_recommendations(
+            result = await get_auto_scaling_group_recommendations(
                 ctx,
                 co_client,
                 max_items,
@@ -318,15 +322,15 @@ async def compute_optimizer(
                 cpu_vendor_architectures=cpu_architectures,
             )
         elif operation == 'get_ebs_volume_recommendations':
-            return await get_ebs_volume_recommendations(
+            result = await get_ebs_volume_recommendations(
                 ctx, co_client, max_items, filters, account_ids, next_token, arn_list
             )
         elif operation == 'get_lambda_function_recommendations':
-            return await get_lambda_function_recommendations(
+            result = await get_lambda_function_recommendations(
                 ctx, co_client, max_items, filters, account_ids, next_token, arn_list
             )
         elif operation == 'get_rds_recommendations':
-            return await get_rds_recommendations(
+            result = await get_rds_recommendations(
                 ctx,
                 co_client,
                 max_items,
@@ -337,11 +341,11 @@ async def compute_optimizer(
                 cpu_vendor_architectures=cpu_architectures,
             )
         elif operation == 'get_ecs_service_recommendations':
-            return await get_ecs_service_recommendations(
+            result = await get_ecs_service_recommendations(
                 ctx, co_client, max_items, filters, account_ids, next_token, arn_list
             )
         elif operation == 'get_idle_recommendations':
-            return await get_idle_recommendations(
+            result = await get_idle_recommendations(
                 ctx,
                 co_client,
                 max_items,
@@ -373,6 +377,12 @@ async def compute_optimizer(
                 service=_CO_SERVICE_NAME,
             )
 
+        # Compute Optimizer is regional: echo the queried region (like applied_filters)
+        # so an empty result can be read as "none in this region", not "none at all".
+        if isinstance(result.get('data'), dict):
+            result['data']['applied_region'] = region
+        return result
+
     except ClientError as e:
         # Specific handling for AWS service errors
         aws_error = e.response.get('Error', {})
@@ -393,15 +403,28 @@ async def compute_optimizer(
                 'aws_error_message': aws_message,
                 'request_id': request_id,
                 'http_status': http_status,
+                'aws_region': region,
             },
         }
 
         # Handle specific error codes with improved messages
         if error_code == 'AccessDeniedException' or error_code == 'AccessDenied':
             error_response['error_type'] = 'access_denied'
-            error_response['message'] = (
-                f'Access denied for Compute Optimizer {operation}. Ensure you have the compute-optimizer:{operation} permission.'
-            )
+            # Name the IAM action from the API that failed (e.g. GetRDSDatabaseRecommendations),
+            # not the tool operation (get_rds_recommendations), which is not an IAM action.
+            api_name = getattr(e, 'operation_name', None)
+            if api_name:
+                error_response['data']['required_permission'] = f'compute-optimizer:{api_name}'
+                error_response['message'] = (
+                    f'Access denied for Compute Optimizer {operation}. Ensure you have the '
+                    f'compute-optimizer:{api_name} permission; aws_error_message names the '
+                    'action that was denied.'
+                )
+            else:
+                error_response['message'] = (
+                    f'Access denied for Compute Optimizer {operation}; aws_error_message names '
+                    'the action that was denied.'
+                )
             error_response['resolution'] = (
                 'Check your IAM permissions and ensure your role has the ComputeOptimizerReadOnlyAccess policy or equivalent permissions.'
             )
@@ -458,8 +481,11 @@ async def compute_optimizer(
             await ctx_logger.error(f'Resource not found: {aws_message}', exc_info=True)
 
         else:
-            # For other AWS errors, use the generic handler
-            return await handle_aws_error(ctx, e, operation, 'Compute Optimizer')
+            # For other AWS errors, use the generic handler. Its response is flat (no
+            # data object), so the queried region goes at the top level.
+            generic_error = await handle_aws_error(ctx, e, operation, 'Compute Optimizer')
+            generic_error['aws_region'] = region
+            return generic_error
 
         return error_response
 
