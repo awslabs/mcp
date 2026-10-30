@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import boto3
+import hashlib
 import json
 from awslabs.amazon_neptune_mcp_server.constants import USER_AGENT_CONFIG
 from awslabs.amazon_neptune_mcp_server.exceptions import NeptuneException
@@ -24,8 +25,22 @@ from awslabs.amazon_neptune_mcp_server.models import (
     Relationship,
     RelationshipPattern,
 )
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from loguru import logger
+from threading import Lock
+from time import monotonic
 from typing import Any, Dict, List, Optional, Tuple
+
+
+_SCHEMA_TTL_SECONDS = 300
+_SCHEMA_CACHE_SIZE = 32
+_SCHEMA_QUERY_WORKERS = 4
+_SchemaKey = Tuple[str, str]
+_SCHEMA_CACHE: OrderedDict[_SchemaKey, Tuple[float, GraphSchema]] = OrderedDict()
+_SCHEMA_CACHE_LOCK = Lock()
+# Bounded locks coalesce refreshes for the same endpoint and credentials.
+_SCHEMA_REFRESH_LOCKS = tuple(Lock() for _ in range(_SCHEMA_CACHE_SIZE))
 
 
 class NeptuneDatabase(NeptuneGraph):
@@ -66,6 +81,12 @@ class NeptuneDatabase(NeptuneGraph):
             protocol = 'https' if use_https else 'http'
             client_params['endpoint_url'] = f'{protocol}://{host}:{port}'
             self.client = session.client('neptunedata', config=USER_AGENT_CONFIG, **client_params)
+            self._session = session
+            self._endpoint = client_params['endpoint_url']
+            self.schema = None
+            self._schema_expires_at = 0.0
+            self._schema_key: Optional[_SchemaKey] = None
+            self._schema_lock = Lock()
 
         except Exception as e:
             logger.exception('Could not load credentials to authenticate with AWS client')
@@ -74,17 +95,6 @@ class NeptuneDatabase(NeptuneGraph):
                 'Please check that credentials in the specified '
                 'profile name are valid.'
             ) from e
-
-        try:
-            self._refresh_schema()
-        except Exception as e:
-            logger.exception('Could not get schema for Neptune database')
-            raise NeptuneException(
-                {
-                    'message': 'Could not get schema for Neptune database',
-                    'detail': str(e),
-                }
-            )
 
     def _get_summary(self) -> Dict:
         """Retrieves the graph summary from Neptune's property graph summary API.
@@ -260,28 +270,88 @@ class NeptuneDatabase(NeptuneGraph):
             'bool': 'BOOLEAN',
         }
         n_labels, e_labels = self._get_labels()
-        triple_schema = self._get_triples(e_labels)
-        nodes = self._get_node_properties(n_labels, types)
-        rels = self._get_edge_properties(e_labels, types)
+        with ThreadPoolExecutor(max_workers=_SCHEMA_QUERY_WORKERS) as executor:
+            triples = [executor.submit(self._get_triples, [label]) for label in e_labels]
+            node_properties = [
+                executor.submit(self._get_node_properties, [label], types) for label in n_labels
+            ]
+            edge_properties = [
+                executor.submit(self._get_edge_properties, [label], types) for label in e_labels
+            ]
+            triple_schema = [pattern for future in triples for pattern in future.result()]
+            nodes = [node for future in node_properties for node in future.result()]
+            rels = [rel for future in edge_properties for rel in future.result()]
 
         graph = GraphSchema(nodes=nodes, relationships=rels, relationship_patterns=triple_schema)
 
         self.schema = graph
         return graph
 
+    def _cache_key(self) -> Optional[_SchemaKey]:
+        """Scope shared schemas to the endpoint and current AWS credentials."""
+        credentials = self._session.get_credentials()
+        if credentials is None:
+            return None
+        frozen = credentials.get_frozen_credentials()
+        # Never retain credential values in the cache or share anonymous clients.
+        values = (frozen.access_key, frozen.secret_key, frozen.token or '')
+        if not all(isinstance(value, str) for value in values):
+            return None
+        digest = hashlib.sha256(json.dumps(values).encode()).hexdigest()
+        return self._endpoint, digest
+
+    def _get_cached_schema(self, key: _SchemaKey) -> Tuple[GraphSchema, float]:
+        """Reuse fresh schemas and allow only one refresh for each cache key."""
+        with _SCHEMA_REFRESH_LOCKS[hash(key) % len(_SCHEMA_REFRESH_LOCKS)]:
+            with _SCHEMA_CACHE_LOCK:
+                cached = _SCHEMA_CACHE.get(key)
+                if cached is not None and monotonic() < cached[0]:
+                    _SCHEMA_CACHE.move_to_end(key)
+                    return cached[1].model_copy(deep=True), cached[0]
+            graph = self._refresh_schema()
+            expires_at = monotonic() + _SCHEMA_TTL_SECONDS
+            with _SCHEMA_CACHE_LOCK:
+                _SCHEMA_CACHE[key] = expires_at, graph.model_copy(deep=True)
+                _SCHEMA_CACHE.move_to_end(key)
+                while len(_SCHEMA_CACHE) > _SCHEMA_CACHE_SIZE:
+                    _SCHEMA_CACHE.popitem(last=False)
+            return graph, expires_at
+
     def get_schema(self) -> GraphSchema:
-        """Returns the current graph schema, refreshing it if necessary.
+        """Discover schema on demand, reusing results for up to five minutes.
+
+        Schemas are shared by clients with the same endpoint and credentials in
+        this process. Discovery still uses the existing bounded property samples.
 
         Returns:
             GraphSchema: Complete schema information for the graph
         """
-        if self.schema is None:
-            self._refresh_schema()
-        return (
-            self.schema
-            if self.schema
-            else GraphSchema(nodes=[], relationships=[], relationship_patterns=[])
-        )
+        with self._schema_lock:
+            try:
+                key = self._cache_key()
+                if (
+                    self.schema is not None
+                    and key == self._schema_key
+                    and monotonic() < self._schema_expires_at
+                ):
+                    return self.schema
+                if key is None:
+                    graph = self._refresh_schema()
+                    expires_at = monotonic() + _SCHEMA_TTL_SECONDS
+                else:
+                    graph, expires_at = self._get_cached_schema(key)
+                self.schema = graph
+                self._schema_key = key
+                self._schema_expires_at = expires_at
+                return graph
+            except Exception as e:
+                logger.exception('Could not get schema for Neptune database')
+                raise NeptuneException(
+                    {
+                        'message': 'Could not get schema for Neptune database',
+                        'detail': str(e),
+                    }
+                ) from e
 
     def query_opencypher(self, query: str, params: Optional[dict] = None):
         """Executes an openCypher query against the Neptune database.
