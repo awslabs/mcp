@@ -22,6 +22,7 @@ from ..utilities.aws_service_base import (
     paginate_aws_items,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.logging_utils import get_context_logger
 from ..utilities.sql_utils import convert_response_if_needed
 from fastmcp import Context, FastMCP
@@ -72,7 +73,9 @@ IMPORTANT: the vocabulary here differs from Cost Explorer's, so values carried o
 Explorer response or recommendation will be rejected. See the individual parameter descriptions.
 
 PAGINATION (all four operations):
-- max_items is the total number of items returned. Omit it to fetch every page (no limit). Pass it,
+- max_items is the total number of items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it,
   or narrow the filters, for queries that can be large (an unfiltered offering or offering-rate
   query runs to thousands of entries).
 - If the response has complete_dataset: false, call again with a larger max_items, continue with

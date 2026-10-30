@@ -168,7 +168,7 @@ mcp = FastMCP(
     instructions="""AWS Billing and Cost Management MCP Server - Provides AWS cost optimization tools and prompts through MCP.
 
 Unless the user or the host's instructions specify otherwise:
-1. Use the UnblendedCost metric
+1. Use the UnblendedCost metric. If `metrics` is omitted, the tool returns UnblendedCost
 2. Report net cost, with credits and refunds included
 3. Be concise and focus on essential information first
 4. For optimization queries, lead with the highest-impact recommendations; when truncating, state how many were omitted and their combined savings

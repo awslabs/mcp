@@ -29,6 +29,7 @@ from ..utilities.aws_service_base import (
     parse_json,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from datetime import date, datetime, timezone
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional, Tuple
@@ -256,8 +257,9 @@ Note:
   about multi-year data
 
 Pagination (both operations):
-- max_items: total number of comparisons or drivers returned. Omit it to fetch every page
-  (no limit). Pass it, or narrow group_by/filter, for comparisons that can be large (for
+- max_items: total number of comparisons or drivers returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow group_by/filter, for comparisons that can be large (for
   example grouped by USAGE_TYPE or LINKED_ACCOUNT).
 - If the result has complete_dataset: false, it is partial: call again with a larger
   max_items, continue with next_token, or say the result is partial.

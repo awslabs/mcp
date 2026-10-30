@@ -20,6 +20,7 @@ custom line items, and billing transfer preferences.
 """
 
 from ..utilities.aws_service_base import handle_aws_error
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .billing_conductor_operations import (
     get_billing_group_cost_report as _get_billing_group_cost_report,
 )
@@ -97,8 +98,9 @@ You can filter billing groups by:
 - Auto-associate: Filter by auto-associate setting
 - Responsibility transfer ARNs: Filter by responsibility transfer ARNs
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
@@ -169,8 +171,9 @@ You can filter account associations by:
 Use AccountId or AccountIds, not both. Either can be combined with Association to narrow the
 result.
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
@@ -235,8 +238,9 @@ The tool returns cost report information for each billing group:
 You can filter cost reports by:
 - BillingGroupArns: Filter by specific billing group ARNs (1 to 100 ARNs)
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
@@ -305,8 +309,9 @@ You can customize the report by:
   range, PRODUCT_NAME alone one row per product. Include BILLING_PERIOD in GroupBy to get one
   row per month.
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
@@ -377,8 +382,9 @@ You can filter custom line items by:
 - BillingGroups: Filter by billing group ARNs (up to 100)
 - Names: Filter by custom line item names (up to 100)
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
@@ -425,8 +431,9 @@ billing periods, and timestamps.
 You can filter versions by:
 - BillingPeriodRange: Filter by start and/or end billing period
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
@@ -476,8 +483,9 @@ The tool returns information about each associated resource:
 You can filter associated resources by:
 - Relationship: Filter by relationship type ("PARENT" or "CHILD")
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
@@ -536,8 +544,9 @@ The tool returns information about:
 You can filter pricing rules by:
 - Arns: Filter by specific pricing rule ARNs
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
@@ -588,8 +597,9 @@ The tool returns information about:
 You can filter pricing plans by:
 - Arns: Filter by specific pricing plan ARNs
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
@@ -638,8 +648,9 @@ The tool returns information about:
 - The ARN of the pricing plan for which associations are listed.
 - A list containing pricing rules that are associated with the requested pricing plan
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
@@ -691,8 +702,9 @@ The tool returns information about:
 - The ARN of the pricing rule for which associations are listed.
 - The list containing pricing plans that are associated with the requested pricing rule.
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
