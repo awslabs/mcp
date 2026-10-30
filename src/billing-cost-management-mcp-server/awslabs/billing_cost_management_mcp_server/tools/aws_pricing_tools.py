@@ -18,6 +18,7 @@ Updated to use shared utility functions.
 """
 
 from ..utilities.aws_service_base import format_response, handle_aws_error
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 
 # Import operation handlers from local module
 from .aws_pricing_operations import (
@@ -66,7 +67,9 @@ ARGS:
       service_code: AWS service code (e.g., 'AmazonEC2', 'AmazonS3', 'AmazonES'). Required for get_service_attributes, get_attribute_values, and get_pricing_from_api operations.
       attribute_name: Attribute name (e.g., 'instanceType', 'location', 'storageClass'). Required for get_attribute_values operation.
       filters: Optional filters for pricing queries. Format: {'instanceType': 't3.medium', 'location': 'US East (N. Virginia)'}
-      max_items: Total items to return (get_service_codes, get_attribute_values, get_pricing_from_api). Omit it to fetch every page (no limit). Pass it, or narrow filters, for queries that can be large: an unfiltered get_pricing_from_api call can return hundreds of thousands of products.
+      max_items: Total items to return (get_service_codes, get_attribute_values, get_pricing_from_api). If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow filters, for queries that can be large: an unfiltered get_pricing_from_api call can return hundreds of thousands of products.
       next_token: The pagination.next_token from a previous response of the same operation, to continue where it stopped. Send every other parameter unchanged.
 
 PAGINATION:

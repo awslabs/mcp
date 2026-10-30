@@ -1594,6 +1594,11 @@ async def test_coh_local_validation_errors_carry_telemetry_fields(
         ({'resource_types': ['Ec2Instance']}, {'resourceTypes': ['Ec2Instance']}),
         # A bare value is wrapped in a list.
         ({'resourceTypes': 'ebsvolume'}, {'resourceTypes': ['EbsVolume']}),
+        # Values the botocore model lacks but the API accepts fold too.
+        (
+            {'resourceTypes': ['database_savings_plans']},
+            {'resourceTypes': ['DatabaseSavingsPlans']},
+        ),
         ({'regions': 'us-east-1'}, {'regions': ['us-east-1']}),
         # Unknown values, non-enum lists, non-string items, booleans, and unknown keys pass through.
         ({'resourceTypes': ['NotAType', 5]}, {'resourceTypes': ['NotAType', 5]}),
@@ -1665,6 +1670,25 @@ def test_filter_model_unavailable_skips_normalization():
             assert coh_mod._normalize_filters('list_recommendations', filters) == (filters, None)
     finally:
         coh_mod._filter_members.cache_clear()
+
+
+def test_filter_model_adds_supplemental_resource_types():
+    """Values the botocore enum lacks are merged in, once, and the botocore values stay."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    resource_types = coh_mod._filter_model()['resourceTypes']
+
+    assert resource_types is not None
+    assert 'Ec2Instance' in resource_types
+    assert resource_types.count('DatabaseSavingsPlans') == 1
+
+    # A botocore model that already lists the value does not duplicate it.
+    shape = MagicMock(type_name='list')
+    shape.member.enum = ['Ec2Instance', 'DatabaseSavingsPlans']
+    with patch.object(coh_mod, '_filter_members', return_value={'resourceTypes': shape}):
+        assert coh_mod._filter_model()['resourceTypes'] == ['Ec2Instance', 'DatabaseSavingsPlans']
 
 
 def test_add_valid_filter_values():
@@ -1876,6 +1900,27 @@ def test_filter_item_fields_unavailable():
     finally:
         coh_mod._filter_members.cache_clear()
     assert coh_mod._filter_item_fields() == {'tags': ['key', 'value']}
+
+
+@pytest.mark.asyncio
+async def test_description_documents_region_and_database_savings_plans_behavior():
+    """The description says how regions and DatabaseSavingsPlans differ between list and summaries."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    # Other tests reload the module with an identity decorator, which leaves no tool registered.
+    importlib.reload(coh_mod)
+    tool = await coh_mod.cost_optimization_hub_server.get_tool('cost-optimization')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert 'regions=["Global"] returns them' in description
+    assert '"Global" returns $0' in description
+    assert (
+        'DatabaseSavingsPlans: list_recommendations returns these recommendations' in description
+    )
+    assert "'DatabaseSavingsPlans']" in description
 
 
 @pytest.mark.parametrize(

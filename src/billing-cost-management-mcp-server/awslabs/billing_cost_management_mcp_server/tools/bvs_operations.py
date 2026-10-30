@@ -152,6 +152,17 @@ BVS_LIST_BILLING_VIEWS = PageSpec(
     caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
+_SOURCE_ACCOUNT_EMPTY_HINT = (
+    'No billing view matched source_account_id together with the other filters. This does '
+    'not mean no view includes the account. source_account_id matches only a billing '
+    "group's primary account (BILLING_GROUP views) or a billing transfer source account, "
+    "never PRIMARY or CUSTOM views; with a time range, only that period's billing groups "
+    'count. To find the billing group view that covers an account, get its billing '
+    "group's primary account (from the payer account: list-account-associations, then "
+    'list-billing-groups) and pass that ID; to see all views, call again without '
+    'source_account_id.'
+)
+
 
 def _active_time_range(after: str, before: str) -> Dict[str, int]:
     """Build ListBillingViews' activeTimeRange, checking the rules the service enforces.
@@ -230,7 +241,11 @@ async def list_billing_views(
         names: Optional JSON string containing a list of StringSearch objects with
             searchOption and searchValue fields for filtering by name.
         owner_account_id: Optional owner account ID to filter by (12-digit AWS account ID).
-        source_account_id: Optional source account ID to filter by (12-digit AWS account ID).
+        source_account_id: Optional 12-digit AWS account ID. The service returns only
+            BILLING_GROUP views whose billing group's primary account is this ID and
+            BILLING_TRANSFER / BILLING_TRANSFER_SHOWBACK views whose source account is this
+            ID, never PRIMARY or CUSTOM views. With a time range, only that period's billing
+            groups match. A complete empty result carries a ``hint``.
         max_items: Most billing views to return. None fetches every page.
         next_token: Optional pagination token to continue from a previous response.
 
@@ -283,7 +298,17 @@ async def list_billing_views(
         response_data: Dict[str, Any] = {
             'billing_views': [_format_list_billing_view_element(bv) for bv in billing_views],
         }
-        return format_response('success', with_pagination(response_data, pagination))
+        # A complete empty source_account_id result is easy to misread as "no view
+        # includes this account", which the filter cannot answer. A continuation or a
+        # partial result says nothing about the whole query, so it gets no hint.
+        no_match = (
+            source_account_id
+            and not billing_views
+            and next_token is None
+            and pagination['complete_dataset']
+        )
+        hint = _SOURCE_ACCOUNT_EMPTY_HINT if no_match else None
+        return format_response('success', with_pagination(response_data, pagination), hint=hint)
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'listBillingViews', 'Billing')

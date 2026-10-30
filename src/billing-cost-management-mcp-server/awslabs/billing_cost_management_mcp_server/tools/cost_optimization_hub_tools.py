@@ -46,6 +46,7 @@ from ..utilities.constants import (
     OPERATION_LIST_RECOMMENDATION_SUMMARIES,
     OPERATION_LIST_RECOMMENDATIONS,
     ORDER_BY_VALID_ORDERS,
+    PAGINATION_LIMIT_TEXT,
 )
 from .cost_optimization_hub_helpers import (
     get_preferences,
@@ -207,13 +208,29 @@ def _filter_members() -> Dict[str, Any]:
         return {}
 
 
+# Values the API accepts and returns that the installed botocore model does not list yet.
+# They are merged into the botocore enum so they normalize and appear in valid_filter_values.
+# Remove an entry once the botocore cost-optimization-hub model includes it.
+_SUPPLEMENTAL_FILTER_VALUES: Dict[str, Tuple[str, ...]] = {
+    'resourceTypes': ('DatabaseSavingsPlans',),
+}
+
+
 def _filter_model() -> Dict[str, Optional[List[str]]]:
-    """Return {filter key: enum values, or None} for the list-valued filter keys."""
-    return {
+    """Return {filter key: enum values, or None} for the list-valued filter keys.
+
+    The botocore enum is extended with _SUPPLEMENTAL_FILTER_VALUES.
+    """
+    model: Dict[str, Optional[List[str]]] = {
         name: (list(shape.member.enum) if getattr(shape.member, 'enum', None) else None)
         for name, shape in _filter_members().items()
         if shape.type_name == 'list'
     }
+    for name, extra in _SUPPLEMENTAL_FILTER_VALUES.items():
+        known = model.get(name)
+        if known:
+            model[name] = [*known, *(value for value in extra if value not in known)]
+    return model
 
 
 def _filter_item_fields() -> Dict[str, List[str]]:
@@ -435,12 +452,14 @@ CRITICAL PARAMETER REQUIREMENTS:
 - 'max_items' must be integer (not string)
 
 PAGINATION (list_recommendations, list_recommendation_summaries, list_efficiency_metrics):
-- 'max_items' is the total number of items returned. Omit it to fetch every page (no limit). Pass it, or narrow 'filters', for queries that can be large (e.g. list_recommendations across an organization).
+- 'max_items' is the total number of items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow 'filters', for queries that can be large (e.g. list_recommendations across an organization).
 - Top N: pass 'order_by' with max_items=N (list_recommendations, list_efficiency_metrics). Without order_by, the first N are not the top N.
 - If the result has complete_dataset: false, it is partial: totals and counts undercount. Call again with a larger 'max_items', continue with 'next_token', or state that the result is partial. Never report the number of returned items as a total count.
 - Fields from the first page only (summary totals such as estimated_total_deduped_savings, currency_code, metrics) are not repeated on continuation calls.
 - list_recommendation_summaries returns total_recommendation_count (the sum of the groups' recommendation_count) only when every group was fetched; use it as the overall count instead of adding the groups. It is absent on a partial result, a continuation call, or when a group has no recommendation_count.
-- In ranking_mode='performance', 'max_items' only limits how many ranked groups are returned; the fetch behind the ranking is fixed. A ranking has no 'next_token'; a larger 'max_items' or a continuation does not widen it. complete_dataset: false there means only the top spenders were fetched and ranked: group_by=Region (fewer groups) for a complete ranking, or state that it covers only the top spenders.
+- In ranking_mode='performance', 'max_items' only limits how many ranked groups are returned; the fetch behind the ranking is fixed. A ranking has no 'next_token'; a larger 'max_items' or a continuation does not widen it. complete_dataset: false there means only the top spenders were fetched and ranked: group_by=Region (fewer groups) for a complete ranking, or state that it covers only the top spenders. If 'ranking_mode' is omitted, the tool returns the raw per-group series without ranking.
 - list_enrollment_statuses, get_recommendation and get_preferences are not paginated.
 - 'get_recommendation' requires only 'recommendation_id' (mapped to the API's recommendationId)
 - Service only available in us-east-1 region
@@ -502,10 +521,19 @@ Deduplication (list_recommendations, 'include_all_recommendations'):
   so its per-type counts and savings need not match list_recommendations.
 
 Available Filter Parameters (pass as JSON string):
-- resourceTypes: ['Ec2Instance', 'LambdaFunction', 'EbsVolume', 'EcsService', 'Ec2AutoScalingGroup', 'Ec2InstanceSavingsPlans', 'ComputeSavingsPlans', 'SageMakerSavingsPlans', 'Ec2ReservedInstances', 'RdsReservedInstances', 'OpenSearchReservedInstances', 'RedshiftReservedInstances', 'ElastiCacheReservedInstances', 'RdsDbInstanceStorage', 'RdsDbInstance', 'AuroraDbClusterStorage', 'DynamoDbReservedCapacity', 'MemoryDbReservedInstances', 'NatGateway', 'DynamoDBTable', 'ElastiCacheCluster', 'MemoryDBCluster', 'DocumentDBCluster', 'WorkSpaces', 'SageMakerEndpoint']
+- resourceTypes: ['Ec2Instance', 'LambdaFunction', 'EbsVolume', 'EcsService', 'Ec2AutoScalingGroup', 'Ec2InstanceSavingsPlans', 'ComputeSavingsPlans', 'SageMakerSavingsPlans', 'Ec2ReservedInstances', 'RdsReservedInstances', 'OpenSearchReservedInstances', 'RedshiftReservedInstances', 'ElastiCacheReservedInstances', 'RdsDbInstanceStorage', 'RdsDbInstance', 'AuroraDbClusterStorage', 'DynamoDbReservedCapacity', 'MemoryDbReservedInstances', 'NatGateway', 'DynamoDBTable', 'ElastiCacheCluster', 'MemoryDBCluster', 'DocumentDBCluster', 'WorkSpaces', 'SageMakerEndpoint', 'DatabaseSavingsPlans']
+  DatabaseSavingsPlans: list_recommendations returns these recommendations.
+  list_recommendation_summaries accepts the filter but returns nothing for it and leaves them
+  out of its totals and groups, so list and summary totals differ by those savings.
 - actionTypes: ['Rightsize', 'Stop', 'Upgrade', 'PurchaseSavingsPlans', 'PurchaseReservedInstances', 'MigrateToGraviton', 'Delete', 'ScaleIn']
 - implementationEfforts: ['VeryLow', 'Low', 'Medium', 'High', 'VeryHigh']
-- regions: AWS region codes (e.g., ["us-east-1", "us-west-2"])
+- regions: AWS region codes (e.g., ["us-east-1", "us-west-2"]).
+  Savings Plans recommendations are reported differently by each operation.
+  list_recommendations reports them with the region "Global", so a region code such as
+  "us-east-1" drops every Savings Plans recommendation and regions=["Global"] returns them.
+  list_recommendation_summaries attributes their savings to the regions where the usage ran,
+  so "us-east-1" returns them and "Global" returns $0. The same region filter can therefore
+  show no Savings Plans in the list and a positive amount in the summaries.
 - accountIds: List of AWS account IDs
 - restartNeeded: boolean
 - tags: List of {"key": ..., "value": ...} objects, e.g.
