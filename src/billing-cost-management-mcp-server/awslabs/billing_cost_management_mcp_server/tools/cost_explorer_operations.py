@@ -468,7 +468,7 @@ _FORECAST_FILTER_NO_DATA_HINT = (
 
 def _with_forecast_filter_hint(result: Dict[str, Any], filters: Any) -> Dict[str, Any]:
     """Point a filtered forecast's DataUnavailableException at the filter values."""
-    if filters and result.get('error_type') == 'DataUnavailableException':
+    if filters is not None and result.get('error_type') == 'DataUnavailableException':
         result['retry_strategy'] = MODIFY_REQUEST
         result['hint'] = _FORECAST_FILTER_NO_DATA_HINT
     return result
