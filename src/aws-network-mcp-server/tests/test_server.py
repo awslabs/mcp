@@ -14,6 +14,9 @@
 
 """Tests for the aws-network MCP Server."""
 
+import os
+import subprocess
+import sys
 from awslabs.aws_network_mcp_server.server import main, mcp
 from unittest.mock import patch
 
@@ -203,3 +206,46 @@ class TestMcpServer:
 
             main()
             mock_run.assert_called_once()
+
+
+class TestLogging:
+    """Test cases for log level configuration."""
+
+    @staticmethod
+    def _run(env_level):
+        """Import the server in a fresh interpreter and emit one log per level."""
+        env = {k: v for k, v in os.environ.items() if k != 'FASTMCP_LOG_LEVEL'}
+        if env_level is not None:
+            env['FASTMCP_LOG_LEVEL'] = env_level
+        code = (
+            'from awslabs.aws_network_mcp_server.server import logger;'
+            "logger.debug('msg-debug');logger.info('msg-info');"
+            "logger.warning('msg-warning');logger.error('msg-error')"
+        )
+        return subprocess.run(
+            [sys.executable, '-c', code], env=env, capture_output=True, text=True, check=True
+        )
+
+    def test_default_level_is_warning(self):
+        """Without FASTMCP_LOG_LEVEL only WARNING and above are logged."""
+        result = self._run(None)
+        assert 'msg-debug' not in result.stderr
+        assert 'msg-info' not in result.stderr
+        assert 'msg-warning' in result.stderr
+        assert 'msg-error' in result.stderr
+
+    def test_env_override_error(self):
+        """FASTMCP_LOG_LEVEL=ERROR suppresses warnings."""
+        result = self._run('ERROR')
+        assert 'msg-warning' not in result.stderr
+        assert 'msg-error' in result.stderr
+
+    def test_env_override_debug(self):
+        """FASTMCP_LOG_LEVEL=DEBUG enables debug output."""
+        result = self._run('DEBUG')
+        assert 'msg-debug' in result.stderr
+
+    def test_logs_go_to_stderr_not_stdout(self):
+        """Stdout carries the MCP transport and must stay free of log output."""
+        result = self._run('DEBUG')
+        assert result.stdout == ''
