@@ -870,6 +870,7 @@ class TestListCostAllocationTagsInputs:
         ]
         assert [t['TagKey'] for t in capped['data']['CostAllocationTags']] == ['user:x']
         assert capped['data']['complete_dataset'] is False
+        assert 'returned 1 of the 2 tags' in capped['data']['warning']
         assert 'note' not in capped['data']
         assert [t['TagKey'] for t in full['data']['CostAllocationTags']] == ['user:x', 'x']
         assert "'user:x' matched tag key 'x'" in full['data']['note']
@@ -889,16 +890,19 @@ class TestListCostAllocationTagsInputs:
 
         client.list_cost_allocation_tags.assert_called_once_with(TagKeys=keys, MaxResults=1000)
         assert result['data']['complete_dataset'] is False
+        assert result['data']['pagination']['next_token'] is None
+        assert 'cannot be continued correctly' in result['data']['warning']
         assert result['data']['note'].startswith('Sent the keys only as given')
 
-    async def test_user_prefixed_key_with_next_token_is_rejected(self, mock_context):
-        """next_token stays rejected with tag_keys when the keys are expanded."""
+    async def test_fallback_keys_with_next_token_are_rejected(self, mock_context):
+        """next_token stays rejected when the keys fall back to the caller's own."""
         mod = _reload_with_identity_decorator()
         client = _tags_client()
+        keys = [f'user:k{i}' for i in range(51)]
 
         with patch.object(mod, 'create_aws_client', return_value=client):
             result = await mod.list_cost_allocation_tags(
-                mock_context, tag_keys=json.dumps(['user:x']), next_token='t1'
+                mock_context, tag_keys=json.dumps(keys), next_token='t1'
             )
 
         client.list_cost_allocation_tags.assert_not_called()
