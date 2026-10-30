@@ -17,6 +17,7 @@
 These functions handle the specific operations for the Cost Optimization Hub tool.
 """
 
+import re
 from ..utilities.aws_service_base import (
     PageSpec,
     first_page_fields,
@@ -45,6 +46,10 @@ from botocore.exceptions import ClientError
 from fastmcp import Context
 from typing import Any, Dict, Optional
 
+
+# A ListRecommendationSummaries savingsPercentage value: '12%', or clamped to '>=80%' / '<=2%'.
+# Anything else in that field is the service explaining why there is no percentage.
+SAVINGS_PERCENTAGE_VALUE = re.compile(r'(>=|<=)?[0-9]+(\.[0-9]+)?%')
 
 # maxResults is at most 1000 on every paginated COH list operation, and nextToken is not
 # bound to it, so each page asks for what is left of max_items.
@@ -307,7 +312,7 @@ async def list_recommendation_summaries(
     Args:
         ctx: MCP context
         coh_client: Cost Optimization Hub client
-        group_by: Grouping parameter (e.g. ``RESOURCE_TYPE``)
+        group_by: Grouping parameter (e.g. ``ResourceType``)
         max_items: Most summaries to return. None fetches every page.
         filters: Optional filters dictionary
         next_token: Pagination token to resume from a previous response
@@ -318,8 +323,12 @@ async def list_recommendation_summaries(
     ctx_logger = get_context_logger(ctx, __name__)
 
     try:
-        # Build the boto3 request payload. Field names match the COH API.
-        request_params: Dict[str, Any] = {'groupBy': str(group_by)}
+        # Build the boto3 request payload. Field names match the COH API. Without
+        # 'metrics' the service returns 'Percentage not requested.' as the percentage.
+        request_params: Dict[str, Any] = {
+            'groupBy': str(group_by),
+            'metrics': ['SavingsPercentage'],
+        }
         if filters:
             request_params['filter'] = dict(filters)
 
@@ -333,7 +342,8 @@ async def list_recommendation_summaries(
             next_token=next_token,
         )
         # ``groupBy``, ``currencyCode``, ``estimatedTotalDedupedSavings`` and ``metrics`` are
-        # aggregates over the whole filtered result set, so they come from the first page.
+        # aggregates over the whole filtered result set (every page carries the same values),
+        # so they come from the first page.
         first_response = first_page_fields(
             pages, ['groupBy', 'currencyCode', 'estimatedTotalDedupedSavings', 'metrics']
         )
@@ -364,10 +374,14 @@ async def list_recommendation_summaries(
         ):
             formatted_response['total_recommendation_count'] = sum(counts)
         formatted_response['summaries'] = formatted_summaries
-        if 'metrics' in first_response:
-            formatted_response['metrics'] = {
-                'savings_percentage': first_response['metrics'].get('savingsPercentage')
-            }
+        percentage = (first_response.get('metrics') or {}).get('savingsPercentage')
+        if isinstance(percentage, str):
+            if SAVINGS_PERCENTAGE_VALUE.fullmatch(percentage):
+                formatted_response['metrics'] = {'savings_percentage': percentage}
+            else:
+                formatted_response['metrics'] = {
+                    'savings_percentage_unavailable_reason': percentage
+                }
 
         return format_response('success', with_pagination(formatted_response, pagination))
 

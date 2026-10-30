@@ -1605,9 +1605,15 @@ async def test_coh_local_validation_errors_carry_telemetry_fields(
         ({'accountIds': ['123456789012']}, {'accountIds': ['123456789012']}),
         ({'tags': [{'key': 'env', 'value': 'prod'}]}, {'tags': [{'key': 'env', 'value': 'prod'}]}),
         ({'restartNeeded': False}, {'restartNeeded': False}),
-        # Boolean filter keys fold too; their values are left as given.
+        # Boolean filter keys fold too.
         ({'RestartNeeded': True}, {'restartNeeded': True}),
         ({'rollback_possible': False}, {'rollbackPossible': False}),
+        # 'true'/'false' strings become booleans, case-insensitively; other values pass through.
+        ({'restartNeeded': 'true'}, {'restartNeeded': True}),
+        ({'rollbackPossible': 'False'}, {'rollbackPossible': False}),
+        ({'restart_needed': ' TRUE '}, {'restartNeeded': True}),
+        ({'restartNeeded': 'yes'}, {'restartNeeded': 'yes'}),
+        ({'restartNeeded': 1}, {'restartNeeded': 1}),
         ({'unknownKey': ['x'], 1: 'y'}, {'unknownKey': ['x'], 1: 'y'}),
     ],
 )
@@ -1931,6 +1937,11 @@ async def test_description_documents_region_and_database_savings_plans_behavior(
         # The prefix folds; the tag key keeps its case.
         ('tagkey:Environment', 'TagKey:Environment'),
         ('TAGKEY:cost center', 'TagKey:cost center'),
+        # Fixed dimensions fold case and underscores onto the API's spelling.
+        ('resourcetype', 'ResourceType'),
+        ('RESOURCE_TYPE', 'ResourceType'),
+        ('account_id', 'AccountId'),
+        ('implementationeffort', 'ImplementationEffort'),
     ],
 )
 def test_resolve_summaries_group_by(group_by, expected):
@@ -1948,7 +1959,8 @@ def test_resolve_summaries_group_by(group_by, expected):
         ('TagKey:', 'needs a tag key'),
         ('TagKey:  ', 'needs a tag key'),
         ('Tag:Environment', 'Invalid group_by value'),
-        ('resourcetype', 'Invalid group_by value'),
+        ('Service', 'Invalid group_by value'),
+        (5, 'Invalid group_by value'),
     ],
 )
 def test_resolve_summaries_group_by_rejects(group_by, message):
@@ -1965,6 +1977,99 @@ def test_resolve_summaries_group_by_rejects(group_by, message):
     assert error['operation'] == 'list_recommendation_summaries'
     assert message in error['message']
     assert 'TagKey:<tag key>' in error['data']['valid_group_by_values']
+
+
+@pytest.mark.asyncio
+async def test_coh_summaries_group_by_folds_case(mock_context):
+    """A lower-case group_by reaches the summaries API in the API's spelling."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(
+            coh_mod,
+            'list_recommendation_summaries',
+            new_callable=AsyncMock,
+            return_value={'status': 'success', 'data': {}},
+        ) as mock_summaries,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context, operation='list_recommendation_summaries', group_by='resource_type'
+        )
+
+    assert res['status'] == 'success'
+    sent = mock_summaries.await_args
+    assert sent is not None
+    assert sent.kwargs['group_by'] == 'ResourceType'
+    assert res['data']['operation_parameters']['group_by'] == 'ResourceType'
+
+
+@pytest.mark.asyncio
+async def test_coh_missing_group_by_lists_tag_key(mock_context):
+    """The missing-group_by error lists the same valid values as the invalid-group_by error."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with patch.object(coh_mod, 'create_aws_client'):
+        missing = await real_fn(mock_context, operation='list_recommendation_summaries')  # type: ignore
+        invalid = await real_fn(  # type: ignore
+            mock_context, operation='list_recommendation_summaries', group_by='Nope'
+        )
+
+    assert missing['data']['valid_group_by_values'] == invalid['data']['valid_group_by_values']
+    assert 'TagKey:<tag key>' in missing['data']['valid_group_by_values']
+
+
+@pytest.mark.asyncio
+async def test_coh_list_recommendations_string_boolean_filter(mock_context):
+    """A 'true' string boolean filter reaches the API as a boolean."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(
+            coh_mod,
+            'list_recommendations',
+            new_callable=AsyncMock,
+            return_value={'status': 'success', 'data': {}},
+        ) as mock_list,
+    ):
+        await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendations',
+            filters='{"restartNeeded": "true", "rollbackPossible": "false"}',
+        )
+
+    sent = mock_list.await_args
+    assert sent is not None
+    assert sent.args[3] == {'restartNeeded': True, 'rollbackPossible': False}
+
+
+@pytest.mark.asyncio
+async def test_tool_description_documents_filters_and_metrics():
+    """The description documents the ID filters, DatabaseSavingsPlans and savings_percentage."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    # Earlier tests reload the module with an identity decorator; reload it as served.
+    importlib.reload(coh_mod)
+    tool = await coh_mod.cost_optimization_hub_server.get_tool('cost-optimization')
+    assert tool is not None
+    description = tool.description or ''
+    for text in (
+        'resourceIds',
+        'resourceArns',
+        'recommendationIds',
+        "'DatabaseSavingsPlans'",
+        'savings_percentage',
+        'savings_percentage_unavailable_reason',
+        'AfterDiscounts',
+    ):
+        assert text in description, text
+    assert 'restartNeeded: boolean' not in description
 
 
 @pytest.mark.asyncio
