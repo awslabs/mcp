@@ -168,7 +168,19 @@ async def sp_explorer(
             productDescription, tenancy, productType, serviceCode, usageType, and operation;
             describe_savings_plans_offerings takes region and instanceFamily; and
             describe_savings_plans_offering_rates takes region, instanceFamily, instanceType,
-            productDescription, and tenancy.
+            productDescription, and tenancy. For describe_savings_plans the values are strings, numbers included, matched exactly and case-sensitively, and a value that
+            matches no plan returns an empty list, not an error: savings-plan-type is Compute,
+            EC2Instance, SageMaker, or Database; payment-option is 'All Upfront', 'Partial
+            Upfront', or 'No Upfront', with the spaces; term is the duration in seconds as a
+            string, "31536000" or "94608000"; upfront and commitment are decimal strings such as
+            "4.38", with no currency sign; start and end are exact timestamps such as
+            "2025-01-01T00:00:00.000Z", matched to the millisecond rather than as a range; region
+            is a region code such as us-east-1; and ec2-instance-family and instance-family are an
+            instance family such as m5. The two rate operations use the pricing vocabulary, not
+            Cost Explorer's, and a value in another spelling also returns an empty list: tenancy
+            is lower case, shared or dedicated (Cost Explorer's Shared matches nothing); and
+            productDescription is the full operating system name such as Linux/UNIX, Windows, or
+            Red Hat Enterprise Linux (Linux alone matches nothing).
         max_items: Total number of items to return across all pages. Omit it to fetch every
             page.
         next_token: The pagination.next_token from a previous response; continue with otherwise
@@ -317,13 +329,31 @@ async def describe_savings_plans(
         # the tool description, so a caller reading the response cannot take [] for "owns none".
         # An empty result is never large enough to offload, so it returns directly.
         if not all_plans:
+            # A filter value spelled differently from the API's (ComputeSavingsPlans for Compute,
+            # PARTIAL_UPFRONT for 'Partial Upfront') also returns [] with no error, and then the
+            # account-scope text alone points the caller at the wrong cause. states needs no note:
+            # the API validates it and rejects a misspelled state with a ValidationException.
+            filter_note = (
+                (
+                    'The request was narrowed by filters, and a filter value that matches no '
+                    'plan returns this same empty list rather than an error. Values are matched '
+                    'exactly and are case-sensitive (for example savings-plan-type Compute, '
+                    'payment-option \'Partial Upfront\', term "31536000"), so check them against '
+                    'the filters parameter description. An unfiltered call tells the two causes '
+                    'apart. '
+                )
+                if filters
+                else ''
+            )
             return format_response(
                 'success',
                 with_pagination(
                     {
                         'savingsPlans': [],
-                        'message': (
-                            'No Savings Plans found for the calling account. This operation '
+                        'message': 'No Savings Plans found for the calling account. '
+                        + filter_note
+                        + (
+                            'This operation '
                             'returns only plans the calling account bought, so an empty result '
                             'does not mean the organization owns none: from a management '
                             'account, member-account plans are never returned. For an '
