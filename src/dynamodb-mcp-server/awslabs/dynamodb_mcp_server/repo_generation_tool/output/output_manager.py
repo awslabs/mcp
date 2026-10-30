@@ -70,7 +70,7 @@ class OutputManager:
     ) -> None:
         """Write access_pattern_mapping.json."""
         mapping_file = self.output_path / 'access_pattern_mapping.json'
-        with open(mapping_file, 'w') as f:
+        with open(mapping_file, 'w', encoding='utf-8', newline='\n') as f:
             json.dump(
                 {
                     'metadata': {
@@ -92,7 +92,7 @@ class OutputManager:
         # Create parent directories if they don't exist (for nested paths like "models/UserProfile.java")
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_file, 'w') as f:
+        with open(output_file, 'w', encoding='utf-8', newline='\n') as f:
             f.write(content)
             if not content.endswith('\n'):
                 f.write('\n')  # Add final newline
@@ -111,7 +111,10 @@ class OutputManager:
             # Create parent directories if they don't exist (for nested paths)
             dest_file.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(source_file) as src, open(dest_file, 'w') as dst:
+            with (
+                open(source_file, encoding='utf-8') as src,
+                open(dest_file, 'w', encoding='utf-8', newline='\n') as dst,
+            ):
                 dst.write(src.read())
         else:
             print(f'Warning: Support file not found: {source_file}')
