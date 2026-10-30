@@ -2365,6 +2365,21 @@ async def test_ce_get_dimension_values_billing_view_arn_allowed_cases(
         assert await_args.args[-2:] == (billing_view_arn, context)
 
 
+@pytest.mark.asyncio
+async def test_description_says_a_forecast_filter_can_match_nothing():
+    """The forecast notes say an unmatched filter returns the same 'too little history' error."""
+    tool = await cost_explorer_server.get_tool('cost-explorer')
+    assert tool is not None and tool.description
+    description = tool.description
+    assert 'A filter that matches no past costs returns the same' in description
+    assert 'CASE_INSENSITIVE are accepted but not applied' in description
+    assert 'match exactly, including case' in description
+    assert (
+        'STARTS_WITH' in description.split('4. getCostForecast')[1].split('5. getUsageForecast')[0]
+    )
+    assert 'Filter values match as for getCostForecast' in description
+
+
 # Operations whose AWS API has no GroupBy, with the arguments each needs to reach its handler.
 NO_GROUP_BY_OPERATIONS = {
     'getCostForecast': ('get_cost_forecast', {'metric': 'UNBLENDED_COST'}),
