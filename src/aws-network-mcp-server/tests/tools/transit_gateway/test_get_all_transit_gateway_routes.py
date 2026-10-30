@@ -216,28 +216,40 @@ class TestGetAllTransitGatewayRoutes:
             'TransitGatewayRegistrations': sample_tgw_registrations
         }
 
-        # First call returns NextToken, second call returns remaining data
-        mock_ec2_client.describe_transit_gateway_route_tables.side_effect = [
-            {
-                'TransitGatewayRouteTables': [
-                    {
-                        'TransitGatewayRouteTableId': 'tgw-rtb-1',
-                        'State': 'available',
-                        'Tags': [{'Key': 'Name', 'Value': 'rt-1'}],
-                    }
-                ],
-                'NextToken': 'token123',
-            },
-            {
-                'TransitGatewayRouteTables': [
-                    {
-                        'TransitGatewayRouteTableId': 'tgw-rtb-2',
-                        'State': 'available',
-                        'Tags': [{'Key': 'Name', 'Value': 'rt-2'}],
-                    }
-                ]
-            },
-        ]
+        # Emulate the real API: choose the page by the NextToken passed in, so a
+        # follow-up call that fails to forward NextToken re-requests the first page.
+        first_page = {
+            'TransitGatewayRouteTables': [
+                {
+                    'TransitGatewayRouteTableId': 'tgw-rtb-1',
+                    'State': 'available',
+                    'Tags': [{'Key': 'Name', 'Value': 'rt-1'}],
+                }
+            ],
+            'NextToken': 'token123',
+        }
+        second_page = {
+            'TransitGatewayRouteTables': [
+                {
+                    'TransitGatewayRouteTableId': 'tgw-rtb-2',
+                    'State': 'available',
+                    'Tags': [{'Key': 'Name', 'Value': 'rt-2'}],
+                }
+            ]
+        }
+
+        call_count = 0
+
+        def describe_route_tables(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            # Guard against an infinite loop if NextToken is never forwarded.
+            assert call_count <= 5, 'pagination loop did not terminate'
+            if kwargs.get('NextToken') == 'token123':
+                return second_page
+            return first_page
+
+        mock_ec2_client.describe_transit_gateway_route_tables.side_effect = describe_route_tables
         mock_cloudwan_client.get_network_routes.return_value = {
             'NetworkRoutes': sample_network_routes
         }
@@ -246,6 +258,7 @@ class TestGetAllTransitGatewayRoutes:
             transit_gateway_id='tgw-12345678', global_network_region='us-east-1'
         )
 
+        assert call_count == 2
         assert len(result['routes']) == 2
         assert 'tgw-rtb-1' in result['routes']
         assert 'tgw-rtb-2' in result['routes']
