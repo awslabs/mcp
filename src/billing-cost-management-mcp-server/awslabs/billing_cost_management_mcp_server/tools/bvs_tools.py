@@ -130,9 +130,23 @@ You can filter billing views by:
 - arns: Filter by specific billing view ARNs (maximum 10 items)
 - billing_view_types: Filter by type (PRIMARY, BILLING_GROUP, CUSTOM, BILLING_TRANSFER,
   BILLING_TRANSFER_SHOWBACK)
-- names: Filter by name using search criteria (supports STARTS_WITH search option)
+- names: Filter by name using search criteria (supports STARTS_WITH search option).
+  The prefix match is case-sensitive: "myview" does not match "MyView".
 - owner_account_id: Filter by owner account ID (12-digit AWS account ID)
-- source_account_id: Filter by source account ID (12-digit AWS account ID)
+- source_account_id: 12-digit AWS account ID. Not an account membership search: it returns
+  only BILLING_GROUP views whose billing group's primary account is this ID, and
+  BILLING_TRANSFER and BILLING_TRANSFER_SHOWBACK views whose source account is this ID.
+  PRIMARY and CUSTOM views are never returned with it. With a time range it matches the
+  billing groups of that period; without one it matches billing groups from all periods, so
+  an account that was a primary account in an earlier period returns that group's view.
+  For the period queried, an account that is in a billing group but is not its primary
+  account returns no views, and the calling account's own ID returns views only if it is a
+  billing group's primary account or a billing transfer source.
+  No filter of this tool lists the views that include a given account. To find the billing
+  group view that covers an account, get its billing group's primary account (from the payer
+  account, list-account-associations gives the account's billing group ARN for a billing
+  period, the current one by default, and list-billing-groups gives that group's primary
+  account), then pass that ID here.
 
 Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
 (no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
@@ -179,9 +193,13 @@ async def list_billing_views(
             BILLING_TRANSFER_SHOWBACK.
         names: Optional JSON string containing a list of StringSearch objects.
             Each object has searchOption (valid value: STARTS_WITH) and searchValue
-            (1-128 characters). Fixed number of 1 item.
+            (1-128 characters). Fixed number of 1 item. The prefix match is case-sensitive.
         owner_account_id: Optional owner account ID to filter by (12-digit AWS account ID).
-        source_account_id: Optional source account ID to filter by (12-digit AWS account ID).
+        source_account_id: Optional 12-digit AWS account ID. Not an account membership
+            search: returns only BILLING_GROUP views whose billing group's primary account is
+            this ID and BILLING_TRANSFER / BILLING_TRANSFER_SHOWBACK views whose source
+            account is this ID, never PRIMARY or CUSTOM views. With a time range, only that
+            period's billing groups match.
         max_items: Optional total number of items to return. Omit it to fetch every page.
         next_token: Optional pagination token from a previous response.
 
