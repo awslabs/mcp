@@ -593,6 +593,26 @@ class TestGetSavingsPlansRecommendation:
         assert 'Error getting Savings Plans recommendation' in result['error']
         mock_context.error.assert_called_once()
 
+    async def test_savings_plans_keep_partial_upfront(self, mock_context, mock_ce_client):
+        """The DynamoDB reserved capacity remap does not reach Savings Plans lookups."""
+        recommendation = {
+            'recommendationId': 'rec-sp',
+            'recommendedResourceDetails': {
+                'computeSavingsPlans': {
+                    'configuration': {
+                        'term': 'OneYear',
+                        'paymentOption': 'PartialUpfront',
+                        'accountScope': 'Payer',
+                    }
+                }
+            },
+        }
+
+        await get_savings_plans_recommendation(mock_context, recommendation, mock_ce_client)
+
+        call_kwargs = mock_ce_client.get_savings_plans_purchase_recommendation.call_args[1]
+        assert call_kwargs['PaymentOption'] == 'PARTIAL_UPFRONT'
+
 
 @pytest.mark.asyncio
 class TestGetReservedInstancesRecommendation:
@@ -760,6 +780,113 @@ class TestGetReservedInstancesRecommendation:
         assert 'error' in result
         assert 'Error getting Reserved Instance recommendation' in result['error']
         mock_context.error.assert_called_once()
+
+    async def test_dynamodb_reserved_capacity_requests_heavy_utilization(
+        self, mock_context, mock_ce_client
+    ):
+        """COH's PartialUpfront DynamoDB reserved capacity is HEAVY_UTILIZATION in Cost Explorer.
+
+        Cost Explorer returns no DynamoDB recommendation for PARTIAL_UPFRONT.
+        """
+        # The configuration shape Cost Optimization Hub returns for DynamoDB reserved capacity
+        recommendation = {
+            'recommendationId': 'rec-ddb',
+            'accountId': '123456789012',
+            'actionType': 'PurchaseReservedInstances',
+            'currentResourceType': 'DynamoDbReservedCapacity',
+            'recommendationLookbackPeriodInDays': 30,
+            'recommendedResourceDetails': {
+                'dynamoDbReservedCapacity': {
+                    'configuration': {
+                        'accountScope': 'Payer',
+                        'service': 'Amazon DynamoDB Service',
+                        'term': 'OneYear',
+                        'paymentOption': 'PartialUpfront',
+                        'reservedInstancesRegion': 'us-west-2',
+                        'upfrontCost': '150.0',
+                        'monthlyRecurringCost': '9.49',
+                        'numberOfCapacityUnitsToPurchase': '100',
+                        'capacityUnits': 'Write',
+                    },
+                    'costCalculation': {},
+                }
+            },
+        }
+        mock_ce_client.get_reservation_purchase_recommendation.return_value = {
+            'Recommendations': [
+                {
+                    'AccountScope': 'Payer',
+                    'LookbackPeriodInDays': '30',
+                    'TermInYears': '1',
+                    'PaymentOption': 'Heavy_Utilization',
+                    'RecommendationDetails': [
+                        {
+                            'AccountId': '123456789012',
+                            'RecommendedNumberOfCapacityUnitsToPurchase': '100',
+                            'ReservedCapacityDetails': {
+                                'DynamoDBCapacityDetails': {
+                                    'CapacityUnits': 'Write',
+                                    'Region': 'us-west-2',
+                                }
+                            },
+                        }
+                    ],
+                }
+            ]
+        }
+
+        result = await get_reserved_instances_recommendation(
+            mock_context, recommendation, mock_ce_client
+        )
+
+        call_kwargs = mock_ce_client.get_reservation_purchase_recommendation.call_args[1]
+        assert call_kwargs == {
+            'Service': 'Amazon DynamoDB Service',
+            'TermInYears': 'ONE_YEAR',
+            'PaymentOption': 'HEAVY_UTILIZATION',
+            'LookbackPeriodInDays': 'THIRTY_DAYS',
+        }
+        assert result['Recommendations'][0]['PaymentOption'] == 'Heavy_Utilization'
+        output = _ce_model().operation_model('GetReservationPurchaseRecommendation').output_shape
+        assert list(_keys_outside_shape(result, output)) == []
+
+    @pytest.mark.parametrize('ri_key', sorted(set(SERVICE_MAP) - {'dynamoDbReservedCapacity'}))
+    async def test_other_reserved_instances_keep_partial_upfront(
+        self, mock_context, mock_ce_client, ri_key
+    ):
+        """Only DynamoDB reserved capacity is remapped; RIs send PARTIAL_UPFRONT as before."""
+        recommendation = {
+            'recommendationId': 'rec-12345',
+            'actionType': 'PurchaseReservedInstances',
+            'recommendedResourceDetails': {
+                ri_key: {'configuration': {'term': 'OneYear', 'paymentOption': 'PartialUpfront'}}
+            },
+        }
+
+        await get_reserved_instances_recommendation(mock_context, recommendation, mock_ce_client)
+
+        call_kwargs = mock_ce_client.get_reservation_purchase_recommendation.call_args[1]
+        assert call_kwargs['PaymentOption'] == 'PARTIAL_UPFRONT'
+
+    @pytest.mark.parametrize('payment_option', ['AllUpfront', 'PartialUpfront', 'NoUpfront'])
+    async def test_dynamodb_payment_options_are_cost_explorer_values(
+        self, mock_context, mock_ce_client, payment_option
+    ):
+        """Every DynamoDB payment option the tool sends is in Cost Explorer's PaymentOption enum."""
+        recommendation = {
+            'recommendationId': 'rec-ddb',
+            'actionType': 'PurchaseReservedInstances',
+            'recommendedResourceDetails': {
+                'dynamoDbReservedCapacity': {
+                    'configuration': {'term': 'OneYear', 'paymentOption': payment_option}
+                }
+            },
+        }
+
+        await get_reserved_instances_recommendation(mock_context, recommendation, mock_ce_client)
+
+        call_kwargs = mock_ce_client.get_reservation_purchase_recommendation.call_args[1]
+        assert call_kwargs['PaymentOption'] in _ce_model().shape_for('PaymentOption').enum
 
 
 @pytest.mark.asyncio
@@ -1446,6 +1573,16 @@ async def test_rec_details_description_documents_commitment_metrics():
     assert 'EstimatedBreakEvenInMonths is per RecommendationDetails row' in description
     assert 'Savings Plans recommendations carry no break-even' in description
     assert 'EstimatedROI' in description and 'not a payback period' in description
+
+
+async def test_rec_details_description_names_dynamodb_payment_option():
+    """The schema tells the agent why a DynamoDB rec's two payment options differ."""
+    tools = {t.name: t for t in await recommendation_details_server.list_tools()}
+    description = tools['rec-details'].description or ''
+
+    assert 'DynamoDB reserved capacity' in description
+    assert 'PartialUpfront' in description and 'Heavy_Utilization' in description
+    assert 'not a mismatch' in description
 
 
 def _ce_model():

@@ -224,6 +224,10 @@ PAYMENT_OPTION_MAP = {
     'NoUpfront': 'NO_UPFRONT',
 }
 
+# DynamoDB reserved capacity: Cost Optimization Hub shows Cost Explorer's HEAVY_UTILIZATION
+# recommendation as PartialUpfront, and Cost Explorer has none under PARTIAL_UPFRONT.
+DYNAMODB_PAYMENT_OPTION_MAP = {**PAYMENT_OPTION_MAP, 'PartialUpfront': 'HEAVY_UTILIZATION'}
+
 # Account scope mapping
 ACCOUNT_SCOPE_MAP = {'Linked': 'LINKED', 'Payer': 'PAYER'}
 
