@@ -2098,3 +2098,16 @@ def test_tool_description_filter_values_match_api_enum(filter_name):
 
     assert api_values is not None
     assert set(re.findall(r"'([A-Za-z0-9]+)'", line)) == set(api_values)
+
+
+@pytest.mark.asyncio
+async def test_description_states_the_summaries_group_limit():
+    """Summaries stop at 1,000 groups with no token, so the description says what to do."""
+    flat = await _coh_served_description()
+    assert 'returns at most 1,000 groups, those with the highest estimated savings' in flat
+    assert 'A result of 1,000 groups is marked complete_dataset: false' in flat
+    assert 'group by a dimension with fewer values (such as Region)' in flat
+    assert 'its last page is not marked' in flat
+    assert '1,000 groups across all pages means the same' in flat
+    assert 'use list_recommendations with the same filters' not in flat
+    assert 'until fewer than 1,000 groups come back' not in flat

@@ -365,6 +365,14 @@ class TestGetRecommendation:
         assert rec['recommended_resource_details'] == recommended_details
 
 
+def _account_groups(count):
+    """Return ``count`` AccountId summary groups of one recommendation each."""
+    return [
+        {'group': f'{index:012d}', 'recommendationCount': 1, 'estimatedMonthlySavings': 1.0}
+        for index in range(count)
+    ]
+
+
 @pytest.mark.asyncio
 class TestListRecommendationSummaries:
     """Tests for the list_recommendation_summaries function."""
@@ -441,6 +449,124 @@ class TestListRecommendationSummaries:
         result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ActionType')
 
         assert 'total_recommendation_count' not in result['data']
+
+    async def test_result_at_the_group_limit_is_partial(self, mock_context, mock_coh_client):
+        """The service drops groups past 1,000 with no token, so 1,000 groups may be cut."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': _account_groups(1000),
+            'groupBy': 'AccountId',
+            'estimatedTotalDedupedSavings': 1000.0,
+        }
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'AccountId')
+
+        data = result['data']
+        assert data['complete_dataset'] is False
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 1000,
+        }
+        assert 'returns at most 1,000 groups' in data['warning']
+        assert 'group by a dimension with fewer values' in data['warning']
+        assert 'list_recommendations' not in data['warning']
+        assert 'narrow filters' not in data['warning']
+        assert 'NoTagKey' not in data['warning']
+        assert 'total_recommendation_count' not in data
+        assert len(data['summaries']) == 1000
+
+    async def test_group_limit_counts_groups_across_pages(self, mock_context, mock_coh_client):
+        """The limit is on the whole result, not one page."""
+        mock_coh_client.list_recommendation_summaries.side_effect = [
+            {'items': _account_groups(600), 'nextToken': 'p2'},
+            {'items': _account_groups(400)},
+        ]
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'AccountId')
+
+        assert result['data']['complete_dataset'] is False
+        assert 'returns at most 1,000 groups' in result['data']['warning']
+        assert 'total_recommendation_count' not in result['data']
+
+    async def test_group_limit_applies_when_max_items_asks_for_1000(
+        self, mock_context, mock_coh_client
+    ):
+        """max_items=1000 cannot tell a cut result from a complete one."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': _account_groups(1000)
+        }
+
+        result = await list_recommendation_summaries(
+            mock_context, mock_coh_client, 'AccountId', max_items=1000
+        )
+
+        assert result['data']['complete_dataset'] is False
+        assert result['data']['pagination']['next_token'] is None
+
+    async def test_group_limit_on_tag_groups_flags_no_tag_key(self, mock_context, mock_coh_client):
+        """Recommendations of dropped tag values are counted under NoTagKey."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': _account_groups(1000)
+        }
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'TagKey:Team')
+
+        assert result['data']['complete_dataset'] is False
+        assert 'NoTagKey may be missing, or may also count' in result['data']['warning']
+
+    async def test_continuation_is_not_flagged(self, mock_context, mock_coh_client):
+        """A continuation cannot count earlier pages, so its last page is not flagged."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': _account_groups(400)
+        }
+
+        result = await list_recommendation_summaries(
+            mock_context, mock_coh_client, 'AccountId', next_token='p2'
+        )
+
+        assert result['data']['pagination']['complete_dataset'] is True
+        assert 'warning' not in result['data']
+
+    async def test_partial_with_a_token_keeps_its_own_warning(self, mock_context, mock_coh_client):
+        """A max_items partial can continue, so it gets the partial warning, not the limit one."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': _account_groups(500),
+            'nextToken': 'more',
+        }
+
+        result = await list_recommendation_summaries(
+            mock_context, mock_coh_client, 'AccountId', max_items=500
+        )
+
+        data = result['data']
+        assert data['complete_dataset'] is False
+        assert data['pagination']['next_token'] == 'more'
+        assert 'at most 1,000 groups' not in data['warning']
+
+    async def test_tag_groups_below_the_limit_are_complete(self, mock_context, mock_coh_client):
+        """999 tag values and NoTagKey make 1,000 groups only with NoTagKey; 999 is complete."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': _account_groups(999)
+        }
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'TagKey:Team')
+
+        assert 'warning' not in result['data']
+        assert result['data']['total_recommendation_count'] == 999
+
+    async def test_result_below_the_group_limit_is_complete(self, mock_context, mock_coh_client):
+        """999 groups is under the limit, so every group was returned."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': _account_groups(999)
+        }
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'AccountId')
+
+        data = result['data']
+        assert 'warning' not in data
+        assert data['pagination']['complete_dataset'] is True
+        assert data['total_recommendation_count'] == 999
 
     async def test_basic_call(self, mock_context, mock_coh_client):
         """Test basic call to list_recommendation_summaries."""
