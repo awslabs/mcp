@@ -1169,6 +1169,19 @@ def _served_tool():
     return asyncio.run(_get())
 
 
+def _served_description() -> str:
+    """The served description, narrowed to ``str``.
+
+    ``Tool.description`` is typed ``str | None``, so a bare membership test on
+    it fails type checking. A served tool with no description is a defect in
+    its own right, so assert rather than defaulting to an empty string -- that
+    would turn every description assertion below into a silent pass.
+    """
+    description = _served_tool().description
+    assert description is not None, 'the invoicing tool is served with no description'
+    return description
+
+
 def _input_schema(tool):
     """The served input schema, under whichever field name this FastMCP uses.
 
@@ -1236,7 +1249,7 @@ class TestInvoicingDescriptionContract:
 
     def test_receiver_role_documented_as_not_a_superset(self):
         """The surprising parts of receiver_role are all stated."""
-        description = _served_tool().description
+        description = _served_description()
 
         assert 'receiver_role' in description
         assert 'LESS THAN five years' in description
@@ -1257,7 +1270,7 @@ class TestInvoicingDescriptionContract:
         description states the refusal rather than the indifference, and this
         test pins that wording instead.
         """
-        description = _served_tool().description
+        description = _served_description()
 
         assert 'not allowed with invoice_id' in description
         assert 'Takes NO time filter' in description
@@ -1272,7 +1285,7 @@ class TestInvoicingDescriptionContract:
         InvoiceType INVOICE is money owed: estimates report that type, and a
         closed month returns its issued invoices and its estimates together.
         """
-        description = _served_tool().description
+        description = _served_description()
 
         assert 'THE PREFIX IS THE ONLY MARKER' in description
         assert 'NOT limited to billing periods that are still open' in description
@@ -1281,20 +1294,20 @@ class TestInvoicingDescriptionContract:
 
     def test_invoicing_entity_documented_as_exact(self):
         """A misspelled entity errors; a valid one with no invoices returns empty."""
-        description = _served_tool().description
+        description = _served_description()
 
         assert 'must match EXACTLY' in description
         assert 'Input invoice entity is not supported' in description
 
     def test_no_local_date_floor_claimed_for_receiver_role(self):
         """No claim that early start dates are refused: the service accepts them."""
-        description = _served_tool().description
+        description = _served_description()
 
         assert '2025-06-01' not in description
 
     def test_every_invoice_type_and_bill_type_value_is_named(self):
         """A value the API can return and the description omits is a value a reader mishandles."""
-        description = _served_tool().description
+        description = _served_description()
 
         missing = [
             f'{shape}.{value}'
@@ -1307,7 +1320,7 @@ class TestInvoicingDescriptionContract:
 
     def test_every_invoice_summary_member_is_named(self):
         """Every field the result can carry is named, nested entity members included."""
-        description = _served_tool().description
+        description = _served_description()
 
         missing = [
             member
@@ -1320,7 +1333,7 @@ class TestInvoicingDescriptionContract:
 
     def test_credit_memo_sign_convention_is_stated(self):
         """A positive CREDIT_MEMO summed as owed overstates the amount due."""
-        description = _served_tool().description
+        description = _served_description()
 
         assert 'CREDIT_MEMO' in description
         assert 'POSITIVE' in description
@@ -1329,7 +1342,7 @@ class TestInvoicingDescriptionContract:
 
     def test_no_aws_error_text_quoted_for_a_local_check(self):
         """The span and time-filter checks run here, so AWS's wording never reaches a caller."""
-        description = _served_tool().description
+        description = _served_description()
 
         assert 'TimePeriod cannot last more than a month' not in description
         assert 'cannot both be null' not in description
