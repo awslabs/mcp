@@ -1,0 +1,276 @@
+# Copyright 2016-2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str enadiag
+path: !!str
+version: !!str 1.0
+title: !!str Checks the ethool -S output for ENA specific statistics to diagnose issues
+helptext: !!str |
+  Checks for ENA specific statistics on link flaps, throughput/packets per second overages, etc.
+placement: !!str run
+package:
+  - !!str
+language: !!str python
+remediation: !!str False
+content: !!str |
+  from __future__ import print_function
+  from distutils.version import LooseVersion
+
+  import os
+  import re
+  import subprocess
+  import sys
+
+  class Interface:
+      def __init__(self,
+                   name="",
+                   tx_timeout=0,
+                   suspend=0,
+                   wd_expired=0,
+                   interface_down=0,
+                   admin_q_pause=0,
+                   bw_in_allowance_exceeded=0,
+                   bw_out_allowance_exceeded=0,
+                   pps_allowance_exceeded=0,
+                   conntrack_allowance_exceeded=0,
+                   linklocal_allowance_exceeded=0):
+
+          self.name = name
+          self.tx_timeout = tx_timeout
+          self.suspend = suspend
+          self.wd_expired = wd_expired
+          self.interface_down = interface_down
+          self.admin_q_pause = admin_q_pause
+          self.bw_in_allowance_exceeded = bw_in_allowance_exceeded
+          self.bw_out_allowance_exceeded = bw_out_allowance_exceeded
+          self.pps_allowance_exceeded = pps_allowance_exceeded
+          self.conntrack_allowance_exceeded = conntrack_allowance_exceeded
+          self.linklocal_allowance_exceeded = linklocal_allowance_exceeded
+
+  def get_interfaces():
+      """
+      Return a list of non-loopback interfaces on the system.
+
+      Returns:
+          interface_list (list): List of interfaces (e.g. ["eth0", "eth1"]
+      """
+      try:
+          interface_list = []
+          # Get all net interfaces except loopback, append to list, sort it.
+          for interface in os.listdir("/sys/class/net"):
+              if interface != "lo":
+                  interface_list.append(interface)
+          if len(interface_list) > 0:
+              interface_list = sorted(interface_list)
+          # Return an error if the list is somehow empty (didn't find any network interfaces)
+          else:
+              raise ValueError("[WARN] No interfaces found.")
+      # Catch OSError in Python2 and FileNotFoundError in Python3 (inherits from OSError)
+      except OSError:
+          print("[WARN] Unable to build interface list.")
+      return interface_list
+
+  def get_ena_version():
+      """
+      Return the version of the driver for the first alphabetically ordered non-virtual network interface.
+
+      Returns:
+          driver_version (str): version os driver (e.g. 2.2.4g)
+      """
+      try:
+          interface_list = []
+          # Add all non-virtual interfaces to the list and sort it
+          for interface in os.listdir("/sys/class/net"):
+              if "virtual" not in os.path.abspath(os.readlink("/sys/class/net/{}".format(interface))):
+                  interface_list.append(interface)
+          if len(interface_list) > 0:
+              interface_list = sorted(interface_list)
+              # Open the file, strip out newline characters
+              with open("/sys/class/net/{}/device/driver/module/version".format(interface_list[0]), "r") as file:
+                  driver_version = file.read().replace('\n', '')
+          # Return an error if the list is somehow empty (didn't find any network interfaces)
+          else:
+              driver_version = "Unknown"
+      # Catch OSError in Python2 and FileNotFoundError in Python3 (inherits from OSError)
+      except OSError:
+          driver_version = "Unknown"
+      if driver_version == "Unknown":
+          raise ValueError("[WARN] ENA driver version is Unknown. Unable to proceed.")
+      return driver_version
+
+  def compare_ena_version():
+      """
+      Check to see if the ena version is new enough to have the necessary stats available. Requires 2.2.10 or newer,
+      as it adds the bw_in_allowance_exceeded, bw_out_allowance_exceeded, pps_allowance_exceeded,
+      conntrack_allowance_exceeded, link_local_allowance_exceeded metrics to ethtool.
+
+      Returns:
+          Boolean True if version is high enough
+      """
+      # Define version with stats included
+      stats_included = "2.2.10"
+      current_version = get_ena_version()
+      # Get only the version number and remove trailing letters to make version numbers comparable
+      comprable_version = re.search("(\d+.\d+.\d+)", current_version).group(0)
+      return LooseVersion(comprable_version) > LooseVersion(stats_included)
+
+  def get_ena_stats(interface):
+      """
+      Uses subprocess and ethtool to pull ethtool statisics. Tested with ethtool 3.15 and 5.4
+
+      Parameter:
+          interface (str): String with the interface (e.g. "eth0")
+
+      Returns
+          stat_output (str): String with full ethtool -S output.
+      """
+      try:
+          # ethtool -S output, will return all the stats we care about.
+          stat_output = subprocess.check_output(["ethtool", "-S", interface],
+                                                universal_newlines=True, stderr=subprocess.STDOUT)
+      except Exception as ex:
+          print(ex)
+          print("[WARN] Unable to get stats from ethool.")
+      return stat_output
+
+  def save_ena_stats(results):
+      """
+      Regexes out the statistic values we care about and adds them to the Interface class object.
+
+      Parameter:
+          results (Interface class object): Interface() object we are saving the stats to.
+      """
+      # Simple regex on each stat name and values, pull value group
+      try:
+          for interface in results:
+              stat_output = get_ena_stats(interface.name)
+              interface.tx_timeout = re.search("(tx_timeout: )(\d+)", stat_output).group(2)
+              interface.suspend = re.search("(suspend: )(\d+)", stat_output).group(2)
+              interface.wd_expired = re.search("(wd_expired: )(\d+)", stat_output).group(2)
+              interface.interface_down = re.search("(interface_down: )(\d+)", stat_output).group(2)
+              interface.admin_q_pause = re.search("(admin_q_pause: )(\d+)", stat_output).group(2)
+              interface.bw_in_allowance_exceeded = re.search("(bw_in_allowance_exceeded: )(\d+)", stat_output).group(2)
+              interface.bw_out_allowance_exceeded = re.search("(bw_out_allowance_exceeded: )(\d+)", stat_output).group(2)
+              interface.pps_allowance_exceeded = re.search("(pps_allowance_exceeded: )(\d+)", stat_output).group(2)
+              interface.conntrack_allowance_exceeded = re.search("(conntrack_allowance_exceeded: )(\d+)",
+                                                                 stat_output).group(2)
+              interface.linklocal_allowance_exceeded = re.search("(linklocal_allowance_exceeded: )(\d+)",
+                                                                 stat_output).group(2)
+      except Exception as ex:
+          print(ex)
+          print("[WARN] Unable to save interface stats to class object. Ethtool output likely changed.")
+
+  def diagnose_stats(interface):
+      """
+      Checks for greater-than-zero values in any of the metrics we care about, and prints a failure or warning if present.
+
+      Parameter:
+          interface: Interface we are checking (e.g. "eth0")
+      """
+      try:
+          # Construct some print output based on failure/warning, including a link to stat deails.
+          failed = 0
+          warned = 0
+          failure_parts = ['[FAILURE] ENA problems found on %s.\n' % interface.name]
+          warning_parts = ['[WARN] Potential ENA problems found on %s. \n' % interface.name]
+          stat_details = "Please visit https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/troubleshooting-ena.html " \
+                         "for more details on stat counters."
+          if int(interface.tx_timeout):
+              failure_parts.append("     %s tx_timeout events found.\n" % interface.tx_timeout)
+              failed = 1
+          if int(interface.suspend):
+              failure_parts.append("     %s suspend events found.\n" % interface.suspend)
+              failed = 1
+          if int(interface.wd_expired):
+              failure_parts.append("    %s wd_expired events found.\n" % interface.wd_expired)
+              failed = 1
+          if int(interface.interface_down):
+              warning_parts.append("    %s interface_down events found.\n"
+                                   "    If you have not up/downed the interface this could be a link flap."
+                                  "\n" % interface.interface_down)
+              warned = 1
+          if int(interface.admin_q_pause):
+              failure_parts.append("    %s admin_q_pauses found.\n" % interface.admin_q_pause)
+              failed = 1
+          if int(interface.bw_in_allowance_exceeded):
+              failure_parts.append("    %s bw_in_allowance_exceeded events found.\n"
+                                   % interface.bw_in_allowance_exceeded)
+              failed = 1
+          if int(interface.bw_out_allowance_exceeded):
+              failure_parts.append("    %s bw_out_allowance_exceeded events found.\n"
+                                   % interface.bw_out_allowance_exceeded)
+              failed = 1
+          if int(interface.pps_allowance_exceeded):
+              failure_parts.append("    %s pps_allowance_exceeded events found.\n" % interface.pps_allowance_exceeded)
+              failed = 1
+          if int(interface.conntrack_allowance_exceeded):
+              failure_parts.append("    %s conntrack_allowance_exceeded events found.\n"
+                                   % interface.conntrack_allowance_exceeded)
+              failed = 1
+          if int(interface.linklocal_allowance_exceeded):
+              failure_parts.append("    %s linklocal_allowance_exceeded events found."
+                                   % interface.linklocal_allowance_exceeded)
+              failed = 1
+          if failed and warned:
+              failure_string = ""
+              warned_string = ""
+              print(failure_string.join(failure_parts))
+              print(warned_string.join(warning_parts))
+              print(stat_details)
+          elif failed:
+              failure_string = ""
+              print(failure_string.join(failure_parts))
+              print(stat_details)
+          elif warned:
+              warned_string = ""
+              print(warned_string.join(warning_parts))
+              print(stat_details)
+          # If we had all 0s for the stats we're checking, success.
+          else:
+              print("[SUCCESS] No ENA problems found on %s." % interface.name)
+      except Exception as ex:
+          print(ex)
+          print("[WARN] Unable to diagnose interface stats.")
+
+  def run():
+      try:
+          if compare_ena_version():
+              # Create list with get_interfaces and create Interface class objects with them.
+              interfaces = get_interfaces()
+              interface_results = [Interface(name) for name in interfaces]
+              save_ena_stats(interface_results)
+              for interface in interface_results:
+                  diagnose_stats(interface)
+          else:
+              print("[WARNING] ENA driver too old to get statistics.")
+      except Exception as ex:
+          print(ex)
+          print("[WARN] Unable to run ENA stats module.")
+
+  if __name__ == "__main__":  # pragma: no coverage
+      run()
+
+constraint:
+  requires_ec2: !!str True
+  domain: !!str net
+  class: !!str diagnose
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str
+  sudo: !!str False
+  perfimpact: !!str False
+  parallelexclusive: !!str

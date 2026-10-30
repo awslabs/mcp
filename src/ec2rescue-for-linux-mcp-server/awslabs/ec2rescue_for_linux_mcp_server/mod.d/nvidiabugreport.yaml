@@ -1,0 +1,46 @@
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str nvidiabugreport
+path: !!str
+version: !!str 1.0
+title: !!str Collect output from nvidia-bug-report for system analysis
+helptext: !!str |
+  Collect output from nvidia-bug-report for system analysis
+placement: !!str run
+package:
+  - !!str nvidia-bug-report https://docs.nvidia.com/deploy/rma-process/index.html
+language: !!str bash
+content: !!str |
+  #!/bin/bash
+  error_trap()
+  {
+      printf "%0.s=" {1..80}
+      echo -e "\nERROR:    "$BASH_COMMAND" exited with an error on line ${BASH_LINENO[0]}"
+      exit 0
+  }
+  trap error_trap ERR
+
+  # read-in shared function
+  source functions.bash
+
+  echo "I will collect nvidia-bug-report.sh output from this $EC2RL_DISTRO box and store it at the log location."
+  nvidia-bug-report.sh
+  if [[ -r  nvidia-bug-report.log.gz ]]; then
+      mkdir $EC2RL_GATHEREDDIR/nvidiabugreport
+      mv nvidia-bug-report.log.gz $EC2RL_GATHEREDDIR/nvidiabugreport || true
+      echo "I have attempted to copy the nvidia-bug-report.log.gz file to ${EC2RL_GATHEREDDIR}/nvidiabugreport"
+  else
+      echo "No nvidia-bug-report.log.gz file is available or permission denied"
+  fi
+
+constraint:
+  requires_ec2: !!str False
+  domain: !!str os
+  class: !!str gather
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str nvidia-bug-report.sh
+  sudo: !!str True
+  perfimpact: !!str False
+  parallelexclusive: !!str

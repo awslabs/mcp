@@ -1,0 +1,78 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str xennetsgmtu
+path: !!str
+version: !!str 1.0
+title: !!str Attempts to detect possibility of xennet scattergather/mtu issue
+helptext: !!str |
+  Checks if interface configuration is potentially able to be effected by a bug with network communication when utilizing
+  xennet drivers when MTU is below jumbo-frame size and Scatter Gather is disabled.
+placement: !!str run
+package:
+  - !!str
+language: !!str bash
+content: !!str |
+  #!/bin/bash
+  error_trap()
+  {
+      printf "%0.s=" {1..80}
+      echo -e "\nERROR:	"$BASH_COMMAND" exited with an error on line ${BASH_LINENO[0]}"
+      exit 0
+  }
+  trap error_trap ERR
+
+  # read-in shared function
+  source functions.bash
+
+  echo -e "Checking for if system is potentially effected by xennet SG/MTU bug'\n\n"
+
+  if [ "$EC2RL_VIRT_TYPE" = "nitro" ]; then
+        echo "[SUCCESS] This is not a Xen based platform. It cannot utilize the xennet drivers."
+        exit 0
+  fi
+
+  if [[ "$EC2RL_NET_DRIVER" != "xen_netfront" && "$EC2RL_NET_DRIVER" != "netfront" ]]; then
+      echo "[SUCCESS] Not using xen_netfront driver."
+      echo "Please see https://github.com/awslabs/aws-ec2rescue-linux/blob/master/docs/modules/xennetsgmtu.md for further details"
+      exit 0
+  fi
+
+  for i in $EC2RL_INTERFACES; do
+      if ethtool -k $i | grep "^scatter-gather: on" 2>&1 > /dev/null
+          then
+              echo "[SUCCESS] Scatter-Gather is enabled on $i. This mitigates the bug."
+      elif ifconfig $i | grep "MTU:9001"  2>&1 > /dev/null
+          then
+              echo "[SUCCESS] MTU is set to Jumbo-Frame size on $i. This mitigates the bug."
+      else
+              echo "[WARN] Scatter-Gather is off and MTU is set below 9001 on $i. You are potentially susceptible to the bug."
+              echo "-- You can enable Scatter-Gather with 'sudo ethtool -K $i sg on'"
+              echo "-- You can set MTU with 'sudo ifconfig $i mtu 9001'"
+      fi
+  done
+  echo "Please see https://github.com/awslabs/aws-ec2rescue-linux/blob/master/docs/modules/xennetsgmtu.md for further details"
+constraint:
+  requires_ec2: !!str False
+  domain: !!str net
+  class: !!str diagnose
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str
+  sudo: !!str True
+  perfimpact: !!str False
+  parallelexclusive: !!str

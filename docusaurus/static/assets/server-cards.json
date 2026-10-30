@@ -1425,6 +1425,27 @@
         "autonomous",
         "conversational"
       ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "Run EC2 Rescue Linux diagnostics on EC2 instances for troubleshooting and log analysis",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "ec2rescue-for-linux-mcp-server",
+      "name": "EC2Rescue for Linux MCP Server",
+      "source_path": "src/ec2rescue-for-linux-mcp-server/",
+      "subcategory": "Monitoring & Logging",
+      "tags": [
+        "ec2",
+        "linux",
+        "ec2-rescue",
+        "diagnostics",
+        "troubleshooting",
+        "logs",
+        "operations-monitoring"
+      ],
+      "workflows": [
+        "conversational"
+      ]
     }
   ],
   "workflows": [

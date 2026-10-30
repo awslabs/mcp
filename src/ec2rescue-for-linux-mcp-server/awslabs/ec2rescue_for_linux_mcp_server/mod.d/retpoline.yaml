@@ -1,0 +1,127 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str retpoline
+path: !!str
+version: !!str 1.0
+title: !!str Determine status of kernel retpoline replacements.
+helptext: !!str |
+  Determine status of kernel retpoline replacements.
+  This module is intended to determine this for performance related reasons to (lack of) retpoline,
+  and is **not intended to be used as a tool for checking compliance or security posture.**
+placement: !!str run
+package:
+  - !!str
+language: !!str python
+remediation: !!str False
+content: !!str |
+  """
+  Determine status of kernel retpoline replacements.
+  This module is intended to determine this for performance related reasons to (lack of) retpoline
+  It is **not intended to be used for determining compliance or security posture.**
+
+  Functions:
+      is_supported_cpu: Determine if utilizing an Intel or AMD CPU.
+      get_retpoline_status: Determine if retpoline was used to mitigate Spectre in the kernel
+      run: Determines if retpoline is in use and collects the result.
+  """
+  from __future__ import print_function
+  import re
+  import sys
+
+  def is_supported_cpu():
+      """
+      Determine if utilizing an Intel or AMD CPU. Exits if on an unsupported CPU
+      """
+      try:
+          with open("/proc/cpuinfo", "r") as cpuinfo_file:
+              if re.search("GenuineIntel", cpuinfo_file.read()):
+                  print("Running on an Intel CPU.\n")
+              elif re.search("AuthenticAMD", cpuinfo_file.read()):
+                  print("Running on an AMD CPU.\n")
+              else:
+                  print("Running on a non-Intel or AMD CPU. This is currently unsupported.\n")
+                  sys.exit(0)
+      except Exception as ex:
+          print(ex)
+          print("[WARN] Unable to determine CPU vendor\n")
+          raise
+
+  def get_retpoline_status():
+      """
+      Determines if retpoline is in use to mitigate Spectre.
+
+      Returns:
+         True (bool): If retpoline is in use in the kernel
+      """
+      try:
+          with open("/sys/devices/system/cpu/vulnerabilities/spectre_v2", "r") as spectrev2_file:
+              spectrev2 = spectrev2_file.read()
+              print(spectrev2)
+              # This should catch the verbiage used for both Intel and AMD processors.
+              if re.search("retpoline", spectrev2):
+                  print("Retpoline is in use to mitigate Spectre V2\n")
+                  return True
+              # On some distributions the lack of IBRS/IBPB is called out in the file, this will catch those.
+              elif re.search("Vulnerable: Retpoline", spectrev2):
+                      print("Retpoline is in use to mitigate Spectre V2, and IBPB/IBRS is not showing as enabled.\n")
+                      return True
+              else:
+                  print("Retpoline is not in use to mitigate Spectre V2\n")
+                  return False
+      except Exception as ex:
+          print(ex)
+          print("[WARN] Unable to determine Spectre V2 mitigation status\n")
+          raise
+
+  def run():
+      """
+      Determines mitigation status for the speculative execution exploits as well as expected performance
+      characteristics.
+
+      Returns:
+          True (bool): If collection is successful.
+      """
+      try:
+          is_supported_cpu()
+          if get_retpoline_status():
+              print("Retpoline is a high performance mitigation for Spectre v2 and should not result in negative "
+              "performance impact.\n")
+          else:
+              print("Retpoline is not enabled. If hardware mitigations are enabled such as IBRS and IBPB, calls that "
+                    "would otherwise be retpolined may suffer performance impact.")
+          return True
+      except Exception as ex:
+          print(ex)
+          print("[WARN] module generated an exception and exited abnormally. "
+                "Review the logs to determine the cause of the issue.")
+          return False
+
+
+  if __name__ == "__main__":  # pragma: no coverage
+      run()
+
+constraint:
+  requires_ec2: !!str True
+  domain: !!str os
+  class: !!str collect
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str
+  sudo: !!str True
+  perfimpact: !!str False
+  parallelexclusive: !!str

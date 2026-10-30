@@ -1,0 +1,94 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str kernelconfig
+path: !!str
+version: !!str 2.0
+title: !!str Collect /boot/config details
+helptext: !!str |
+  Collect the three most recently modified kernel configuration files in /boot plus the configuration for the
+  running kernel if it is not amongst the initial three
+placement: !!str run
+package:
+  - !!str
+language: !!str python
+content: !!str |
+  import os
+  import platform
+  import shutil
+
+  MODULE_NAME = "kernelconfig"
+  BOOT_DIR = "/boot"
+  NUM_CONFIGS = 3
+
+
+  class ConfigFile:
+      def __init__(self, path):
+          self.file_path = path
+          self.file_name = os.path.split(path)[-1]
+          self.mtime = os.stat(path).st_mtime
+
+
+  if __name__ == "__main__":
+      try:
+          gather_path = os.path.join(os.environ["EC2RL_GATHEREDDIR"], MODULE_NAME)
+          running_kernel = platform.release()
+          running_kernel_config_file_name = "config-{}".format(platform.release())
+          running_kernel_config_file_path = os.path.join(BOOT_DIR, running_kernel_config_file_name)
+
+          kernel_configs = list()
+          for file_name in os.listdir(BOOT_DIR):
+              if file_name.startswith("config-"):
+                  config_file = ConfigFile(os.path.join(BOOT_DIR, file_name))
+                  kernel_configs.append(config_file)
+              if file_name == running_kernel_config_file_name:
+                  running_kernel_config_found = True
+
+          # Sort by mtime in descending order
+          kernel_configs.sort(key=lambda config: config.mtime, reverse=True)
+          kernel_configs = kernel_configs[:NUM_CONFIGS]
+
+          # Add the running kernel config if not already in the list
+          if os.path.exists(running_kernel_config_file_path) and \
+                  running_kernel_config_file_path not in [config_path.file_path for config_path in kernel_configs]:
+              kernel_configs.append(ConfigFile(running_kernel_config_file_path))
+
+          if not os.path.exists(gather_path):
+              os.makedirs(gather_path)
+
+          print("Running kernel: {}".format(running_kernel))
+          print("Gathering kernel configs:")
+          for config in kernel_configs:
+              print("\t{}".format(config.file_name))
+              shutil.copy2(config.file_path, gather_path)
+
+          print("Done!")
+      except Exception as ex:
+          print(ex)
+          print("[WARN] module generated an exception and exited abnormally. "
+                "Review the logs to determine the cause of the issue.")
+
+constraint:
+  requires_ec2: !!str False
+  domain: !!str os
+  class: !!str gather
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str
+  sudo: !!str False
+  perfimpact: !!str False
+  parallelexclusive: !!str

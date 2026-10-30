@@ -1,0 +1,61 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str consoleoverload
+path: !!str
+version: !!str 1.0
+title: !!str Attempts to detect console overload
+helptext: !!str |
+  Searches dmesg for telltale error of serial console overload
+  Overloaded serial console can result in CPU0 pause
+placement: !!str run
+package:
+  - !!str
+language: !!str bash
+content: !!str |
+  #!/bin/bash
+  error_trap()
+  {
+      printf "%0.s=" {1..80}
+      echo -e "\nERROR:	"$BASH_COMMAND" exited with an error on line ${BASH_LINENO[0]}"
+      exit 0
+  }
+  trap error_trap ERR
+
+  # read-in shared function
+  source functions.bash
+
+  echo -e "Checking for serial console overload: 'too much work for irq4'\n\n"
+  if dmesg | grep 'too much work for irq4' 2>&1 > /dev/null
+      then
+          echo "[FAILURE] Serial console overload found. $(dmesg | grep -c 'too much work for irq4') occurrences in dmesg"
+          echo "-- This can result in performance issues or system instability. Please limit the amount of output sent to the serial console"
+          dmesg | grep 'too much work for irq4'
+      else
+          echo "[SUCCESS] No serial console overload found"
+  fi
+  echo "Please see https://github.com/awslabs/aws-ec2rescue-linux/blob/master/docs/modules/consoleoverload.md for further details"
+constraint:
+  requires_ec2: !!str False
+  domain: !!str os
+  class: !!str diagnose
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str
+  sudo: !!str False
+  perfimpact: !!str False
+  parallelexclusive: !!str

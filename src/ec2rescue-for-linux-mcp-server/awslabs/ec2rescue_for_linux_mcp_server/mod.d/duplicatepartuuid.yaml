@@ -1,0 +1,106 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str duplicatepartuuid
+path: !!str
+version: !!str 1.0
+title: !!str Find duplicate partition UUIDs
+helptext: !!str |
+  Identifies which partitions have duplicate UUIDs
+  Requires blkid, commonly provided by util-linux package
+placement: !!str run
+package:
+  - !!str
+language: !!str python
+content: !!str |
+  """
+  Determines if any partitions share a UUID.
+
+  Functions:
+      get_part_uuid_dict: parses output from blkid and returns a dict representing partition UUIDs and the source devices
+      run: get the UUID dict and determine if a duplicate exists
+  """
+
+  from __future__ import print_function
+  import os
+  import subprocess
+
+
+  def get_part_uuid_dict():
+      """
+      Obtain the partition UUID mappings from blkid and create and return a dict representing this data.
+
+      Returns:
+          labels_dict (dict): representation of partition UUIDs (keys) and the source devices (values)
+      """
+      part_uuids_dict = {}
+      for line in subprocess.check_output(["blkid", "-s", "PARTUUID"],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True).splitlines():
+          # Example line: /dev/sda1: PARTUUID="1cf42dee-01"
+          line = line.replace("\"", "").strip()
+          tokens = line.split(": PARTUUID=")
+          device_file = os.path.realpath(tokens[0])
+          part_uuid = tokens[1]
+          try:
+              part_uuids_dict[part_uuid].append(device_file)
+          except KeyError:
+              part_uuids_dict[part_uuid] = [device_file]
+      return part_uuids_dict
+
+
+  def run():
+      """
+      Get the UUID dict and determine if a duplicate exists.
+
+      Returns:
+          (bool): whether the check completed successfully
+      """
+      try:
+          part_uuids_dict = get_part_uuid_dict()
+          part_uuid_success = True
+          for part_uuid in part_uuids_dict.keys():
+              if len(part_uuids_dict[part_uuid]) > 1:
+                  part_uuid_success = False
+                  print(
+                      "[FAILURE] Duplicate UUID, {}, found on the following partitions: {}".format(
+                          part_uuid, ", ".join(part_uuids_dict[part_uuid])))
+          if part_uuid_success:
+              print("[SUCCESS] No duplicate partition UUIDs found.")
+          print("Please see https://github.com/awslabs/aws-ec2rescue-linux/blob/master/docs/modules/duplicatepartuuid.md"
+                "for further details")
+          return True
+      except Exception as ex:
+          print(ex)
+          print("[WARN] module generated an exception and exited abnormally. "
+                "Review the logs to determine the cause of the issue.")
+          return False
+
+
+  if __name__ == "__main__":  # pragma: no coverage
+      run()
+
+constraint:
+  requires_ec2: !!str False
+  domain: !!str os
+  class: !!str diagnose
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str blkid
+  sudo: !!str True
+  perfimpact: !!str False
+  parallelexclusive: !!str

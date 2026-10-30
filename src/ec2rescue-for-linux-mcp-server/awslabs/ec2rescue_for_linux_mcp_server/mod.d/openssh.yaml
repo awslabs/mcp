@@ -1,0 +1,1861 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str openssh
+path: !!str
+version: !!str 2.0
+title: !!str Verify OpenSSH configuration for faults that could prevent remote access
+helptext: !!str |
+  Runs a series of checks to verify the OpenSSH configuration is in a usable state.
+  Remediate discovered issues if the --remediate arg was provided. Can also inject new
+  keys through the use of optional args.
+  Optional --inject-key inject a new OpenSSH key prior to running the standard checks
+  Optional --inject-key-only inject a new OpenSSH key then exit
+  Optional --new-ssh-key="new key goes here" specify the value of the new key to inject
+  Optional --create-new-keys generate a new key pair with ssh-keygen during key injection
+                             and store the private key as a SSM SecureString Parameter
+placement: !!str run
+package:
+  - !!str
+language: !!str python
+remediation: !!str True
+content: !!str |
+  """
+  This module uses a DAG to represent a dependency chain of common OpenSSH-related issues.
+  While traversing the graph, the presence of each problem can be checked and, if specified, remediated.
+
+  OpenSSH code references are from branch V_7_5 of openssh-portable source code:
+  https://github.com/openssh/openssh-portable/tree/V_7_5
+
+  Functions:
+      inject_key_all: uses inject_key_single to add a new key to each user's authorized keys file
+      inject_key_single: adds a provided key to the authorized keys file specified if it is not already present
+      print_indent: a simple print wrapper that prepends two spaces per indention level specified
+      backup: backs up a given path to the provided backup directory, updates the backup dict, and returns the
+      path of the backup copy
+      restore: restores a backed up file to the original location
+      get_config_file_path: obtains and returns the sshd configuration file path using sshd's test and debug modes
+      parse_configuration: parse the sshd configuration file and return a dict representing the options and their values
+      get_dag: create and return a DirectedAcyclicGraph representing all the supported potential OpenSSH problems
+      get_output_status: check the status of all the vertices in a DirectedAcyclicGraph and print the determined run
+      status for the user
+
+  Classes:
+      DirectedAcyclicGraph: represents a minimal directed acyclic graph with an implementation of topological sorting
+      Vertex: represents a specific Problem as a vertex in an instance of the DirectedAcyclicGraph class
+      Path: represents the path of a file or directory and expected properties such as mode and ownership.
+      Problem: represents a potential OpenSSH-related problem such as an incorrect configuration option
+
+  Exceptions:
+      None
+  """
+
+  from __future__ import print_function
+  from collections import OrderedDict
+  import errno
+  import glob
+  import os
+  import pwd
+  import re
+  import shlex
+  import shutil
+  import stat
+  import subprocess
+  import sys
+  import tempfile
+
+  import requests
+
+  # Add the root program directory to sys.path so libraried functions can be imported
+  # when this module is directly invoked with the interpreter.
+  if __name__ == "__main__":  # pragma: no coverage
+      sys.path.insert(0, os.environ["EC2RL_CALLPATH"])
+      sys.path.insert(0, os.path.join(os.environ["EC2RL_CALLPATH"], "lib"))
+
+  from ec2rlcore.awshelpers import get_instance_id
+  from ec2rlcore.awshelpers import get_instance_region
+  from ec2rlcore.prediag import backup
+  from ec2rlcore.prediag import get_config_dict
+  from ec2rlcore.prediag import print_indent
+  from ec2rlcore.prediag import restore
+  import ec2rlcore.constants
+
+  import boto3
+  import botocore
+
+
+  class DirectedAcyclicGraph(object):
+      """
+      A minimal adjacency list implementation of a directed acyclic graph with BFS, DFS, and topological sort.
+
+      Attributes:
+          vertices (OrderedDict): provides predictable ordering and O(1) lookup of a Vertex given its label
+
+      Methods:
+          add_edge: verifies the edge does not create a loop then adds it to the graph. The graph is then checked for
+          a cycle and the edge removed if it created a cycle.
+          search: performs either a breadth-first or depth-first search and returns the ordering as a list.
+          topological_sort: uses Kahn's algorithm and returns the ordering as a list.
+          topological_solve: uses a modified uses Kahn's algorithm to traverse the graph and detect and, if applicable,
+          attempt to fix the issues discovered.
+      """
+      def __init__(self):
+          self.vertices = OrderedDict()
+
+      def __len__(self):
+          return len(self.vertices)
+
+      def __str__(self):
+          vert_list = list()
+          for vert_label in sorted(self.vertices.keys()):
+              vert_list.append("{} : {}".format(vert_label, ",".join(self.vertices[vert_label].successors)))
+          return os.linesep.join(vert_list)
+
+      def add_vertex(self, vert):
+          """Add Vertex, vert, to the graph if it is an instance of the Vertex class and not already in the graph."""
+          if isinstance(vert, Vertex) and vert.label not in self.vertices:
+              self.vertices[vert.label] = vert
+              return True
+          return False
+
+      def remove_vertex(self, this_vert_label):
+          """Remove Vertex with label vert_label and any edges to it."""
+          if this_vert_label in self.vertices.keys():
+              for vertex_obj in self.vertices.values():
+                  if this_vert_label in vertex_obj.successors:
+                      vertex_obj.remove_successor(this_vert_label)
+              del self.vertices[this_vert_label]
+              return True
+          else:
+              return False
+
+      def add_edge(self, start, end):
+          """Add an edge between Vertices start and end as long as it does not create a loop or a cycle."""
+          if start not in self.vertices or end not in self.vertices or start == end:
+              return False
+          self.vertices[start].add_successor(end)
+          if self.check_loop():
+              self.remove_edge(start, end)
+              return False
+          return True
+
+      def remove_edge(self, start, end):
+          """Remove an edge between Vertices start and end as long as they are different Vertices in the graph."""
+          if (start not in self.vertices or end not in self.vertices) or start == end:
+              return False
+          self.vertices[start].remove_successor(end)
+          return True
+
+      def topological_sort(self):
+          """Use Kahn's algorithm to compose a list of Vertex labels representing a topological order of the graph."""
+          for vert_obj in self.vertices.values():
+              vert_obj.in_degree = 0
+          for vert_obj in self.vertices.values():
+              for successor in vert_obj:
+                  self.vertices[successor].in_degree += 1
+          order = list()
+          for vertex_label, vert_obj in self.vertices.items():
+              if vert_obj.in_degree == 0:
+                  order.append(vertex_label)
+
+          for vert_label in order:
+              for successor in self.vertices[vert_label]:
+                  self.vertices[successor].in_degree -= 1
+                  if self.vertices[successor].in_degree == 0:
+                      order.append(successor)
+          return order
+
+      def topological_solve(self, remediate=False):
+          """Use a modified Kahn's algorithm to traverse the graph while detecting and remediating Problems."""
+          for vert_obj in self.vertices.values():
+              vert_obj.in_degree = 0
+          for vert_obj in self.vertices.values():
+              for successor in vert_obj:
+                  self.vertices[successor].in_degree += 1
+          order = list()
+          for vert_obj in self.vertices.values():
+              if vert_obj.in_degree == 0:
+                  order.append(vert_obj)
+
+          for vert in iter(order):
+              this_problem = vert.data
+              print("Checking: {}".format(this_problem.check_msg))
+              if this_problem.check(this_problem):
+                  this_problem.state = "FAILURE"
+                  vert.continuable = False
+                  print_indent(this_problem.state, level=1)
+                  if remediate:
+                      print_indent("Remediating: {} - {}".format(this_problem.item_type, this_problem.item), level=1)
+                      if this_problem.fix(vert.data):
+                          this_problem.state = "FIXED"
+                          vert.continuable = True
+                          print_indent(this_problem.state, level=1)
+                      else:
+                          this_problem.state = "FIX_FAILED"
+                          print_indent("FAILED TO FIX", level=1)
+                  else:
+                      print_indent(this_problem.fix_msg, level=1)
+              else:
+                  this_problem.state = "NPF"
+              if vert.continuable:
+                  for successor in vert:
+                      self.vertices[successor].in_degree -= 1
+                      if self.vertices[successor].in_degree == 0:
+                          order.append(self.vertices[successor])
+          return order
+
+      def check_loop(self):
+          """Kahn's algorith will return less than the entire graph if a loop is present."""
+          return not len(self.topological_sort()) == len(self.vertices)
+
+      def _search_from_vert(self, mode, start, visited):
+          if not isinstance(start, Vertex) or not isinstance(visited, set) or mode not in ("depth", "breadth"):
+              return False
+
+          order = list()
+          stack = [start]
+
+          while len(stack) > 0:
+              vert = stack.pop()
+              if vert.label not in visited:
+                  order.append(vert.label)
+                  visited.add(vert.label)
+              for successor in vert:
+                  # add_edge() checks for a loop so no need to double check here
+                  # Depth-first uses a stack
+                  if mode == "depth":
+                      stack.append(self.vertices[successor])
+                  # Breadth-first uses a queue
+                  else:
+                      stack.insert(0, self.vertices[successor])
+          return order
+
+      def search(self, mode=None):
+          """Perform a BFS or DFS traversal and return the order."""
+          if mode not in ("depth", "breadth"):
+              return False
+          visited = set()
+          order = list()
+          for vertex_label, vertex_obj in self.vertices.items():
+              if vertex_label not in visited:
+                  next_order = self._search_from_vert(mode=mode, start=vertex_obj, visited=visited)
+                  order += next_order
+          return order
+
+
+  class Vertex(object):
+      """
+      Represents a vertex in a DAG with additional features specific to this module.
+      In this module, a vertex is the dependency chain building block for representing Problem objects.
+
+      Attributes:
+          visited (bool): represents whether this vertex has been visited yet
+          continuable (bool): represents whether this vertex is a dependency of its successors
+          successors (list): this vertex's list of successor vertices
+          in_degree (int): the indegree of the vertex
+          data (Problem): Problem object that is being represented by this vertex
+          label (str): human-readable name for the vertex
+      """
+      def __init__(self, label, data):
+          self.visited = False
+          self.continuable = True
+          self.successors = list()
+          self.in_degree = 0
+          self.data = data
+          self.label = label
+
+      def add_successor(self, other):
+          if other not in self.successors:
+              self.successors.append(other)
+              return True
+          return False
+
+      def remove_successor(self, other):
+          if other in self.successors:
+              self.successors.remove(other)
+              return True
+          return False
+
+      def __iter__(self):
+          return iter(self.successors)
+
+      def __str__(self):
+          return self.label
+
+      def __repr__(self):
+          return "Vertex(label={}, data={})".format(repr(self.label), repr(self.data))
+
+
+  class Path(object):
+      """
+      Represents the path of a file or directory and expected properties such as mode and ownership.
+
+      Attributes:
+          path_str (str): the path of a file or directory
+          e_mode (int): the expected permission mode of the file or directory
+          e_uid (int): the expected user ID of the file or directory
+          e_gid (int): the expected group ID of the file or directory
+          v_bitmask (int): bitmask used to verify the permission mode
+      """
+      def __init__(self,
+                   path_str,
+                   e_mode=None,
+                   e_uid=None,
+                   e_gid=None,
+                   v_bitmask=None):
+          self.path_str = path_str
+          self.e_mode = e_mode
+          self.e_uid = e_uid
+          self.e_gid = e_gid
+          self.v_bitmask = v_bitmask
+
+      @staticmethod
+      def get_hostkey_v_bitmask(path, config_dict):
+          """
+          A vanilla openssh configuration should have a 0o600 hostkey permission mode, however, some distros have custom
+          packaging that deviates from this configuration. This is where these special edge cases are checked and the
+          appropriate mode verification bitmask determined.
+
+          Returns:
+              (int): The expected hostkey permission mode verification bitmask.
+          """
+          # TODO determine if ALAMI2 is actually using this new packaging config (how?)
+          if config_dict["DISTRO"] == ec2rlcore.constants.DISTRO_ALAMI2 \
+                  and pwd.getpwuid(os.stat(path).st_gid).pw_name == "ssh_keys":
+              return config_dict["O_ALL_CHECKING_BITMASK"]
+
+          return config_dict["G_O_ALL_CHECKING_BITMASK"]
+
+      @property
+      def mode(self):
+          return os.stat(self.path_str).st_mode
+
+      @property
+      def uid(self):
+          return os.stat(self.path_str).st_uid
+
+      @property
+      def gid(self):
+          return os.stat(self.path_str).st_gid
+
+      @property
+      def isdir(self):
+          return os.path.isdir(self.path_str)
+
+      @property
+      def isfile(self):
+          return os.path.isfile(self.path_str)
+
+      def __str__(self):
+          return self.path_str
+
+      def __repr__(self):
+          return "Path(path_str={}, e_mode={}, e_uid={}, e_gid={} v_bitmask={})".format(
+              self.path_str, self.e_mode, self.e_uid, self.e_gid, self.v_bitmask)
+
+
+  class Problem(object):
+      """
+      Represents a potential OpenSSH-related problem such as an incorrect configuration option.
+
+      Attributes:
+          state (str): the severity classification of the problem. One of the values in PROBLEM_CLASSES.
+          item_type (str): the attribute the problem relates to. One of the values in PROBLEM_TYPES.
+          item (variable): represents the path of a file or directory the problem relates to
+          value (variable): the value causing the problem such as an incorrect permission mode.
+          value_str (str): printable representation of the problematic value. May be the same as problem if already str.
+          info_msg (int): user-friendly problem description message.
+          check_msg (str): user-friendly command-line description of the check.
+          check (function): reference to the function that checks for the existence of the problem.
+          fix_msg (int): user-friendly command-line description of the fix.
+          fix (function): reference to the function that resolves the problem.
+      """
+      TYPES = ("UID", "Mode", "Config", "User", "Directory", "File")
+      STATES = ("UNCHECKED", "NPF", "FAILURE", "FIXED", "FIX_FAILED", "WARN")
+      # Defaults
+      CONFIG_DICT = ({"HOSTKEYS": list(),
+                      "AUTH_KEYS": {"relative": [".ssh/authorized_keys"],
+                                    "absolute": list()},
+                      "CONFIG_PATH": "/etc/ssh/sshd_config",
+                      "CONFIG_DICT": dict(),
+                      "INJECT_KEY": False,
+                      "INJECT_KEY_ONLY": False,
+                      "CREATE_NEW_KEYS": False,
+                      "NEW_KEY": None,
+                      "PRIV_SEP_DIR": "/var/empty/sshd",
+                      "EXCLUDED_USERNAMES": {"ssm-user"},
+                      # Define bitmasks for verifying permission modes
+                      # Verification is performed via bitwise AND-ing the mode and bitmask to check if
+                      # the bits of interest are set
+                      "ALL_SET_BITMASK": 0b111111111111111,
+                      "G_O_WRITE_CHECKING_BITMASK": stat.S_IWGRP | stat.S_IWOTH,
+                      "G_O_ALL_CHECKING_BITMASK": stat.S_IRWXG | stat.S_IRWXO,
+                      "O_ALL_CHECKING_BITMASK": stat.S_IRWXO})
+
+      @classmethod
+      def setup_config_vars(cls):
+          """
+          Update the configuration dict with information from the OpenSSH configuration. This function is not merged
+          with setup_run_vars because it may be necessary to call t his function multiple times during exeuction.
+          """
+          cls.CONFIG_DICT["CONFIG_PATH"] = get_config_file_path()
+          cls.CONFIG_DICT["CONFIG_DICT"] = parse_configuration(cls.CONFIG_DICT["CONFIG_PATH"])
+          if "HostKey" in cls.CONFIG_DICT["CONFIG_DICT"]:
+              cls.CONFIG_DICT["HOSTKEYS"] = cls.CONFIG_DICT["CONFIG_DICT"]["HostKey"]
+          if "AuthorizedKeysFile" in cls.CONFIG_DICT["CONFIG_DICT"]:
+              cls.CONFIG_DICT["AUTH_KEYS"] = {"absolute": list(), "relative": list()}
+              for key_path in cls.CONFIG_DICT["CONFIG_DICT"]["AuthorizedKeysFile"]:
+                  if os.path.isabs(key_path):
+                      cls.CONFIG_DICT["AUTH_KEYS"]["absolute"].append(key_path)
+                  else:
+                      cls.CONFIG_DICT["AUTH_KEYS"]["relative"].append(key_path)
+
+      @classmethod
+      def setup_run_vars(cls, metadata_key_url):
+          """
+          Update CONFIG_DICT with run-specific information. This function is not merged with setup_config_vars because
+          these values only need to ever be set once per execution.
+          """
+          cls.CONFIG_DICT.update(get_config_dict("openssh"))
+
+          try:
+              cls.CONFIG_DICT["INJECT_KEY"] = os.environ["injectkey"] == "True"
+          except KeyError:
+              pass
+
+          try:
+              cls.CONFIG_DICT["INJECT_KEY_ONLY"] = os.environ["injectkeyonly"] == "True"
+          except KeyError:
+              pass
+
+          if cls.CONFIG_DICT["INJECT_KEY"] and cls.CONFIG_DICT["REMEDIATE"]:
+              print("Key injection enabled.")
+          elif cls.CONFIG_DICT["INJECT_KEY_ONLY"] and cls.CONFIG_DICT["REMEDIATE"]:
+              print("Key injection enabled. Will skip other functionality.")
+          else:
+              print("Key injection not enabled.")
+              print("To enable, rerun with --remediate and either the --inject-key or the --inject-key-only argument.")
+
+          try:
+              cls.CONFIG_DICT["CREATE_NEW_KEYS"] = os.environ["createnewkeys"] == "True"
+          except KeyError:
+              pass
+
+          try:
+              # Prefer an explicitly given key over the key from the metadata service
+              cls.CONFIG_DICT["NEW_KEY"] = os.environ["newsshkey"]
+              print("Obtained new key from --new-ssh-key arg.")
+          except KeyError:
+              if cls.CONFIG_DICT["CREATE_NEW_KEYS"] and not cls.CONFIG_DICT["NOT_AN_INSTANCE"]:
+                  print("Will create new public key using ssh-keygen.")
+              elif not cls.CONFIG_DICT["NOT_AN_INSTANCE"]:
+                  cls.CONFIG_DICT["NEW_KEY"] = requests.get(metadata_key_url).text.strip()
+                  print("Obtained new key from instance metadata.")
+
+          priv_sep_dir = get_privilege_separation_dir()
+          if priv_sep_dir:
+              cls.CONFIG_DICT["PRIV_SEP_DIR"] = priv_sep_dir
+
+      def __init__(self,
+                   state,
+                   item_type,
+                   item,
+                   value,
+                   value_str,
+                   info_msg,
+                   check_msg,
+                   check,
+                   fix_msg,
+                   fix=None):
+          self._state = None
+          self._type = None
+          self.state = state
+          self.item_type = item_type
+          self.item = item
+          self.value = value
+          self.value_str = value_str
+          self.info_msg = info_msg
+          self.check_msg = check_msg
+          self.check = check
+          self.fix_msg = fix_msg
+          self.fix = fix
+
+      @property
+      def state(self):
+          """str: the state of the problem (e.g. has it been detected?)."""
+          return self._state
+
+      @state.setter
+      def state(self, new_state):
+          # Only set the state if it is valid
+          if new_state in self.STATES:
+              self._state = new_state
+
+      @property
+      def item_type(self):
+          """str: the type of item the problem relates to"""
+          return self._type
+
+      @item_type.setter
+      def item_type(self, new_type):
+          # Only set the type if it is valid
+          if new_type in self.TYPES:
+              self._type = new_type
+
+      def __str__(self):
+          return "{:11.10}{:11.10}{:11.10}{}".format(self.state,
+                                                     self.item_type,
+                                                     self.value_str if self.value_str else "N/A",
+                                                     self.item if self.item else "")
+
+      def __check_missing_sshd(self):
+          # Check whether sshd is callable.
+          # setup_config_vars -> get_config_file_path -> subprocess -> sshd -t
+          try:
+              self.setup_config_vars()
+              self.item = Path(path_str=self.CONFIG_DICT["CONFIG_PATH"])
+              self.value = self.CONFIG_DICT["CONFIG_PATH"]
+              return False
+          except subprocess.CalledProcessError:
+              # Not checking if "sshd -t" returns non-zero so long as it exists
+              pass
+          # OSError/Python 2, FileNotFoundError (child of OSError)/Python 3
+          except OSError as ose:
+              if ose.errno == errno.ENOENT:
+                  # Raised when "sshd" not found in PATH
+                  return True
+              return False
+
+      @staticmethod
+      def __fix_unfixable(*args):
+          """
+          This problem will require manual remediation so always return False.
+
+          Returns:
+              False (bool): this function should always return False indicating the Problem was not fixed.
+          """
+          print_indent("Unable to automate remediation of this fault.", level=3)
+          return False
+
+      @classmethod
+      def get_missing_sshd_problem(cls):
+          return Problem(state="UNCHECKED",
+                         item_type="File",
+                         item="sshd",
+                         value=None,
+                         value_str="Missing",
+                         info_msg="Missing sshd executable or it is not in $PATH",
+                         check=cls.__check_missing_sshd,
+                         check_msg="existence of sshd",
+                         fix_msg="Reinstall OpenSSH or correct PATH environment variable.",
+                         fix=cls.__fix_unfixable)
+
+      def __check_dupe_keyfile_lines(self):
+          # Check the sshd configuration file for multiple lines with AuthorizedKeysFile values
+          # Reference process_server_config_line() L1544 servconf.c
+          # if (*activep && options->num_authkeys_files == 0) {
+          auth_key_lines = {"line_nums": list(), "values": list()}
+
+          with open(self.CONFIG_DICT["CONFIG_PATH"], "r") as config_file:
+              for line_num, line in enumerate(config_file, 1):
+                  tokens = line.strip().split()
+                  # Skip anything that is not a key/value pair
+                  if len(tokens) < 2:
+                      continue
+                  # Skip comments
+                  if tokens[0].startswith("#"):
+                      continue
+
+                  if tokens[0] == "AuthorizedKeysFile":
+                      auth_key_lines["line_nums"].append(line_num)
+                      auth_key_lines["values"].append(tokens[1])
+
+          self.item = Path(path_str=self.CONFIG_DICT["CONFIG_PATH"])
+          self.value = auth_key_lines
+          if len(auth_key_lines["line_nums"]) > 1:
+              return True
+          return False
+
+      def __fix_dup_keyfile_lines(self):
+          """
+          Comment out the duplicate AuthorizedKeysFile lines and merge the values from the duplicate lines.
+          Write a new sshd configuration file with an AuthorizedKeysFile line containing the merged values.
+
+          If the problem is detected after the fix has been applied then the backup copy of the sshd configuration file
+          is restored.
+
+          If the problem is no longer detected after the fix has been applied then setup_config_vars is called again
+          since the sshd configuration file has been modified.
+
+          Returns:
+              bool: whether the problem was fixed
+          """
+          backed_up_cfg_path = backup(self.item.path_str,
+                                      self.CONFIG_DICT["BACKED_FILES"],
+                                      self.CONFIG_DICT["BACKUP_DIR"])
+          print_indent("Backed up {} to {}".format(self.item, backed_up_cfg_path), level=2)
+          # Multiple paths one on one line is supported in OpenSSH >= 5.9
+          print_indent("Merging duplicate AuthorizedKeysFile lines in {}".format(self.item), level=2)
+          with tempfile.NamedTemporaryFile(mode="wt") as fixed_ssh_cfg_file, open(self.item.path_str) as ssh_cfg_file:
+              for line_num, line in enumerate(ssh_cfg_file, start=1):
+                  if line_num in self.value["line_nums"]:
+                      print_indent("Line {}: {} -> {}".format(line_num,
+                                                              line.strip(),
+                                                              "# {} # commented out by ec2rl".format(line.strip())),
+                                   level=3)
+                      line = "# {} # commented out by ec2rl\n".format(line.strip())
+                      self.value["line_nums"].remove(line_num)
+                      fixed_ssh_cfg_file.write(line)
+                      if len(self.value["line_nums"]) == 0:
+                          print_indent("Writing new AuthorizedKeysFile key line", level=3)
+                          fixed_ssh_cfg_file.write("AuthorizedKeysFile {}\n".format(" ".join(self.value["values"])))
+                  else:
+                      fixed_ssh_cfg_file.write(line)
+
+              fixed_ssh_cfg_file.flush()
+              shutil.copystat(backed_up_cfg_path, fixed_ssh_cfg_file.name)
+              shutil.copy2(fixed_ssh_cfg_file.name, self.item.path_str)
+              os.chown(self.item.path_str, os.stat(backed_up_cfg_path).st_uid, os.stat(backed_up_cfg_path).st_gid)
+
+          if self.__check_dupe_keyfile_lines():
+              restore(self.item.path_str, self.CONFIG_DICT["CONFIG_PATH"])
+              return False
+          else:
+              # The sshd config file was modified so update the dict
+              self.setup_config_vars()
+              return True
+
+      @classmethod
+      def get_dupe_keyfile_lines_problem(cls):
+          return Problem(state="UNCHECKED",
+                         item_type="Config",
+                         item=cls.CONFIG_DICT["CONFIG_PATH"],
+                         value=None,
+                         value_str=None,
+                         info_msg="sshd configuration file contains duplicate AuthorizedKeysFile lines",
+                         check=cls.__check_dupe_keyfile_lines,
+                         check_msg="{} for duplicate AuthorizedKeysFile lines".format(cls.CONFIG_DICT["CONFIG_PATH"]),
+                         fix_msg="Remove duplicate AuthorizedKeysFile lines.",
+                         fix=cls.__fix_dup_keyfile_lines)
+
+      def __check_mode(self):
+          # Use the verification bitmask, v_bitmask, to determine if the file's permission mode needs to be changed.
+          path = self.item
+          self.value = path.mode,
+          self.value_str = oct(path.mode)[-3:],
+          if path.mode & path.v_bitmask != 0b0:
+              # Calculate the new permission mode
+              if path.isdir:
+                  path.e_mode = (path.mode | 0b111000000) & (path.v_bitmask ^ self.CONFIG_DICT["ALL_SET_BITMASK"])
+              else:
+                  path.e_mode = (path.mode & 0b110111111) & (path.v_bitmask ^ self.CONFIG_DICT["ALL_SET_BITMASK"])
+              self.fix_msg = "{:22.19}sudo chmod {} {}".format("Adjust permissions:",
+                                                               oct(path.e_mode)[-3:],
+                                                               path)
+              return True
+          return False
+
+      def __fix_mode(self):
+          """
+          Changes the file's mode to the expected mode.
+
+          Returns:
+              bool: whether the problem was fixed
+          """
+          if self.item_type != "Mode":
+              raise Exception("Incorrect remediation function for this_problem type: {}".format(self.item_type))
+          print_indent("Old Mode: {}  {}".format(oct(self.item.mode)[-3:], self.info_msg),
+                       level=2)
+          os.chmod(self.item.path_str, self.item.e_mode)
+          print_indent("New mode: {}".format(oct(self.item.mode)[-3:]),
+                       level=2)
+          if self.__check_mode():
+              return False
+          else:
+              return True
+
+      @classmethod
+      def get_mode_problem(cls, this_path):
+          if this_path.v_bitmask == cls.CONFIG_DICT["G_O_ALL_CHECKING_BITMASK"]:
+              info_msg = "Permission mode includes permissions for groups and/or other users"
+          elif this_path.v_bitmask == cls.CONFIG_DICT["O_ALL_CHECKING_BITMASK"]:
+              info_msg = "Permission mode includes permissions for other users"
+          # The only other checking bitmask is for write checking
+          else:
+              info_msg = "Permission mode includes write for groups and/or other users"
+          return Problem(state="UNCHECKED",
+                         item_type="Mode",
+                         item=this_path,
+                         value=None,
+                         value_str=None,
+                         info_msg=info_msg,
+                         check=cls.__check_mode,
+                         check_msg="mode for {}".format(this_path),
+                         fix_msg=None,
+                         fix=cls.__fix_mode)
+
+      def __check_uid(self):
+          # Check if the correct user owns the file.
+          path = self.item
+          self.value = path.uid,
+          self.value_str = str(path.uid),
+          if path.uid != path.e_uid:
+              self.fix_msg = "{:22.19}sudo chown {} {}".format("Adjust ownership:",
+                                                               path.e_uid,
+                                                               path)
+              return True
+          return False
+
+      def __fix_uid(self):
+          """
+          Changes the file's owner to the expected UID.
+
+          Returns:
+              bool: whether the problem was fixed
+          """
+          if self.item_type != "UID":
+              raise Exception("Incorrect remediation function for this_problem type")
+          print_indent("Old UID: {}  {}".format(self.item.uid, self.info_msg),
+                       level=2)
+          os.chown(self.item.path_str, self.item.e_uid, -1)
+          print_indent("New UID: {}".format(self.item.uid),
+                       level=2)
+
+          if self.__check_uid():
+              return False
+          else:
+              return True
+
+      @classmethod
+      def get_uid_problem(cls, this_path):
+          return Problem(state="UNCHECKED",
+                         item_type="UID",
+                         value=None,
+                         value_str=None,
+                         item=this_path,
+                         info_msg="Not owned by user {}".format(pwd.getpwuid(this_path.e_uid).pw_name),
+                         check=cls.__check_uid,
+                         check_msg="UID for {}".format(this_path),
+                         fix_msg=None,
+                         fix=cls.__fix_uid)
+
+      def __check_missing_config_file(self):
+          # Check if the sshd configuration file is missing.
+          try:
+              subprocess.check_output(shlex.split("sshd -t"), universal_newlines=True, stderr=subprocess.STDOUT)
+          except subprocess.CalledProcessError as cpe:
+              error_lines = cpe.output.splitlines()
+              if len(error_lines) == 1 and error_lines[0] == "{}: No such file or directory".format(
+                      self.CONFIG_DICT["CONFIG_PATH"]):
+                  # Handles missing server config file. Reference main() L1583 -> load_server_config() L1869 servconf.c:
+                  # perror(filename);
+                  return True
+              return False
+          return False
+
+      def __fix_write_default_config(self):
+          """
+          Write a default configuration to config_path.
+
+          Returns:
+              bool: whether the problem was fixed.
+          """
+          default_configuration_lines = ["HostKey /etc/ssh/ssh_host_rsa_key\n",
+                                         "HostKey /etc/ssh/ssh_host_ecdsa_key\n",
+                                         "HostKey /etc/ssh/ssh_host_ed25519_key\n",
+                                         "SyslogFacility AUTHPRIV\n",
+                                         "PermitRootLogin no\n",
+                                         "AuthorizedKeysFile .ssh/authorized_keys\n",
+                                         "PasswordAuthentication no\n",
+                                         "ChallengeResponseAuthentication no\n",
+                                         "UsePAM yes\n"]
+          try:
+              with open(self.item.path_str, "w") as config_file:
+                  config_file.writelines(default_configuration_lines)
+              os.chmod(self.item.path_str, 0o0655)
+              print_indent("Wrote minimal sshd configuration to: {} ".format(self.item.path_str), level=2)
+              # IOError/Python 2, OSError/Python 3 (FileNotFoundError, etc)
+          except (IOError, OSError):
+              return False
+
+          if self.__check_missing_config_file():
+              return False
+          else:
+              # The sshd config file was modified so update the dict
+              self.setup_config_vars()
+              return True
+
+      @classmethod
+      def get_missing_config_file_problem(cls):
+          return Problem(state="UNCHECKED",
+                         item_type="File",
+                         item=Path(path_str=cls.CONFIG_DICT["CONFIG_PATH"]),
+                         value=cls.CONFIG_DICT["CONFIG_PATH"],
+                         value_str="Missing",
+                         info_msg="Missing configuration file",
+                         check=cls.__check_missing_config_file,
+                         check_msg="existence of {}".format(cls.CONFIG_DICT["CONFIG_PATH"]),
+                         fix_msg="{:22.19}{}".format("Create config file:", cls.CONFIG_DICT["CONFIG_PATH"]),
+                         fix=cls.__fix_write_default_config)
+
+      def __check_bad_config_options(self):
+          """
+          Use sshd to validate the sshd_config file.
+
+          OpenSSH contains over 1000 lines of code to validate the config file including over 100 options (see servconf.c)
+          so let us not reinvent the wheel.
+
+          Set the Problem value to the sorted list of line numbers that need to be commented out.
+          Set the Problem value_str to the comma-separated list of the line numbers.
+
+          Returns:
+              bool: whether any bad lines were discovered
+          """
+          try:
+              subprocess.check_output(shlex.split("sshd -t"), universal_newlines=True, stderr=subprocess.STDOUT)
+          except subprocess.CalledProcessError as cpe:
+              error_lines = cpe.output.splitlines()
+              # Handles problems with the config file. Reference: main() L1585 -> parse_server_config() L2074 servconf.c:
+              # fatal("%s: terminating, %d bad configuration options", filename, bad_options);
+              if len(error_lines) > 1 and " bad configuration options" in error_lines[-1]:
+                  bad_lines = set()
+                  for line in error_lines[:-1]:
+                      tokens = line.split(": ")
+                      # main() L1583 sshd.c ->
+                      # parse_server_config() L2072 servconf.c ->
+                      # process_server_config_line() L953 servconf.c
+                      if len(tokens) > 2 and tokens[2] == "Bad configuration option":
+                          # Handles failed parse_token (e.g. opcode not supported).
+                          # Reference parse_token() L594 servconf.c:
+                          # error("%s: line %d: Bad configuration option: %s",filename, linenum, cp);
+                          line_num = int(tokens[1].replace("line ", ""))
+                      elif "line " in tokens[0]:
+                          # Handles opcode errors (e.g. opcode's value is bad). Reference parse_token() L1257 servconf.c:
+                          # fatal("%s line %d: missing integer value.", filename, linenum);
+                          line_num = int(tokens[0].split()[2])
+                      else:
+                          raise ValueError("Unsupported string format for line: {}".format(line))
+                      bad_lines.add(line_num)
+                  lines_sorted = sorted(bad_lines)
+                  self.value = lines_sorted
+                  self.value_str = ",".join(str(num) for num in lines_sorted)
+                  self.fix_msg = "{:22.19}{} in {}".format(
+                      "Remove/fix lines:", self.value_str, self.CONFIG_DICT["CONFIG_PATH"])
+                  return True
+              return False
+          return False
+
+      def __fix_comment_bad_config_lines(self):
+          """
+          Backup the sshd configuration file then create a copy where the bad lines are commented out.
+          Copy the file stats then replace the bad copy with the new, corrected copy.
+
+          If the problem is detected after the fix has been applied then the backup copy of the sshd configuration file
+          is restored.
+
+          If the problem is no longer detected after the fix has been applied then setup_config_vars is called again
+          since the sshd configuration file has been modified.
+
+          Returns:
+              bool: whether the problem was fixed
+          """
+          backed_up_cfg_path = backup(self.item.path_str,
+                                      self.CONFIG_DICT["BACKED_FILES"],
+                                      self.CONFIG_DICT["BACKUP_DIR"])
+          print_indent("Backed up {} to {}".format(self.item, backed_up_cfg_path), level=2)
+          print_indent("Commenting out malformed lines in {}".format(self.item), level=2)
+          # Default mode is "wb"
+          with tempfile.NamedTemporaryFile(mode="wt") as fixed_ssh_cfg_file:
+              with open(self.item.path_str) as ssh_cfg_file:
+                  for line_num, line in enumerate(ssh_cfg_file, start=1):
+                      if line_num in self.value:
+                          print_indent("Line {}: {} -> {}".format(line_num,
+                                                                  line.strip(),
+                                                                  "# {} # commented out by ec2rl".format(line.strip())),
+                                       level=3)
+                          line = "# {} # commented out by ec2rl\n".format(line.strip())
+                      fixed_ssh_cfg_file.write(line)
+
+              fixed_ssh_cfg_file.flush()
+              shutil.copystat(backed_up_cfg_path, fixed_ssh_cfg_file.name)
+              shutil.copy2(fixed_ssh_cfg_file.name, self.item.path_str)
+              os.chown(self.item.path_str, os.stat(backed_up_cfg_path).st_uid, os.stat(backed_up_cfg_path).st_gid)
+
+          if self.__check_bad_config_options():
+              restore(self.item.path_str, self.CONFIG_DICT["BACKUP_DIR"])
+              return False
+          else:
+              # The sshd config file was modified so update the dict
+              self.setup_config_vars()
+              return True
+
+      @classmethod
+      def get_bad_config_options_problem(cls):
+          return Problem(state="UNCHECKED",
+                         item_type="Config",
+                         item=Path(path_str=cls.CONFIG_DICT["CONFIG_PATH"]),
+                         value=None,
+                         value_str=None,
+                         info_msg="Bad lines in configuration file",
+                         check=cls.__check_bad_config_options,
+                         check_msg="validity of {}".format(cls.CONFIG_DICT["CONFIG_PATH"]),
+                         fix_msg=None,
+                         fix=cls.__fix_comment_bad_config_lines)
+
+      def __check_missing_priv_sep_dir(self):
+          try:
+              subprocess.check_output(shlex.split("sshd -t"), universal_newlines=True, stderr=subprocess.STDOUT)
+          except subprocess.CalledProcessError as cpe:
+              error_lines = cpe.output.splitlines()
+              for line in error_lines:
+                  tokens = line.split(": ")
+                  if tokens[0] == "Missing privilege separation directory":
+                      # Handles missing privilege separation directory. Reference main() L1777 sshd.c
+                      # fatal("Missing privilege separation directory: %s", _PATH_PRIVSEP_CHROOT_DIR);
+                      self.item = Path(path_str=tokens[1])
+                      self.fix_msg = "Create privilege separation directory: {}".format(tokens[1])
+                      return True
+              return False
+          return False
+
+      def __fix_missing_priv_sep_dir(self):
+          """
+          Create the missing privilege separation directory with the proper permission mode.
+
+          Returns:
+              bool: whether the problem was fixed
+          """
+          try:
+              print_indent("Creating privilege separation directory: {} ".format(self.item.path_str), level=2)
+              os.makedirs(self.item.path_str, mode=0o0700)
+          except Exception:
+              return False
+
+          if self.__check_missing_priv_sep_dir():
+              return False
+          else:
+              return True
+
+      @classmethod
+      def get_missing_priv_sep_dir_problem(cls):
+          return Problem(state="UNCHECKED",
+                         item_type="Directory",
+                         item="To be determined",
+                         value=None,
+                         value_str="Missing",
+                         info_msg="Missing privilege separation directory",
+                         check=cls.__check_missing_priv_sep_dir,
+                         check_msg="existence of privilege separation directory",
+                         fix_msg="Create privilege separation directory",
+                         fix=cls.__fix_missing_priv_sep_dir)
+
+      @staticmethod
+      def __check_missing_host_keys(*args):
+          try:
+              subprocess.check_output(shlex.split("sshd -t"), universal_newlines=True, stderr=subprocess.STDOUT)
+          except subprocess.CalledProcessError as cpe:
+              error_lines = cpe.output.splitlines()
+              tokens = error_lines[0].split(": ")
+              if len(error_lines) == 1 and len(tokens) > 1 and tokens[-1] == "no hostkeys available -- exiting.":
+                  # TODO(sean) find workaround for GSSAPI-patched OpenSSH
+                  # If OpenSSH is patched to support GSSAPI and GSSAPI is defined (e.g. configure script run with
+                  # --with-kerberos5=PATH) then the SSH protocol 2 hostkey check is bypassed.
+                  # This results in the test mode passing when there are no hostkeys.
+                  # Authentication will fail a few hundred LoC later when performing # the key exchange inside
+                  # do_ssh2_kex(), but there is no method of predicting this behavior.
+                  # Handles missing hostkeys. Reference: main() L1725 sshd.c:
+                  # logit("sshd: no hostkeys available -- exiting.");
+                  return True
+              return False
+          return False
+
+      def __fix_create_hostkeys(self):
+          """
+          Create hostkeys for the server. All protocol version two compatible key types are created including DSA, ECDSA,
+          ED25519, and RSA keys.
+
+          Note: Creating these keys is doable with the crypography module, however, the cryptography module is not in the
+          Python standard library so external commands are necessary.
+
+          Returns:
+              bool: True if the key files were written.
+          """
+          key_path_prefix = "/etc/ssh/ssh_host_"
+          key_path_suffix = "_key"
+          key_info = dict()
+          for key_type in ["dsa", "ecdsa", "ed25519", "rsa"]:
+              key_info[key_type] = "{}{}{}".format(key_path_prefix, key_type, key_path_suffix)
+          self.item = list(key_info.values())
+
+          try:
+              for key_type in key_info.keys():
+                  key_path = key_info[key_type]
+                  # If the key path already exists, ssh-keygen will block waiting for stdin (y/n overwrite confirmation).
+                  # Also, the overwrite will fail if the path is a directory.
+                  print_indent("{} host key".format(key_type.upper()), level=2)
+                  if os.path.exists(key_path):
+                      print_indent("Backed up {} to {}".format(key_path, backup(key_path,
+                                                                                self.CONFIG_DICT["BACKED_FILES"],
+                                                                                self.CONFIG_DICT["BACKUP_DIR"])),
+                                   level=3)
+                      if os.path.isfile(key_path):
+                          os.remove(key_path)
+                      # Is a directory
+                      else:
+                          shutil.rmtree(key_path)
+                      print_indent("Removed: {}".format(key_path), level=3)
+                  subprocess.check_call(
+                      shlex.split("ssh-keygen -q -t {} -f {} -N \"\" -C \"\"".format(key_type, key_path)),
+                      stderr=subprocess.STDOUT)
+                  print_indent("Created new {} host key: {}".format(key_type.upper(), key_path), level=3)
+          except Exception:
+              return False
+
+          if self.__check_missing_host_keys():
+              return False
+          else:
+              return True
+
+      @classmethod
+      def get_missing_host_keys_problem(cls):
+          return Problem(state="UNCHECKED",
+                         item_type="File",
+                         item="To be determined",
+                         value="Missing",
+                         value_str="Missing",
+                         info_msg="Missing hostkey files",
+                         check=cls.__check_missing_host_keys,
+                         check_msg="existence of host keys",
+                         fix_msg="Create hostkey files.",
+                         fix=cls.__fix_create_hostkeys)
+
+      def __check_missing_priv_sep_user(self):
+          try:
+              subprocess.check_output(shlex.split("sshd -t"), universal_newlines=True, stderr=subprocess.STDOUT)
+          except subprocess.CalledProcessError as cpe:
+              error_lines = cpe.output.splitlines()
+              tokens = error_lines[0].split(": ")
+              if len(error_lines) == 1 and tokens[0].startswith("Privilege separation user"):
+                  # Handles missing privilege separation user (typically sshd). Reference main() L1647 sshd.c:
+                  # fatal("Privilege separation user %s does not exist", SSH_PRIVSEP_USER);
+                  self.item = tokens[0].replace("Privilege separation user ", "").replace(" does not exist", "")
+                  self.fix_msg = "{:22.19}useradd " \
+                                 "-s /sbin/nologin " \
+                                 "-c 'Privilege-separated SSH' " \
+                                 "-d /var/empty/sshd {}".format("Create user:", self.item)
+                  return True
+              return False
+          return False
+
+      def __fix_missing_priv_sep_user(self):
+          """
+          Create the missing privilege separation user.
+
+          Returns:
+              bool: whether the problem was fixed
+          """
+          try:
+              print_indent("Creating privilege separation user: {}".format(self.item), level=2)
+              with open(os.devnull) as devnull:
+                  subprocess.check_call(shlex.split("useradd -s /sbin/nologin "
+                                                    "-r -m "
+                                                    "-c 'Privilege-separated SSH' "
+                                                    "-d {} {}".format(Problem.CONFIG_DICT["PRIV_SEP_DIR"], self.item)),
+                                        stdout=devnull,
+                                        stderr=devnull)
+                  # -m / --create-home ensures the directory exists
+                  os.chmod(Problem.CONFIG_DICT["PRIV_SEP_DIR"],
+                           (os.stat(Problem.CONFIG_DICT["PRIV_SEP_DIR"]).st_mode | 0b111000000) &
+                           (self.CONFIG_DICT["G_O_WRITE_CHECKING_BITMASK"] ^ self.CONFIG_DICT["ALL_SET_BITMASK"]))
+          except Exception:
+              return False
+
+          if self.__check_missing_priv_sep_user():
+              return False
+          else:
+              return True
+
+      @classmethod
+      def get_missing_priv_sep_user_problem(cls):
+          return Problem(state="UNCHECKED",
+                         item_type="User",
+                         item="To be determined",
+                         value=None,
+                         value_str="Missing",
+                         info_msg="Missing privilege separation user",
+                         check=cls.__check_missing_priv_sep_user,
+                         check_msg="existence of privilege separation user",
+                         fix_msg="Create privilege separation user",
+                         fix=cls.__fix_missing_priv_sep_user)
+
+      def __check_missing_dir(self):
+          return not os.path.isdir(self.item.path_str)
+
+      def __fix_missing_dir(self):
+          """
+          Create the missing directory with the correct permission mode and ownership.
+
+          Returns:
+              bool: whether the problem was fixed
+          """
+          self.item.e_mode = 0b111000000 & (self.item.v_bitmask ^ self.CONFIG_DICT["ALL_SET_BITMASK"])
+          try:
+              os.makedirs(self.item.path_str, mode=self.item.e_mode)
+              os.chown(self.item.path_str, self.item.e_uid, self.item.e_uid)
+          except Exception:
+              return False
+
+          if self.__check_missing_dir():
+              return False
+          else:
+              return True
+
+      @classmethod
+      def get_missing_dir_problem(cls, this_path):
+          return Problem(state="UNCHECKED",
+                         item_type="Directory",
+                         item=this_path,
+                         value="Missing",
+                         value_str="Missing",
+                         info_msg="Missing authorized key directory",
+                         check=cls.__check_missing_dir,
+                         check_msg="existence of {}".format(this_path),
+                         fix=cls.__fix_missing_dir,
+                         fix_msg="Create directory: mkdir -p {}.".format(this_path))
+
+      def __check_missing_file(self):
+          return not os.path.isfile(self.item.path_str)
+
+      def __fix_missing_key_file(self):
+          """
+          Create a new authorized keys file with the correct mode and ownership then inject the new key.
+
+          Returns:
+              bool: whether the problem was fixed
+          """
+          try:
+              print_indent("Creating new, empty authorized keys file", level=2)
+              os.mknod(self.item.path_str, stat.S_IFREG | self.item.e_mode)
+              os.chown(self.item.path_str, self.item.e_uid, self.item.e_uid)
+              inject_key_single(self.CONFIG_DICT["NEW_KEY"], self.item.path_str)
+          except Exception:
+              return False
+
+          if self.__check_missing_file():
+              return False
+          else:
+              return True
+
+      @classmethod
+      def get_missing_key_problem(cls, this_path):
+          return Problem(state="UNCHECKED",
+                         item_type="File",
+                         item=this_path,
+                         value="Missing",
+                         value_str="Missing",
+                         info_msg="Missing authorized key file",
+                         check=cls.__check_missing_file,
+                         check_msg="existence of {}".format(this_path),
+                         fix=cls.__fix_missing_key_file,
+                         fix_msg="Create {} and add a key.'".format(this_path))
+
+
+  ###
+  # Utility functions
+  ###
+  def generate_rsa_key_pair(key_path):
+      """
+      Call ssh-keygen to create a new 4096-bit RSA key pair as return them in a dict.
+
+      Parameters:
+          key_path (str): the path to output the generated key pair
+
+      Returns:
+          keys_dict (dict): key types and the paths to each key
+      """
+      try:
+          key_path = os.path.join(key_path, "ec2rl_opensshresetaccess")
+          keys_dict = {"private": None, "public": None}
+          subprocess.check_call(
+              shlex.split("ssh-keygen -q -t rsa -b 4096 -f {} -N \"\" -C \"Added by EC2 Rescue for Linux\"".format(
+                  key_path)),
+              stderr=subprocess.STDOUT)
+
+          with open("{}.pub".format(key_path), "r") as pub_fp:
+              keys_dict["public"] = pub_fp.read()
+          with open(key_path, "r") as priv_fp:
+              keys_dict["private"] = priv_fp.read()
+          return keys_dict
+      finally:
+          # Always remove the key files even in the event of an exception being raised
+          # It is possible that an exception is raised before the key files are created so catch those exceptions
+          # IOError/Python 2, OSError/Python 3 (FileNotFoundError, etc)
+          try:
+              os.remove(key_path)
+          except (OSError, IOError):
+              pass
+          try:
+              os.remove("{}.pub".format(key_path))
+          except (OSError, IOError):
+              pass
+
+
+  def key_injection_driver(sys_config_dict):
+      """
+      Determine where to obtain the key and inject it into the authorized_keys file(s).
+
+      Parameters:
+          sys_config_dict (dict):
+
+      Returns:
+          (bool): True if a key was obtained and injected else False
+      """
+      try:
+          if sys_config_dict["NEW_KEY"]:
+              print("Key present, proceeding.")
+          elif sys_config_dict["CREATE_NEW_KEYS"]:
+              if not os.path.exists(Problem.CONFIG_DICT["BACKUP_DIR"]):
+                  os.makedirs(Problem.CONFIG_DICT["BACKUP_DIR"])
+              keys = generate_rsa_key_pair(Problem.CONFIG_DICT["BACKUP_DIR"])
+              sys_config_dict["NEW_KEY"] = keys["public"]
+              instance_id = get_instance_id()
+
+              try:
+                  client = boto3.client("ssm", region_name=get_instance_region())
+                  parameter_dict = {
+                      "Name": "/ec2rl/openssh/{}/key".format(instance_id),
+                      "Description": "Private key added to instance {} by EC2 Rescue for Linux.".format(instance_id),
+                      "Value": keys["private"],
+                      "Type": "SecureString",
+                      "Overwrite": True
+                  }
+                  client.put_parameter(**parameter_dict)
+                  print("New key pair generated.")
+              except botocore.exceptions.NoCredentialsError as nce:
+                  print("No AWS Credentials configured. Please configure them and try again.")
+                  raise nce
+          else:
+              print("Aborting because no new key available.")
+              return False
+
+          inject_key_all(sys_config_dict["NEW_KEY"],
+                         sys_config_dict["AUTH_KEYS"],
+                         sys_config_dict["BACKED_FILES"],
+                         sys_config_dict["BACKUP_DIR"])
+      except Exception as ex:
+          print(ex)
+          return False
+      return True
+
+
+  def inject_key_all(new_key, auth_keys, backed_files, backup_dir):
+      """
+      Given a new key, new_key, add it to each user's authorized key file.
+
+      Parameters:
+          new_key (str): the SSH key to inject
+          auth_keys (dict): contains both user-relative and absolute paths to the authorized_keys files
+          backed_files (dict): names of backed up files (keys) and the path to the backup copy of the file (values)
+          backup_dir (str): path to the directory containing backup file copies
+
+      Returns:
+          bool: whether the operation was successful
+      """
+      try:
+          # Absolute key paths
+          for key_path in auth_keys["absolute"]:
+              full_path_auth_keys = os.path.realpath(key_path)
+              # Verify the entire key path is valid and the keys file is actually a file
+              if not os.path.isfile(full_path_auth_keys):
+                  continue
+              print_indent("Backing up {} to {}".format(full_path_auth_keys,
+                                                        backup(full_path_auth_keys, backed_files, backup_dir)),
+                           level=2)
+              print_indent("Absolute path detected.", level=2)
+              inject_key_single(new_key, full_path_auth_keys)
+          # User-relative key paths
+          for file in glob.glob("/home/*"):
+              for key_path in auth_keys["relative"]:
+                  file = os.path.realpath(file)
+                  full_path_auth_keys = os.path.join(file, key_path)
+                  # Verify this file is a directory
+                  if not os.path.isdir(file):
+                      continue
+                  # Verify the /home directory belongs to a user account
+                  try:
+                      pwd.getpwnam(os.path.basename(file)).pw_uid
+                  except KeyError:
+                      # pwd.getpwnam raises KeyError when the arg does not match a user in the password database
+                      continue
+                  # Verify the entire key path is valid and the keys file is actually a file
+                  if not os.path.isfile(full_path_auth_keys):
+                      continue
+
+                  print_indent("Backing up {} to {}".format(full_path_auth_keys,
+                                                            backup(full_path_auth_keys, backed_files, backup_dir)),
+                               level=2)
+                  print_indent("Injecting new key for user {}".format(os.path.basename(file)), level=2)
+                  inject_key_single(new_key, full_path_auth_keys)
+          return True
+      except Exception:
+          return False
+
+
+  def inject_key_single(new_key, full_path_auth_keys):
+      """
+      Given a new key, new_key, add it to the authorized key file, full_path_auth_keys, if it is not already in the file.
+
+      Parameters:
+          new_key (str): the SSH key to inject
+          full_path_auth_keys (str): path to the file containing the authorized public keys
+
+      Returns:
+          bool: whether the operation was successful
+      """
+      if not new_key or not full_path_auth_keys or not os.path.isfile(full_path_auth_keys):
+          print_indent("Aborting due to invalid or missing args", level=2)
+          return False
+
+      public_keys = set()
+      try:
+          with open(full_path_auth_keys, "r") as auth_keys_file:
+              lines = auth_keys_file.readlines()
+              for line in lines:
+                  line = line.strip()
+                  public_keys.add(line)
+
+          if new_key not in public_keys:
+              print_indent("Adding new key to {}".format(full_path_auth_keys), level=2)
+              public_keys.add(new_key)
+              with open(full_path_auth_keys, "w") as auth_keys_file:
+                  for key in public_keys:
+                      auth_keys_file.write(key)
+                      auth_keys_file.write("\n")
+          else:
+              print_indent("Skipping injecting key that is already present in {}".format(full_path_auth_keys),
+                           level=1)
+          return True
+      except Exception:
+          return False
+
+
+  def get_config_file_path():
+      """
+      Use sshd to locate where the configuration file is located and return its path as a string.
+
+      Returns:
+           (variable): path to the configuration file or False if not found
+      """
+      try:
+          # ['debug2: load_server_config: filename /etc/ssh/sshd_config',
+          debug_output = subprocess.check_output(shlex.split("sshd -dd -t"),
+                                                 universal_newlines=True,
+                                                 stderr=subprocess.STDOUT)
+          for line in debug_output.splitlines():
+              if line.startswith("debug2: load_server_config: filename "):
+                  return line.replace("debug2: load_server_config: filename ", "")
+      except subprocess.CalledProcessError as cpe:
+          # '/etc/ssh/sshd_config: No such file or directory']
+          debug_output = cpe.output
+          for line in debug_output.splitlines():
+              if line.startswith("debug2: load_server_config: filename "):
+                  return line.replace("debug2: load_server_config: filename ", "")
+              elif line.endswith(": No such file or directory"):
+                  return line.replace(": No such file or directory", "")
+      raise Exception("Failed to obtain server configuration file path!")
+
+
+  def parse_configuration(config_path):
+      """
+      Create a dict from the key:value pairs in sshd_config, located at config_path.
+      Values are lists, but value aggregation is only supported for the keys AuthorizedKeysFile and HostKey.
+      The value of other keys will be the last parsed value.
+
+      parsed_config is empty if unable to parse the file at config_path.
+
+      Parameters:
+          config_path (str): path to the configuration file to parse
+
+      Returns:
+          parsed_config (dict): parsed configuration options in option:value form
+      """
+      parsed_config = dict()
+
+      try:
+          # Check authorized_keys location
+          with open(config_path, "r") as config_file:
+              for line in config_file:
+                  tokens = line.strip().split()
+                  # Must have at least a key and a single value
+                  # Multiple values for key "AuthorizedKeysFile" are supported
+                  if len(tokens) < 2 or (len(tokens) != 2 and tokens[0] != "AuthorizedKeysFile"):
+                      continue
+                  # Skip comments
+                  if tokens[0].startswith("#"):
+                      continue
+                  # OpenSSH tokens are not supported. These are documented in the "sshd_config" man page.
+                  if tokens[0] == "AuthorizedKeysFile" and ("%h" in tokens[1] or "%u" in tokens[1]):
+                      continue
+
+                  if (tokens[0] in {"AuthorizedKeysFile", "HostKey"} and tokens[0] not in parsed_config) \
+                          or tokens[0] not in parsed_config:
+                      parsed_config[tokens[0]] = tokens[1:]
+                  elif tokens[0] in {"HostKey", "AuthorizedKeysFile"}:
+                      parsed_config[tokens[0]] += tokens[1:]
+                  # elif :
+                  #     parsed_config[tokens[0]] = tokens[1:]
+                  else:
+                      print("Omitting duplicate option {}".format(tokens[0]))
+      # IOError/Python 2, OSError/Python 3 (FileNotFoundError, etc)
+      except (IOError, OSError):
+          pass
+
+      return parsed_config
+
+
+  def get_dag(config_dict):
+      """
+      Create and return a directed acyclic graph (DAG) representing the following potential SSH-related problems:
+
+      1.  The server config using sshd's test mode.
+          1.1 Existence of sshd.
+          1.2 Existence of the server-side configuration file.
+          1.3 Validity of the configuration options.
+          1.4 Existence of the privilege separation directory (usually /var/empty/sshd).
+          1.5 Existence of host keys
+          1.6 Existence of the privilege separation user (usually sshd).
+      2.  Presence of duplicate AuthorizedKeysFile entries in sshd configuration file.
+      3.  Existence of the pieces of the authorized_key path for each user.
+      4.  Mode and UID of the relative authorized_key paths for each user.
+      5.  Existence of the pieces of the absolute authorized_key paths.
+      6.  Mode and UID of the absolute authorized_key paths.
+      7.  Mode and UID of the chroot directory used for privilege separation.
+      8.  Mode and UID of /etc/ssh and its contents.
+      9.  Mode and UID of any host keys defined in sshd_config that have not been previously checked.
+
+      Returns:
+          problem_dag (DirectedAcyclicGraph): representation of the potential SSH-related problems
+      """
+      def _add_key_path_to_dag(full_key_path, last_start_vertex_label, uid, gid):
+          """
+          Given a key path, create a Problem dependency chain, and add it to the DAG.
+
+          Parameters:
+              full_key_path: the key path that will be transformed into a Problem dependency chain
+              last_start_vertex_label: the Vertex label that the Problem dependency chain will be attached to
+          """
+          current_path = os.path.join(os.path.sep, *full_key_path.split(os.path.sep)[0:2])
+          for path_token in full_key_path.split(os.path.sep)[2:]:
+              # Special case for /home as it should be owned by the root user.
+              if current_path == "/home":
+                  this_key_path = Path(path_str=current_path,
+                                       e_mode=0o0700,
+                                       e_uid=0,
+                                       e_gid=0,
+                                       v_bitmask=config_dict["G_O_WRITE_CHECKING_BITMASK"])
+              else:
+                  this_key_path = Path(path_str=current_path,
+                                       e_mode=0o0700,
+                                       e_uid=uid,
+                                       e_gid=gid,
+                                       v_bitmask=config_dict["G_O_WRITE_CHECKING_BITMASK"])
+
+              missing_dir_vertex = Vertex("missing_dir_{}".format(this_key_path),
+                                          Problem.get_missing_dir_problem(this_key_path))
+              problem_dag.add_vertex(missing_dir_vertex)
+              problem_dag.add_edge(start=last_start_vertex_label, end=missing_dir_vertex.label)
+
+              bad_mode_vertex = Vertex("bad_mode_{}".format(this_key_path), Problem.get_mode_problem(this_key_path))
+              problem_dag.add_vertex(bad_mode_vertex)
+              problem_dag.add_edge(start="missing_dir_{}".format(this_key_path), end=bad_mode_vertex.label)
+
+              bad_uid_vertex = Vertex("bad_uid_{}".format(this_key_path), Problem.get_uid_problem(this_key_path))
+              problem_dag.add_vertex(bad_uid_vertex)
+              problem_dag.add_edge(start="missing_dir_{}".format(this_key_path), end=bad_uid_vertex.label)
+
+              current_path = os.path.join(current_path, path_token)
+              last_start_vertex_label = missing_dir_vertex.label
+
+          # Verify the key file path
+          this_key_path = Path(path_str=full_key_path,
+                               e_mode=0o0600,
+                               e_uid=uid,
+                               e_gid=gid,
+                               v_bitmask=config_dict["G_O_WRITE_CHECKING_BITMASK"])
+
+          missing_key_vertex = Vertex("missing_key_{}".format(this_key_path),
+                                      Problem.get_missing_key_problem(this_key_path))
+          problem_dag.add_vertex(missing_key_vertex)
+          problem_dag.add_edge(start=last_start_vertex_label, end=missing_key_vertex.label)
+
+          bad_mode_vertex = Vertex("bad_mode_{}".format(this_key_path), Problem.get_mode_problem(this_key_path))
+          problem_dag.add_vertex(bad_mode_vertex)
+          problem_dag.add_edge(start=missing_key_vertex.label, end=bad_mode_vertex.label)
+
+          bad_uid_vertex = Vertex("bad_uid_{}".format(this_key_path), Problem.get_uid_problem(this_key_path))
+          problem_dag.add_vertex(bad_uid_vertex)
+          problem_dag.add_edge(start=missing_key_vertex.label, end=bad_uid_vertex.label)
+
+      print("Creating problem graph...")
+      problem_dag = DirectedAcyclicGraph()
+
+      # 1.  The server config using sshd's test mode.
+      # 1.1 Existence of sshd.
+      missing_sshd = Vertex("missing_sshd", Problem.get_missing_sshd_problem())
+      problem_dag.add_vertex(missing_sshd)
+
+      # 1.2 Existence of the server-side configuration file.
+      missing_config_file = Vertex("missing_config_file", Problem.get_missing_config_file_problem())
+      problem_dag.add_vertex(missing_config_file)
+      problem_dag.add_edge(start=missing_sshd.label, end=missing_config_file.label)
+
+      # 1.3 Validity of the configuration options.
+      bad_config_options = Vertex("bad_config_options", Problem.get_bad_config_options_problem())
+      problem_dag.add_vertex(bad_config_options)
+      problem_dag.add_edge(start=missing_config_file.label, end=bad_config_options.label)
+
+      # 1.4 Existence of the privilege separation directory (usually /var/empty/sshd).
+      missing_priv_sep_dir = Vertex("missing_priv_sep_dir", Problem.get_missing_priv_sep_dir_problem())
+      problem_dag.add_vertex(missing_priv_sep_dir)
+      problem_dag.add_edge(start=bad_config_options.label, end=missing_priv_sep_dir.label)
+
+      # 1.5 Existence of host keys
+      missing_host_keys = Vertex("missing_host_keys", Problem.get_missing_host_keys_problem())
+      problem_dag.add_vertex(missing_host_keys)
+      problem_dag.add_edge(start=missing_priv_sep_dir.label, end=missing_host_keys.label)
+
+      # 1.6 Existence of the privilege separation user (usually sshd).
+      missing_priv_sep_user = Vertex("missing_priv_sep_user", Problem.get_missing_priv_sep_user_problem())
+      problem_dag.add_vertex(missing_priv_sep_user)
+      problem_dag.add_edge(start=missing_host_keys.label, end=missing_priv_sep_user.label)
+
+      # 2.  Presence of duplicate AuthorizedKeysFile entries in sshd configuration file.
+      duplicate_keyfile_lines = Vertex("duplicate_keyfile_lines", Problem.get_dupe_keyfile_lines_problem())
+      problem_dag.add_vertex(duplicate_keyfile_lines)
+      problem_dag.add_edge(start=bad_config_options.label, end=duplicate_keyfile_lines.label)
+
+      # 3.  Existence of the pieces of the authorized_key path for each user.
+      # 4.  Mode and UID of the relative authorized_key paths for each user.
+      for file in glob.glob("/home/*"):
+          user_path = os.path.realpath(file)
+          # Verify this file is a directory
+          if not os.path.isdir(user_path):
+              continue
+          # Verify the /home directory belongs to a user account
+          try:
+              user_name = os.path.basename(file)
+              if user_name in config_dict["EXCLUDED_USERNAMES"]:
+                  continue
+              this_uid = pwd.getpwnam(user_name).pw_uid
+              this_gid = pwd.getpwnam(user_name).pw_gid
+          except KeyError:
+              # pwd.getpwnam raises KeyError when the arg does not match a user in the password database
+              print_indent("Skipping home directory with no matching user account: {}".format(user_path), level=1)
+              continue
+          for key_path in config_dict["AUTH_KEYS"]["relative"]:
+              full_path_auth_keys = os.path.join(file, key_path)
+
+              # Verify the directory paths
+              _add_key_path_to_dag(full_key_path=full_path_auth_keys,
+                                   last_start_vertex_label="duplicate_keyfile_lines",
+                                   uid=this_uid,
+                                   gid=this_gid)
+
+      # 5.  Existence of the pieces of the absolute authorized_key paths.
+      # 6.  Mode and UID of the absolute authorized_key paths.
+      for key_path in config_dict["AUTH_KEYS"]["absolute"]:
+          full_path_auth_keys = os.path.realpath(key_path)
+
+          # Verify this file is a directory
+          if not os.path.isdir(full_path_auth_keys):
+              continue
+
+          # Verify the directory paths
+          _add_key_path_to_dag(full_key_path=key_path,
+                               last_start_vertex_label="duplicate_keyfile_lines",
+                               uid=0,
+                               gid=0)
+
+      # 7.  Mode and UID of the chroot directory used for privilege separation.
+      this_path = Path(path_str=config_dict["PRIV_SEP_DIR"],
+                       e_uid=0,
+                       e_gid=0,
+                       v_bitmask=config_dict["G_O_WRITE_CHECKING_BITMASK"])
+      bad_mode = Vertex("bad_mode_{}".format(this_path), Problem.get_mode_problem(this_path))
+      problem_dag.add_vertex(bad_mode)
+      problem_dag.add_edge(start=missing_priv_sep_dir.label, end=bad_mode.label)
+
+      bad_uid = Vertex("bad_uid_{}".format(this_path), Problem.get_uid_problem(this_path))
+      problem_dag.add_vertex(bad_uid)
+      problem_dag.add_edge(start=missing_priv_sep_dir.label, end=bad_uid.label)
+
+      # 8.  Mode and UID of /etc/ssh and its contents.
+      etcsshpath = Path(path_str="/etc/ssh", e_uid=0, e_gid=0, v_bitmask=config_dict["G_O_WRITE_CHECKING_BITMASK"])
+
+      bad_mode = Vertex("bad_mode_{}".format(etcsshpath), Problem.get_mode_problem(etcsshpath))
+      problem_dag.add_vertex(bad_mode)
+
+      bad_uid = Vertex("bad_uid_{}".format(etcsshpath), Problem.get_uid_problem(etcsshpath))
+      problem_dag.add_vertex(bad_uid)
+
+      # Check the contents /etc/ssh
+      seen_paths = set()
+      for root, dirs, files in os.walk("/etc/ssh/", followlinks=True):
+          # Check if this root has already been visited (avoids symlink-induced infinite looping)
+          realroot = os.path.realpath(root)
+          this_root_key = "{}{}".format(str(os.stat(realroot).st_dev), str(os.stat(realroot).st_ino))
+          seen_paths.add(this_root_key)
+
+          for file_name in files:
+              file_path = os.path.join(realroot, file_name)
+              real_file_path = os.path.realpath(file_path)
+              this_path_key = "{}{}".format(str(os.stat(real_file_path).st_dev), str(os.stat(real_file_path).st_ino))
+              if this_path_key in seen_paths and os.path.islink(file_path):
+                  print_indent("Skipping previously seen symlink target: {} -> {}".format(file_path, real_file_path),
+                               level=1)
+                  continue
+              else:
+                  seen_paths.add(this_path_key)
+
+              this_path = Path(path_str=real_file_path, e_uid=0, e_gid=0)
+
+              if this_path.path_str.endswith("_key"):
+                  # Private keys cannot have any group/other bits set except in special cases where the distro package
+                  # maintainers have done something non-vanilla
+                  this_path.v_bitmask = Path.get_hostkey_v_bitmask(this_path.path_str, config_dict)
+              else:
+                  # Other files should not have group/other write bits set
+                  this_path.v_bitmask = config_dict["G_O_WRITE_CHECKING_BITMASK"]
+
+              bad_mode = Vertex("bad_mode_{}".format(this_path), Problem.get_mode_problem(this_path))
+              problem_dag.add_vertex(bad_mode)
+
+              bad_uid = Vertex("bad_uid_{}".format(this_path), Problem.get_uid_problem(this_path))
+              problem_dag.add_vertex(bad_uid)
+          for dir_name in dirs:
+              dir_path = os.path.join(realroot, dir_name)
+              real_dir_path = os.path.realpath(dir_path)
+              this_path_key = "{}{}".format(str(os.stat(real_dir_path).st_dev), str(os.stat(real_dir_path).st_ino))
+              if this_path_key in seen_paths and os.path.islink(dir_path):
+                  print_indent("Skipping previously seen symlink target: {} -> {}".format(dir_path, real_dir_path),
+                               level=1)
+                  continue
+              else:
+                  seen_paths.add(this_path_key)
+
+              this_path = Path(path_str=real_dir_path,
+                               e_uid=0,
+                               e_gid=0,
+                               v_bitmask=config_dict["G_O_WRITE_CHECKING_BITMASK"])
+
+              bad_mode = Vertex("bad_mode_{}".format(this_path), Problem.get_mode_problem(this_path))
+              problem_dag.add_vertex(bad_mode)
+
+              bad_uid = Vertex("bad_uid_{}".format(this_path), Problem.get_uid_problem(this_path))
+              problem_dag.add_vertex(bad_uid)
+
+      # 9.  Mode and UID of any host keys defined in sshd_config that have not been previously checked.
+      for hostkey_path in config_dict["HOSTKEYS"]:
+          real_hostkey_path = os.path.realpath(hostkey_path)
+          if not os.path.isfile(real_hostkey_path):
+              continue
+          this_path_key = "{}{}".format(str(os.stat(real_hostkey_path).st_dev), str(os.stat(real_hostkey_path).st_ino))
+          if this_path_key in seen_paths:
+              print_indent("Skipping previously seen host key: {}".format(real_hostkey_path), level=1)
+              continue
+          else:
+              seen_paths.add(this_path_key)
+
+          this_path = Path(path_str=real_hostkey_path,
+                           e_uid=0,
+                           e_gid=0,
+                           v_bitmask=Path.get_hostkey_v_bitmask(this_path.path_str, config_dict))
+
+          bad_mode = Vertex("bad_mode_{}".format(this_path), Problem.get_mode_problem(this_path))
+          problem_dag.add_vertex(bad_mode)
+          problem_dag.add_edge(start=missing_sshd.label, end=bad_mode.label)
+
+          bad_uid = Vertex("bad_uid_{}".format(this_path), Problem.get_uid_problem(this_path))
+          problem_dag.add_vertex(bad_uid)
+          problem_dag.add_edge(start=missing_sshd.label, end=bad_uid.label)
+
+      return problem_dag
+
+
+  def get_output_status(log_dir, the_dag):
+      """Print the results of the diagnosis in the standard ec2rl-parsable format."""
+      output = list()
+      sorted_problems = {state: list() for state in Problem.STATES}
+      if len(the_dag.vertices) < 1:
+          output.append("[WARN] the problem graph was empty!")
+          output.append("-- The configuration was not validated.")
+      else:
+          for vertex in the_dag.vertices.values():
+              sorted_problems[vertex.data.state].append(vertex.data)
+          if len(sorted_problems["FAILURE"]) > 0:
+              output.append("[FAILURE] Improper configuration of one or more OpenSSH components.")
+              output.append("-- SSH may deny access to users when improperly configured.")
+          elif len(sorted_problems["FIX_FAILED"]) > 0:
+              output.append("[FAILURE] Failed to remediate one or more problems.")
+              output.append("-- SSH may deny access to users when improperly configured.")
+          elif len(sorted_problems["WARN"]) > 0:
+              output.append("[WARN] Unable to fully validate one or more OpenSSH components.")
+              output.append("-- Configuration could not be fully validated.")
+          else:
+              output.append("[SUCCESS] All configuration checks passed or all detected problems fixed.")
+
+          for problem in sorted_problems["FAILURE"] + \
+                  sorted_problems["FIX_FAILED"] + \
+                  sorted_problems["WARN"]:
+              output.append("-- {:12.10}{}: {}".format(problem.state, problem.info_msg, problem.item))
+              output.append("-- {}{}".format(" " * 12, problem.fix_msg))
+
+          for problem in sorted_problems["FIXED"]:
+              output.append("-- {:12.10}{}: {}".format(problem.state, problem.info_msg, problem.item))
+
+          if sorted_problems["UNCHECKED"]:
+              output.append("-- Unable to check {} items due to dependent check failures:".format(
+                  len(sorted_problems["UNCHECKED"])))
+              for problem in sorted_problems["UNCHECKED"]:
+                  output.append("   {:12.10}{}: {}".format(problem.state, problem.info_msg, problem.item))
+
+      output.append("")
+      output.append("Please view {} for additional details.".format(os.path.join(log_dir, "run/ssh.log")))
+      output.append("")
+      return os.linesep.join(output)
+
+
+  def get_privilege_separation_dir():
+      """
+      Attempt to obtain the OpenSSH privilege separation directory by parsing the man page.
+      Fall back to checking known distro-configured paths.
+      Return the path found, but if all attempts fail return False.
+
+      Returns:
+          (variable): string representing the path else False if unable to determine the path
+      """
+      # The privilege separation directory is defined in sshd via preprocessor macro _PATH_PRIVSEP_CHROOT_DIR
+      # See CPPFLAGS in Makefile.in
+      # It is also set in the man page using sed with the variable PRIVSEP_PATH
+      # See PATHSUBS in Makefile.in
+
+      # This man page line is the same as far back as OpenSSH version 3.5 (see sshd.8)
+      # RHEL6 is a known exeception as it includes escaped hex characters:
+      # "chroot(2) directory used by s\x08ss\x08sh\x08hd\x08d during privilege separation in"
+      # To accommodate, only inspect the string around where we think a form of the "sshd" substring is located
+      regex = re.compile(r"directory used by .* during privilege separation")
+      try:
+          man_output = subprocess.check_output(shlex.split("man sshd"),
+                                               universal_newlines=True,
+                                               stderr=subprocess.STDOUT).splitlines()
+          for line_no, line in enumerate(man_output):
+              man_output[line_no] = man_output[line_no].strip()
+              if regex.search(line):
+                  return man_output[line_no - 1]
+      # non-standard exit, "man" not found
+      except (subprocess.CalledProcessError, OSError):
+          # Known distro-configured values:
+          # RHEL 7.4: /var/empty/sshd
+          # ALAMI 2017.03: /var/empty/sshd
+          # SLES 12 SP2: /var/lib/empty
+          # Ubuntu 16.04.3: /var/run/sshd
+          for chroot_jail_dir in ["/var/empty/sshd",
+                                  "/var/lib/empty",
+                                  "/var/run/sshd"]:
+              if os.path.exists(chroot_jail_dir):
+                  return chroot_jail_dir
+      raise Exception("Failed to obtain privilege separation directory path!")
+
+
+  def run():
+      """
+      Run the key injection routine if the required args were provided. If this wasn not the only requested function
+      then continue on and perform all the normal checks.
+
+      Returns:
+          (bool): True if execution was successful. False if an operation failed or an unhandled exception was raised.
+      """
+      print("Verify OpenSSH components such as file permissions/ownership and the daemon configuration.")
+      print("Improper configuration may result in system inaccessiblity and/or compromised security.")
+      print("See https://github.com/awslabs/aws-ec2rescue-linux/blob/master/docs/modules/openssh.md for "
+            "further details")
+      print("")
+
+      try:
+          try:
+              Problem.setup_config_vars()
+          except OSError:
+              pass
+
+          Problem.setup_run_vars(metadata_key_url=METADATA_KEY_URL)
+          ret = True
+
+          if Problem.CONFIG_DICT["REMEDIATE"] and Problem.CONFIG_DICT["INJECT_KEY_ONLY"]:
+              if key_injection_driver(Problem.CONFIG_DICT):
+                  print("[SUCCESS] OpenSSH public key injection operation completed successfully.")
+              else:
+                  print("[FAILURE] Failed to obtain and inject new OpenSSH public key.")
+                  ret = False
+          elif Problem.CONFIG_DICT["REMEDIATE"] and Problem.CONFIG_DICT["INJECT_KEY"]:
+              if not key_injection_driver(Problem.CONFIG_DICT):
+                  print("[FAILURE] Failed to obtain and inject new OpenSSH public key.")
+                  ret = False
+              else:
+                  problems_dag = get_dag(Problem.CONFIG_DICT)
+                  print("")
+                  problems_dag.topological_solve(Problem.CONFIG_DICT["REMEDIATE"])
+                  print("")
+                  print(get_output_status(Problem.CONFIG_DICT["LOG_DIR"], problems_dag))
+          elif not Problem.CONFIG_DICT["REMEDIATE"] and Problem.CONFIG_DICT["INJECT_KEY_ONLY"]:
+              print("[FAILURE] --inject-key-only requires --remediate which was not provided.")
+              ret = False
+          elif not Problem.CONFIG_DICT["REMEDIATE"] and Problem.CONFIG_DICT["INJECT_KEY"]:
+              print_indent("--inject-key requires --remediate which was not provided.", level=1)
+              problems_dag = get_dag(Problem.CONFIG_DICT)
+              print("")
+              problems_dag.topological_solve(Problem.CONFIG_DICT["REMEDIATE"])
+              print("")
+              print(get_output_status(Problem.CONFIG_DICT["LOG_DIR"], problems_dag))
+          else:
+              problems_dag = get_dag(Problem.CONFIG_DICT)
+              print("")
+              problems_dag.topological_solve(Problem.CONFIG_DICT["REMEDIATE"])
+              print("")
+              print(get_output_status(Problem.CONFIG_DICT["LOG_DIR"], problems_dag))
+          return ret
+      except Exception as ex:
+          print(ex)
+          print("[WARN] module generated an exception and exited abnormally.")
+          print("-- Review the logs to determine the cause of the issue.")
+          return False
+
+
+  METADATA_KEY_URL = "http://169.254.169.254/latest/meta-data/public-keys/0/openssh-key"
+
+  if __name__ == "__main__":  # pragma: no coverage
+      run()
+
+constraint:
+  requires_ec2: !!str False
+  domain: !!str os
+  class: !!str diagnose
+  distro: !!str alami alami2 al2023 ubuntu rhel suse centos
+  required: !!str
+  optional: !!str
+  software: !!str
+  sudo: !!str True
+  perfimpact: !!str False
+  parallelexclusive: !!str

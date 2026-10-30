@@ -1,0 +1,64 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str sarhistory
+path: !!str
+version: !!str 1.0
+title: !!str Gather /var/log/sa (sar) history files
+helptext: !!str |
+  Gather /var/log/sa (sar) history files
+  sar is provided by the sysstat package
+placement: !!str run
+package:
+  - !!str sysstat https://github.com/sysstat/sysstat
+language: !!str bash
+content: !!str |
+  #!/bin/bash
+  error_trap()
+  {
+      printf "%0.s=" {1..80}
+      echo -e "\nERROR:	"$BASH_COMMAND" exited with an error on line ${BASH_LINENO[0]}"
+      exit 0
+  }
+  trap error_trap ERR
+
+  # read-in shared function
+  source functions.bash
+
+  echo "I will gather /var/log/sa (sar) history files from this machine"
+
+  if [ -r /var/log/sa ]; then
+      mkdir $EC2RL_GATHEREDDIR/sarhistory
+      cp -r /var/log/sa/* $EC2RL_GATHEREDDIR/sarhistory || true
+      echo "I have attempted to copy the /var/log/sa history files to ${EC2RL_GATHEREDDIR}/sarhistory"
+  elif [ -r /var/log/sysstat ]; then
+      mkdir $EC2RL_GATHEREDDIR/sarhistory
+      cp -r /var/log/sysstat/* $EC2RL_GATHEREDDIR/sarhistory || true
+      echo "I have attempted to copy the /var/log/sysstat history files to ${EC2RL_GATHEREDDIR}/sarhistory"
+  else
+      echo "No /var/log/sa or /var/log/sysstat history files available or permission denied"
+  fi
+constraint:
+  requires_ec2: !!str False
+  domain: !!str performance
+  class: !!str gather
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str sar
+  sudo: !!str False
+  perfimpact: !!str False
+  parallelexclusive: !!str

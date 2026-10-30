@@ -1,0 +1,99 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str tcpdump
+path: !!str
+version: !!str 1.0
+title: !!str Gather packet capture for network troubleshooting.
+helptext: !!str |
+  Gather packet capture for network troubleshooting.
+  Requires --interface= to determine interface to capture (usually eth0)
+  Requires --count= to determine number of packets to capture
+  Requires --period= to determine length of time to run for
+  Optional --protocol= to determine protocol to capture
+  Optional --source= to determine source to capture
+  Optional --sourceport= to determine source port to capture
+  Optional --destination= to determine destination to capture
+  Optional --destinationport= to determine destination port to capture
+placement: !!str run
+package:
+  - !!str
+language: !!str bash
+content: !!str |
+  #!/bin/bash
+  error_trap()
+  {
+      printf "%0.s=" {1..80}
+      echo -e "\nERROR:	"$BASH_COMMAND" exited with an error on line ${BASH_LINENO[0]}"
+      exit 0
+  }
+  trap error_trap ERR
+
+  # read-in shared function
+  source functions.bash
+
+  # Must build the command from the option sets.
+
+  # Handle building source options
+
+  if [[ -n ${source} ]] && [[ -n ${sourceport} ]]; then
+      SOURCECMD="src host ${source} and src port ${sourceport}"
+  elif [[ -n ${source} ]]; then
+      SOURCECMD="src host ${source}"
+  elif [[ -n ${sourceport} ]]; then
+      SOURCECMD="src port ${sourceport}"
+  fi
+
+  # Handle building destination options
+
+  if [[ -n ${destination} ]] && [[ -n ${destinationport} ]]; then
+      DESTINATIONCMD="dst host ${destination} and dst port ${destinationport}"
+  elif [[ -n ${destination} ]]; then
+      DESTINATIONCMD="dst host ${destination}"
+  elif [[ -n ${destinationport} ]]; then
+      DESTINATIONCMD="dst port ${destinationport}"
+  fi
+
+  # Handle building complete options
+
+  if [[ -n ${SOURCECMD} ]] && [[ -n ${DESTINATIONCMD} ]]; then
+      TCPDUMPCMD="${SOURCECMD} and ${DESTINATIONCMD}"
+  elif [[ -n ${SOURCECMD} ]]; then
+      TCPDUMPCMD="${SOURCECMD}"
+  elif [[ -n ${DESTINATIONCMD} ]]; then
+      TCPDUMPCMD="${DESTINATIONCMD}"
+  fi
+
+
+
+  echo "I will gather a tcpdump from this $EC2RL_DISTRO box."
+
+
+  mkdir $EC2RL_GATHEREDDIR/tcpdump
+  echo "I have attempted to dump the tcpdump file to ${EC2RL_GATHEREDDIR}/tcpdump"
+  timeout --preserve-status $period tcpdump -c ${count} -w ${EC2RL_GATHEREDDIR}/tcpdump/tcpdump.pcap -i ${interface} ${protocol} ${TCPDUMPCMD}
+  exit 0
+constraint:
+  requires_ec2: !!str False
+  domain: !!str net
+  class: !!str gather
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str interface count period
+  optional: !!str protocol source destination sourceport destinationport
+  software: !!str tcpdump
+  sudo: !!str True
+  perfimpact: !!str True
+  parallelexclusive: !!str

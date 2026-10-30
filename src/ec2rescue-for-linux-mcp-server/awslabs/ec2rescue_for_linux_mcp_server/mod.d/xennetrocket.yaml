@@ -1,0 +1,78 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str xennetrocket
+path: !!str
+version: !!str 1.0
+title: !!str Attempts to detect xennet issue
+helptext: !!str |
+  Searches dmesg for telltale error for xennet problem
+  xennet issue can cause packets to drop due to discarded skbs
+placement: !!str run
+package:
+  - !!str
+language: !!str bash
+content: !!str |
+  #!/bin/bash
+  error_trap()
+  {
+      printf "%0.s=" {1..80}
+      echo -e "\nERROR:	"$BASH_COMMAND" exited with an error on line ${BASH_LINENO[0]}"
+      exit 0
+  }
+  trap error_trap ERR
+
+  # read-in shared function
+  source functions.bash
+
+  echo -e "Checking for SKB overflow bug: 'xennet: skb rides the rocket'\n\n"
+
+  if [ "$EC2RL_VIRT_TYPE" = "nitro" ]; then
+        echo "[SUCCESS] This is not a Xen based platform. It cannot utilize the xennet drivers."
+        exit 0
+  fi
+
+  if [[ "$EC2RL_NET_DRIVER" != "xen_netfront" && "$EC2RL_NET_DRIVER" != "netfront" ]]; then
+      echo "[SUCCESS] Not using xen_netfront driver."
+      echo "Please see https://github.com/awslabs/aws-ec2rescue-linux/blob/master/docs/modules/xennetrocket.md for further details"
+      exit 0
+  fi
+
+  case $EC2RL_DISTRO in
+       *)
+          if dmesg | grep 'skb rides the rocket' 2>&1 > /dev/null
+              then
+                  echo "[FAILURE] SKB overflow bug found. $(dmesg | grep -c 'skb rides the rocket') occurrences in dmesg"
+                  dmesg | grep 'skb rides the rocket'
+                  echo "-- This can result in packet loss and network connectivity issues"
+                  echo "-- Please update your kernel to resolve this."
+              else
+                  echo "[SUCCESS] No SKB overflow bug found"
+          fi
+      ;;
+  esac
+  echo "Please see https://github.com/awslabs/aws-ec2rescue-linux/blob/master/docs/modules/xennetrocket.md for further details"
+constraint:
+  requires_ec2: !!str False
+  domain: !!str net
+  class: !!str diagnose
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str
+  sudo: !!str False
+  perfimpact: !!str False
+  parallelexclusive: !!str

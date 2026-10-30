@@ -1,0 +1,123 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str kernelbug
+path: !!str
+version: !!str 1.0
+title: !!str Detects kernel bugs
+helptext: !!str |
+  Detects kernel bug occurrences and gathers output
+  For systems using journald instead of traditional syslog, the following optional flags are available.
+  Optional --since= shows entries on or newer than a specified date. Takes systemd.time format. Defaults to 48hr.
+  Optional --until= shows entries on or older than a specified date. Takes systemd.time format.
+placement: !!str run
+package:
+  - !!str
+language: !!str bash
+content: !!str |
+  #!/bin/bash
+  error_trap()
+  {
+      printf "%0.s=" {1..80}
+      echo -e "\nERROR:	"$BASH_COMMAND" exited with an error on line ${BASH_LINENO[0]}"
+      exit 0
+  }
+  trap error_trap ERR
+
+  # read-in shared function
+  source functions.bash
+
+  echo -e "Checking for kernel bugs \n\n"
+
+  #set defaults, override by distro
+  KERNELBUG_LOGLOCATIONS="/var/log/messages* /var/log/syslog*"
+  KERNELBUG_MESSAGE="kernel BUG at"
+
+  JOURNAL_ARGS="--no-pager"
+  if [ ! -z "$since" ];
+      then
+          JOURNAL_ARGS="$JOURNAL_ARGS --since=$since"
+      else
+          JOURNAL_ARGS="$JOURNAL_ARGS --since=-48hr"
+  fi
+
+  if [ ! -z "$until" ]; then
+      JOURNAL_ARGS="$JOURNAL_ARGS --until=$until"
+  fi
+
+  case $EC2RL_DISTRO in
+      alami)
+          KERNELBUG_MESSAGE="kernel BUG at"
+          KERNELBUG_LOGLOCATIONS="/var/log/messages*"
+          KERNELBUG_BASE_LOG="/var/log/messages"
+      ;;
+      alami2)
+          KERNELBUG_MESSAGE="kernel BUG at"
+          KERNELBUG_LOGLOCATIONS="/var/log/messages*"
+          KERNELBUG_BASE_LOG="/var/log/messages"
+      ;;
+      ubuntu)
+          KERNELBUG_MESSAGE="kernel BUG at"
+          KERNELBUG_LOGLOCATIONS="/var/log/syslog*"
+          KERNELBUG_BASE_LOG="/var/log/syslog"
+      ;;
+      rhel)
+          KERNELBUG_MESSAGE="kernel BUG at"
+          KERNELBUG_LOGLOCATIONS="/var/log/messages*"
+          KERNELBUG_BASE_LOG="/var/log/messages"
+      ;;
+      suse)
+          KERNELBUG_MESSAGE="kernel BUG at"
+          KERNELBUG_LOGLOCATIONS="/var/log/messages*"
+          KERNELBUG_BASE_LOG="/var/log/messages"
+      ;;
+  esac
+
+  if [[ -x "$(command -v journalctl)" ]]; then
+      journalctl_result=$(logsearch_with_journal "$KERNELBUG_MESSAGE" "-iA60" "$JOURNAL_ARGS")
+      if [[ -z $journalctl_result ]]; then
+          echo "[SUCCESS] No kernel bug occurrences found"
+      else
+          echo "[FAILURE] Kernel bug occurrence found"
+          echo "-- This can be the root cause of issues with system stability"
+          echo "$journalctl_result"
+          echo -e "-------------------------------------------------\n"
+      fi
+  elif [[ -r $KERNELBUG_BASE_LOG ]]; then
+      logsearch_result=$(logsearch "$KERNELBUG_LOGLOCATIONS" "$KERNELBUG_MESSAGE" "-iA60")
+      if [[ -z $logsearch_result ]]; then
+          echo "[SUCCESS] No kernel bug occurrences found"
+      else
+          echo "[FAILURE] Kernel bug occurrence found"
+          echo "-- This can be the root cause of issues with system stability"
+          echo "$logsearch_result"
+          echo -e "-------------------------------------------------\n"
+      fi
+  else
+      echo "[WARN] No suitable method to search logs found."
+  fi
+  echo "Please see https://github.com/awslabs/aws-ec2rescue-linux/blob/master/docs/modules/kernelbug.md for further details"
+constraint:
+  requires_ec2: !!str False
+  domain: !!str os
+  class: !!str diagnose
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str since until
+  software: !!str
+  sudo: !!str True
+  perfimpact: !!str False
+  parallelexclusive: !!str

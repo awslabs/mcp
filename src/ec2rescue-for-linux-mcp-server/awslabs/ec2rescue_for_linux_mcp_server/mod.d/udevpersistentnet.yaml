@@ -1,0 +1,144 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str udevpersistentnet
+path: !!str
+version: !!str 1.0
+title: !!str Comments out lines in /etc/udev/rules.d/70-persistent-net.rules
+helptext: !!str |
+  Comments out lines in /etc/udev/rules.d/70-persistent-net.rules
+  Incorrectly configured rules can cause a system to fail to bring up networking.
+  Requires --udevpersistentnet and --remediate
+placement: !!str run
+package:
+  - !!str
+language: !!str python
+remediation: !!str True
+content: !!str |
+  """
+  Removes existing /etc/udev/rules.d/70-persistent-net.rules from use.
+  These being hardcoded to the wrong value can cause a system to fail to bring up networking.
+
+  Functions:
+      detect: Determines if the rules file exists
+      fix: Comments out all non-comment lines in the rules file.
+      run: Determines if the rules file exists and attempts to remediate the problem.
+  """
+  from __future__ import print_function
+  import os
+  import shutil
+  import sys
+  import tempfile
+
+  # Add the root program directory to sys.path so libraried functions can be imported
+  # when this module is directly invoked with the interpreter.
+  if __name__ == "__main__":  # pragma: no coverage
+      sys.path.insert(0, os.environ["EC2RL_CALLPATH"])
+
+  from ec2rlcore.prediag import backup
+  from ec2rlcore.prediag import get_config_dict
+  from ec2rlcore.prediag import restore
+
+
+  def detect(rules_file_path):
+      """Check whether a file is present at rules_file_path."""
+      return os.path.isfile(rules_file_path)
+
+
+  def fix(rules_file_path):
+      """
+      Comments out all lines in the file at path rules_file_path that are not comments
+      or entirely composed of white space.
+
+      Parameters:
+          rules_file_path (str): path to the rules file to be edited.
+
+      Returns:
+          True (bool): If remediation is successful.
+      """
+      print("Commenting out lines in {}".format(rules_file_path))
+      # Default mode is "wb"
+      with tempfile.NamedTemporaryFile(mode="wt") as fixed_rules_file:
+          with open(rules_file_path) as rules_file:
+              for line_num, line in enumerate(rules_file, start=1):
+                  if line.strip() and not line.startswith("#"):
+                      line = line.strip()
+                      print("Line {}: {}{} -> {}".format(line_num,
+                                                         line,
+                                                         os.linesep,
+                                                         "# {} # commented out by ec2rl".format(line)))
+                      line = "# {} # commented out by ec2rl{}".format(line, os.linesep)
+                  fixed_rules_file.write(line)
+          fixed_rules_file.flush()
+
+          os.chown(fixed_rules_file.name, 0, 0)
+          os.chmod(fixed_rules_file.name, 0o644)
+          shutil.copy2(fixed_rules_file.name, rules_file_path)
+      return True
+
+
+  def run():
+      """
+      Check if the rules file exists and attempt to remediate the problem.
+
+      Returns:
+          True (bool): If the rules file is not present or if it is present, but was remediated.
+      """
+      rules_file_path = "/etc/udev/rules.d/70-persistent-net.rules"
+      sys_config_dict = dict()
+      try:
+          sys_config_dict = get_config_dict("udevpersistentnet")
+          print("Determining if udev persistent net rules are in place.")
+          if detect(rules_file_path):
+              print("{} found, continuing.".format(rules_file_path))
+              print("Backing up {} first".format(rules_file_path))
+              backup(rules_file_path, sys_config_dict["BACKED_FILES"], sys_config_dict["BACKUP_DIR"])
+              if fix(rules_file_path):
+                  print("[SUCCESS] commented out the lines in {}.".format(rules_file_path))
+              else:
+                  print("[FAILURE] failed to comment out the lines in {}.".format(rules_file_path))
+                  print("Please see https://github.com/awslabs/aws-ec2rescue-linux/blob/master"
+                        "/docs/modules/udevpersistentnet.md for further details")
+                  restore(rules_file_path, sys_config_dict["BACKED_FILES"])
+                  return False
+          else:
+              print("[SUCCESS] {} not present.".format(rules_file_path))
+          print("Please see https://github.com/awslabs/aws-ec2rescue-linux/blob/master"
+                "/docs/modules/udevpersistentnet.md for further details")
+          return True
+      except Exception as ex:
+          print(ex)
+          print("[WARN] module generated an exception and exited abnormally. "
+                "Review the logs to determine the cause of the issue.")
+          if "BACKED_FILES" in sys_config_dict.keys() and rules_file_path in sys_config_dict["BACKED_FILES"].keys():
+              restore(rules_file_path, sys_config_dict["BACKED_FILES"])
+          return False
+
+
+  if __name__ == "__main__":  # pragma: no coverage
+      run()
+
+constraint:
+  requires_ec2: !!str False
+  domain: !!str net
+  class: !!str diagnose
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str udevpersistentnet remediate
+  optional: !!str
+  software: !!str
+  sudo: !!str True
+  perfimpact: !!str False
+  parallelexclusive: !!str
