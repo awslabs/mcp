@@ -1,5 +1,7 @@
 """Integration tests for RabbitMQ module with broker_id parameter."""
 
+import base64
+import pika
 import pytest
 from awslabs.amazon_mq_mcp_server.rabbitmq.module import RabbitMQModule
 from unittest.mock import MagicMock, Mock, patch
@@ -72,6 +74,46 @@ class TestRabbitMQModuleBrokerId:
         # Verify
         assert result == 'successfully connected'
         self.mock_mq_client.describe_broker.assert_called_once_with(BrokerId='b-oauth-broker')
+
+    @pytest.mark.parametrize(
+        'password',
+        [
+            'synthetic#password',
+            'synthetic/password',
+            'synthetic?password',
+            'synthetic[password]',
+            'synthetic%2Fpassword',
+            'synthetic@password',
+            'synthetic-password',
+        ],
+    )
+    @patch('awslabs.amazon_mq_mcp_server.rabbitmq.admin.requests.request')
+    def test_initialize_and_list_queues_with_literal_password(self, mock_request, password):
+        """Initialize broker tools with AWS-valid credentials and then list queues."""
+        self.mock_mq_client.describe_broker.return_value = {
+            'BrokerInstances': [{'Endpoints': ['amqps://b-test-broker.mq.us-east-1.on.aws:5671']}]
+        }
+        mock_request.return_value.json.return_value = [{'name': 'test-queue'}]
+
+        initialize = self.captured_functions['rabbimq_broker_initialize_connection']
+        assert (
+            initialize('b-test-broker', 'us-east-1', 'admin', password) == 'successfully connected'
+        )
+        assert self.module.rmq is not None
+        credentials = self.module.rmq.parameters.credentials
+        assert isinstance(credentials, pika.PlainCredentials)
+        assert credentials.username == 'admin'
+        assert credentials.password == password
+
+        list_queues = self.captured_functions['rabbitmq_broker_list_queues']
+        assert list_queues() == ['test-queue']
+        assert mock_request.call_count == 2
+        for call in mock_request.call_args_list:
+            assert call.args == ('GET', 'https://b-test-broker.mq.us-east-1.on.aws/api/queues')
+            authorization = call.kwargs['headers']['Authorization']
+            assert authorization.startswith('Basic ')
+            assert base64.b64decode(authorization[6:]).decode() == f'admin:{password}'
+            assert call.kwargs['verify'] is True
 
     def test_initialize_connection_invalid_broker_id(self):
         """Test that invalid broker_id raises appropriate error."""
