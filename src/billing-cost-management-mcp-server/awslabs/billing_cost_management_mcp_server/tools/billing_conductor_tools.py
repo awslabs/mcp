@@ -225,6 +225,7 @@ This tool retrieve cost reports for billing groups.
 If no billing period is provided, the current billing period is used.
 A billing_period after the current month (UTC) fails with validation_error before any AWS call;
 the service would return $0 for every billing group.
+A past month with no billing group in effect returns an empty list, not an error.
 
 The tool returns cost report information for each billing group:
 - Billing group ARN
@@ -293,6 +294,8 @@ This tool retrieve detailed cost reports for a
 single billing group, optionally broken down by product name and/or billing period.
 A BillingPeriodRange whose InclusiveStartBillingPeriod is after the current month (UTC) fails
 with validation_error before any AWS call; the service would return no results.
+A range with no data for the billing group (for example, months before it took effect) returns
+no results, not an error.
 
 The tool returns margin summary report results for the billing group:
 - Billing group ARN
@@ -484,6 +487,10 @@ This tool retrieve resources associated with a specific custom line item.
 If no billing period is provided, the current billing period is used.
 A billing_period after the current month (UTC) is a projection, not a record: the response sets
 `billing_period_is_future: true` and lists what is recorded today as in effect that month.
+A billing_period in which the custom line item was not in effect (before it started or after it
+ended) fails with ResourceNotFoundException ("Custom line item does not exist."), not an empty
+list. A mistyped ARN can return the same error: confirm the ARN with list-custom-line-items for
+a recent month.
 
 The tool returns information about each associated resource:
 - Resource ARN (can be a billing group or custom line item)
@@ -651,6 +658,9 @@ This tool retrieve pricing rules associated with a specific pricing plan
 If no billing period is provided, the current billing period is used.
 A billing_period after the current month (UTC) is a projection, not a record: the response sets
 `billing_period_is_future: true` and lists what is recorded today as in effect that month.
+A billing_period in which the pricing plan was not in effect (for example, before it
+started) fails with ResourceNotFoundException ("Pricing plan does not exist."), not an empty list.
+A mistyped ARN can return the same error: confirm the ARN with list-pricing-plans for a recent month.
 
 The tool returns information about:
 - The billing period for which the pricing rule associations are listed.
@@ -705,6 +715,9 @@ This tool retrieve pricing plans associated with a specific pricing rule
 If no billing period is provided, the current billing period is used.
 A billing_period after the current month (UTC) is a projection, not a record: the response sets
 `billing_period_is_future: true` and lists what is recorded today as in effect that month.
+A billing_period in which the pricing rule was not in effect (for example, before it
+started) fails with ResourceNotFoundException ("Pricing rule does not exist."), not an empty list.
+A mistyped ARN can return the same error: confirm the ARN with list-pricing-rules for a recent month.
 
 The tool returns information about:
 - The billing period for which the pricing rule associations are listed.

@@ -990,3 +990,47 @@ async def test_descriptions_state_future_billing_period_behavior():
     for name in rejected:
         description = ' '.join((tools[name].description or '').split())
         assert 'after the current month (UTC) fails with validation_error' in description, name
+
+
+@pytest.mark.asyncio
+async def test_descriptions_state_past_month_with_nothing_in_effect():
+    """Tools that answer a month with nothing in effect predictably say so; the rest stay silent."""
+    from awslabs.billing_cost_management_mcp_server.tools import billing_conductor_tools as bct
+
+    # Other tests reload this module under a patched FastMCP; reload the real one here.
+    real = importlib.reload(bct)
+    tools = {t.name: t for t in await real.billing_conductor_server.list_tools()}
+    expected = {
+        'list-billing-group-cost-reports': (
+            'A past month with no billing group in effect returns an empty list, not an error.'
+        ),
+        'get-billing-group-cost-report': (
+            'A range with no data for the billing group (for example, months before it took '
+            'effect) returns no results, not an error.'
+        ),
+        'list-resources-associated-to-custom-line-item': (
+            'was not in effect (before it started or after it ended) fails with '
+            'ResourceNotFoundException ("Custom line item does not exist."), not an empty list. '
+            'A mistyped ARN can return the same error: confirm the ARN with list-custom-line-items'
+            ' for a recent month.'
+        ),
+        'list-pricing-rules-for-plan': (
+            'fails with ResourceNotFoundException ("Pricing plan does not exist."), not an empty '
+            'list. A mistyped ARN can return the same error: confirm the ARN with list-pricing-plans'
+            ' for a recent month.'
+        ),
+        'list-pricing-plans-for-rule': (
+            'fails with ResourceNotFoundException ("Pricing rule does not exist."), not an empty '
+            'list. A mistyped ARN can return the same error: confirm the ARN with list-pricing-rules'
+            ' for a recent month.'
+        ),
+    }
+    for name, text in expected.items():
+        description = ' '.join((tools[name].description or '').split())
+        assert text in description, name
+    # These lists can be non-empty for a month with nothing in effect (very old months return
+    # historical records), or list the payer's linked accounts, so they make no such claim.
+    for name in set(tools) - set(expected):
+        description = ' '.join((tools[name].description or '').split())
+        assert 'returns an empty list' not in description, name
+        assert 'returns no results, not an error' not in description, name
