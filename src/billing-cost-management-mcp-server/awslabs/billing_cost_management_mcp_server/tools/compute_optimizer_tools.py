@@ -19,6 +19,7 @@ Updated to use shared utility functions.
 
 import botocore.session
 import os
+import re
 from ..utilities.aws_service_base import (
     PageSpec,
     create_aws_client,
@@ -70,10 +71,10 @@ This tool supports the following operations:
 
 Each call is scoped to one region (the `region` parameter) and one account, and can be
 narrowed with `filters`, a JSON array of {"name": ..., "values": [...]}.
-`account_ids` accepts at most ONE account ID, as a JSON array: '["123456789012"]'. Two or
-more are rejected; make one call per account. Omit it to get the caller's own account. From
-an organization's management account or delegated administrator, set it to target a
-member account (or the management account).
+`account_ids` accepts at most ONE account ID, as a JSON array: '["123456789012"]' (a bare
+ID is accepted too). Two or more are rejected; make one call per account. Omit it to get
+the caller's own account. From an organization's management account or delegated
+administrator, set it to target a member account (or the management account).
 Accepted filter names:
 - get_ec2_instance_recommendations: Finding (Underprovisioned, Overprovisioned, Optimized),
   FindingReasonCodes (e.g. CPUOverprovisioned, MemoryUnderprovisioned),
@@ -93,10 +94,15 @@ Accepted filter names:
 - get_ecs_service_recommendations: Finding (Optimized, Underprovisioned, Overprovisioned),
   FindingReasonCode (CPU/Memory Overprovisioned/Underprovisioned)
 - get_idle_recommendations: Finding (Idle, Unattached, Unused), ResourceType
-Values are case-sensitive in the API; the tool folds near-misses (e.g.
-`overprovisioned`, `OVER_PROVISIONED`, `finding`) onto the right spelling and echoes the
-result as `applied_filters`. If the API still rejects a filter, the error lists
-`valid_filters`.
+- Tags, on every operation except get_auto_scaling_group_recommendations (which rejects
+  them): `tag:<key>` matches the tag values given, e.g. {"name": "tag:Owner", "values":
+  ["TeamA"]}; `tag-key` matches resources that have any of the tag keys given, e.g.
+  {"name": "tag-key", "values": ["Owner"]}. The tool sends tag keys and values unchanged.
+The API is case-sensitive on filter names and values, though EC2 and Auto Scaling group
+Finding also accept the UPPER_SNAKE form (e.g. OVER_PROVISIONED for EC2, NOT_OPTIMIZED for
+Auto Scaling groups). The tool folds near-misses (e.g. `overprovisioned`, `finding`) onto
+the right spelling and echoes the result as `applied_filters`. If the API still rejects a
+filter, the error lists `valid_filters`.
 
 To look up specific resources, pass `resource_arns` as a JSON array of ARNs (e.g.
 '["arn:aws:ec2:us-east-1:123456789012:instance/i-0abc"]'). This is sent as the
@@ -127,6 +133,16 @@ default. To change it, pass `order_by` as a JSON object, e.g.
 '{"dimension": "SavingsValue", "order": "Asc"}' (dimension: SavingsValue or
 SavingsValueAfterDiscount; order: Asc or Desc). Only get_idle_recommendations accepts
 `order_by`.
+
+Recommendations carry two savings figures: `savings_opportunity` at On-Demand prices, and
+`savings_opportunity_after_discounts` at prices after your discounts (such as Savings Plans
+and Reserved Instances). Each is the cost difference between the current and the
+recommended resource (for idle recommendations, the resource's whole cost) at its own
+prices, so neither caps the other: when the recommended
+resource gets a bigger dollar discount than the current one, the after-discounts figure is
+the larger. The two can also be equal, for example when Compute Optimizer has no discount
+data to apply, and `savings_opportunity_after_discounts` is null when Compute Optimizer
+returns no after-discounts figure. Say which one you report, and do not add them together.
 
 EC2, Auto Scaling group, and RDS recommendations rank options within the current CPU
 architecture by default (cpuVendorArchitectures CURRENT). To get Graviton options, pass
@@ -170,7 +186,8 @@ async def compute_optimizer(
         max_items: Total number of items to return across all pages. Omit it to fetch
             every page.
         filters: Optional filter expression as JSON string
-        account_ids: Optional JSON array with a single AWS account ID, e.g. '["123456789012"]'
+        account_ids: Optional JSON array with a single AWS account ID, e.g. '["123456789012"]',
+            or the bare ID
         next_token: The pagination.next_token from a previous response; continue with
             otherwise identical parameters.
         resource_arns: Optional JSON array of resource ARNs to return recommendations for
@@ -488,6 +505,25 @@ def _parse_resource_arns(resource_arns: Optional[str]) -> Optional[List[str]]:
     return parsed or None
 
 
+def _parse_account_ids(account_ids: str) -> List[str]:
+    """Parse account_ids into the list of ID strings the API expects.
+
+    Bare IDs are accepted too, alone or separated by commas or spaces. They are kept as
+    text: JSON would read 123456789012 as a number (which botocore rejects) and cannot read
+    012345678901 at all.
+    """
+    text = account_ids.strip()
+    if re.fullmatch(r'[0-9]+(?:[\s,]+[0-9]+)*', text):
+        parsed: Any = re.split(r'[\s,]+', text)
+    else:
+        parsed = parse_json(text, 'account_ids')
+    if not isinstance(parsed, list):
+        parsed = [parsed]
+    if not all(isinstance(i, (str, int)) and not isinstance(i, bool) for i in parsed):
+        raise ValueError('account_ids must be an account ID or a JSON array of account IDs')
+    return [str(i).strip() for i in parsed]
+
+
 def _resolve_region_for_arns(arns: List[str], region: Optional[str]) -> Optional[str]:
     """Return the region to query for the given ARNs.
 
@@ -764,8 +800,8 @@ def _build_request_params(
         request_params['filters'] = normalized
 
     if account_ids:
-        parsed_accounts = parse_json(account_ids, 'account_ids')
-        if isinstance(parsed_accounts, list) and len(parsed_accounts) > 1:
+        parsed_accounts = _parse_account_ids(account_ids)
+        if len(parsed_accounts) > 1:
             return request_params, _error_response(
                 operation,
                 'validation_error',

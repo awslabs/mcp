@@ -38,6 +38,7 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_comparison_tools impo
     validate_comparison_request,
 )
 from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+    MODIFY_REQUEST,
     add_retry_guidance,
 )
 from botocore.exceptions import ClientError
@@ -845,6 +846,135 @@ class TestGetCostComparisonDrivers:
         )
         assert result['status'] == 'error'
         assert result['message'] == 'API error'
+
+
+# Two consecutive whole months that pass the dispatcher's local date checks.
+_COMPARISON_ARGS = {
+    'baseline_start_date': month(2)[0],
+    'baseline_end_date': month(2)[1],
+    'comparison_start_date': month(1)[0],
+    'comparison_end_date': month(1)[1],
+    'metric_for_comparison': 'BlendedCost',
+}
+
+
+@pytest.fixture
+def real_cost_comparison():
+    """Yield the cost_comparison_tools module with the undecorated cost_comparison tool.
+
+    The module is reloaded with FastMCP.tool patched to an identity decorator, then
+    reloaded again on teardown so the registered server is restored.
+    """
+    import fastmcp
+    import importlib
+    from awslabs.billing_cost_management_mcp_server.tools import cost_comparison_tools as mod
+
+    with patch.object(fastmcp.FastMCP, 'tool', lambda self, *a, **k: lambda fn: fn):
+        importlib.reload(mod)
+    try:
+        yield mod
+    finally:
+        importlib.reload(mod)
+
+
+@pytest.mark.asyncio
+class TestCostComparison:
+    """Tests for the cost_comparison tool dispatcher."""
+
+    @pytest.mark.parametrize(
+        'operation,handler,other',
+        [
+            (
+                'getCostAndUsageComparisons',
+                'get_cost_and_usage_comparisons',
+                'get_cost_comparison_drivers',
+            ),
+            (
+                'getCostComparisonDrivers',
+                'get_cost_comparison_drivers',
+                'get_cost_and_usage_comparisons',
+            ),
+        ],
+    )
+    async def test_routes_operation_with_all_parameters(
+        self, mock_context, real_cost_comparison, operation, handler, other
+    ):
+        """Each operation calls its own handler with every argument in order."""
+        mod = real_cost_comparison
+        ce_client = MagicMock()
+        handler_mock = AsyncMock(return_value={'status': 'success', 'data': {}})
+        other_mock = AsyncMock()
+        group_by = '[{"Type": "DIMENSION", "Key": "SERVICE"}]'
+        filter_json = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon EC2"]}}'
+        view_arn = 'arn:aws:billing::123456789012:billingview/view-1'
+
+        with (
+            patch.object(mod, 'create_aws_client', return_value=ce_client),
+            patch.object(mod, handler, handler_mock),
+            patch.object(mod, other, other_mock),
+        ):
+            result = await mod.cost_comparison(  # type: ignore[reportCallIssue]
+                mock_context,
+                operation=operation,
+                group_by=group_by,
+                filter=filter_json,
+                max_items=50,
+                billing_view_arn=view_arn,
+                **_COMPARISON_ARGS,
+            )
+
+        assert result == {'status': 'success', 'data': {}}
+        other_mock.assert_not_called()
+        assert handler_mock.call_args.args == (
+            mock_context,
+            ce_client,
+            *_COMPARISON_ARGS.values(),
+            group_by,
+            filter_json,
+            50,
+            None,
+            view_arn,
+        )
+
+    async def test_unsupported_operation(self, mock_context, real_cost_comparison):
+        """An unknown operation returns an error without calling either handler."""
+        mod = real_cost_comparison
+        with (
+            patch.object(mod, 'create_aws_client', return_value=MagicMock()),
+            patch.object(mod, 'get_cost_and_usage_comparisons', AsyncMock()) as comparisons,
+            patch.object(mod, 'get_cost_comparison_drivers', AsyncMock()) as drivers,
+        ):
+            result = await mod.cost_comparison(  # type: ignore[reportCallIssue]
+                mock_context, operation='unsupportedOperation', **_COMPARISON_ARGS
+            )
+
+        assert result['status'] == 'error'
+        assert 'Unsupported operation' in result['message']
+        # A request error the caller can fix: modify_request, not do_not_retry.
+        assert result['error_type'] == 'validation_error'
+        assert add_retry_guidance(result)['retry_strategy'] == MODIFY_REQUEST
+        comparisons.assert_not_called()
+        drivers.assert_not_called()
+
+    async def test_handler_exception_returns_error_response(
+        self, mock_context, real_cost_comparison
+    ):
+        """An exception from a handler comes back as an error response."""
+        mod = real_cost_comparison
+        with (
+            patch.object(mod, 'create_aws_client', return_value=MagicMock()),
+            patch.object(
+                mod,
+                'get_cost_and_usage_comparisons',
+                AsyncMock(side_effect=RuntimeError('API error')),
+            ),
+        ):
+            result = await mod.cost_comparison(  # type: ignore[reportCallIssue]
+                mock_context, operation='getCostAndUsageComparisons', **_COMPARISON_ARGS
+            )
+
+        assert result['status'] == 'error'
+        assert 'API error' in result['message']
 
 
 def test_cost_comparison_server_initialization():

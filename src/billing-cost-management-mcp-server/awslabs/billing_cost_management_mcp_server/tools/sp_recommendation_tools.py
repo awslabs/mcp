@@ -114,9 +114,12 @@ async def sp_recommendation(
             LIGHT/MEDIUM/HEAVY_UTILIZATION values, which are Reserved Instance utilization levels and do not apply to Savings Plans.
         lookback_period_in_days: SEVEN_DAYS, THIRTY_DAYS, or SIXTY_DAYS. Required for get_savings_plans_purchase_recommendation.
         account_scope: PAYER or LINKED.
-        filter: Filter recommendations by Account ID. Includes Dimensions only,
-            with Key as LINKED_ACCOUNT and Value one or more Account IDs. AND and OR operators are
-            not supported. Applies to get_savings_plans_purchase_recommendation only.
+        filter: Filter recommendations by Account ID: a Dimensions expression with Key
+            LINKED_ACCOUNT and Values one or more Account IDs, optionally wrapped in a single Not to
+            exclude those accounts, for example
+            {"Not": {"Dimensions": {"Key": "LINKED_ACCOUNT", "Values": ["111122223333"]}}}.
+            MatchOptions, if given, must be EQUALS. And, Or, and a Not inside another Not are not
+            supported. Applies to get_savings_plans_purchase_recommendation only.
         recommendation_detail_id: Required for get_savings_plan_purchase_recommendation_details. Comes from the RecommendationDetailId field of a recommendation.
         generation_status: SUCCEEDED, PROCESSING, or FAILED. Filters list_savings_plans_purchase_recommendation_generation.
         recommendation_ids: Recommendation IDs to filter to.
@@ -221,7 +224,8 @@ async def get_savings_plans_purchase_recommendation(
             recommendations including the management account and member accounts if the value is
             set to PAYER. If the value is LINKED, recommendations are calculated for individual
             member accounts only.
-        filter_expr: Filter by Account ID with the LINKED_ACCOUNT dimension.
+        filter_expr: Filter by Account ID with the LINKED_ACCOUNT dimension, optionally wrapped in a
+            single Not to exclude those accounts.
         max_items: Total number of recommendation details to return. None fetches every page.
         next_token: The token from a previous response.
 

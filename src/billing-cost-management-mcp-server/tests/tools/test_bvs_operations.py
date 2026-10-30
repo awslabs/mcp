@@ -633,6 +633,110 @@ class TestListBillingViews:
         result = await list_billing_views(mock_ctx, active_before_inclusive='2024-01-31')
         assert result['status'] == STATUS_ERROR
 
+    @pytest.mark.parametrize(
+        'after, before',
+        [
+            # Crosses a month boundary.
+            ('2026-09-15', '2026-10-10'),
+            # A month end written as the next month's first second is in the next month.
+            ('2026-02-01', '2026-03-01T00:00:00'),
+            # Same month number, different year.
+            ('2025-01-15', '2026-01-10'),
+            # December into January.
+            ('2026-12-15', '2027-01-05'),
+        ],
+    )
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_rejects_range_outside_one_month(
+        self, mock_create_client, mock_ctx, after, before
+    ):
+        """A range that leaves one UTC calendar month fails locally and names the rule."""
+        result = await list_billing_views(
+            mock_ctx, active_after_inclusive=after, active_before_inclusive=before
+        )
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'validation_error'
+        message = result['message']
+        assert 'same UTC calendar month' in message
+        assert 'T23:59:59' in message
+        mock_create_client.return_value.list_billing_views.assert_not_called()
+
+    @pytest.mark.parametrize(
+        'after, before, first, last',
+        [
+            ('2026-02-01', '2026-03-01T00:00:00', '2026-02-01T00:00:00', '2026-02-28T23:59:59'),
+            ('2024-02-10', '2024-03-05', '2024-02-01T00:00:00', '2024-02-29T23:59:59'),
+            ('2026-12-15', '2027-01-05', '2026-12-01T00:00:00', '2026-12-31T23:59:59'),
+        ],
+    )
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_out_of_month_error_suggests_that_month(
+        self, mock_create_client, mock_ctx, after, before, first, last
+    ):
+        """The suggested range is the whole month the start falls in."""
+        result = await list_billing_views(
+            mock_ctx, active_after_inclusive=after, active_before_inclusive=before
+        )
+
+        assert f'use {first} to {last}.' in result['message']
+
+    @pytest.mark.parametrize(
+        'after, before',
+        [
+            ('2026-10-10', '2026-10-10'),
+            ('2026-10-10T12:00:00', '2026-10-01'),
+        ],
+    )
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_rejects_end_not_after_start(
+        self, mock_create_client, mock_ctx, after, before
+    ):
+        """The service needs the end strictly after the start; check it locally."""
+        result = await list_billing_views(
+            mock_ctx, active_after_inclusive=after, active_before_inclusive=before
+        )
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'validation_error'
+        assert 'later than active_after_inclusive' in result['message']
+        assert 'T23:59:59' in result['message']
+        mock_create_client.return_value.list_billing_views.assert_not_called()
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_accepts_one_second_range(self, mock_create_client, mock_ctx):
+        """The end only has to be later than the start, so one second is enough."""
+        mock_create_client.return_value.list_billing_views.return_value = {'billingViews': []}
+
+        result = await list_billing_views(
+            mock_ctx,
+            active_after_inclusive='2026-10-10T00:00:00',
+            active_before_inclusive='2026-10-10T00:00:01',
+        )
+
+        assert result['status'] == STATUS_SUCCESS
+        mock_create_client.return_value.list_billing_views.assert_called_once()
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_accepts_whole_month_to_last_second(
+        self, mock_create_client, mock_ctx
+    ):
+        """First day 00:00:00 through last day 23:59:59 is the widest accepted range."""
+        mock_create_client.return_value.list_billing_views.return_value = {'billingViews': []}
+
+        result = await list_billing_views(
+            mock_ctx,
+            active_after_inclusive='2024-02-01',
+            active_before_inclusive='2024-02-29T23:59:59',
+        )
+
+        assert result['status'] == STATUS_SUCCESS
+        call_kwargs = mock_create_client.return_value.list_billing_views.call_args[1]
+        assert call_kwargs['activeTimeRange'] == {
+            'activeAfterInclusive': 1706745600,
+            'activeBeforeInclusive': 1709251199,
+        }
+
     async def test_list_billing_views_invalid_date_format(self, mock_ctx):
         """Test listing billing views with invalid date format."""
         result = await list_billing_views(
