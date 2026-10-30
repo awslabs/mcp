@@ -685,6 +685,338 @@ class TestInternalCreateConnection:
             assert mock_pg_conn.call_args[1]['host'] == instance_host
             assert 'proxy_endpoint' not in json.loads(response)
 
+    def _apg_cluster_props(
+        self, writer='w.cluster-abc.rds.amazonaws.com', reader='w.cluster-ro-abc.rds.amazonaws.com'
+    ):
+        """Cluster metadata shaped like internal_get_cluster_properties returns."""
+        return {
+            'HttpEndpointEnabled': False,
+            'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:c',
+            'MasterUsername': 'postgres',
+            'MasterUserSecret': {'SecretArn': _FIXTURE_SECRET_ARN},
+            'Endpoint': writer,
+            'ReaderEndpoint': reader,
+            'Port': 5432,
+        }
+
+    def test_apg_writer_endpoint_routes_through_the_proxy(self):
+        """Aurora should be proxied too -- the RPG-only gate was arbitrary."""
+        props = self._apg_cluster_props()
+        proxy_host = 'c.proxy-abc.us-east-1.rds.amazonaws.com'
+
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+            ) as mock_props,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_valid_endpoints'
+            ) as mock_valid,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_cluster') as mock_find,
+            patch('awslabs.postgres_mcp_server.server.select_proxy_endpoint') as mock_select,
+        ):
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
+            mock_map.get.return_value = None
+            mock_props.return_value = props
+            mock_valid.return_value = [(props['Endpoint'], 5432), (props['ReaderEndpoint'], 5432)]
+            mock_find.return_value = _proxy(proxy_host, name='c')
+            mock_select.return_value = (proxy_host, 'default read/write endpoint')
+            mock_pg_conn.return_value = MagicMock()
+
+            _, response = server_module.internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='c',
+                db_endpoint=props['Endpoint'],
+                port=5432,
+                database='testdb',
+            )
+
+            # Looked up by cluster, asking for read/write.
+            mock_find.assert_called_once_with('c', 'us-east-1', False)
+            assert mock_select.call_args[0][2] is False
+            assert mock_pg_conn.call_args[1]['host'] == proxy_host
+            payload = json.loads(response)
+            assert payload['db_endpoint'] == props['Endpoint']
+            assert payload['proxy_endpoint'] == proxy_host
+
+    def test_apg_reader_endpoint_asks_for_a_read_only_proxy_endpoint(self):
+        """A reader request must be carried through to endpoint selection.
+
+        Otherwise reads would be served by the writer, defeating the reason the
+        caller asked for the reader endpoint.
+        """
+        props = self._apg_cluster_props()
+        ro_host = 'c-ro.endpoint.proxy-abc.us-east-1.rds.amazonaws.com'
+
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+            ) as mock_props,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_valid_endpoints'
+            ) as mock_valid,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_cluster') as mock_find,
+            patch('awslabs.postgres_mcp_server.server.select_proxy_endpoint') as mock_select,
+        ):
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
+            mock_map.get.return_value = None
+            mock_props.return_value = props
+            mock_valid.return_value = [(props['Endpoint'], 5432), (props['ReaderEndpoint'], 5432)]
+            mock_find.return_value = _proxy(ro_host, name='c')
+            mock_select.return_value = (ro_host, "READ_ONLY endpoint 'c-ro'")
+            mock_pg_conn.return_value = MagicMock()
+
+            server_module.internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='c',
+                db_endpoint=props['ReaderEndpoint'],
+                port=5432,
+                database='testdb',
+            )
+
+            mock_find.assert_called_once_with('c', 'us-east-1', True)
+            assert mock_select.call_args[0][2] is True
+            assert mock_pg_conn.call_args[1]['host'] == ro_host
+
+    def test_apg_member_instance_endpoint_is_never_proxied(self):
+        """A request for one specific member is something a proxy cannot honor.
+
+        The proxy chooses the backend, so routing would silently connect
+        elsewhere. Such a request stays direct and the lookup is not attempted.
+        """
+        props = self._apg_cluster_props()
+        member_host = 'c-instance-1.abc.us-east-1.rds.amazonaws.com'
+
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+            ) as mock_props,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_valid_endpoints'
+            ) as mock_valid,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_cluster') as mock_find,
+        ):
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
+            mock_map.get.return_value = None
+            mock_props.return_value = props
+            mock_valid.return_value = [
+                (props['Endpoint'], 5432),
+                (props['ReaderEndpoint'], 5432),
+                (member_host, 5432),
+            ]
+            mock_pg_conn.return_value = MagicMock()
+
+            _, response = server_module.internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='c',
+                db_endpoint=member_host,
+                port=5432,
+                database='testdb',
+            )
+
+            mock_find.assert_not_called()
+            assert mock_pg_conn.call_args[1]['host'] == member_host
+            assert 'proxy_endpoint' not in json.loads(response)
+
+    def test_apg_proxy_without_a_matching_role_endpoint_goes_direct(self):
+        """No READ_ONLY endpoint means direct, not the writer."""
+        props = self._apg_cluster_props()
+
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+            ) as mock_props,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_valid_endpoints'
+            ) as mock_valid,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_cluster') as mock_find,
+            patch('awslabs.postgres_mcp_server.server.select_proxy_endpoint') as mock_select,
+        ):
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
+            mock_map.get.return_value = None
+            mock_props.return_value = props
+            mock_valid.return_value = [(props['Endpoint'], 5432), (props['ReaderEndpoint'], 5432)]
+            mock_find.return_value = _proxy('c.proxy-abc.rds.amazonaws.com', name='c')
+            mock_select.return_value = (None, 'no available READ_ONLY endpoint')
+            mock_pg_conn.return_value = MagicMock()
+
+            _, response = server_module.internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='c',
+                db_endpoint=props['ReaderEndpoint'],
+                port=5432,
+                database='testdb',
+            )
+
+            assert mock_pg_conn.call_args[1]['host'] == props['ReaderEndpoint']
+            assert 'proxy_endpoint' not in json.loads(response)
+
+    def test_apg_proxy_not_attempted_when_mode_is_off(self):
+        """The opt-in default applies to Aurora exactly as it does to RDS."""
+        props = self._apg_cluster_props()
+
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+            ) as mock_props,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_valid_endpoints'
+            ) as mock_valid,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_cluster') as mock_find,
+        ):
+            assert server_module.configured_rds_proxy_mode == server_module.RDS_PROXY_OFF
+            mock_map.get.return_value = None
+            mock_props.return_value = props
+            mock_valid.return_value = [(props['Endpoint'], 5432)]
+            mock_pg_conn.return_value = MagicMock()
+
+            server_module.internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='c',
+                db_endpoint=props['Endpoint'],
+                port=5432,
+                database='testdb',
+            )
+
+            mock_find.assert_not_called()
+            assert mock_pg_conn.call_args[1]['host'] == props['Endpoint']
+
+    def test_rds_proxy_parameter_enables_routing_when_startup_default_is_off(self):
+        """The MCP tool is a config surface too, not just the JSON config file.
+
+        A caller reaching the server through connect_to_database must be able to
+        ask for proxy routing even when the operator left the startup default at
+        'off', otherwise the feature is unreachable for LLM-driven connections.
+        """
+        instance_host = 'instance.endpoint.com'
+        proxy_host = 'my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com'
+
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_instance_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
+        ):
+            # Startup default stays off; the per-call parameter does the work.
+            assert server_module.configured_rds_proxy_mode == server_module.RDS_PROXY_OFF
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'MasterUsername': 'postgres',
+                'MasterUserSecret': {'SecretArn': _FIXTURE_SECRET_ARN},
+                'Endpoint': {'Address': instance_host, 'Port': 5432},
+                'DBInstanceIdentifier': 'my-instance',
+            }
+            mock_proxy.return_value = _proxy(proxy_host)
+            mock_pg_conn.return_value = MagicMock()
+
+            _, response = server_module.internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.RPG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='',
+                db_endpoint=instance_host,
+                port=5432,
+                database='testdb',
+                rds_proxy=server_module.RDS_PROXY_AUTO,
+            )
+
+            assert mock_pg_conn.call_args[1]['host'] == proxy_host
+            assert json.loads(response)['proxy_endpoint'] == proxy_host
+
+    def test_rds_proxy_parameter_can_disable_routing_when_startup_default_is_auto(self):
+        """The override works in both directions, so a caller can opt out too."""
+        instance_host = 'instance.endpoint.com'
+
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_instance_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
+        ):
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'MasterUsername': 'postgres',
+                'MasterUserSecret': {'SecretArn': _FIXTURE_SECRET_ARN},
+                'Endpoint': {'Address': instance_host, 'Port': 5432},
+                'DBInstanceIdentifier': 'my-instance',
+            }
+            mock_pg_conn.return_value = MagicMock()
+
+            _, response = server_module.internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.RPG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='',
+                db_endpoint=instance_host,
+                port=5432,
+                database='testdb',
+                rds_proxy=server_module.RDS_PROXY_OFF,
+            )
+
+            mock_proxy.assert_not_called()
+            assert mock_pg_conn.call_args[1]['host'] == instance_host
+            assert 'proxy_endpoint' not in json.loads(response)
+
+    def test_rds_proxy_parameter_omitted_uses_the_startup_setting(self):
+        """None means defer, so existing callers are unaffected."""
+        instance_host = 'instance.endpoint.com'
+        proxy_host = 'my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com'
+
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_instance_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
+        ):
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'MasterUsername': 'postgres',
+                'MasterUserSecret': {'SecretArn': _FIXTURE_SECRET_ARN},
+                'Endpoint': {'Address': instance_host, 'Port': 5432},
+                'DBInstanceIdentifier': 'my-instance',
+            }
+            mock_proxy.return_value = _proxy(proxy_host)
+            mock_pg_conn.return_value = MagicMock()
+
+            server_module.internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.RPG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='',
+                db_endpoint=instance_host,
+                port=5432,
+                database='testdb',
+            )
+
+            assert mock_pg_conn.call_args[1]['host'] == proxy_host
+
     def test_rpg_instance_uses_direct_endpoint_when_no_proxy(self):
         """Test that direct endpoint is used when no RDS Proxy is found."""
         with (

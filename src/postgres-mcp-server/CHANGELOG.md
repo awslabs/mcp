@@ -54,12 +54,21 @@ not always obvious from the entries below.
 
 ### Added
 
-- **RDS Proxy auto-detection for standalone RPG instances, behind `--rds_proxy`.**
-  With `--rds_proxy auto`, connecting to a standalone RDS PostgreSQL instance
-  (`RPG` with no `cluster_identifier`) checks whether an available RDS Proxy fronts
-  that instance and connects through it when one is found. The default is `off`,
-  which behaves exactly as before. Cluster-backed targets (APG, and RPG multi-AZ
-  clusters) are unaffected in either mode.
+- **RDS Proxy auto-detection for RDS and Aurora PostgreSQL, behind `--rds_proxy`.**
+  With `--rds_proxy auto`, connecting checks whether an available RDS Proxy fronts
+  the target and connects through it when a usable one is found. The default is
+  `off`, which behaves exactly as before. `connect_to_database` also accepts an
+  `rds_proxy` parameter that overrides the startup setting per connection, since
+  the MCP config file is not the only way connections are established.
+
+  Covers both standalone RDS instances and Aurora clusters. Aurora needs more than
+  the identifier match: a proxy fronts the *cluster* (reported as a
+  `TRACKED_CLUSTER` target that carries no health of its own, so usability comes
+  from the member entries), and its default endpoint is read/write. A cluster
+  reader endpoint is therefore routed to a `READ_ONLY` proxy endpoint when one is
+  available and left direct otherwise, rather than silently serving reads from the
+  writer. A custom endpoint or a specific member instance endpoint is always left
+  direct, because a proxy picks its own backend and cannot honor that request.
 
   Opt-in rather than automatic because a proxy that fronts an instance is not
   necessarily one the server can use: the proxy only accepts users whose secrets

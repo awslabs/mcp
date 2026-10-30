@@ -2,6 +2,7 @@
 
 import pytest
 from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+    find_proxy_for_cluster,
     find_proxy_for_instance,
     internal_create_express_cluster,
     internal_create_rds_client,
@@ -10,6 +11,7 @@ from awslabs.postgres_mcp_server.connection.cp_api_connection import (
     internal_get_cluster_properties,
     internal_get_cluster_valid_endpoints,
     proxy_supports_connection,
+    select_proxy_endpoint,
 )
 from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod
 from botocore.exceptions import ClientError, WaiterError
@@ -2202,3 +2204,275 @@ class TestProxySupportsConnection:
             _auth_proxy(entry), ConnectionMethod.PG_WIRE_PROTOCOL, SECRET_A
         )
         assert ok is True
+
+
+# =============================================================================
+# TESTS FOR: Aurora (APG) proxy discovery and endpoint selection
+# =============================================================================
+#
+# Target shapes below are copied from a real Aurora proxy
+# (describe-db-proxy-targets on a healthy db.t3.medium cluster). Two details are
+# load-bearing and were both initially assumed wrong:
+#   - the TRACKED_CLUSTER entry carries NO TargetHealth and NO Role, even when
+#     every member is healthy;
+#   - member Role is 'UNKNOWN' until the target finishes registering, then
+#     becomes READ_WRITE / READ_ONLY.
+
+
+def _cluster_target(cluster_id='my-cluster'):
+    """The TRACKED_CLUSTER entry: no TargetHealth, no Role."""
+    return {'RdsResourceId': cluster_id, 'Port': 5432, 'Type': 'TRACKED_CLUSTER'}
+
+
+def _member_target(instance_id, role, cluster_id='my-cluster', state='AVAILABLE'):
+    """One Aurora member instance entry."""
+    return {
+        'Endpoint': f'{instance_id}.abc.us-east-1.rds.amazonaws.com',
+        'TrackedClusterId': cluster_id,
+        'RdsResourceId': instance_id,
+        'Port': 5432,
+        'Type': 'RDS_INSTANCE',
+        'Role': role,
+        'TargetHealth': {'State': state},
+    }
+
+
+def _healthy_aurora_targets(cluster_id='my-cluster'):
+    return [
+        _cluster_target(cluster_id),
+        _member_target('my-cluster-instance-1', 'READ_WRITE', cluster_id),
+        _member_target('my-cluster-instance-1-reader', 'READ_ONLY', cluster_id),
+    ]
+
+
+def _proxy_paginators(mock_rds, proxies, targets):
+    """Wire describe_db_proxies / describe_db_proxy_targets paginators."""
+    proxy_pag = MagicMock()
+    proxy_pag.paginate.return_value = [{'DBProxies': proxies}]
+    target_pag = MagicMock()
+    target_pag.paginate.return_value = [{'Targets': targets}]
+
+    def get_paginator(op):
+        if op == 'describe_db_proxies':
+            return proxy_pag
+        if op == 'describe_db_proxy_targets':
+            return target_pag
+        return MagicMock()
+
+    mock_rds.get_paginator.side_effect = get_paginator
+
+
+APG_PROXY = {
+    'DBProxyName': 'my-cluster',
+    'Status': 'available',
+    'Endpoint': 'my-cluster.proxy-abc.us-east-1.rds.amazonaws.com',
+}
+
+
+class TestFindProxyForCluster:
+    """Aurora matches on the cluster entry, with health taken from the members."""
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_matches_tracked_cluster_entry(self, mock_create_client):
+        """The cluster entry has no TargetHealth, so requiring it would reject Aurora."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        _proxy_paginators(mock_rds, [APG_PROXY], _healthy_aurora_targets())
+
+        result = find_proxy_for_cluster('my-cluster', 'us-east-1', want_read_only=False)
+
+        assert result is not None
+        assert result['DBProxyName'] == 'my-cluster'
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_read_only_request_needs_a_healthy_reader(self, mock_create_client):
+        """A read-only request must not be satisfied by a writer-only cluster.
+
+        Otherwise reads would be served by the primary, which is exactly what
+        asking for the reader endpoint is meant to avoid.
+        """
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        _proxy_paginators(
+            mock_rds,
+            [APG_PROXY],
+            [
+                _cluster_target(),
+                _member_target('my-cluster-instance-1', 'READ_WRITE'),
+            ],
+        )
+
+        assert find_proxy_for_cluster('my-cluster', 'us-east-1', want_read_only=True) is None
+        # The same cluster is still usable for writes.
+        assert find_proxy_for_cluster('my-cluster', 'us-east-1', want_read_only=False) is not None
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_unhealthy_members_mean_no_proxy(self, mock_create_client):
+        """Health comes from the members, since the cluster entry reports none."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        _proxy_paginators(
+            mock_rds,
+            [APG_PROXY],
+            [
+                _cluster_target(),
+                _member_target('my-cluster-instance-1', 'READ_WRITE', state='UNAVAILABLE'),
+            ],
+        )
+
+        assert find_proxy_for_cluster('my-cluster', 'us-east-1', want_read_only=False) is None
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_registering_members_mean_no_proxy(self, mock_create_client):
+        """Role is 'UNKNOWN' while registering, and health is UNAVAILABLE.
+
+        Observed live as PENDING_PROXY_CAPACITY while the proxy scaled up.
+        """
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        _proxy_paginators(
+            mock_rds,
+            [APG_PROXY],
+            [
+                _cluster_target(),
+                _member_target('my-cluster-instance-1', 'UNKNOWN', state='UNAVAILABLE'),
+                _member_target('my-cluster-instance-1-reader', 'UNKNOWN', state='UNAVAILABLE'),
+            ],
+        )
+
+        assert find_proxy_for_cluster('my-cluster', 'us-east-1', want_read_only=False) is None
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_other_cluster_does_not_match(self, mock_create_client):
+        """Matching is by identifier, not "any Aurora proxy will do"."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        _proxy_paginators(mock_rds, [APG_PROXY], _healthy_aurora_targets('someone-elses-cluster'))
+
+        assert find_proxy_for_cluster('my-cluster', 'us-east-1', want_read_only=False) is None
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_aurora_member_is_not_matched_as_a_standalone_instance(self, mock_create_client):
+        """An Aurora member must not match the instance lookup.
+
+        Members appear as RDS_INSTANCE targets, but a proxy fronting a cluster
+        chooses the backend, so it cannot be asked for one specific member.
+        Matching one would promise routing the proxy does not honor.
+        """
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        _proxy_paginators(mock_rds, [APG_PROXY], _healthy_aurora_targets())
+
+        assert find_proxy_for_instance('my-cluster-instance-1', 'us-east-1') is None
+
+
+class TestSelectProxyEndpoint:
+    """Picking the proxy endpoint whose TargetRole matches what was asked for."""
+
+    def test_read_write_uses_the_default_endpoint_without_an_api_call(self):
+        """The default endpoint is READ_WRITE, so no enumeration is needed."""
+        endpoint, reason = select_proxy_endpoint(APG_PROXY, 'us-east-1', want_read_only=False)
+        assert endpoint == 'my-cluster.proxy-abc.us-east-1.rds.amazonaws.com'
+        assert 'default read/write' in reason
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_read_only_picks_a_read_only_endpoint(self, mock_create_client):
+        """Shape taken from a real describe-db-proxy-endpoints response."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        pag = MagicMock()
+        pag.paginate.return_value = [
+            {
+                'DBProxyEndpoints': [
+                    {
+                        'DBProxyEndpointName': 'default',
+                        'Status': 'available',
+                        'TargetRole': 'READ_WRITE',
+                        'IsDefault': True,
+                        'Endpoint': 'my-cluster.proxy-abc.us-east-1.rds.amazonaws.com',
+                    },
+                    {
+                        'DBProxyEndpointName': 'my-cluster-read-only',
+                        'Status': 'available',
+                        'TargetRole': 'READ_ONLY',
+                        'IsDefault': False,
+                        'Endpoint': 'my-cluster-read-only.endpoint.proxy-abc.us-east-1.rds.amazonaws.com',
+                    },
+                ]
+            }
+        ]
+        mock_rds.get_paginator.return_value = pag
+
+        endpoint, reason = select_proxy_endpoint(APG_PROXY, 'us-east-1', want_read_only=True)
+
+        assert endpoint == 'my-cluster-read-only.endpoint.proxy-abc.us-east-1.rds.amazonaws.com'
+        assert 'READ_ONLY' in reason
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_no_read_only_endpoint_returns_none_rather_than_the_default(self, mock_create_client):
+        """This is the decision that keeps reads off the writer.
+
+        Falling back to the default endpoint would silently turn a read-only
+        connection into a writer connection; returning None sends the caller
+        direct instead.
+        """
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        pag = MagicMock()
+        pag.paginate.return_value = [
+            {
+                'DBProxyEndpoints': [
+                    {
+                        'DBProxyEndpointName': 'default',
+                        'Status': 'available',
+                        'TargetRole': 'READ_WRITE',
+                        'IsDefault': True,
+                        'Endpoint': 'my-cluster.proxy-abc.us-east-1.rds.amazonaws.com',
+                    }
+                ]
+            }
+        ]
+        mock_rds.get_paginator.return_value = pag
+
+        endpoint, reason = select_proxy_endpoint(APG_PROXY, 'us-east-1', want_read_only=True)
+
+        assert endpoint is None
+        assert 'READ_ONLY' in reason
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_unavailable_read_only_endpoint_is_not_used(self, mock_create_client):
+        """An endpoint still being created cannot serve traffic."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        pag = MagicMock()
+        pag.paginate.return_value = [
+            {
+                'DBProxyEndpoints': [
+                    {
+                        'DBProxyEndpointName': 'ro',
+                        'Status': 'creating',
+                        'TargetRole': 'READ_ONLY',
+                        'Endpoint': 'ro.endpoint.proxy-abc.us-east-1.rds.amazonaws.com',
+                    }
+                ]
+            }
+        ]
+        mock_rds.get_paginator.return_value = pag
+
+        endpoint, _ = select_proxy_endpoint(APG_PROXY, 'us-east-1', want_read_only=True)
+        assert endpoint is None
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_api_failure_falls_back_to_no_endpoint(self, mock_create_client):
+        """Best-effort: a describe failure means direct, not a crash."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        pag = MagicMock()
+        pag.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'nope'}}, 'DescribeDBProxyEndpoints'
+        )
+        mock_rds.get_paginator.return_value = pag
+
+        endpoint, reason = select_proxy_endpoint(APG_PROXY, 'us-east-1', want_read_only=True)
+        assert endpoint is None
+        assert 'AccessDenied' in reason
