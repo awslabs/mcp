@@ -165,8 +165,7 @@ async def sp_explorer(
             productDescription, tenancy, productType, serviceCode, usageType, and operation;
             describe_savings_plans_offerings takes region and instanceFamily; and
             describe_savings_plans_offering_rates takes region, instanceFamily, instanceType,
-            productDescription, tenancy, and productId. For describe_savings_plans the values
-            are strings, numbers included, matched exactly and case-sensitively, and a value that
+            productDescription, and tenancy. For describe_savings_plans the values are strings, numbers included, matched exactly and case-sensitively, and a value that
             matches no plan returns an empty list, not an error: savings-plan-type is Compute,
             EC2Instance, SageMaker, or Database; payment-option is 'All Upfront', 'Partial
             Upfront', or 'No Upfront', with the spaces; term is the duration in seconds as a
