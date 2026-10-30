@@ -1,3 +1,4 @@
+import awslabs.aws_api_mcp_server.core.common.config as config_module
 import awslabs.aws_api_mcp_server.server as server_module
 import os
 import pytest
@@ -1350,6 +1351,36 @@ def test_get_server_auth_streamable_http_no_auth():
     auth_provider = get_server_auth()
 
     assert auth_provider is None
+
+
+@pytest.mark.parametrize(
+    ('auth_type', 'auth_issuer', 'auth_jwks_uri', 'expected_call_aws'),
+    [
+        ('no-auth', None, None, False),
+        ('oauth', 'https://issuer.example.com', 'https://example.com/jwks', True),
+    ],
+)
+async def test_call_aws_registration_requires_http_auth(
+    auth_type, auth_issuer, auth_jwks_uri, expected_call_aws
+):
+    """Hide AWS credential-using tools when the HTTP server has no client auth."""
+    import importlib
+
+    try:
+        with (
+            patch.object(config_module, 'TRANSPORT', 'streamable-http'),
+            patch.object(config_module, 'AUTH_TYPE', auth_type),
+            patch.object(config_module, 'AUTH_ISSUER', auth_issuer),
+            patch.object(config_module, 'AUTH_JWKS_URI', auth_jwks_uri),
+        ):
+            importlib.reload(server_module)
+
+            tool_names = {tool.name for tool in await server_module.server.list_tools()}
+
+            assert ('call_aws' in tool_names) is expected_call_aws
+            assert 'suggest_aws_commands' in tool_names
+    finally:
+        importlib.reload(server_module)
 
 
 @patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
