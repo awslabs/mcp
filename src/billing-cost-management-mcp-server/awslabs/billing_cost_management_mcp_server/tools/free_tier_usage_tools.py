@@ -23,7 +23,7 @@ from ..utilities.aws_service_base import (
     format_response,
     handle_aws_error,
     paginate_aws_items,
-    parse_json,
+    parse_filter,
     with_pagination,
 )
 from ..utilities.constants import PAGINATION_LIMIT_TEXT
@@ -150,8 +150,8 @@ async def get_free_tier_usage_data(
     try:
         # Create request parameters. The token and page size are added per page.
         request_params: Dict[str, Any] = {}
-        if filter_expr:
-            request_params['filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['filter'] = parse_filter(filter_expr)
             filter_error = _filter_error(request_params['filter'])
             if filter_error:
                 return format_response(

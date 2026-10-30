@@ -26,6 +26,7 @@ from ..utilities.aws_service_base import (
     format_response,
     handle_aws_error,
     paginate_aws_items,
+    parse_filter,
     parse_json,
     with_pagination,
 )
@@ -497,8 +498,8 @@ async def get_cost_and_usage_comparisons(
         if group_by:
             request_params['GroupBy'] = parse_json(group_by, 'group_by')
 
-        if filter_expr:
-            request_params['Filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
@@ -601,8 +602,8 @@ async def get_cost_comparison_drivers(
         if group_by:
             request_params['GroupBy'] = parse_json(group_by, 'group_by')
 
-        if filter_expr:
-            request_params['Filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
