@@ -14,10 +14,16 @@
 """Tests for the psycopg connector functionality."""
 
 import concurrent.futures
+import json
 import pytest
 import threading
 import time
-from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
+from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
+    PsycopgPoolConnection,
+    get_credentials_from_secret,
+    get_username_from_secret,
+)
+from botocore.exceptions import ClientError
 from datetime import datetime, timedelta
 from psycopg import OperationalError
 from psycopg_pool import PoolTimeout
@@ -1507,3 +1513,141 @@ class TestTLSRemediationHint:
                 await conn.initialize_pool()
 
         assert not any('--sslmode' in message for message in logged)
+
+
+class TestGetUsernameFromSecret:
+    """Tests for the username-only secret reader used by IAM authentication."""
+
+    @staticmethod
+    def _mock_secret(mock_session, secret_string):
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+        mock_client.get_secret_value.return_value = {'SecretString': secret_string}
+        return mock_client
+
+    def test_accepts_username_only_secret(self):
+        """A secret with only a username is valid when the password is not needed."""
+        with patch('boto3.Session') as mock_session:
+            mock_client = self._mock_secret(mock_session, '{"username": "app_reader"}')
+
+            assert get_username_from_secret('arn:secret', 'us-east-1') == 'app_reader'
+            mock_client.get_secret_value.assert_called_once_with(SecretId='arn:secret')
+
+    def test_ignores_password_when_present(self):
+        """A full RDS-style secret still works; the password is ignored."""
+        with patch('boto3.Session') as mock_session:
+            secret_string = (
+                '{"Username": "app_reader", "password": "unused"}'  # pragma: allowlist secret
+            )
+            self._mock_secret(mock_session, secret_string)
+
+            assert get_username_from_secret('arn:secret', 'us-east-1') == 'app_reader'
+
+    def test_missing_username_raises(self):
+        """A username is still required."""
+        with patch('boto3.Session') as mock_session:
+            self._mock_secret(mock_session, '{"password": "db_pass"}')
+
+            with pytest.raises(ValueError, match='Secret does not contain username'):
+                get_username_from_secret('arn:secret', 'us-east-1')
+
+    def test_is_test_returns_test_username(self):
+        """is_test short-circuits without calling AWS."""
+        with patch('boto3.Session') as mock_session:
+            assert get_username_from_secret('arn:secret', 'us-east-1', is_test=True) == (
+                'test_user'
+            )
+            mock_session.assert_not_called()
+
+    def test_get_credentials_from_secret_still_requires_password(self):
+        """The (username, password) reader keeps rejecting a username-only secret."""
+        with patch('boto3.Session') as mock_session:
+            self._mock_secret(mock_session, '{"username": "app_reader"}')
+
+            with pytest.raises(ValueError, match='Secret does not contain password'):
+                get_credentials_from_secret('arn:secret', 'us-east-1')
+
+
+@pytest.mark.parametrize('reader', [get_credentials_from_secret, get_username_from_secret])
+@pytest.mark.parametrize('failure_stage', ['session', 'client', 'get_secret_value'])
+def test_secret_retrieval_errors_preserve_aws_context(reader, failure_stage):
+    """Failures at every AWS retrieval stage retain their message and cause."""
+    error = ClientError(
+        {'Error': {'Code': 'AccessDeniedException', 'Message': 'KMS decrypt denied'}},
+        'GetSecretValue',
+    )
+    with patch('boto3.Session') as session:
+        if failure_stage == 'session':
+            session.side_effect = error
+        elif failure_stage == 'client':
+            session.return_value.client.side_effect = error
+        else:
+            session.return_value.client.return_value.get_secret_value.side_effect = error
+
+        with pytest.raises(
+            ValueError, match='Failed to retrieve credentials from Secrets Manager'
+        ) as excinfo:
+            reader('arn:secret', 'us-east-1')
+
+    assert 'AccessDeniedException' in str(excinfo.value)
+    assert 'KMS decrypt denied' in str(excinfo.value)
+    assert excinfo.value.__cause__ is error
+
+
+@pytest.mark.parametrize('reader', [get_credentials_from_secret, get_username_from_secret])
+@pytest.mark.parametrize(
+    'response, error_type, message',
+    [
+        ({}, ValueError, 'Secret does not contain a SecretString'),
+        ({'SecretString': '{'}, json.JSONDecodeError, 'Expecting property name'),
+        ({'SecretString': '{}'}, ValueError, 'Secret does not contain username'),
+    ],
+    ids=['no-secret-string', 'invalid-json', 'missing-username'],
+)
+def test_secret_payload_errors_are_not_retrieval_errors(reader, response, error_type, message):
+    """Successful retrieval followed by invalid payloads reports validation errors."""
+    with patch('boto3.Session') as session:
+        session.return_value.client.return_value.get_secret_value.return_value = response
+
+        with pytest.raises(error_type, match=message) as excinfo:
+            reader('arn:secret', 'us-east-1')
+
+    assert 'Failed to retrieve credentials' not in str(excinfo.value)
+
+
+@pytest.mark.parametrize('reader', [get_credentials_from_secret, get_username_from_secret])
+@pytest.mark.parametrize(
+    'payload',
+    [[], 'app_reader', 123, True, None],
+    ids=['list', 'string', 'number', 'boolean', 'null'],
+)
+def test_secret_non_object_payloads_are_validation_errors(reader, payload):
+    """Non-object JSON is rejected as invalid payload data after retrieval."""
+    with patch('boto3.Session') as session:
+        session.return_value.client.return_value.get_secret_value.return_value = {
+            'SecretString': json.dumps(payload)
+        }
+
+        with pytest.raises(ValueError, match='^Secret must contain a JSON object'):
+            reader('arn:secret', 'us-east-1')
+
+
+def test_missing_secret_password_is_not_a_retrieval_error():
+    """A retrieved username-only payload fails password validation directly."""
+    with patch('boto3.Session') as session:
+        session.return_value.client.return_value.get_secret_value.return_value = {
+            'SecretString': '{"username": "app_reader"}'
+        }
+
+        with pytest.raises(ValueError, match='^Secret does not contain password'):
+            get_credentials_from_secret('arn:secret', 'us-east-1')
+
+
+def test_credentials_reader_rejects_missing_runtime_password():
+    """The public reader must not return None even if its private reader does."""
+    with patch(
+        'awslabs.postgres_mcp_server.connection.psycopg_pool_connection._read_credentials_from_secret',
+        return_value=('app_reader', None),
+    ):
+        with pytest.raises(ValueError, match='password'):
+            get_credentials_from_secret('arn:secret', 'us-east-1')

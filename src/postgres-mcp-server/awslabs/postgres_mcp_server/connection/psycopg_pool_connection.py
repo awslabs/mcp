@@ -212,6 +212,59 @@ def _tls_remediation_hint(exc: BaseException, sslmode: str) -> Optional[str]:
     return None
 
 
+def _read_credentials_from_secret(
+    secret_arn: str, region: str, require_password: bool
+) -> Tuple[str, Optional[str]]:
+    """Read ``(username, password)`` from a Secrets Manager secret.
+
+    Shared by :func:`get_credentials_from_secret` and
+    :func:`get_username_from_secret`. When ``require_password`` is False the
+    password may be missing, in which case ``None`` is returned in its place.
+
+    Raises:
+        ValueError: If the secret is missing, malformed, lacks a username, or
+            lacks a password while ``require_password`` is True.
+    """
+    try:
+        logger.debug(f'Creating Secrets Manager client in region {region}')
+        session = boto3.Session()
+        client = session.client(service_name='secretsmanager', region_name=region)
+
+        logger.debug(f'Retrieving secret value for {secret_arn}')
+        get_secret_value_response = client.get_secret_value(SecretId=secret_arn)
+        logger.debug('Successfully retrieved secret value')
+    except Exception as e:
+        logger.exception(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
+        raise ValueError(f'Failed to retrieve credentials from Secrets Manager: {str(e)}') from e
+
+    if 'SecretString' not in get_secret_value_response:
+        logger.error('Secret does not contain a SecretString')
+        raise ValueError('Secret does not contain a SecretString')
+
+    secret = json.loads(get_secret_value_response['SecretString'])
+    if not isinstance(secret, dict):
+        raise ValueError('Secret must contain a JSON object')
+    logger.debug(f'Secret keys: {", ".join(secret.keys())}')
+
+    username = secret.get('username') or secret.get('user') or secret.get('Username')
+    password = secret.get('password') or secret.get('Password')
+
+    if not username:
+        logger.error(f'Username not found in secret. Available keys: {", ".join(secret.keys())}')
+        raise ValueError(
+            f'Secret does not contain username. Available keys: {", ".join(secret.keys())}'
+        )
+
+    if require_password and not password:
+        logger.error('Password not found in secret')
+        raise ValueError(
+            f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
+        )
+
+    logger.debug(f'Successfully extracted credentials for user: {username}')
+    return username, password or None
+
+
 def get_credentials_from_secret(
     secret_arn: str, region: str, is_test: bool = False
 ) -> Tuple[str, str]:
@@ -221,9 +274,10 @@ def get_credentials_from_secret(
     ``Username`` and ``password``/``Password`` fields — the standard shape
     RDS-managed secrets produce.
 
-    Module-level so callers (e.g. ``server.internal_create_connection``
-    on the IAM-auth path, which only needs the username) can reuse it
-    without instantiating a connection pool.
+    Callers that only need the username (the IAM-auth path, where the
+    password is a generated token) should use
+    :func:`get_username_from_secret` instead, which does not require a
+    password key.
 
     Args:
         secret_arn: Secrets Manager ARN.
@@ -241,44 +295,41 @@ def get_credentials_from_secret(
     if is_test:
         return 'test_user', 'test_password'
 
-    try:
-        logger.debug(f'Creating Secrets Manager client in region {region}')
-        session = boto3.Session()
-        client = session.client(service_name='secretsmanager', region_name=region)
+    username, password = _read_credentials_from_secret(secret_arn, region, require_password=True)
+    if not password:
+        raise ValueError('Secret does not contain password')
+    return username, password
 
-        logger.debug(f'Retrieving secret value for {secret_arn}')
-        get_secret_value_response = client.get_secret_value(SecretId=secret_arn)
-        logger.debug('Successfully retrieved secret value')
 
-        if 'SecretString' not in get_secret_value_response:
-            logger.error('Secret does not contain a SecretString')
-            raise ValueError('Secret does not contain a SecretString')
+def get_username_from_secret(secret_arn: str, region: str, is_test: bool = False) -> str:
+    """Fetch only the database username from AWS Secrets Manager.
 
-        secret = json.loads(get_secret_value_response['SecretString'])
-        logger.debug(f'Secret keys: {", ".join(secret.keys())}')
+    Used on the IAM-auth path (``PG_WIRE_IAM_PROTOCOL``), where the password
+    is a generated IAM auth token, so the secret only needs a ``username``
+    (or ``user``/``Username``) field. A ``password`` key is not required and
+    is ignored if present.
 
-        username = secret.get('username') or secret.get('user') or secret.get('Username')
-        password = secret.get('password') or secret.get('Password')
+    Module-level so callers (e.g. ``server.internal_create_connection`` and
+    ``server.validate_secret_arn_at_startup``) can reuse it without
+    instantiating a connection pool.
 
-        if not username:
-            logger.error(
-                f'Username not found in secret. Available keys: {", ".join(secret.keys())}'
-            )
-            raise ValueError(
-                f'Secret does not contain username. Available keys: {", ".join(secret.keys())}'
-            )
+    Args:
+        secret_arn: Secrets Manager ARN.
+        region: AWS region of the secret.
+        is_test: If True, return a deterministic test username instead of
+            hitting AWS. Intended for unit tests only.
 
-        if not password:
-            logger.error('Password not found in secret')
-            raise ValueError(
-                f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
-            )
+    Returns:
+        The username stored in the secret.
 
-        logger.debug(f'Successfully extracted credentials for user: {username}')
-        return username, password
-    except Exception as e:
-        logger.exception(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
-        raise ValueError(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
+    Raises:
+        ValueError: If the secret is missing, malformed, or lacks a username.
+    """
+    if is_test:
+        return 'test_user'
+
+    username, _ = _read_credentials_from_secret(secret_arn, region, require_password=False)
+    return username
 
 
 class PsycopgPoolConnection(AbstractDBConnection):

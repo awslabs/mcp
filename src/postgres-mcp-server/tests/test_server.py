@@ -1148,7 +1148,7 @@ def test_main_exits_when_secret_arn_unreadable(monkeypatch, capsys):
         )
 
     monkeypatch.setattr(
-        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        'awslabs.postgres_mcp_server.server.get_username_from_secret',
         _raise_access_denied,
     )
 
@@ -1184,19 +1184,19 @@ def test_main_verifies_secret_before_mcp_run(monkeypatch, capsys):
         call_order.append('mcp.run')
 
     def _record_secret(secret_arn, region, is_test=False):
-        call_order.append('get_credentials_from_secret')
-        return ('test_user', 'test_password')
+        call_order.append('get_username_from_secret')
+        return 'test_user'
 
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', _record_run)
     monkeypatch.setattr(
-        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        'awslabs.postgres_mcp_server.server.get_username_from_secret',
         _record_secret,
     )
 
     main()
 
     # Verification must happen before mcp.run, not after.
-    assert call_order == ['get_credentials_from_secret', 'mcp.run']
+    assert call_order == ['get_username_from_secret', 'mcp.run']
 
 
 def test_main_skips_secret_probe_when_arg_omitted(monkeypatch, capsys):
@@ -1219,11 +1219,11 @@ def test_main_skips_secret_probe_when_arg_omitted(monkeypatch, capsys):
 
     def _record_secret(secret_arn, region, is_test=False):
         secret_probe_calls['count'] += 1
-        return ('test_user', 'test_password')
+        return 'test_user'
 
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
     monkeypatch.setattr(
-        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        'awslabs.postgres_mcp_server.server.get_username_from_secret',
         _record_secret,
     )
 
@@ -1266,8 +1266,8 @@ def test_main_parses_per_target_and_default_secret_arn(monkeypatch, capsys):
 
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
     monkeypatch.setattr(
-        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
-        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+        'awslabs.postgres_mcp_server.server.get_username_from_secret',
+        lambda secret_arn, region, is_test=False: 'test_user',
     )
 
     main()
@@ -1398,11 +1398,11 @@ def test_main_skips_empty_bare_secret_arn(monkeypatch, capsys):
 
     def _record_secret(secret_arn, region, is_test=False):
         secret_probe_calls['count'] += 1
-        return ('test_user', 'test_password')
+        return 'test_user'
 
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
     monkeypatch.setattr(
-        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        'awslabs.postgres_mcp_server.server.get_username_from_secret',
         _record_secret,
     )
 
@@ -1765,3 +1765,183 @@ if __name__ == '__main__':
     asyncio.run(test_run_query_throw_client_error())
     asyncio.run(test_run_query_write_queries_on_readonly_setting())
     asyncio.run(test_run_query_write_queries_on_readonly_setting())
+
+
+def test_main_accepts_username_only_secret_for_iam(monkeypatch, capsys):
+    """With PG_WIRE_IAM_PROTOCOL, startup accepts a secret that has no password.
+
+    The IAM auth token is the password, so the secret only needs a username.
+    The startup probe must read the username without requiring a password key.
+    """
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--connection_method',
+            'PG_WIRE_IAM_PROTOCOL',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:username-only',
+        ],
+    )
+
+    call_order = []
+
+    def _record_username(secret_arn, region, is_test=False):
+        call_order.append('get_username_from_secret')
+        return 'app_reader'
+
+    def _fail_credentials(secret_arn, region, is_test=False):
+        raise ValueError('Secret does not contain password. Available keys: username')
+
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.mcp.run', lambda: call_order.append('mcp.run')
+    )
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_username_from_secret', _record_username
+    )
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret', _fail_credentials
+    )
+
+    main()
+
+    assert call_order == ['get_username_from_secret', 'mcp.run']
+
+
+@pytest.mark.parametrize('connection_method', ['PG_WIRE_PROTOCOL', 'RDS_API'])
+def test_main_requires_password_for_non_iam_connection_method(
+    monkeypatch, capsys, connection_method
+):
+    """Password-based connection methods still require a password in the secret."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--connection_method',
+            connection_method,
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:username-only',
+        ],
+    )
+
+    with patch('boto3.Session') as session, patch.object(server_module.mcp, 'run') as run:
+        session.return_value.client.return_value.get_secret_value.return_value = {
+            'SecretString': '{"username": "app_reader"}'
+        }
+
+        with pytest.raises(SystemExit) as excinfo:
+            main()
+
+        assert excinfo.value.code == 1
+        run.assert_not_called()
+
+
+@pytest.mark.parametrize('connection_method', ['pgwire_iam', 'pgwire', 'rdsapi', 'typo'])
+def test_main_rejects_invalid_connection_method_before_secret_access(
+    monkeypatch, capsys, connection_method
+):
+    """Only enum names are accepted, before either secret reader can run."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--connection_method',
+            connection_method,
+            '--region',
+            'us-west-2',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:readable',
+        ],
+    )
+    with (
+        patch.object(server_module, 'get_credentials_from_secret') as credentials,
+        patch.object(server_module, 'get_username_from_secret') as username,
+        patch.object(server_module.mcp, 'run') as run,
+    ):
+        with pytest.raises(SystemExit) as excinfo:
+            main()
+
+        assert excinfo.value.code == 2
+        assert 'invalid choice' in capsys.readouterr().err
+        credentials.assert_not_called()
+        username.assert_not_called()
+        run.assert_not_called()
+
+
+@pytest.mark.parametrize('target_prefix', ['', 'example-cluster='])
+def test_main_lazy_connect_accepts_username_only_secret(monkeypatch, target_prefix):
+    """A future IAM connection can use a username-only default or target secret."""
+    configured_value = 'placeholder'
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        ['server.py', '--region', 'us-west-2', '--secret_arn', target_prefix + configured_value],
+    )
+    with patch('boto3.Session') as session, patch.object(server_module.mcp, 'run') as run:
+        client = session.return_value.client.return_value
+        client.get_secret_value.return_value = {'SecretString': '{"username": "app_reader"}'}
+
+        main()
+
+        run.assert_called_once_with()
+        client.get_secret_value.assert_called_once_with(SecretId=configured_value)
+
+
+def test_main_iam_with_apg_preserves_username_only_authentication(monkeypatch):
+    """Explicit Aurora IAM startup reads the username and creates an IAM pool."""
+    cluster_arn = 'arn:aws:rds:us-west-2:123456789012:cluster:username-only-cluster'
+    endpoint = 'username-only-cluster.cluster.example.us-west-2.rds.amazonaws.com'
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--connection_method',
+            'PG_WIRE_IAM_PROTOCOL',
+            '--db_type',
+            'APG',
+            '--db_cluster_arn',
+            cluster_arn,
+            '--database',
+            'postgres',
+            '--region',
+            'us-west-2',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:username-only',
+        ],
+    )
+    with (
+        patch('boto3.Session') as session,
+        patch.object(
+            server_module,
+            'internal_get_cluster_properties',
+            return_value={
+                'DBClusterArn': cluster_arn,
+                'Endpoint': endpoint,
+                'Port': 5432,
+                'MasterUsername': 'master_user',
+            },
+        ),
+        patch.object(server_module, 'validate_connection', new_callable=AsyncMock) as validate,
+        patch.object(server_module.mcp, 'run') as run,
+    ):
+        client = session.return_value.client.return_value
+        client.get_secret_value.return_value = {'SecretString': '{"username": "app_reader"}'}
+
+        main()
+
+        run.assert_called_once_with()
+        validate.assert_awaited_once()
+        conn = validate.call_args.args[0]
+        assert isinstance(conn, PsycopgPoolConnection)
+        assert conn.is_iam_auth is True
+        assert conn.user == 'app_reader'
+        assert conn.secret_arn == ''
+        assert conn.host == endpoint
