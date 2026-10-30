@@ -14,12 +14,17 @@
 
 """Unit tests for the invoicing_operations and invoicing_tools modules."""
 
+import asyncio
+import botocore.session
 import pytest
+import re
 from awslabs.billing_cost_management_mcp_server.tools.invoicing_operations import (
     list_invoice_summaries,
 )
+from awslabs.billing_cost_management_mcp_server.tools.invoicing_tools import invoicing_server
 from botocore.exceptions import ClientError
 from datetime import datetime, timezone
+from fastmcp import Client
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -170,6 +175,378 @@ class TestListInvoiceSummariesSelector:
             result = await list_invoice_summaries(mock_context, billing_period='2026-05')
 
         assert result['status'] == 'error'
+
+
+class TestListInvoiceSummariesSelectorEcho:
+    """The response names the account or invoice the result was read for.
+
+    The request shape is covered above; these assert the echo, which is the
+    only place the queried identity appears. A row's ``AccountId`` cannot stand
+    in for it: an account query also returns invoices issued to invoice-unit
+    receivers billed from that account, and those rows name a different account.
+    """
+
+    @pytest.mark.asyncio
+    async def test_auto_detected_selector_echoed(self, mock_context, sample_summary):
+        """An account resolved from the caller's identity is echoed as auto-detected."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.return_value = {'Account': '123456789012'}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, mock_sts)
+            result = await list_invoice_summaries(mock_context, billing_period='2026-05')
+
+        assert result['status'] == 'success'
+        assert result['data']['selector'] == {
+            'type': 'ACCOUNT_ID',
+            'value': '123456789012',
+            'auto_detected': True,
+        }
+
+    @pytest.mark.asyncio
+    async def test_explicit_selector_echoed_not_auto_detected(self, mock_context, sample_summary):
+        """An account given in the request is echoed, and not as auto-detected."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+        mock_sts = MagicMock()
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, mock_sts)
+            result = await list_invoice_summaries(
+                mock_context, account_id='999888777666', billing_period='2026-05'
+            )
+
+        assert result['status'] == 'success'
+        assert result['data']['selector'] == {
+            'type': 'ACCOUNT_ID',
+            'value': '999888777666',
+            'auto_detected': False,
+        }
+
+    @pytest.mark.asyncio
+    async def test_invoice_id_selector_echoed(self, mock_context, sample_summary):
+        """An invoice query echoes INVOICE_ID, even when the row names another account."""
+        other_account = dict(sample_summary, AccountId='210987654321')
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [other_account]}
+        mock_sts = MagicMock()
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, mock_sts)
+            result = await list_invoice_summaries(mock_context, invoice_id='INV-001')
+
+        assert result['status'] == 'success'
+        assert result['data']['selector'] == {
+            'type': 'INVOICE_ID',
+            'value': 'INV-001',
+            'auto_detected': False,
+        }
+        # The row's own account differs from the selector, so a reader taking the
+        # queried identity from the row would get the wrong answer.
+        assert result['data']['invoice_summaries'][0]['AccountId'] == '210987654321'
+
+
+class TestListInvoiceSummariesReceiverRole:
+    """``receiver_role`` reaches the API, and changes the span cap but nothing else.
+
+    The parameter is worth its own class because two parts of its behavior are
+    counter-intuitive and a regression in either is silent: it raises the span
+    cap only when set, and it is not a superset of the same query without it.
+    """
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_sent_as_filter(self, mock_context, sample_summary):
+        """receiver_role reaches boto3 as Filter.ReceiverRole."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, MagicMock())
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                billing_period='2026-09',
+                receiver_role='BUYER',
+            )
+
+        assert result['status'] == 'success'
+        call = mock_client.list_invoice_summaries.call_args.kwargs
+        assert call['Filter']['ReceiverRole'] == 'BUYER'
+        assert call['Filter']['BillingPeriod'] == {'Month': 9, 'Year': 2026}
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_lifts_one_month_cap(self, mock_context, sample_summary):
+        """A 92-day range is accepted with a receiver role and sent whole."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, MagicMock())
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2026-06-01',
+                end_date='2026-09-01',
+                receiver_role='BUYER',
+            )
+
+        assert result['status'] == 'success'
+        assert 'suggested_date_ranges' not in result['data']
+        interval = mock_client.list_invoice_summaries.call_args.kwargs['Filter']['TimeInterval']
+        assert interval == {
+            'StartDate': int(datetime(2026, 6, 1, tzinfo=timezone.utc).timestamp()),
+            'EndDate': int(datetime(2026, 9, 1, tzinfo=timezone.utc).timestamp()),
+        }
+
+    @pytest.mark.asyncio
+    async def test_without_receiver_role_cap_and_suggestions_unchanged(self, mock_context):
+        """The same range without a role is still rejected, with the per-month split."""
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2026-06-01',
+                end_date='2026-09-01',
+            )
+
+        _assert_validation_error(result)
+        assert len(result['data']['suggested_date_ranges']) == 3
+        mock_create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_start_before_the_estimate_era_reaches_the_api(
+        self, mock_context, sample_summary
+    ):
+        """No local floor is imposed on how far back a receiver_role range may start.
+
+        A range starting well before the feature's first data is accepted by the
+        service, so rejecting it locally would refuse a request that works.
+        """
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, MagicMock())
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2025-03-01',
+                end_date='2025-08-01',
+                receiver_role='BUYER',
+            )
+
+        assert result['status'] == 'success'
+        mock_client.list_invoice_summaries.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_span_over_five_years_rejected_locally(self, mock_context):
+        """A span past five years is refused before any AWS call, naming the bound."""
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2020-01-01',
+                end_date='2026-01-02',
+                receiver_role='BUYER',
+            )
+
+        _assert_validation_error(result)
+        assert 'five years' in result['data']['message']
+        # The per-month split is meaningless at this scale and is not offered.
+        assert 'suggested_date_ranges' not in result['data']
+        mock_create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_exactly_five_years_is_rejected(self, mock_context):
+        """The service requires LESS than five years, so an exact span is refused.
+
+        Verified live: a start of 2021-10-01 with an end of exactly 2026-10-01
+        and ReceiverRole=BUYER is rejected with "TimePeriod must be less than
+        5 years". Allowing it locally would send a request that cannot succeed.
+        """
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2021-10-01',
+                end_date='2026-10-01',
+                receiver_role='BUYER',
+            )
+
+        _assert_validation_error(result)
+        assert 'less than five years' in result['data']['message']
+        mock_create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_one_day_under_five_years_is_allowed(self, mock_context, sample_summary):
+        """One day short of the bound reaches the API, as it does live."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, MagicMock())
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2021-10-02',
+                end_date='2026-10-01',
+                receiver_role='BUYER',
+            )
+
+        assert result['status'] == 'success'
+        mock_client.list_invoice_summaries.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_one_second_over_five_years_is_rejected(self, mock_context):
+        """The bound is compared on instants, not on whole days.
+
+        Together with the two tests above this pins the boundary: a bound of
+        six years, or one floored to whole days, fails at least one of them.
+        A day-floored check would admit this range, because five years plus
+        23:59:59 floors to exactly five years in days.
+        """
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2021-10-01',
+                end_date='2026-10-01T00:00:01',
+                receiver_role='BUYER',
+            )
+
+        _assert_validation_error(result)
+        mock_create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_leap_day_start_resolves_forward_to_1_march(self, mock_context, sample_summary):
+        """A 29 February start has no counterpart five years on.
+
+        The service resolves it FORWARD to 1 March, not back to 28 February.
+        Verified live with ReceiverRole=BUYER from a 2024-02-29 start: an end
+        of 2029-02-28T23:59:59 is accepted and 2029-03-01 is rejected with
+        "TimePeriod must be less than 5 years". Clamping to 28 February, as
+        this did before, refused a whole day of ranges the service accepts.
+        """
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        for end in ('2029-02-27', '2029-02-28', '2029-02-28T23:59:59'):
+            with patch(CREATE_CLIENT_PATH) as mock_create:
+                mock_create.side_effect = _client_factory(mock_client, MagicMock())
+                accepted = await list_invoice_summaries(
+                    mock_context,
+                    account_id='123456789012',
+                    start_date='2024-02-29',
+                    end_date=end,
+                    receiver_role='BUYER',
+                )
+            assert accepted['status'] == 'success', end
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            refused = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2024-02-29',
+                end_date='2029-03-01',
+                receiver_role='BUYER',
+            )
+        _assert_validation_error(refused)
+        mock_create.assert_not_called()
+        # The bound named in the message is the one the service enforces.
+        assert '2029-03-01' in refused['data']['message']
+
+    @pytest.mark.asyncio
+    async def test_leap_day_bound_keeps_the_start_time_of_day(self, mock_context, sample_summary):
+        """The 1 March bound carries the start's time of day, not midnight.
+
+        Verified live from a 2024-02-29T12:00:00 start: 2029-03-01T11:59:59 is
+        accepted and 2029-03-01T12:00:00 is rejected. Flooring the bound to
+        midnight on 1 March would refuse half a day the service accepts.
+        """
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, MagicMock())
+            accepted = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2024-02-29T12:00:00',
+                end_date='2029-03-01T11:59:59',
+                receiver_role='BUYER',
+            )
+        assert accepted['status'] == 'success'
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            refused = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2024-02-29T12:00:00',
+                end_date='2029-03-01T12:00:00',
+                receiver_role='BUYER',
+            )
+        _assert_validation_error(refused)
+        mock_create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_with_invoice_id_is_rejected(self, mock_context):
+        """A role makes the service read the request as an account query.
+
+        Verified live with a real invoice id: the role alone is rejected
+        ("BillingPeriod and TimePeriod cannot both be null when retrieve
+        invoice summary by account ID"), and the role plus a billing period
+        returns 0 rows for an invoice that exists -- which reads as "not
+        found". Refusing locally is the only outcome that says what is wrong.
+        """
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            result = await list_invoice_summaries(
+                mock_context, invoice_id='INV-001', receiver_role='BUYER'
+            )
+
+        _assert_validation_error(result)
+        assert 'account queries only' in result['data']['message']
+        mock_create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_still_requires_a_time_filter(self, mock_context):
+        """A role lifts the span cap but does not remove the filter requirement.
+
+        The message must name the role's own bound, not the one-month rule it
+        replaces, or it advises a per-month split that is no longer needed.
+        """
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            result = await list_invoice_summaries(
+                mock_context, account_id='123456789012', receiver_role='BUYER'
+            )
+
+        _assert_validation_error(result)
+        message = result['data']['message']
+        assert 'less than five years' in message
+        assert 'one call per month' not in message
+        mock_create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_survives_a_continuation(self, mock_context, sample_summary):
+        """A continuation keeps the role, or page two answers a different query."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, MagicMock())
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                billing_period='2026-09',
+                receiver_role='BUYER',
+                next_token='page-2',
+            )
+
+        assert result['status'] == 'success'
+        call = mock_client.list_invoice_summaries.call_args.kwargs
+        assert call['Filter']['ReceiverRole'] == 'BUYER'
+        assert call['NextToken'] == 'page-2'
 
 
 class TestListInvoiceSummariesFilter:
@@ -780,3 +1157,221 @@ class TestInvoicingRouting:
 
         assert result['status'] == 'error'
         assert 'not_a_real_operation' in result['data']['message']
+
+
+def _served_tool():
+    """The ``invoicing`` tool as published to a client, not as written in source."""
+
+    async def _get():
+        async with Client(invoicing_server) as client:
+            return next(t for t in await client.list_tools() if t.name == 'invoicing')
+
+    return asyncio.run(_get())
+
+
+def _served_description() -> str:
+    """The served description, narrowed to ``str``.
+
+    ``Tool.description`` is typed ``str | None``, so a bare membership test on
+    it fails type checking. A served tool with no description is a defect in
+    its own right, so assert rather than defaulting to an empty string -- that
+    would turn every description assertion below into a silent pass.
+    """
+    description = _served_tool().description
+    assert description is not None, 'the invoicing tool is served with no description'
+    return description
+
+
+def _input_schema(tool):
+    """The served input schema, under whichever field name this FastMCP uses.
+
+    MCP SDK v2 renamed ``inputSchema`` to ``input_schema``, and this package is
+    built against both.
+    """
+    schema = getattr(tool, 'input_schema', None)
+    return tool.inputSchema if schema is None else schema
+
+
+def _schema_enum(schema):
+    """The enum of a parameter, through the anyOf an Optional type renders as."""
+    if 'enum' in schema:
+        return set(schema['enum'])
+    for branch in schema.get('anyOf', []):
+        if 'enum' in branch:
+            return set(branch['enum'])
+    return set()
+
+
+def _documented(name, description):
+    """Whether a field or enum name appears in its own right, not inside another."""
+    return re.search(rf'\b{re.escape(name)}\b', description) is not None
+
+
+def _invoicing_shape(name):
+    """A shape from the live botocore ``invoicing`` model."""
+    return botocore.session.get_session().get_service_model('invoicing').shape_for(name)
+
+
+class TestInvoicingSchemaContract:
+    """The served schema matches the API it wraps."""
+
+    def test_receiver_role_enum_matches_the_api(self):
+        """The parameter offers exactly the roles the API accepts, and no others."""
+        schema = _input_schema(_served_tool())['properties']['receiver_role']
+
+        assert _schema_enum(schema) == set(_invoicing_shape('ReceiverRole').enum)
+
+    @pytest.mark.asyncio
+    async def test_receiver_role_invalid_value_rejected_by_schema(self):
+        """A role outside the enum fails before the handler runs."""
+        async with Client(invoicing_server) as client:
+            result = await client.call_tool(
+                'invoicing',
+                {
+                    'operation': 'list_invoice_summaries',
+                    'account_id': '123456789012',
+                    'billing_period': '2026-09',
+                    'receiver_role': 'PAYER',
+                },
+                raise_on_error=False,
+            )
+
+        assert result.is_error
+
+
+class TestInvoicingDescriptionContract:
+    """The description states what the API does, and no more.
+
+    A description is the only account of the API a model gets, so a claim
+    missing from it is a claim the model cannot act on, and one that contradicts
+    the API is a defect in every answer built on it.
+    """
+
+    def test_receiver_role_documented_as_not_a_superset(self):
+        """The surprising parts of receiver_role are all stated."""
+        description = _served_description()
+
+        assert 'receiver_role' in description
+        assert 'LESS THAN five years' in description
+        assert 'NOT a superset' in description
+        assert 'de-duplicate on InvoiceId' in description
+        assert 'ACCOUNT QUERIES ONLY' in description
+
+    def test_a_time_filter_is_documented_as_refused_for_invoice_id(self):
+        """The word optional implied the filter narrows the result. It never did.
+
+        Verified live against a real invoice id: a TimeInterval covering 2019,
+        and a BillingPeriod of 2019-01, each returned the invoice issued in
+        2026 anyway. So a caller who passed a window and got a row back could
+        not tell the window was disregarded.
+
+        This PR first documented the filter as ignored. #4894 then landed the
+        stronger fix -- the tool refuses the combination outright -- so the
+        description states the refusal rather than the indifference, and this
+        test pins that wording instead.
+        """
+        description = _served_description()
+
+        assert 'not allowed with invoice_id' in description
+        assert 'Takes NO time filter' in description
+        assert 'rejected with a validation_error' in description
+        assert 'optional for invoice_id' not in description
+        assert 'IGNORED for invoice_id' not in description
+
+    def test_estimates_documented_as_indistinguishable_by_type(self):
+        """The prefix is the only marker, and estimates outlive the open month.
+
+        Both claims are live-verified, and both break the rule that only
+        InvoiceType INVOICE is money owed: estimates report that type, and a
+        closed month returns its issued invoices and its estimates together.
+        """
+        description = _served_description()
+
+        assert 'THE PREFIX IS THE ONLY MARKER' in description
+        assert 'NOT limited to billing periods that are still open' in description
+        assert 'NEVER add an estimate to the issued invoices of the same month' in description
+        assert 'excluding rows whose InvoiceId starts with "Estimate-"' in description
+
+    def test_invoicing_entity_documented_as_exact(self):
+        """A misspelled entity errors; a valid one with no invoices returns empty."""
+        description = _served_description()
+
+        assert 'must match EXACTLY' in description
+        assert 'Input invoice entity is not supported' in description
+
+    def test_no_local_date_floor_claimed_for_receiver_role(self):
+        """No claim that early start dates are refused: the service accepts them."""
+        description = _served_description()
+
+        assert '2025-06-01' not in description
+
+    def test_every_invoice_type_and_bill_type_value_is_named(self):
+        """A value the API can return and the description omits is a value a reader mishandles."""
+        description = _served_description()
+
+        missing = [
+            f'{shape}.{value}'
+            for shape in ('InvoiceType', 'BillType', 'InvoiceFrequency')
+            for value in _invoicing_shape(shape).enum
+            if not _documented(value, description)
+        ]
+
+        assert missing == [], f'enum values the description does not name: {missing}'
+
+    def test_every_invoice_summary_member_is_named(self):
+        """Every field the result can carry is named, nested entity members included."""
+        description = _served_description()
+
+        missing = [
+            member
+            for shape in ('InvoiceSummary', 'Entity')
+            for member in _invoicing_shape(shape).members
+            if not _documented(member, description)
+        ]
+
+        assert missing == [], f'response members the description does not name: {missing}'
+
+    def test_credit_memo_sign_convention_is_stated(self):
+        """A positive CREDIT_MEMO summed as owed overstates the amount due."""
+        description = _served_description()
+
+        assert 'CREDIT_MEMO' in description
+        assert 'POSITIVE' in description
+        assert 'OriginalInvoiceId' in description
+        assert 'PAYMENT_RECEIPT' in description
+
+    def test_no_aws_error_text_quoted_for_a_local_check(self):
+        """The span and time-filter checks run here, so AWS's wording never reaches a caller."""
+        description = _served_description()
+
+        assert 'TimePeriod cannot last more than a month' not in description
+        assert 'cannot both be null' not in description
+        assert 'validation_error' in description
+        assert 'suggested_date_ranges' in description
+
+    @pytest.mark.asyncio
+    async def test_unlisted_fields_pass_through_unchanged(self, mock_context, sample_summary):
+        """A field the description does not name still reaches the caller untouched."""
+        row = dict(
+            sample_summary,
+            BillSourceAccounts=['123456789012'],
+            BillSourceAccountsTotalCount=1,
+            ReceiverRole='BUYER',
+            TaxAuthorityStatus='ISSUED',
+            Entity={'InvoicingEntity': 'Amazon Web Services, Inc.', 'BillingEntity': 'AWS'},
+        )
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [row]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.side_effect = _client_factory(mock_client, MagicMock())
+            result = await list_invoice_summaries(
+                mock_context, account_id='123456789012', billing_period='2026-09'
+            )
+
+        returned = result['data']['invoice_summaries'][0]
+        assert returned['BillSourceAccounts'] == ['123456789012']
+        assert returned['BillSourceAccountsTotalCount'] == 1
+        assert returned['ReceiverRole'] == 'BUYER'
+        assert returned['TaxAuthorityStatus'] == 'ISSUED'
+        assert returned['Entity']['BillingEntity'] == 'AWS'
