@@ -21,10 +21,12 @@ These tests verify the functionality of the Cost Category API tools, including:
 - Error handling for API exceptions and invalid inputs
 """
 
+import asyncio
 import fastmcp
 import importlib
 import json
 import pytest
+import re
 from awslabs.billing_cost_management_mcp_server.tools.cost_category_tools import (
     cost_category_server,
 )
@@ -35,6 +37,19 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 
 COST_CATEGORY_ARN = 'arn:aws:ce::123456789012:costcategory/abcd-1234-efgh-5678'
+
+
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import cost_category_tools as module
+
+    importlib.reload(module)
 
 
 def _reload_with_identity_decorator() -> Any:
@@ -197,6 +212,56 @@ class TestDescribeCostCategoryDefinition:
             mock_context, error, 'DescribeCostCategoryDefinition', 'Cost Explorer'
         )
         assert result['status'] == 'error'
+
+    async def test_describe_date_only_effective_on_gets_midnight_utc(
+        self, mock_context, mock_ce_client
+    ):
+        """A YYYY-MM-DD effective_on is sent as midnight UTC (the API needs a full datetime)."""
+        mod = _reload_with_identity_decorator()
+
+        with patch.object(mod, 'create_aws_client', return_value=mock_ce_client):
+            result = await mod.describe_cost_category_definition(
+                mock_context, COST_CATEGORY_ARN, effective_on='2024-06-01'
+            )
+
+        mock_ce_client.describe_cost_category_definition.assert_called_once_with(
+            CostCategoryArn=COST_CATEGORY_ARN,
+            EffectiveOn='2024-06-01T00:00:00Z',
+        )
+        assert result['status'] == 'success'
+
+    async def test_describe_impossible_date_effective_on_is_rejected_locally(
+        self, mock_context, mock_ce_client
+    ):
+        """A YYYY-MM-DD value that is not a real date gets an error naming it; no API call."""
+        mod = _reload_with_identity_decorator()
+
+        with patch.object(mod, 'create_aws_client', return_value=mock_ce_client):
+            result = await mod.describe_cost_category_definition(
+                mock_context, COST_CATEGORY_ARN, effective_on='2023-02-29'
+            )
+
+        mock_ce_client.describe_cost_category_definition.assert_not_called()
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'DescribeCostCategoryDefinition'
+        assert '2023-02-29' in result['data']['message']
+
+    async def test_describe_offset_effective_on_passes_unchanged(
+        self, mock_context, mock_ce_client
+    ):
+        """A full datetime with a UTC offset is sent as given."""
+        mod = _reload_with_identity_decorator()
+
+        with patch.object(mod, 'create_aws_client', return_value=mock_ce_client):
+            await mod.describe_cost_category_definition(
+                mock_context, COST_CATEGORY_ARN, effective_on='2024-06-01T00:00:00+07:00'
+            )
+
+        mock_ce_client.describe_cost_category_definition.assert_called_once_with(
+            CostCategoryArn=COST_CATEGORY_ARN,
+            EffectiveOn='2024-06-01T00:00:00+07:00',
+        )
 
 
 @pytest.mark.asyncio
@@ -364,3 +429,113 @@ class TestListCostCategoryDefinitions:
         assert result['error_type'] == 'validation_error'
         assert result['operation'] == 'ListCostCategoryDefinitions'
         assert result['service'] == 'Cost Explorer'
+
+    async def test_list_date_only_effective_on_gets_midnight_utc(
+        self, mock_context, mock_ce_client
+    ):
+        """A YYYY-MM-DD effective_on is sent as midnight UTC (the API needs a full datetime)."""
+        mod = _reload_with_identity_decorator()
+
+        with patch.object(mod, 'create_aws_client', return_value=mock_ce_client):
+            result = await mod.list_cost_category_definitions(
+                mock_context, effective_on='2024-06-01'
+            )
+
+        mock_ce_client.list_cost_category_definitions.assert_called_once_with(
+            EffectiveOn='2024-06-01T00:00:00Z', MaxResults=100
+        )
+        assert result['status'] == 'success'
+
+    async def test_list_impossible_date_effective_on_is_rejected_locally(
+        self, mock_context, mock_ce_client
+    ):
+        """A YYYY-MM-DD value that is not a real date gets an error naming it; no API call."""
+        mod = _reload_with_identity_decorator()
+
+        with patch.object(mod, 'create_aws_client', return_value=mock_ce_client):
+            result = await mod.list_cost_category_definitions(
+                mock_context, effective_on='2023-02-29'
+            )
+
+        mock_ce_client.list_cost_category_definitions.assert_not_called()
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'ListCostCategoryDefinitions'
+        assert '2023-02-29' in result['data']['message']
+
+
+def _served_description(name: str) -> str:
+    tool = asyncio.run(cost_category_server.get_tool(name))
+    assert tool is not None
+    return ' '.join((tool.description or '').split())
+
+
+def test_describe_description_lists_rule_dimensions():
+    """Rules use SERVICE_CODE, not SERVICE, and the first matching rule wins."""
+    description = _served_description('describe-cost-category-definition')
+
+    assert '(SERVICE, LINKED_ACCOUNT, USAGE_TYPE)' not in description
+    assert 'Linked accounts can describe' not in description
+    for dimension in (
+        'LINKED_ACCOUNT',
+        'SERVICE_CODE',
+        'RECORD_TYPE',
+        'LINKED_ACCOUNT_NAME',
+        'REGION',
+        'USAGE_TYPE',
+    ):
+        assert re.search(rf'\b{dimension}\b', description), dimension
+    assert 'first rule that matches' in description
+    for option in ('STARTS_WITH', 'ENDS_WITH', 'CONTAINS'):
+        assert option in description
+
+
+def test_list_description_states_resource_type_filter_semantics():
+    """The filter takes three types, needs all of them, and returns [] for an unknown type."""
+    description = _served_description('list-cost-category-definitions')
+
+    for resource_type in (
+        'billing:rispgroupsharing',
+        'billing:billingview',
+        'billing:creditsharing',
+    ):
+        assert resource_type in description
+    assert 'support every listed type' in description
+    assert 'that is not a known type returns no categories, not an error' in description
+    assert '"billingview" or "billing:", fails with ValidationException' in description
+    assert 'At most 5 values' in description
+
+
+def test_descriptions_state_effective_on_formats():
+    """Both tools accept YYYY-MM-DD and say versions start on the first of a month."""
+    for name in ('describe-cost-category-definition', 'list-cost-category-definitions'):
+        description = _served_description(name)
+        assert 'YYYY-MM-DD' in description, name
+        assert 'first day of a month' in description, name
+
+
+@pytest.mark.parametrize(
+    'value, expected',
+    [
+        ('2024-06-01', '2024-06-01T00:00:00Z'),
+        ('2024-06-01T00:00:00Z', '2024-06-01T00:00:00Z'),
+        ('2024-06-01T00:00:00+07:00', '2024-06-01T00:00:00+07:00'),
+        (' 2024-06-01', ' 2024-06-01'),
+        ('2024-06-01T00:00:00', '2024-06-01T00:00:00'),
+        ('2024-06-01\n', '2024-06-01\n'),
+    ],
+)
+def test_normalize_effective_on(value, expected):
+    """Only a real YYYY-MM-DD date is rewritten; any other shape is left for the API to judge."""
+    from awslabs.billing_cost_management_mcp_server.tools import cost_category_tools as mod
+
+    assert mod._normalize_effective_on(value) == expected
+
+
+@pytest.mark.parametrize('value', ['2023-02-29', '2024-02-30', '2024-13-01', '2024-00-10'])
+def test_normalize_effective_on_rejects_impossible_dates(value):
+    """A YYYY-MM-DD shaped value that is not a calendar date raises, naming the value."""
+    from awslabs.billing_cost_management_mcp_server.tools import cost_category_tools as mod
+
+    with pytest.raises(ValueError, match=value):
+        mod._normalize_effective_on(value)

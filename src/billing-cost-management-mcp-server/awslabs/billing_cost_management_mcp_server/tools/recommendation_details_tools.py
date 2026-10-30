@@ -327,6 +327,7 @@ async def get_reserved_instances_recommendation(
     try:
         # Call Cost Explorer API
         response = ce_client.get_reservation_purchase_recommendation(**params)
+        response.pop('ResponseMetadata', None)
         return response
     except Exception as e:
         await ctx.error(f'Error getting Reserved Instance recommendation: {str(e)}')
@@ -352,22 +353,17 @@ async def get_compute_optimizer_data(
         # Handle Stop and Delete recommendations
         if action_type in [ACTION_TYPE_STOP, ACTION_TYPE_DELETE]:
             response = compute_optimizer.get_idle_recommendations(resourceArns=[resource_arn])
-            return response
-
         # Handle resource-specific recommendations
-        if resource_type == RESOURCE_TYPE_ECS_SERVICE:
+        elif resource_type == RESOURCE_TYPE_ECS_SERVICE:
             response = compute_optimizer.get_ecs_service_recommendations(
                 serviceArns=[resource_arn]
             )
-            return response
         elif resource_type == RESOURCE_TYPE_LAMBDA_FUNCTION:
             response = compute_optimizer.get_lambda_function_recommendations(
                 functionArns=[resource_arn]
             )
-            return response
         elif resource_type == RESOURCE_TYPE_EBS_VOLUME:
             response = compute_optimizer.get_ebs_volume_recommendations(volumeArns=[resource_arn])
-            return response
         elif resource_type == RESOURCE_TYPE_EC2_INSTANCE:
             response = compute_optimizer.get_ec2_instance_recommendations(
                 instanceArns=[resource_arn]
@@ -377,21 +373,20 @@ async def get_compute_optimizer_data(
                 for instance in response['instanceRecommendations']:
                     if 'recommendationOptions' in instance:
                         del instance['recommendationOptions']
-            return response
         elif resource_type == RESOURCE_TYPE_EC2_ASG:
             response = compute_optimizer.get_auto_scaling_group_recommendations(
                 autoScalingGroupArns=[resource_arn]
             )
-            return response
         elif resource_type == RESOURCE_TYPE_RDS:
             # Compute Optimizer's RDS API is GetRDSDatabaseRecommendations, keyed by
             # resourceArns; its results are under 'rdsDBRecommendations'.
             response = compute_optimizer.get_rds_database_recommendations(
                 resourceArns=[resource_arn]
             )
-            return response
         else:
             return {'error': f'Unsupported resource type: {resource_type}'}
+        response.pop('ResponseMetadata', None)
+        return response
     except Exception as e:
         await ctx.error(f'Error getting Compute Optimizer data: {str(e)}')
         return {'error': f'Error getting Compute Optimizer data: {str(e)}'}

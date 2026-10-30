@@ -29,6 +29,7 @@ from ..utilities.aws_service_base import (
     whole_query_in_one_page,
     with_pagination,
 )
+from ..utilities.time_utils import monthly_period_note
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
 
@@ -71,7 +72,9 @@ that service (from the SERVICE filter, EC2 when omitted); others return a Valida
 SERVICE, INVOICING_ENTITY and OPERATING_SYSTEM are NOT valid group_by attributes here —
 grouping coverage by them returns a ValidationException. SERVICE is a FILTER dimension instead: pass it in
 `filter` (one SERVICE value per call; if you omit a SERVICE filter, Cost Explorer
-defaults to EC2), and call once per service to compare across services.
+defaults to EC2), and call once per service to compare across services. A filter
+with more than one SERVICE value is rejected, because Cost Explorer returns each
+service's figures without saying which service they belong to.
 Reservation coverage applies only to reservable services. The valid SERVICE
 filter values are "Amazon Elastic Compute Cloud - Compute" (the default when
 omitted), "Amazon Relational Database Service", "Amazon ElastiCache",
@@ -85,8 +88,52 @@ valid. The SubscriptionId it returns (and that you filter on) is a NUMERIC id
 (e.g. "359809062"), not an ARN, instance id, or UUID — filtering SubscriptionId
 with an ARN/UUID returns a ValidationException ("must contain only digits").
 
-FILTERING (both operations): the Cost Explorer Expression supports only AND among
-dimensions and nests one level deep; multiple values for one dimension are OR'd.
+FILTER DIMENSIONS get_reservation_coverage (filter): SERVICE plus the same attributes
+that service takes for group_by above (e.g. DEPLOYMENT_OPTION only with RDS); Tags and
+CostCategories expressions also work. OPERATING_SYSTEM, INVOICING_ENTITY and SCOPE are
+rejected for every service, as is an attribute the service does not take (e.g. TENANCY
+with RDS): ValidationException "Dimension ... is not allowed". Use one SERVICE value
+per call; more are rejected (see SERVICE above).
+
+FILTER DIMENSIONS get_reservation_utilization (filter), the same for every service:
+- AZ, INSTANCE_TYPE, INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PLATFORM, REGION, SERVICE,
+  SUBSCRIPTION_ID, TENANCY
+- SCOPE: exactly "Region" (regional RI) or "Availability Zone" (zonal RI), case-sensitive;
+  any other value (e.g. "region") returns no RIs and no error.
+- SUBSCRIPTION_END_DATE_TIME_BEFORE, SUBSCRIPTION_END_DATE_TIME_AFTER: for expiry
+  questions. Exactly one YYYY-MM-DD value each; a datetime or a second value is a
+  ValidationException. BEFORE keeps RIs whose term ends before the date, AFTER those
+  that end on or after it. The AFTER date must not be before start_date, and a BEFORE
+  date must be later than the AFTER date (else ValidationException). Not has no effect
+  on these two keys: Not(BEFORE) returns the same RIs as BEFORE. Undocumented upstream,
+  so they may change.
+CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION and OPERATING_SYSTEM are rejected here,
+and so are Tags and CostCategories expressions ("Tags expression is not allowed").
+
+SORTING (sort_by): {"Key": "<key>", "SortOrder": "DESCENDING"} (or "ASCENDING").
+SortOrder is required and upper case; "descending" is a ValidationException.
+get_reservation_utilization applies sort_by only with group_by; without group_by it
+ignores the key (no sorting, a wrong key is not reported, and SortOrder may be omitted;
+the response's sort_by_note says so), though a SortOrder other than ASCENDING or
+DESCENDING is still rejected. Keys differ per operation; any other key (with group_by,
+for utilization) returns "Unsupported sortKey":
+- get_reservation_coverage: CoverageHoursPercentage, CoverageNormalizedUnitsPercentage,
+  OnDemandCost, OnDemandHours, OnDemandNormalizedUnits, ReservedHours,
+  ReservedNormalizedUnits, TotalRunningHours, TotalRunningNormalizedUnits, Time
+- get_reservation_utilization: UtilizationPercentage, UtilizationPercentageInUnits,
+  PurchasedHours, PurchasedUnits, TotalActualHours, TotalActualUnits, UnusedHours,
+  UnusedUnits, OnDemandCostOfRIHoursUsed, NetRISavings, TotalPotentialRISavings,
+  AmortizedUpfrontFee, AmortizedRecurringFee, TotalAmortizedFee, RICostForUnusedHours,
+  RealizedSavings, UnrealizedSavings
+
+FILTERING (both operations): a filter is one leaf (Dimensions; for coverage also Tags or
+CostCategories), Not of one leaf, or an And of leaves and Not-leaves. Or anywhere, an And
+inside an And, or a Not around anything but a leaf is a ValidationException ("Invalid
+expression"). Each dimension (tags excepted) may appear only once per filter ("filtered
+more than once"); put several values in one leaf instead, and they are OR'd, within the
+limits above for SERVICE and the SUBSCRIPTION_END keys. MatchOptions are rejected
+("MatchOptions contain not allowed match option"). Values are exact and case-sensitive:
+a miscased value (e.g. "US-EAST-1", "linux/unix") returns zeros or no RIs, not an error.
 The SERVICE filter defaults to Amazon Elastic Compute Cloud - Compute when omitted.
 
 DATA FRESHNESS: Reserved Instance utilization data for the most recent 2-3 days
@@ -96,6 +143,21 @@ message. It means there is no data for that window, not a failure and not zero
 utilization: report that, and do not resend the identical request. A start_date at
 least 3 days before today is usually past that delay; query an earlier window only if
 the question allows it.
+
+RESPONSE PERIODS (both operations; dates are YYYY-MM-DD, end exclusive):
+- `requested_time_period` echoes the start_date/end_date that were sent.
+- get_reservation_utilization with MONTHLY granularity labels each entry's `time_period`
+  with its whole calendar month (the current month's entry ends at the first day without
+  data instead), but the figures cover only the requested days. A
+  2026-01-24 to 2026-03-10 request returns a first entry labelled 2026-01-01 to 2026-02-01
+  holding only 2026-01-24 onward, and a last entry labelled 2026-03-01 to 2026-04-01
+  holding only the days before 2026-03-10. `period_note` says when this happened and the
+  range the figures cover. Report those months as partial, not as whole months; `total`
+  also covers only that range.
+- With group_by, get_reservation_utilization returns one entry labelled with the requested
+  period.
+- get_reservation_coverage entries are not snapped: the first starts at the requested start
+  and the last ends at the requested end.
 
 SCOPING LARGE QUERIES: a grouped or DAILY query over a wide window or many
 subscriptions can exceed the tool result size cap and return a ToolResultOversized
@@ -147,8 +209,8 @@ async def ri_performance(
         granularity: Time granularity of the data (DAILY or MONTHLY). Defaults to DAILY. Ignored when group_by is provided (granularity and group_by are mutually exclusive).
         metrics: List of metrics to retrieve for coverage as a JSON string (e.g., '["Hour", "Cost"]'). Valid values are Hour, Unit and Cost; Unit is EC2 only. Defaults to Hour only.
         group_by: Optional grouping as a JSON string. For coverage: AZ, CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION, INSTANCE_TYPE, INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PLATFORM, REGION, or TENANCY, depending on the service (see the tool description) (SERVICE is NOT valid — filter on it instead). For utilization: SUBSCRIPTION_ID only.
-        filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE defaults to EC2 when omitted; valid coverage SERVICE values are "Amazon Elastic Compute Cloud - Compute", "Amazon Relational Database Service", "Amazon ElastiCache", "Amazon MemoryDB", "Amazon Redshift", "Amazon OpenSearch Service", and "Amazon Elasticsearch Service" (use the full display name, not "EC2"/"RDS"). SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
-        sort_by: Optional sorting configuration as a JSON string with key and direction (ASCENDING or DESCENDING).
+        filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE defaults to EC2 when omitted; valid coverage SERVICE values are "Amazon Elastic Compute Cloud - Compute", "Amazon Relational Database Service", "Amazon ElastiCache", "Amazon MemoryDB", "Amazon Redshift", "Amazon OpenSearch Service", and "Amazon Elasticsearch Service" (use the full display name, not "EC2"/"RDS"); coverage takes one SERVICE value per call and rejects more. SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
+        sort_by: Optional sort as a JSON string: '{"Key": "<key>", "SortOrder": "DESCENDING"}'. SortOrder is required: ASCENDING or DESCENDING, upper case only. Valid keys differ per operation (see SORTING in the tool description). get_reservation_utilization ignores sort_by without group_by (the response then carries a sort_by_note).
         max_items: Total number of groups to return across all pages. Omit it to fetch every
             page. Applies only to get_reservation_coverage with group_by set.
         next_token: The pagination.next_token from a previous response; continue with otherwise
@@ -204,6 +266,28 @@ async def ri_performance(
     except Exception as e:
         # Use shared error handler for consistent error reporting
         return await handle_aws_error(ctx, e, 'ri_performance', 'Cost Explorer')
+
+
+def _selected_services(expression: Any) -> List[str]:
+    """Return the distinct SERVICE values a filter expression selects, in order.
+
+    Walks Dimensions and nested And / Or. Values under Not are not counted: Cost Explorer
+    does not split coverage by them (a Not on SERVICE matches no usage).
+    """
+    if not isinstance(expression, dict):
+        return []
+    services: List[str] = []
+    dimension = expression.get('Dimensions')
+    if isinstance(dimension, dict) and dimension.get('Key') == 'SERVICE':
+        values = dimension.get('Values')
+        if isinstance(values, list):
+            services.extend(v for v in values if isinstance(v, str))
+    for operator in ('And', 'Or'):
+        operands = expression.get(operator)
+        if isinstance(operands, list):
+            for operand in operands:
+                services.extend(_selected_services(operand))
+    return list(dict.fromkeys(services))
 
 
 def _count_groups(entries: List[Dict[str, Any]]) -> int:
@@ -316,6 +400,17 @@ async def get_reservation_coverage(
 
         if filter_expr:
             request_params['Filter'] = parse_json(filter_expr, 'filter')
+            # With several SERVICE values the API returns one entry per service for the same
+            # period (grouped: groups of every service), none saying which service it holds.
+            services = _selected_services(request_params['Filter'])
+            if len(services) > 1:
+                named = ', '.join(f'"{service}"' for service in services)
+                raise ValueError(
+                    'get_reservation_coverage takes one SERVICE value per call, but the filter '
+                    f'names {len(services)}: {named}. Cost Explorer would return their figures '
+                    'without saying which service each belongs to; call once per service and '
+                    'combine the results.'
+                )
 
         if sort_by:
             request_params['SortBy'] = parse_json(sort_by, 'sort_by')
@@ -346,6 +441,7 @@ async def get_reservation_coverage(
         # Format the response for better readability
         formatted_response: Dict[str, Any] = {
             'coverages_by_time': [],
+            'requested_time_period': {'start': start, 'end': end},
         }
 
         # Format total coverage if present
@@ -504,9 +600,26 @@ async def get_reservation_utilization(
         )
 
         # Format the response for better readability
+        # MONTHLY entries are labelled with their whole calendar month even where the figures
+        # cover only part of it (the requested start or end falls inside the month).
         formatted_response: Dict[str, Any] = {
             'utilizations_by_time': [],
+            'requested_time_period': {'start': start, 'end': end},
+            **monthly_period_note(
+                start,
+                end,
+                [entry.get('TimePeriod') for entry in all_utilizations],
+                None if group_by else granularity,
+            ),
         }
+
+        # Without GroupBy the API accepts SortBy but ignores it, without checking the key.
+        if sort_by and not group_by:
+            formatted_response['sort_by_note'] = (
+                'sort_by was not applied: get_reservation_utilization sorts only grouped '
+                'results (group_by SUBSCRIPTION_ID), and without group_by it does not check '
+                'the sort key either.'
+            )
 
         # Format total utilization if present
         if total_utilization:

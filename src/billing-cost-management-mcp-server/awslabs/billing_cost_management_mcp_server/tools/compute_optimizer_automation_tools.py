@@ -29,6 +29,7 @@ region. With no `regions`, a single call targets the AWS_REGION env var or us-ea
 
 import asyncio
 import botocore.session
+import json
 from ..utilities.aws_service_base import (
     format_response,
     handle_aws_error,
@@ -150,6 +151,191 @@ def _valid_filter_names_by_operation() -> Dict[str, List[str]]:
     return result
 
 
+# The request model types every filter value as a free string, so the values a filter accepts are
+# read from the enum on the matching member of the operation's response. This maps a filter name
+# to that response member, and each operation to the list call whose response carries it.
+_FILTER_VALUE_MEMBERS: Dict[str, str] = {
+    'ResourceType': 'resourceType',
+    'RecommendedActionType': 'recommendedActionType',
+    'EventType': 'eventType',
+    'EventStatus': 'eventStatus',
+    'Status': 'status',
+    'RuleType': 'ruleType',
+}
+_FILTER_VALUE_SOURCE_API: Dict[str, str] = {
+    'list_automation_events': 'ListAutomationEvents',
+    'list_automation_event_summaries': 'ListAutomationEvents',
+    'list_automation_rules': 'ListAutomationRules',
+    'list_recommended_actions': 'ListRecommendedActions',
+    'list_recommended_action_summaries': 'ListRecommendedActions',
+}
+# For these the API answers an unknown value with an empty success, so an unknown value is
+# rejected locally. The other enum filters are folded but passed through: the API already
+# rejects an unknown value for them and names the valid ones.
+_STRICT_VALUE_FILTERS = frozenset({'ResourceType', 'EventStatus'})
+
+
+def _filter_value_key(value: str) -> str:
+    """Fold a filter value for matching: case- and underscore-insensitive."""
+    return value.casefold().replace('_', '')
+
+
+def _member_key(name: str) -> str:
+    """Fold a response member name for matching: case-insensitive, singular/plural agnostic."""
+    return name.casefold().removesuffix('s')
+
+
+def _collect_response_enums(shape: Any, found: Dict[str, List[str]], seen: set) -> None:
+    """Collect {member name: enum values} from a response shape, first occurrence wins."""
+    if shape is None or id(shape) in seen:
+        return
+    seen.add(id(shape))
+    if shape.type_name == 'list':
+        _collect_response_enums(shape.member, found, seen)
+    elif shape.type_name == 'structure':
+        for name, member in shape.members.items():
+            target = member.member if member.type_name == 'list' else member
+            values = getattr(target, 'enum', None)
+            if values:
+                found.setdefault(name, list(values))
+            _collect_response_enums(member, found, seen)
+
+
+def _response_enums(service_model: Any, api_name: str) -> Dict[str, List[str]]:
+    """Return {member name: enum values} for one API's response, or {} if it cannot be read."""
+    found: Dict[str, List[str]] = {}
+    try:
+        _collect_response_enums(service_model.operation_model(api_name).output_shape, found, set())
+    except Exception:
+        return {}
+    return found
+
+
+@lru_cache(maxsize=1)
+def _filter_values_by_operation() -> Dict[str, Dict[str, List[str]]]:
+    """Build {operation: {filter name: accepted values}} for the enum-valued filters.
+
+    Read offline from the installed botocore service model. Returns an empty map if the
+    model cannot be loaded (value normalization is then skipped and AWS validates).
+    """
+    result: Dict[str, Dict[str, List[str]]] = {}
+    try:
+        service_model: Any = botocore.session.get_session().get_service_model(_BOTO_SERVICE_NAME)
+    except Exception:
+        return result
+
+    for operation, api_name in _FILTER_VALUE_SOURCE_API.items():
+        by_key = {
+            _member_key(name): values
+            for name, values in _response_enums(service_model, api_name).items()
+        }
+        values_by_filter = {
+            filter_name: by_key[_member_key(member)]
+            for filter_name, member in _FILTER_VALUE_MEMBERS.items()
+            if _member_key(member) in by_key
+        }
+        if values_by_filter:
+            result[operation] = values_by_filter
+    return result
+
+
+def _normalize_filter_values(
+    operation: str, filters: Optional[str]
+) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+    """Fold filter values onto the spelling the API matches and reject values it mishandles.
+
+    The API compares filter values exactly and, for several filters, answers a value it
+    does not match with an empty success. This folds enum values (case and underscores),
+    lowercases EBS volume types, and rejects locally: an unknown ResourceType or
+    EventStatus, a RestartNeeded other than true/false (the API treats it as false), and a
+    LookBackPeriodInDays that is not a whole number (the API fails with an internal error).
+    Run after _validate_filters, so the JSON and the filter names are already valid.
+
+    Returns:
+        (filters to send, None), or (original filters, error response) when a value is
+        rejected. The original string is returned when nothing changed.
+    """
+    if not filters:
+        return filters, None
+    try:
+        parsed = parse_json(filters, 'filters')
+    except ValueError:
+        return filters, None
+    if not isinstance(parsed, list):
+        return filters, None
+
+    known = _filter_values_by_operation().get(operation, {})
+    normalized: List[Any] = []
+    invalid: Dict[str, List[Any]] = {}
+    for item in parsed:
+        if (
+            not isinstance(item, dict)
+            or not isinstance(item.get('name'), str)
+            or not isinstance(item.get('values'), list)
+        ):
+            normalized.append(item)
+            continue
+        name, values = item['name'], item['values']
+        if name in known:
+            canonical = {_filter_value_key(v): v for v in known[name]}
+            values = [
+                canonical.get(_filter_value_key(v), v) if isinstance(v, str) else v for v in values
+            ]
+            if name in _STRICT_VALUE_FILTERS and any(v not in known[name] for v in values):
+                invalid[name] = [v for v in values if v not in known[name]]
+        elif name == 'RestartNeeded':
+            keys = [str(v).casefold() if isinstance(v, (str, bool)) else None for v in values]
+            if any(k not in ('true', 'false') for k in keys):
+                invalid[name] = [v for v, k in zip(values, keys) if k not in ('true', 'false')]
+            else:
+                values = keys
+        elif name == 'LookBackPeriodInDays':
+            days = [
+                str(int(v))
+                if (isinstance(v, int) and not isinstance(v, bool))
+                or (isinstance(v, str) and v.strip().isdecimal())
+                else None
+                for v in values
+            ]
+            if any(d is None for d in days):
+                invalid[name] = [v for v, d in zip(values, days) if d is None]
+            else:
+                values = days
+        elif name == 'CurrentResourceDetailsEbsVolumeType':
+            # Matching is case-sensitive and every EBS volume type is lowercase (gp2, io1).
+            values = [v.lower() if isinstance(v, str) else v for v in values]
+        normalized.append({**item, 'values': values})
+
+    if invalid:
+        valid = {
+            name: known[name]
+            if name in known
+            else ['true', 'false']
+            if name == 'RestartNeeded'
+            else 'a whole number of days'
+            for name in invalid
+        }
+        return filters, _validation_error(
+            operation,
+            {
+                'operation': operation,
+                'invalid_filter_values': invalid,
+                'valid_filter_values': valid,
+            },
+            'Invalid filter value(s) for '
+            + '; '.join(
+                f'{name}: {", ".join(str(v) for v in bad)}' for name, bad in invalid.items()
+            )
+            + '. Valid values: '
+            + '; '.join(
+                f'{name}: {", ".join(vals) if isinstance(vals, list) else vals}'
+                for name, vals in valid.items()
+            )
+            + '.',
+        )
+    return (filters if normalized == parsed else json.dumps(normalized)), None
+
+
 def _validation_error(operation: str, data: Dict[str, Any], message: str) -> Dict[str, Any]:
     """Return an error response for a local parameter-validation failure.
 
@@ -195,9 +381,12 @@ def _multi_region_guidance(
     Derived from each region's own error_type and http_status, which stay nested in
     region_errors, so the top-level multi_region_error or a promoted type alone would
     lose them (e.g. throttled in one region and a 5xx in another is still transient).
+    A region's own retry_strategy, when its error set one, wins over that mapping.
     """
     guidance = [
-        classify_error(error.get('error_type'), error.get('http_status'))
+        (error['retry_strategy'], error.get('hint'))
+        if error.get('retry_strategy')
+        else classify_error(error.get('error_type'), error.get('http_status'))
         for error in region_errors.values()
     ]
     if regions_not_found:
@@ -283,6 +472,21 @@ Valid filter names by operation:
   RecommendedActionType, ResourceId, LookBackPeriodInDays,
   CurrentResourceDetailsEbsVolumeType, ResourceTagsKey, ResourceTagsValue, AccountId,
   RestartNeeded
+
+Filter values:
+- ResourceType takes EbsVolume. RecommendedActionType and EventType take
+  SnapshotAndDeleteUnattachedEbsVolume or UpgradeEbsVolumeType. EventStatus takes Ready,
+  InProgress, Complete, Failed, Cancelled, RollbackReady, RollbackInProgress,
+  RollbackComplete or RollbackFailed. Status takes Active or Inactive. RuleType takes
+  OrganizationRule or AccountRule. Case and underscores are folded, and an unknown
+  ResourceType or EventStatus is rejected with the valid values (the API would return an
+  empty result).
+- RestartNeeded takes true or false. LookBackPeriodInDays takes a whole number of days.
+- CurrentResourceDetailsEbsVolumeType, ResourceTagsKey and ResourceTagsValue match
+  case-sensitive substrings of the resource details or tags, so a short value matches more
+  than intended (io matches every volume, not only io1). Use a full value such as gp2 or io1.
+  ResourceTagsKey and ResourceTagsValue each search keys and values, so a key filter also
+  matches tag values and the reverse. EBS volume types are lowercased for you.
 
 PAGINATION (list_* operations only; the get_* operations and list_tags_for_resource take
 neither max_items nor next_token):
@@ -372,6 +576,11 @@ async def compute_optimizer_automation(
 
         # Validate the filters JSON and filter names before calling AWS.
         filter_error = _validate_filters(operation, filters)
+        if filter_error is not None:
+            return filter_error
+
+        # Fold filter values onto the API's spelling and reject values it would mishandle.
+        filters, filter_error = _normalize_filter_values(operation, filters)
         if filter_error is not None:
             return filter_error
 
@@ -866,7 +1075,7 @@ async def _get_automation_event_multi_region(
             data,
             f'Could not determine whether automation event {event_id} exists because '
             f'{len(region_errors)} of {len(regions)} region(s) could not be searched. '
-            'Review region_errors and retry.',
+            'Review region_errors and follow retry_strategy.',
             error_type=_multi_region_error_type(region_errors, regions_not_found),
             operation='get_automation_event',
             service=_SERVICE_NAME,
