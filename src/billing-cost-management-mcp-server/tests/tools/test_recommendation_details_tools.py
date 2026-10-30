@@ -1758,7 +1758,12 @@ async def test_savings_plans_coh_terms_reach_cost_explorer(
             'THREE_YEARS',
             'ALL_UPFRONT',
         ),
-        (COH_DYNAMODB_RC_THREE_YEAR, 'Amazon DynamoDB Service', 'THREE_YEARS', 'PARTIAL_UPFRONT'),
+        (
+            COH_DYNAMODB_RC_THREE_YEAR,
+            'Amazon DynamoDB Service',
+            'THREE_YEARS',
+            'HEAVY_UTILIZATION',
+        ),
         (COH_EC2_RI_ONE_YEAR, 'Amazon Elastic Compute Cloud - Compute', 'ONE_YEAR', 'ALL_UPFRONT'),
     ],
 )
