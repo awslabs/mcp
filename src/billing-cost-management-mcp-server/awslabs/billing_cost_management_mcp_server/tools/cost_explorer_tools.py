@@ -18,6 +18,7 @@ Updated to use shared utility functions.
 """
 
 from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .cost_explorer_operations import (
     get_cost_and_usage,
     get_cost_and_usage_with_resources,
@@ -68,10 +69,11 @@ def _with_example_dates(description: str) -> str:
     return description
 
 
-COST_EXPLORER_DESCRIPTION = _with_example_dates("""Retrieves AWS cost and usage data using the Cost Explorer API.
+COST_EXPLORER_DESCRIPTION = _with_example_dates(
+    """Retrieves AWS cost and usage data using the Cost Explorer API.
 
 IMPORTANT USAGE GUIDELINES:
-- Use UnblendedCost metric by default (not BlendedCost) unless user specifies otherwise
+- If metrics is omitted, getCostAndUsage and getCostAndUsageWithResources use ["UnblendedCost"]
 - A query with no RECORD_TYPE filter returns net cost: credits and refunds are already
   subtracted. Filtering them out returns charges before credits, which can be far higher than
   what the account paid: a commitment fee refunded in the same month
@@ -79,6 +81,7 @@ IMPORTANT USAGE GUIDELINES:
   (usage, fees, credits, refunds, tax) make up a total
 - Use MONTHLY granularity for totals or rankings over whole months; use DAILY only when a daily
   trend is asked for or the window is shorter than a month
+- If granularity is omitted, every operation that takes it uses DAILY
 - Start with high-level dimensions (SERVICE, LINKED_ACCOUNT) before detailed ones
 - Always remember that the end_date is exclusive
 - Never filter on a dimension value you are guessing; group_by that dimension instead and read
@@ -95,9 +98,17 @@ nothing when filtered on LEGAL_ENTITY_NAME because the key for it is BILLING_ENT
    with usage in the period, so absence is not proof the value is invalid. If you also need the
    spend, re-run grouped by that dimension to get the value and its cost in one call.
 2. If you GROUPED and the line genuinely shows $0, report "$0.00", not "no data found".
+3. A grouped result shows costs with no value for the dimension under a placeholder key such
+   as NoRegion or NoTenancy. The placeholder is not a value: a filter on it matches nothing
+   and returns $0, and getDimensionValues lists the empty value as "". To filter on those
+   costs, pass the empty string: `{"Dimensions": {"Key": "REGION", "Values": [""]}}`. For
+   costs without a tag or cost category key, use `ABSENT` instead (see FILTER EXPRESSION
+   GRAMMAR).
 
 PAGINATION (max_items, next_token: getCostAndUsage, getCostAndUsageWithResources, getDimensionValues, getTagsOrValues, getCostCategories only; the other operations take neither):
-- max_items is the total number of items returned (getCostAndUsage: one item per group per period, or per period without group_by). Omit it to fetch every page (no limit). Pass it, or narrow the time range, filter or group_by, for queries that can be large (e.g. daily data grouped by RESOURCE_ID, USAGE_TYPE or LINKED_ACCOUNT).
+- max_items is the total number of items returned (getCostAndUsage: one item per group per period, or per period without group_by). If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow the time range, filter or group_by, for queries that can be large (e.g. daily data grouped by RESOURCE_ID, USAGE_TYPE or LINKED_ACCOUNT).
 - These operations don't support ordering, so max_items returns the first items the service sends, not the top N. For a top-N, fetch the full result (or a narrower one) and rank it.
 - If the result has complete_dataset: false, it is partial: totals and counts undercount. Call again with a larger max_items, continue with next_token (same parameters otherwise; pass explicit start_date and end_date, since defaults are computed from today and a changed date range invalidates the token), or state that the result is partial. Never report a page size or the number of returned items as a total count.
 - Fields from the first page only (GroupDefinitions, TotalSize) aren't repeated on continuation calls.
@@ -124,7 +135,7 @@ WINDOW LIMITS:
   forecast when the account has too little history, which is common for accounts with less
   than one full billing cycle.
 
-FILTER EXPRESSION GRAMMAR (the `filter` argument is an object or a JSON string):
+FILTER EXPRESSION GRAMMAR (the `filter` argument is an object or a JSON string with double quotes; omit it for no filter, as an empty one is rejected):
 The top-level object has exactly ONE of these keys:
 - Leaf keys: `Dimensions`, `Tags`, `CostCategories`
 - Logical keys: `And` and `Or` (each takes an array of expressions), `Not` (takes one
@@ -145,7 +156,9 @@ and `GREATER_THAN_OR_EQUAL`. These apply to Cost Category rules and anomaly subs
 to these filters.
 
 Values per leaf type:
-- Dimensions: `Values` is required and must not be empty.
+- Dimensions: `Values` is required and must not be empty. `[""]` (one empty string) is not
+  empty: in getCostAndUsage it matches costs with no value for the dimension (see
+  REPORTING $0).
 - Tags / CostCategories: `Values` is required, except with `ABSENT`. `ABSENT` matches costs
   where the tag or cost category key is not present, so there is no value to compare against:
   omit `Values` entirely (an empty `Values` list is rejected too).
@@ -159,60 +172,68 @@ Correct filter examples:
 ## OPERATIONS
 
 1) getCostAndUsage — account-level historical cost/usage
-   Required: operation="getCostAndUsage", start_date, end_date, granularity, metrics
-   Optional: group_by, filter, max_items, next_token, billing_view_arn
+   Required: operation="getCostAndUsage"
+   Optional: start_date, end_date, granularity, metrics, group_by, filter, max_items, next_token, billing_view_arn
+   Defaults: If start_date is omitted, the tool uses 30 days before today; if end_date is omitted, it uses today (exclusive, so today is not included). If granularity is omitted, the tool uses DAILY. If metrics is omitted, the tool uses ["UnblendedCost"].
    Example: {"operation": "getCostAndUsage", "start_date": "__PREV_MONTH_START__", "end_date": "__MONTH_START__", "granularity": "MONTHLY", "metrics": "[\\"UnblendedCost\\"]", "group_by": "[{\\"Type\\": \\"DIMENSION\\", \\"Key\\": \\"SERVICE\\"}]"}
 
 2. getCostAndUsageWithResources - Resource-level cost data (limited to last 14 days)
-   Required: operation="getCostAndUsageWithResources", filter, granularity, start_date, end_date
-   Optional: metrics, group_by, max_items, next_token, billing_view_arn
+   Required: operation="getCostAndUsageWithResources", filter
+   Optional: start_date, end_date, granularity, metrics, group_by, max_items, next_token, billing_view_arn
+   Defaults: If start_date is omitted, the tool uses 7 days before today; if end_date is omitted, it uses today (exclusive). If granularity is omitted, the tool uses DAILY. If metrics is omitted, the tool uses ["UnblendedCost"].
    Notes: RESOURCE_ID must be included in either filter OR group_by parameters. The range must be within the last 14 days (start_date no earlier than 14 days ago). Hourly granularity is only available for EC2-Instances resource-level data. All other resource-level data is available at daily granularity.
    Example: {"operation": "getCostAndUsageWithResources", "start_date": "__WEEK_AGO__", "end_date": "__TODAY__", "granularity": "DAILY", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"SERVICE\\", \\"Values\\": [\\"Amazon Elastic Compute Cloud - Compute\\"]}}", "group_by": "[{\\"Type\\": \\"DIMENSION\\", \\"Key\\": \\"RESOURCE_ID\\"}]"}
    Returns: Cost data with resource-level granularity
 
 3. getDimensionValues - List of available values for specified dimension
-   Required: operation="getDimensionValues", dimension, start_date, end_date
-   Optional: context, search_string, filter, max_items, next_token, billing_view_arn
+   Required: operation="getDimensionValues", dimension
+   Optional: start_date, end_date, context, search_string, filter, max_items, next_token, billing_view_arn
+   Defaults: If start_date is omitted, the tool uses 30 days before today; if end_date is omitted, it uses today (exclusive, so today is not included).
    Example: {"operation": "getDimensionValues", "dimension": "SERVICE", "start_date": "__PREV_MONTH_START__", "end_date": "__MONTH_START__"}
    Returns: List of values for specified dimension (see PAGINATION)
    Notes: Each context accepts its own dimensions. COST_AND_USAGE (the default) takes the DIMENSION REFERENCE keys below; RESOURCE_ID needs a window within the last 14 days. RESERVATIONS takes only AZ, INSTANCE_TYPE, INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PLATFORM, REGION, SCOPE, SERVICE, TENANCY. SAVINGS_PLANS takes only INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PAYMENT_OPTION, REGION, SAVINGS_PLAN_ARN, SAVINGS_PLANS_TYPE. TAG is not a dimension in any context: to list a cost-allocation tag key's values use operation=getTagsOrValues (with tag_key); passing dimension=TAG is rejected.
 
 4. getCostForecast - Future cost projections
-   Required: operation="getCostForecast", metric, granularity
-   Optional: start_date, end_date, filter, prediction_interval_level, billing_view_arn
+   Required: operation="getCostForecast", metric
+   Optional: granularity, start_date, end_date, filter, prediction_interval_level, billing_view_arn
+   Defaults: If granularity is omitted, the tool uses DAILY.
    Example 1 (default window): {"operation": "getCostForecast", "metric": "UNBLENDED_COST", "granularity": "MONTHLY"}
    Example 2 (next three months): {"operation": "getCostForecast", "metric": "UNBLENDED_COST", "granularity": "MONTHLY", "start_date": "__NEXT_MONTH_START__", "end_date": "__FOUR_MONTHS_AHEAD_START__"}
-   Notes: `metric` must be ALL CAPS and one of UNBLENDED_COST, BLENDED_COST, AMORTIZED_COST, NET_UNBLENDED_COST, NET_AMORTIZED_COST (not the getCostAndUsage spelling `UnblendedCost`). `start_date` defaults to tomorrow and `end_date` to 90 days after `start_date`; a `start_date` you pass must be today or later. The horizon is up to 3 months (DAILY) or 18 months (MONTHLY). HOURLY is not supported. In `filter`, LINKED_ACCOUNT values must be 12-digit account IDs (not account names), and RESOURCE_ID is not allowed.
+   Notes: `metric` must be ALL CAPS and one of UNBLENDED_COST, BLENDED_COST, AMORTIZED_COST, NET_UNBLENDED_COST, NET_AMORTIZED_COST (not the getCostAndUsage spelling `UnblendedCost`). `start_date` defaults to tomorrow and `end_date` to 90 days after `start_date`; a `start_date` you pass must be today or later. The horizon is up to 3 months (DAILY) or 18 months (MONTHLY). HOURLY is not supported. With MONTHLY granularity each period is a whole calendar month: Cost Explorer moves a `start_date` that isn't a 1st back to the 1st, and an `end_date` that isn't a 1st forward to the next 1st. So a MONTHLY forecast that starts this month on any day but the 1st (as the default start, tomorrow, does unless tomorrow is a 1st) returns the whole current month, and that period and `Total` include its actual costs to date. The response's `period_note` says when the period was widened. For part of a month, such as the rest of this month, use DAILY and sum the days. In `filter`, LINKED_ACCOUNT values must be 12-digit account IDs (not account names), and RESOURCE_ID is not allowed.
    Returns: Cost forecast for specified time period and granularity
 
 5. getUsageForecast - Future usage projections
-   Required: operation="getUsageForecast", metric, granularity, filter
-   Optional: start_date, end_date, prediction_interval_level, billing_view_arn
+   Required: operation="getUsageForecast", metric, filter
+   Optional: granularity, start_date, end_date, prediction_interval_level, billing_view_arn
+   Defaults: If granularity is omitted, the tool uses DAILY.
    Example 1: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "__NEXT_MONTH_START__", "end_date": "__FOUR_MONTHS_AHEAD_START__", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE_GROUP\\", \\"Values\\": [\\"EC2: Running Hours\\"]}}"}
    Example 2: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "filter": "{\\"And\\": [{\\"Dimensions\\": {\\"Key\\": \\"SERVICE\\", \\"Values\\": [\\"Amazon Elastic Compute Cloud - Compute\\"]}}, {\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE\\", \\"Values\\": [\\"BoxUsage:p4de.24xlarge\\"]}}]}"}
    Example 3: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE\\", \\"Values\\": [\\"BoxUsage:p4de.24xlarge\\", \\"Reservation:p4de.24xlarge\\", \\"UnusedBox:p4de.24xlarge\\"]}}", "group_by": "[{\\"Type\\": \\"DIMENSION\\", \\"Key\\": \\"REGION\\"}]"}
-   Notes: Valid values for metric is: USAGE_QUANTITY, NORMALIZED_USAGE_AMOUNT. Valid values for granularity is: DAILY, MONTHLY. Filter is REQUIRED and must specify USAGE_TYPE or USAGE_TYPE_GROUP to define what usage units to forecast. Dates default and are limited as for getCostForecast.
+   Notes: Valid values for metric is: USAGE_QUANTITY, NORMALIZED_USAGE_AMOUNT. Valid values for granularity is: DAILY, MONTHLY. Filter is REQUIRED and must specify USAGE_TYPE or USAGE_TYPE_GROUP to define what usage units to forecast. Dates default and are limited as for getCostForecast, and MONTHLY periods are whole calendar months as described there.
    Returns: Usage forecast for specified time period and granularity
 
 6. getTagsOrValues - Available cost allocation tags or values
    Required: operation="getTagsOrValues"
    Optional: start_date, end_date, tag_key, search_string, max_items, next_token, billing_view_arn
+   Defaults: If start_date is omitted, the tool uses 30 days before today; if end_date is omitted, it uses today (exclusive, so today is not included).
    Example 1: {"operation": "getTagsOrValues"}
    Example 2: {"operation": "getTagsOrValues", "tag_key": "Environment"}
    Returns: List of available cost allocation tags (see PAGINATION). If tag values for a particular key are needed, pass the tag key as a parameter. The tag key list holds at most 5,000 keys in total.
 
 7. getCostCategories - Available cost categories or values inside a category
-   Required: operation="getCostCategories", start_date, end_date
-   Optional: cost_category_name, search_string, max_items, next_token, billing_view_arn
+   Required: operation="getCostCategories"
+   Optional: start_date, end_date, cost_category_name, search_string, max_items, next_token, billing_view_arn
+   Defaults: If start_date is omitted, the tool uses 30 days before today; if end_date is omitted, it uses today (exclusive, so today is not included).
    Example 1 (list category names): {"operation": "getCostCategories", "start_date": "__SIX_MONTHS_AGO_START__", "end_date": "__MONTH_START__"}
    Example 2 (list values inside a category): {"operation": "getCostCategories", "cost_category_name": "CostCenters", "start_date": "__SIX_MONTHS_AGO_START__", "end_date": "__MONTH_START__"}
    Notes: Without cost_category_name the response contains CostCategoryNames. With cost_category_name set the response contains CostCategoryValues for that category. The category name list holds at most 5,000 names in total. See PAGINATION.
 
 8. getSavingsPlansUtilization - Savings Plans utilization data
-   Required: operation="getSavingsPlansUtilization", start_date, end_date
-   Optional: granularity, filter
+   Required: operation="getSavingsPlansUtilization"
+   Optional: start_date, end_date, granularity, filter
+   Defaults: If start_date is omitted, the tool uses 30 days before today; if end_date is omitted, it uses today (exclusive, so today is not included). If granularity is omitted, the tool uses DAILY.
    Example: {"operation": "getSavingsPlansUtilization", "granularity": "MONTHLY"}
-   Notes: Supports only DAILY and MONTHLY granularity. start_date must be within the last 13 months, and end_date is exclusive and may be today. Data for the most recent 2-3 days (counting today) is not processed yet: a start_date in those days returns a DataUnavailableException, and a window that reaches into them silently leaves them out; a start_date at least 3 days before today is usually past that delay. A DataUnavailableException here means there is no Savings Plans data for THIS window and filter (the window is too recent, no plan was active in it, or a filter value such as an unknown SAVINGS_PLANS_TYPE matches nothing) — report that no data is available for that window (not zero) and do NOT resend the identical request; correct an unknown filter value, and query an earlier window only if the question allows it.
+   Notes: Supports only DAILY and MONTHLY granularity. With MONTHLY granularity each entry's TimePeriod is its whole calendar month (the current month's entry ends at the first day without data instead), but the figures (and Total) cover only the requested days: a start_date or end_date inside a month makes that month's entry partial though it is labelled with the whole month. The response's `period_note` says when this happened; report those months as partial. start_date must be within the last 13 months, and end_date is exclusive and may be today. Data for the most recent 2-3 days (counting today) is not processed yet: a start_date in those days returns a DataUnavailableException, and a window that reaches into them silently leaves them out; a start_date at least 3 days before today is usually past that delay. A DataUnavailableException here means there is no Savings Plans data for THIS window and filter (the window is too recent, no plan was active in it, or a filter value such as an unknown SAVINGS_PLANS_TYPE matches nothing) — report that no data is available for that window (not zero) and do NOT resend the identical request; correct an unknown filter value, and query an earlier window only if the question allows it.
    Returns: Savings Plans utilization for the specified time period
 
 DIMENSION REFERENCE:
@@ -255,10 +276,14 @@ DIMENSION REFERENCE:
   values present in the account.
 
 BILLING VIEW SUPPORT:
-Most Cost Explorer operations support an optional billing_view_arn parameter that allows you to scope
-your query to a specific billing view. If not provided, the query defaults to the account's primary
-billing view. You can use the list-billing-views and get-billing-view tools upon request to discover
-available billing views and their ARNs.
+billing_view_arn is accepted by getCostAndUsage, getCostAndUsageWithResources, getDimensionValues
+(COST_AND_USAGE context only), getCostForecast, getUsageForecast, getTagsOrValues and
+getCostCategories, and scopes the query to that billing view. If not provided, the query defaults
+to the account's primary billing view. getSavingsPlansUtilization (the AWS API has no billing view
+parameter) and getDimensionValues with context RESERVATIONS or SAVINGS_PLANS (AWS does not apply
+the view there) do not accept billing_view_arn; setting it returns a validation_error. You can use
+the list-billing-views and get-billing-view tools upon request to discover available billing views
+and their ARNs.
 
 Billing view types:
 - PRIMARY: Default view with all cost data for the account/org. Use for standard cost analysis.
@@ -272,7 +297,8 @@ Billing view types:
   account owes to AWS for their Bill Source accounts' cloud consumption.
 - BILLING_TRANSFER_SHOWBACK: Available to Bill Transfer (bill receiver) account.
   AWS managed view showing pro forma showback/chargeback data (what Bill Source account owe their partner).
-  Use for showback/chargeback reporting in billing transfer scenarios.""")
+  Use for showback/chargeback reporting in billing transfer scenarios."""
+)
 
 
 @cost_explorer_server.tool(
@@ -323,7 +349,10 @@ async def cost_explorer(
         prediction_interval_level: Confidence level for forecasts
         tag_key: Tag key to get values for
         cost_category_name: Cost category to get values for
-        billing_view_arn: Optional ARN of a billing view to scope the query
+        billing_view_arn: Optional ARN of a billing view to scope the query. Rejected for
+            getSavingsPlansUtilization, whose API has no billing view parameter, and for
+            getDimensionValues with context RESERVATIONS or SAVINGS_PLANS, where AWS does not
+            apply the view
         context: The context for (getDimensionValues), which can be COST_AND_USAGE (the default),
             RESERVATIONS, or SAVINGS_PLANS. SAVINGS_PLANS scopes values to the plans an account owns.
 
@@ -419,6 +448,33 @@ async def cost_explorer(
                     ),
                 )
 
+            # In the RESERVATIONS and SAVINGS_PLANS contexts AWS accepts BillingViewArn but does
+            # not apply the view: the values are the same as without it, including accounts
+            # outside the view, and a well-formed ARN that names no view is not rejected. Refuse
+            # it rather than return unscoped values the caller believes are scoped to their view.
+            # Match the exact spelling: AWS rejects any other case of context on its own.
+            if billing_view_arn and context in ('RESERVATIONS', 'SAVINGS_PLANS'):
+                return format_response(
+                    'error',
+                    {
+                        'message': (
+                            'billing_view_arn is not supported for getDimensionValues with '
+                            f'context={context}: AWS does not apply the billing view in this '
+                            "context, so the values cover the calling account's own data (its "
+                            'primary billing view), including accounts outside the view.'
+                        )
+                    },
+                    error_type='validation_error',
+                    operation=operation,
+                    service=COST_EXPLORER_SERVICE_NAME,
+                    hint=(
+                        'Remove billing_view_arn to list the values for the calling '
+                        "account's own data, and say that they are not scoped to the requested "
+                        'view: they can include accounts the view does not cover. Do **NOT** '
+                        'retry with the same billing_view_arn.'
+                    ),
+                )
+
             return await get_dimension_values(
                 ctx,
                 ce_client,
@@ -507,6 +563,32 @@ async def cost_explorer(
             )
 
         elif operation == 'getSavingsPlansUtilization':
+            # GetSavingsPlansUtilization has no BillingViewArn, so the ARN cannot be sent.
+            # Refuse it: dropping it would return primary-view data the caller believes is
+            # scoped to their view.
+            if billing_view_arn:
+                return format_response(
+                    'error',
+                    {
+                        'message': (
+                            'billing_view_arn is not supported for getSavingsPlansUtilization: '
+                            'the GetSavingsPlansUtilization API has no billing view parameter, '
+                            "so it always reports the calling account's own data (its primary "
+                            'billing view).'
+                        )
+                    },
+                    error_type='validation_error',
+                    operation=operation,
+                    service=COST_EXPLORER_SERVICE_NAME,
+                    hint=(
+                        'Remove billing_view_arn to get Savings Plans utilization for the calling '
+                        "account's own data, and say that it is not scoped to the requested view: "
+                        'it can cover more accounts than the view (the whole organization when '
+                        'called from a management account). Do **NOT** retry with the same '
+                        'billing_view_arn.'
+                    ),
+                )
+
             return await get_savings_plans_utilization(
                 ctx, ce_client, start_date, end_date, granularity, filter
             )

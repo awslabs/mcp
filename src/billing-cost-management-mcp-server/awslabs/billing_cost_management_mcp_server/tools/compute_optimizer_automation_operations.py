@@ -335,7 +335,10 @@ async def get_automation_rule(
     await ctx.info(f'Fetching automation rule {rule_arn}')
     response = await asyncio.to_thread(client.get_automation_rule, ruleArn=rule_arn)
 
-    return format_response('success', {'automation_rule': _format_automation_rule(response)})
+    rule = _format_automation_rule(response)
+    # A rule with no conditions may omit criteria; report it as empty rather than unread.
+    rule['criteria'] = rule.get('criteria') or {}
+    return format_response('success', {'automation_rule': rule})
 
 
 async def get_enrollment_configuration(

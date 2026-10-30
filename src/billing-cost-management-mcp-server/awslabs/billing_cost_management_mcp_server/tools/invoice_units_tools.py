@@ -21,6 +21,7 @@ semantic context about every request parameter and response field.
 """
 
 from ..utilities.aws_service_base import format_response
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .invoice_units_operations import (
     batch_get_invoice_profile as _batch_get_invoice_profile,
 )
@@ -65,7 +66,9 @@ async def _invoice_units(
         invoice_unit_arn: ARN of a single invoice unit (get_invoice_unit).
         names: Filter invoice units by name (list_invoice_units).
         invoice_receivers: Filter by receiver account ID (list_invoice_units).
-        accounts: Global-search filter across receiver, linked, and bill-source accounts (list_invoice_units).
+        accounts: Filter by receiver or linked (member) account ID. An empty
+            result does not establish that the account belongs to no invoice
+            unit; see bill_source_accounts (list_invoice_units).
         bill_source_accounts: Filter by bill source account ID
             (list_invoice_units).
         account_ids: Account IDs to fetch profiles for
@@ -131,10 +134,12 @@ async def _invoice_units(
      - names: match invoice unit names
      - invoice_receivers: match the invoice unit's receiver account
      - bill_source_accounts: match a bill-source account
-     - accounts: global search — matches invoice units where the account appears as the receiver, a linked (member) account, OR a bill-source account
+     - accounts: matches invoice units where the account is the receiver OR a linked (member) account. An empty result is NOT proof that the account belongs to no invoice unit: an account can also be a unit's BILL SOURCE, which `bill_source_accounts` filters on and which `Rule.BillSourceAccounts` names on a listed unit. Check one of those before answering that an account is in no invoice unit.
      - as_of: point-in-time UTC "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SS" (definitions as of that instant; defaults to current)
    Pagination:
-     - max_items: total invoice units returned. Omit it to fetch every page (no limit). Pass it, or narrow the filters, for queries that can be large.
+     - max_items: total invoice units returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow the filters, for queries that can be large.
      - next_token: the `pagination.next_token` from a previous response, to continue where it stopped. Send every other parameter unchanged.
      - A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token, or state in the answer that the result is partial. `pagination.items_returned` counts only this response, and a continuation call does not repeat earlier items.
    Returns: `data.invoice_units`, each with InvoiceUnitArn, Name, Description, InvoiceReceiver, TaxInheritanceDisabled, Rule {LinkedAccounts}, and LastModified (ISO 8601 UTC).
@@ -178,7 +183,9 @@ async def invoice_units(
         invoice_unit_arn: ARN of a single invoice unit (get_invoice_unit).
         names: Filter invoice units by name (list_invoice_units).
         invoice_receivers: Filter by receiver account ID (list_invoice_units).
-        accounts: Global-search filter across receiver, linked, and bill-source accounts (list_invoice_units).
+        accounts: Filter by receiver or linked (member) account ID. An empty
+            result does not establish that the account belongs to no invoice
+            unit; see bill_source_accounts (list_invoice_units).
         bill_source_accounts: Filter by bill source account ID
             (list_invoice_units).
         account_ids: Account IDs to fetch profiles for

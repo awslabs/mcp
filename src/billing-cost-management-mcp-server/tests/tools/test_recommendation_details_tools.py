@@ -40,8 +40,11 @@ from awslabs.billing_cost_management_mcp_server.tools.recommendation_details_too
     recommendation_details_server,
 )
 from awslabs.billing_cost_management_mcp_server.utilities.constants import (
+    ACCOUNT_SCOPE_MAP,
+    PAYMENT_OPTION_MAP,
     SAVINGS_PLANS_TYPE_MAP,
     SERVICE_MAP,
+    TERM_MAP,
 )
 from datetime import datetime, timezone
 from fastmcp import Context
@@ -1318,6 +1321,7 @@ class TestProcessRecommendation:
 
         assert result['base_recommendation'] == {'formatted': 'base_data'}
         assert result['additional_details'] == {'optimizer': 'data'}
+        assert 'warning' not in result
         assert result['template'] == 'Template content'
         assert 'formatting_instructions' in result
 
@@ -1352,6 +1356,7 @@ class TestProcessRecommendation:
 
         assert result['base_recommendation'] == {'formatted': 'base_data'}
         assert result['additional_details'] == {'cost_explorer': 'data'}
+        assert 'warning' not in result
         assert result['template'] == 'Template content'
         assert 'formatting_instructions' in result
 
@@ -1386,6 +1391,7 @@ class TestProcessRecommendation:
 
         assert result['base_recommendation'] == {'formatted': 'base_data'}
         assert result['additional_details'] == {'cost_explorer': 'data'}
+        assert 'warning' not in result
         assert result['template'] == 'Template content'
         assert 'formatting_instructions' in result
 
@@ -1997,6 +2003,275 @@ async def test_rec_details_description_states_commitment_scope():
 def test_offering_class_enum_matches_botocore_model():
     """Pin Cost Explorer's OfferingClass spelling, which differs from Cost Optimization Hub's."""
     assert set(_ce_model().shape_for('OfferingClass').enum) == {'STANDARD', 'CONVERTIBLE'}
+
+
+# Commitment configurations in the shape Cost Optimization Hub returns them (field names and
+# enum spellings from live responses; amounts are synthetic, sizing fields trimmed).
+# COH spells the three-year term 'ThreeYears'.
+COH_SP_THREE_YEAR = {
+    'actionType': 'PurchaseSavingsPlans',
+    'recommendationLookbackPeriodInDays': 30,
+    'recommendedResourceDetails': {
+        'computeSavingsPlans': {
+            'configuration': {
+                'accountScope': 'Linked',
+                'term': 'ThreeYears',
+                'paymentOption': 'AllUpfront',
+                'hourlyCommitment': '0.50',
+            }
+        }
+    },
+}
+COH_RDS_RI_THREE_YEAR = {
+    'actionType': 'PurchaseReservedInstances',
+    'recommendationLookbackPeriodInDays': 30,
+    'recommendedResourceDetails': {
+        'rdsReservedInstances': {
+            'configuration': {
+                'accountScope': 'Linked',
+                'service': 'Amazon Relational Database Service',
+                'term': 'ThreeYears',
+                'paymentOption': 'AllUpfront',
+                'instanceType': 'db.r6g.large',
+                'databaseEngine': 'Aurora PostgreSQL',
+            }
+        }
+    },
+}
+COH_DYNAMODB_RC_THREE_YEAR = {
+    'actionType': 'PurchaseReservedInstances',
+    'recommendationLookbackPeriodInDays': 30,
+    'recommendedResourceDetails': {
+        'dynamoDbReservedCapacity': {
+            'configuration': {
+                'accountScope': 'Linked',
+                'service': 'Amazon DynamoDB Service',
+                'term': 'ThreeYears',
+                'paymentOption': 'PartialUpfront',
+                'capacityUnits': 'Write',
+            }
+        }
+    },
+}
+COH_EC2_RI_ONE_YEAR = {
+    'actionType': 'PurchaseReservedInstances',
+    'recommendationLookbackPeriodInDays': 30,
+    'recommendedResourceDetails': {
+        'ec2ReservedInstances': {
+            'configuration': {
+                'accountScope': 'Linked',
+                'service': 'Amazon Elastic Compute Cloud - Compute',
+                'term': 'OneYear',
+                'paymentOption': 'AllUpfront',
+                'offeringClass': 'Standard',
+                'instanceType': 'm5.large',
+            }
+        }
+    },
+}
+COH_SP_ONE_YEAR = {
+    'actionType': 'PurchaseSavingsPlans',
+    'recommendationLookbackPeriodInDays': 30,
+    'recommendedResourceDetails': {
+        'computeSavingsPlans': {
+            'configuration': {
+                'accountScope': 'Linked',
+                'term': 'OneYear',
+                'paymentOption': 'AllUpfront',
+                'hourlyCommitment': '1.00',
+            }
+        }
+    },
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'recommendation, term, payment_option',
+    [
+        (COH_SP_THREE_YEAR, 'THREE_YEARS', 'ALL_UPFRONT'),
+        (COH_SP_ONE_YEAR, 'ONE_YEAR', 'ALL_UPFRONT'),
+    ],
+)
+async def test_savings_plans_coh_terms_reach_cost_explorer(
+    mock_context, mock_ce_client, recommendation, term, payment_option
+):
+    """A Savings Plans recommendation of either COH term is looked up in Cost Explorer."""
+    result = await get_savings_plans_recommendation(mock_context, recommendation, mock_ce_client)
+
+    assert 'error' not in result
+    call_kwargs = mock_ce_client.get_savings_plans_purchase_recommendation.call_args[1]
+    assert call_kwargs['SavingsPlansType'] == 'COMPUTE_SP'
+    assert call_kwargs['TermInYears'] == term
+    assert call_kwargs['PaymentOption'] == payment_option
+    assert call_kwargs['AccountScope'] == 'LINKED'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'recommendation, service, term, payment_option',
+    [
+        (
+            COH_RDS_RI_THREE_YEAR,
+            'Amazon Relational Database Service',
+            'THREE_YEARS',
+            'ALL_UPFRONT',
+        ),
+        (COH_DYNAMODB_RC_THREE_YEAR, 'Amazon DynamoDB Service', 'THREE_YEARS', 'PARTIAL_UPFRONT'),
+        (COH_EC2_RI_ONE_YEAR, 'Amazon Elastic Compute Cloud - Compute', 'ONE_YEAR', 'ALL_UPFRONT'),
+    ],
+)
+async def test_reserved_instances_coh_terms_reach_cost_explorer(
+    mock_context, mock_ce_client, recommendation, service, term, payment_option
+):
+    """A reservation recommendation of either COH term is looked up in Cost Explorer."""
+    result = await get_reserved_instances_recommendation(
+        mock_context, recommendation, mock_ce_client
+    )
+
+    assert 'error' not in result
+    call_kwargs = mock_ce_client.get_reservation_purchase_recommendation.call_args[1]
+    assert call_kwargs['Service'] == service
+    assert call_kwargs['TermInYears'] == term
+    assert call_kwargs['PaymentOption'] == payment_option
+
+
+def test_term_map_accepts_legacy_three_year_spelling():
+    """The singular 'ThreeYear' spelling still maps, in case a payload uses it."""
+    assert TERM_MAP['ThreeYear'] == 'THREE_YEARS'
+
+
+@pytest.mark.parametrize(
+    'coh_map, coh_enum, ce_enum',
+    [
+        (TERM_MAP, 'Term', 'TermInYears'),
+        (PAYMENT_OPTION_MAP, 'PaymentOption', 'PaymentOption'),
+    ],
+)
+def test_coh_commitment_enums_map_to_cost_explorer_values(coh_map, coh_enum, ce_enum):
+    """Every COH term and payment option value maps to a value Cost Explorer accepts."""
+    coh = botocore.session.get_session().get_service_model('cost-optimization-hub')
+
+    assert set(coh.shape_for(coh_enum).enum) - set(coh_map) == set()
+    assert set(coh_map.values()) - set(_ce_model().shape_for(ce_enum).enum) == set()
+
+
+def test_account_scope_map_values_are_cost_explorer_values():
+    """The account scope map only produces values Cost Explorer accepts."""
+    assert set(ACCOUNT_SCOPE_MAP.values()) <= set(_ce_model().shape_for('AccountScope').enum)
+
+
+@pytest.mark.asyncio
+@patch(
+    'awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools.create_aws_client'
+)
+async def test_process_recommendation_warns_when_purchase_details_are_missing(
+    mock_create_aws_client, mock_context, mock_ce_client
+):
+    """A skipped Cost Explorer lookup leads the response with a warning, not a buried error."""
+    mock_create_aws_client.return_value = mock_ce_client
+    recommendation = {
+        'actionType': 'PurchaseSavingsPlans',
+        'recommendedResourceDetails': {
+            'computeSavingsPlans': {'configuration': {'term': 'TenYears'}}
+        },
+    }
+
+    result = await process_recommendation(mock_context, recommendation)
+
+    assert list(result)[0] == 'warning'
+    assert 'has no Cost Explorer purchase recommendation;' in result['warning']
+    assert 'additional_details.error says why' in result['warning']
+    assert 'base_recommendation' in result
+    assert 'Missing required parameters' in result['additional_details']['error']
+    mock_ce_client.get_savings_plans_purchase_recommendation.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch(
+    'awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools.create_aws_client'
+)
+async def test_process_recommendation_three_year_has_no_warning(
+    mock_create_aws_client, mock_context, mock_ce_client
+):
+    """A three-year recommendation returns Cost Explorer purchase details and no warning."""
+    mock_create_aws_client.return_value = mock_ce_client
+
+    result = await process_recommendation(mock_context, COH_SP_THREE_YEAR)
+
+    assert 'warning' not in result
+    assert 'SavingsPlansPurchaseRecommendationSummary' in result['additional_details']
+
+
+@pytest.mark.asyncio
+@patch(
+    'awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools.create_aws_client'
+)
+async def test_process_recommendation_warns_when_compute_optimizer_fails(
+    mock_create_aws_client, mock_context
+):
+    """Missing Compute Optimizer details also lead the response with a warning."""
+    recommendation = {'actionType': 'Rightsize', 'currentResourceType': 'Ec2Instance'}
+
+    result = await process_recommendation(mock_context, recommendation)
+
+    assert list(result)[0] == 'warning'
+    assert 'has no Compute Optimizer details;' in result['warning']
+    assert 'No resource ARN found' in result['additional_details']['error']
+    mock_create_aws_client.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_process_recommendation_warns_on_unsupported_resource_type(mock_context):
+    """A skipped Compute Optimizer lookup (unsupported resource type) also leads with a warning."""
+    recommendation = {
+        'actionType': 'Rightsize',
+        'currentResourceType': 'SomeNewResource',
+        'resourceArn': 'arn:aws:ec2:us-east-1:123456789012:instance/i-0abc',
+    }
+
+    with patch.object(recommendation_details_tools, 'create_aws_client', return_value=MagicMock()):
+        result = await process_recommendation(mock_context, recommendation)
+
+    assert list(result)[0] == 'warning'
+    assert 'has no Compute Optimizer details;' in result['warning']
+    assert result['additional_details'] == {'error': 'Unsupported resource type: SomeNewResource'}
+
+
+@pytest.mark.asyncio
+async def test_process_recommendation_empty_lookup_has_no_warning(mock_context):
+    """A lookup that runs but finds nothing returns its empty result and no warning."""
+    client = MagicMock()
+    # Compute Optimizer's shape for an ARN it has no recommendation for.
+    client.get_ec2_instance_recommendations.return_value = {
+        'instanceRecommendations': [],
+        'errors': [],
+    }
+    recommendation = {
+        'actionType': 'Rightsize',
+        'currentResourceType': 'Ec2Instance',
+        'resourceArn': 'arn:aws:ec2:us-east-1:123456789012:instance/i-0abc',
+    }
+
+    with patch.object(recommendation_details_tools, 'create_aws_client', return_value=client):
+        result = await process_recommendation(mock_context, recommendation)
+
+    assert 'warning' not in result
+    assert result['additional_details'] == {'instanceRecommendations': [], 'errors': []}
+
+
+@pytest.mark.asyncio
+async def test_rec_details_description_documents_lookup_warning():
+    """The served description says missing details lead with a warning."""
+    tools = {t.name: t for t in await recommendation_details_server.list_tools()}
+    description = tools['rec-details'].description or ''
+
+    assert 'lookup fails or is skipped' in description
+    assert 'the response leads with a warning' in description
+    assert 'base_recommendation is still valid' in description
+    # Commitment lookups add their own additional_details.warning when no row matches.
+    assert 'returns empty results and no top-level warning' in description
+    assert 'details are unavailable' not in description
 
 
 _RESPONSE_METADATA = {'RequestId': 'req-1', 'HTTPStatusCode': 200, 'HTTPHeaders': {}}

@@ -20,6 +20,7 @@ and retrieving resource-based policies.
 """
 
 from ..utilities.aws_service_base import handle_aws_error
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .bvs_operations import (
     get_billing_view as _get_billing_view,
 )
@@ -50,7 +51,7 @@ bvs_server = FastMCP(
     description="""Returns the metadata associated to the specified billing view ARN.
 
 A billing view is an AWS resource that defines a segment of AWS cost management data.
-There are four types of billing views:
+Billing view types:
 - PRIMARY: The default billing view containing all cost management data for an account.
   For management accounts in an organization, this includes all data across the organization.
 - BILLING_GROUP: Billing views corresponding to billing groups created in AWS Billing Conductor.
@@ -64,10 +65,20 @@ The tool returns information about:
 - Billing view ARN, name, and description
 - Billing view type (PRIMARY, BILLING_GROUP, CUSTOM, BILLING_TRANSFER, BILLING_TRANSFER_SHOWBACK)
 - Owner account ID and source account ID
-- Data filter expression (dimensions, tags, cost categories, time range)
+- Data filter expression (see below)
 - Health status (status code and reasons)
 - Derived view count and source view count
 - Creation, update, and view definition last updated timestamps
+
+data_filter_expression is the filter a CUSTOM view applies to its source views' data.
+It holds at most one of:
+- dimensions: key LINKED_ACCOUNT and a list of account IDs
+- tags: one tag key and a list of its values
+- cost_categories: one cost category name and a list of its values
+plus an optional time_range (begin_date_inclusive, end_date_inclusive; one of them can
+be absent, meaning open-ended on that side). There are no match options and no
+And/Or/Not. An empty or missing expression means the view is unfiltered: it shows all
+data of its source views.
 
 Example: {"arn": "arn:aws:billing::123456789012:billingview/custom-view-abc123"}""",
 )
@@ -109,20 +120,38 @@ The tool returns a list of billing views with information about:
 - Health status (status code and reasons)
 
 You can filter billing views by:
-- active_after_inclusive / active_before_inclusive: UTC time range for listing billing views
-  (must be within one calendar month, both must be provided together).
+- active_after_inclusive / active_before_inclusive: UTC time range for listing billing views.
+  Both must be provided together, both are inclusive, the end must be later than the start,
+  and both must fall in the same UTC calendar month (make one call per month).
   Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (all times are in UTC).
+  A date-only active_before_inclusive means 00:00:00 of that day, so to cover a whole
+  month end it with YYYY-MM-DDT23:59:59 (for example 2024-01-31T23:59:59).
   PRIMARY billing views are always listed. BILLING_GROUP billing views are listed for time
   ranges when the associated billing group resource in AWS Billing Conductor is active.
 - arns: Filter by specific billing view ARNs (maximum 10 items)
 - billing_view_types: Filter by type (PRIMARY, BILLING_GROUP, CUSTOM, BILLING_TRANSFER,
   BILLING_TRANSFER_SHOWBACK)
-- names: Filter by name using search criteria (supports STARTS_WITH search option)
+- names: Filter by name using search criteria (supports STARTS_WITH search option).
+  The prefix match is case-sensitive: "myview" does not match "MyView".
 - owner_account_id: Filter by owner account ID (12-digit AWS account ID)
-- source_account_id: Filter by source account ID (12-digit AWS account ID)
+- source_account_id: 12-digit AWS account ID. Not an account membership search: it returns
+  only BILLING_GROUP views whose billing group's primary account is this ID, and
+  BILLING_TRANSFER and BILLING_TRANSFER_SHOWBACK views whose source account is this ID.
+  PRIMARY and CUSTOM views are never returned with it. With a time range it matches the
+  billing groups of that period; without one it matches billing groups from all periods, so
+  an account that was a primary account in an earlier period returns that group's view.
+  For the period queried, an account that is in a billing group but is not its primary
+  account returns no views, and the calling account's own ID returns views only if it is a
+  billing group's primary account or a billing transfer source.
+  No filter of this tool lists the views that include a given account. To find the billing
+  group view that covers an account, get its billing group's primary account (from the payer
+  account, list-account-associations gives the account's billing group ARN for a billing
+  period, the current one by default, and list-billing-groups gives that group's primary
+  account), then pass that ID here.
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
@@ -131,9 +160,8 @@ Example 1: {}
 Example 2 (filter by type): {"billing_view_types": "[\"PRIMARY\", \"CUSTOM\"]"}
 Example 3 (filter by owner): {"owner_account_id": "123456789012"}
 Example 4 (filter by name): {"names": "[{\"searchOption\": \"STARTS_WITH\", \"searchValue\": \"MyView\"}]"}
-Example 5 (with time range, date only): {"active_after_inclusive": "2024-01-01", "active_before_inclusive": "2024-01-31"}
-Example 6 (with time range, second precision): {"active_after_inclusive": "2024-01-01T00:00:00", "active_before_inclusive": "2024-01-31T23:59:59"}
-Example 7 (filter by ARNs): {"arns": "[\"arn:aws:billing::123456789012:billingview/custom-view-abc123\"]"}""",
+Example 5 (time range covering all of January 2024): {"active_after_inclusive": "2024-01-01", "active_before_inclusive": "2024-01-31T23:59:59"}
+Example 6 (filter by ARNs): {"arns": "[\"arn:aws:billing::123456789012:billingview/custom-view-abc123\"]"}""",
 )
 async def list_billing_views(
     ctx: Context,
@@ -154,11 +182,12 @@ async def list_billing_views(
         active_after_inclusive: Optional inclusive start of the active time range in UTC.
             Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (UTC).
             Must be provided together with active_before_inclusive.
-            The time range must be within one calendar month.
+            The time range must be within one UTC calendar month.
         active_before_inclusive: Optional inclusive end of the active time range in UTC.
             Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (UTC).
-            Must be provided together with active_after_inclusive.
-            The time range must be within one calendar month.
+            Must be provided together with active_after_inclusive, later than it and in
+            the same UTC calendar month. A date-only value means 00:00:00 of that day;
+            use YYYY-MM-DDT23:59:59 to include the whole day.
         arns: Optional JSON string containing a list of billing view ARNs to filter by.
             Maximum 10 items.
         billing_view_types: Optional JSON string containing a list of billing view types.
@@ -166,9 +195,13 @@ async def list_billing_views(
             BILLING_TRANSFER_SHOWBACK.
         names: Optional JSON string containing a list of StringSearch objects.
             Each object has searchOption (valid value: STARTS_WITH) and searchValue
-            (1-128 characters). Fixed number of 1 item.
+            (1-128 characters). Fixed number of 1 item. The prefix match is case-sensitive.
         owner_account_id: Optional owner account ID to filter by (12-digit AWS account ID).
-        source_account_id: Optional source account ID to filter by (12-digit AWS account ID).
+        source_account_id: Optional 12-digit AWS account ID. Not an account membership
+            search: returns only BILLING_GROUP views whose billing group's primary account is
+            this ID and BILLING_TRANSFER / BILLING_TRANSFER_SHOWBACK views whose source
+            account is this ID, never PRIMARY or CUSTOM views. With a time range, only that
+            period's billing groups match.
         max_items: Optional total number of items to return. Omit it to fetch every page.
         next_token: Optional pagination token from a previous response.
 
@@ -209,8 +242,9 @@ Use this tool to:
 - Audit cross-organization data consolidation (which orgs/accounts contribute to this view)
 - Determine if the custom billing view aggregates data from a single org or multiple orgs
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
@@ -321,8 +355,9 @@ Each segment in `data.segments` contains:
 - billing_transfer_account_id: The billing transfer account (only for billing transfer source accounts)
 - time_range: begin_date_inclusive and end_date_exclusive in UTC ISO format
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.

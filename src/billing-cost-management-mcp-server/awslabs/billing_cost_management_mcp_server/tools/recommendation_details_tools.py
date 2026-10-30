@@ -75,6 +75,11 @@ COMMITMENT PURCHASE DETAILS:
   not matched on instance type or region; an EC2 row whose Region name is not a known Region is
   kept and the note names it. A top-level "note" key in additional_details counts dropped rows;
   "warning" means none matched.
+- When the Cost Explorer or Compute Optimizer lookup fails or is skipped,
+  the response leads with a warning and additional_details holds only an error;
+  base_recommendation is still valid. A lookup that runs but finds nothing
+  returns empty results and no top-level warning (a commitment lookup's own
+  "warning" inside additional_details still says no row matched).
 - Savings Plans recommendations carry no break-even. They return EstimatedROI (estimated savings /
   Savings Plan cost x 100 over the lookback period), which is not a payback period.
 
@@ -127,11 +132,23 @@ async def process_recommendation(ctx: Context, recommendation: Dict[str, Any]) -
     if action_type in [ACTION_TYPE_PURCHASE_SAVINGS_PLAN, ACTION_TYPE_PURCHASE_RESERVED_INSTANCE]:
         # Get Cost Explorer data for Savings Plans or Reserved Instances
         additional_data = await get_cost_explorer_data(ctx, recommendation)
-        result['additional_details'] = additional_data
+        source = 'Cost Explorer purchase recommendation'
     else:
         # Get Compute Optimizer data for other recommendation types
         additional_data = await get_compute_optimizer_data(ctx, recommendation)
-        result['additional_details'] = additional_data
+        source = 'Compute Optimizer details'
+    result['additional_details'] = additional_data
+
+    # The base recommendation is still valid, so the status stays success, but lead with a
+    # warning so the missing details are not mistaken for data.
+    if additional_data.get('error'):
+        result = {
+            'warning': (
+                f'additional_details has no {source}; additional_details.error says why. '
+                'base_recommendation is still valid.'
+            ),
+            **result,
+        }
 
     # Get the appropriate template
     template_content = get_template_for_recommendation(

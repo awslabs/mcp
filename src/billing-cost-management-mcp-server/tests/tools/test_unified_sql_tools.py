@@ -81,6 +81,19 @@ def test_unified_sql_server_initialization():
     assert unified_sql_server.name == 'unified-sql-tools'
 
 
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_unified_sql_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import unified_sql_tools as module
+
+    importlib.reload(module)
+
+
 def _reload_unified_sql_with_identity_decorator():
     """Reload unified_sql_tools with FastMCP.tool patched to return the original function unchanged (identity decorator).
 

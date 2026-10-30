@@ -196,8 +196,9 @@ async def list_invoice_summaries(
     Retrieves invoice-level (header) details without line items. The required
     API selector is resolved from ``invoice_id`` when provided, otherwise from
     ``account_id`` (auto-detected from the caller's identity via STS when
-    omitted). An optional time filter can be either a single ``billing_period``
-    or a ``start_date``/``end_date`` range, but not both.
+    omitted). An account query needs a time filter: either a single
+    ``billing_period`` or a ``start_date``/``end_date`` range, but not both. An
+    ``invoice_id`` query takes no time filter.
 
     Args:
         ctx: The MCP context object.
@@ -205,10 +206,12 @@ async def list_invoice_summaries(
             from the caller identity (STS) when omitted. Mutually exclusive with
             ``invoice_id``.
         invoice_id: Retrieve the summary for a single invoice instead of an
-            account. Mutually exclusive with ``account_id``.
+            account. Mutually exclusive with ``account_id`` and with every time
+            filter: the service returns that invoice whatever its period, so a
+            time filter is rejected rather than silently ignored.
         billing_period: Single calendar month in ``YYYY-MM`` format (for
             example ``"2026-05"``). Mutually exclusive with
-            ``start_date``/``end_date``.
+            ``start_date``/``end_date`` and with ``invoice_id``.
         start_date: Range start in ``YYYY-MM-DD`` or ``YYYY-MM-DDTHH:MM:SS``
             (UTC) format. Must be paired with ``end_date``.
         end_date: Range end in ``YYYY-MM-DD`` or ``YYYY-MM-DDTHH:MM:SS`` (UTC)
@@ -216,7 +219,9 @@ async def list_invoice_summaries(
             00:00:00 UTC, so covering a whole final day requires the following
             day here -- ``"2026-06-30"`` excludes invoices issued during June 30.
         invoicing_entity: Filter by the AWS legal selling entity name (for
-            example ``"Amazon Web Services, Inc."``).
+            example ``"Amazon Web Services, Inc."``). Also applies with
+            ``invoice_id``. An empty list for an ``invoice_id`` means the invoice
+            was not found, is not accessible, or belongs to another entity.
         max_items: Most invoice summaries to return. None fetches every page.
         next_token: Pagination token from a previous response to resume from.
 
@@ -229,6 +234,23 @@ async def list_invoice_summaries(
         if account_id and invoice_id:
             return _validation_error(
                 {'message': 'Provide either account_id or invoice_id, not both.'},
+            )
+
+        # The INVOICE_ID selector fetches that one invoice and the service
+        # ignores BillingPeriod and TimeInterval there (it still applies
+        # InvoicingEntity). Forwarding a time filter would return an invoice
+        # from a period the caller did not ask for, so refuse it.
+        if invoice_id and (billing_period or start_date or end_date):
+            return _validation_error(
+                {
+                    'message': (
+                        'invoice_id cannot be combined with billing_period or '
+                        'start_date/end_date: the service returns that invoice whatever its '
+                        'period and ignores the time filter. Omit the time filter and read '
+                        "the invoice's BillingPeriod and IssuedDate from the result, or list "
+                        'by account_id with the time filter instead.'
+                    )
+                },
             )
 
         # --- Time filter: billing_period XOR start_date/end_date ---
@@ -249,7 +271,7 @@ async def list_invoice_summaries(
         # The ACCOUNT_ID selector flow requires a time filter -- the service
         # rejects the request on arrival when both BillingPeriod and
         # TimeInterval are absent. The INVOICE_ID flow takes a different path
-        # and needs no filter, so only guard the account case.
+        # and ignores any time filter (refused above), so only guard the account case.
         if not invoice_id and not billing_period and not start_date and not end_date:
             return _validation_error(
                 {
