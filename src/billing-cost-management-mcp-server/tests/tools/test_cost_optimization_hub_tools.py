@@ -1949,6 +1949,8 @@ def test_resolve_summaries_group_by(group_by, expected):
         ('TagKey:  ', 'needs a tag key'),
         ('Tag:Environment', 'Invalid group_by value'),
         ('resourcetype', 'Invalid group_by value'),
+        # The legacy upper-snake spelling is not a valid dimension.
+        ('RESOURCE_TYPE', 'Invalid group_by value'),
     ],
 )
 def test_resolve_summaries_group_by_rejects(group_by, message):
@@ -2053,3 +2055,24 @@ async def test_description_says_what_an_efficiency_point_covers():
     assert 'Ask only for completed months' in flat
     assert 'a current-month point would be partial' in flat
     assert 'Only completed months are returned' not in flat
+
+
+@pytest.mark.parametrize('filter_name', ['resourceTypes', 'actionTypes', 'implementationEfforts'])
+def test_tool_description_filter_values_match_api_enum(filter_name):
+    """Each enum filter listed in the tool description matches the API's accepted values."""
+    import inspect
+    import re
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    line = next(
+        line
+        for line in inspect.getsource(coh_mod).splitlines()
+        if line.startswith(f'- {filter_name}:')
+    )
+
+    api_values = coh_mod._filter_model()[filter_name]
+
+    assert api_values is not None
+    assert set(re.findall(r"'([A-Za-z0-9]+)'", line)) == set(api_values)

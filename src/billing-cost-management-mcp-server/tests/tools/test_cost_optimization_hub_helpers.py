@@ -454,20 +454,20 @@ class TestListRecommendationSummaries:
                 },
                 {'group': 'EBS_VOLUME', 'estimatedMonthlySavings': 50.0, 'recommendationCount': 3},
             ],
-            'groupBy': 'RESOURCE_TYPE',
+            'groupBy': 'ResourceType',
             'currencyCode': 'USD',
         }
 
         result = await list_recommendation_summaries(
             mock_context,
             mock_coh_client,
-            group_by='RESOURCE_TYPE',
+            group_by='ResourceType',
         )
 
         # Verify the client was called correctly
         mock_coh_client.list_recommendation_summaries.assert_called_once()
         call_kwargs = mock_coh_client.list_recommendation_summaries.call_args[1]
-        assert call_kwargs['groupBy'] == 'RESOURCE_TYPE'
+        assert call_kwargs['groupBy'] == 'ResourceType'
 
         # Verify the context was informed
         mock_context.info.assert_called()
@@ -476,7 +476,7 @@ class TestListRecommendationSummaries:
         assert result['status'] == 'success'
         assert 'summaries' in result['data']
         assert 'group_by' in result['data']
-        assert result['data']['group_by'] == 'RESOURCE_TYPE'
+        assert result['data']['group_by'] == 'ResourceType'
 
         # Verify summaries data
         summaries = result['data']['summaries']
@@ -823,9 +823,7 @@ class TestListRecommendationSummariesErrorHandling:
         """Test list_recommendation_summaries with empty response."""
         mock_coh_client.list_recommendation_summaries.return_value = {'items': []}
 
-        result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE'
-        )
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
 
         assert result['status'] == 'success'
         assert result['data']['summaries'] == []
@@ -850,7 +848,7 @@ class TestListRecommendationSummariesErrorHandling:
                     }
                     for i in range(3)
                 ],
-                'groupBy': 'RESOURCE_TYPE',
+                'groupBy': 'ResourceType',
                 'currencyCode': 'USD',
                 # First response: this is what the helper should read.
                 'estimatedTotalDedupedSavings': 600.0,
@@ -865,7 +863,7 @@ class TestListRecommendationSummariesErrorHandling:
                     }
                     for i in range(3, 6)
                 ],
-                'groupBy': 'RESOURCE_TYPE',
+                'groupBy': 'ResourceType',
                 'currencyCode': 'USD',
                 # Second response: different value so a last-response read
                 # would be visibly wrong.
@@ -875,7 +873,7 @@ class TestListRecommendationSummariesErrorHandling:
         ]
 
         result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE', max_items=6
+            mock_context, mock_coh_client, 'ResourceType', max_items=6
         )
 
         assert result['status'] == 'success'
@@ -903,7 +901,7 @@ class TestListRecommendationSummariesErrorHandling:
                     'estimatedMonthlySavings': 10.0,
                 }
             ],
-            'groupBy': 'RESOURCE_TYPE',
+            'groupBy': 'ResourceType',
             'currencyCode': 'USD',
             'estimatedTotalDedupedSavings': 10.0,
             'nextToken': None,
@@ -912,7 +910,7 @@ class TestListRecommendationSummariesErrorHandling:
         await list_recommendation_summaries(
             mock_context,
             mock_coh_client,
-            'RESOURCE_TYPE',
+            'ResourceType',
             next_token='resume-from-here',
         )
 
@@ -951,9 +949,7 @@ class TestListRecommendationSummariesErrorHandling:
             operation_name='ListRecommendationSummaries',
         )
 
-        result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE'
-        )
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
 
         assert result['status'] == 'error'
         assert result['operation'] == 'list_recommendation_summaries'
@@ -969,9 +965,7 @@ class TestListRecommendationSummariesErrorHandling:
             operation_name='ListRecommendationSummaries',
         )
 
-        result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE'
-        )
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
 
         assert result['status'] == 'error'
         assert result['operation'] == 'list_recommendation_summaries'
@@ -989,9 +983,7 @@ class TestListRecommendationSummariesErrorHandling:
             operation_name='ListRecommendationSummaries',
         )
 
-        result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE'
-        )
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
 
         assert result['status'] == 'error'
         assert result['operation'] == 'list_recommendation_summaries'
@@ -1010,9 +1002,7 @@ class TestListRecommendationSummariesErrorHandling:
             operation_name='ListRecommendationSummaries',
         )
 
-        result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE'
-        )
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
 
         assert result['status'] == 'error'
         assert result['operation'] == 'list_recommendation_summaries'
@@ -1025,9 +1015,7 @@ class TestListRecommendationSummariesErrorHandling:
             'Some unexpected error'
         )
 
-        result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE'
-        )
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
 
         assert result['status'] == 'error'
         assert result['service'] == 'Cost Optimization Hub'
@@ -1142,9 +1130,7 @@ class TestPaginationEdgeCases:
             # No nextToken
         }
 
-        result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE'
-        )
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
 
         assert result['status'] == 'success'
         assert len(result['data']['summaries']) == 1
@@ -1866,7 +1852,7 @@ async def test_list_recommendation_summaries_single_page_passes_next_token(
     """A max_items stop on summaries surfaces nextToken and flags the partial result."""
     mock_coh_client.list_recommendation_summaries.return_value = {
         'items': [{'group': 'EC2_INSTANCE', 'recommendationCount': 1}],
-        'groupBy': 'RESOURCE_TYPE',
+        'groupBy': 'ResourceType',
         'currencyCode': 'USD',
         'metrics': {'savingsPercentage': 12.5},
         'nextToken': 'tok-sum',
@@ -1874,7 +1860,7 @@ async def test_list_recommendation_summaries_single_page_passes_next_token(
     result = await list_recommendation_summaries(
         mock_context,
         mock_coh_client,
-        group_by='RESOURCE_TYPE',
+        group_by='ResourceType',
         max_items=1,
     )
     assert result['status'] == 'success'
