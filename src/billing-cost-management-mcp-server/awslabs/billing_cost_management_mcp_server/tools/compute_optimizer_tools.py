@@ -19,12 +19,17 @@ Updated to use shared utility functions.
 
 import botocore.session
 import os
+import re
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
+    paginate_aws_items,
     parse_json,
+    with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.logging_utils import get_context_logger
 from ..utilities.time_utils import timestamp_to_utc_iso_string
 from botocore import xform_name
@@ -54,7 +59,7 @@ USE THIS TOOL FOR:
   or Unused (use get_idle_recommendations). For general idle detection or cost-savings
   recommendations, use cost-optimization instead.
 
-**Note:** Compute Optimizer is a regional service. Specify a `region` to get recommendations for resources in that region. If omitted, defaults to AWS_REGION env var or us-east-1.
+**Note:** Compute Optimizer is a regional service. Specify a `region` to get recommendations for resources in that region. If omitted, defaults to AWS_REGION env var or us-east-1. The response's `applied_region` names the region that was queried; an empty result covers only that region.
 
 This tool supports the following operations:
 1. get_ec2_instance_recommendations: Get recommendations for EC2 instances
@@ -65,8 +70,12 @@ This tool supports the following operations:
 6. get_ecs_service_recommendations: Get recommendations for ECS services
 7. get_idle_recommendations: Get idle resource recommendations across supported resource types
 
-Each call is scoped to one region (the `region` parameter) and optionally one account ID,
-and can be narrowed with `filters`, a JSON array of {"name": ..., "values": [...]}.
+Each call is scoped to one region (the `region` parameter) and one account, and can be
+narrowed with `filters`, a JSON array of {"name": ..., "values": [...]}.
+`account_ids` accepts at most ONE account ID, as a JSON array: '["123456789012"]' (a bare
+ID is accepted too). Two or more are rejected; make one call per account. Omit it to get
+the caller's own account. From an organization's management account or delegated
+administrator, set it to target a member account (or the management account).
 Accepted filter names:
 - get_ec2_instance_recommendations: Finding (Underprovisioned, Overprovisioned, Optimized),
   FindingReasonCodes (e.g. CPUOverprovisioned, MemoryUnderprovisioned),
@@ -86,10 +95,15 @@ Accepted filter names:
 - get_ecs_service_recommendations: Finding (Optimized, Underprovisioned, Overprovisioned),
   FindingReasonCode (CPU/Memory Overprovisioned/Underprovisioned)
 - get_idle_recommendations: Finding (Idle, Unattached, Unused), ResourceType
-Values are case-sensitive in the API; the tool folds near-misses (e.g.
-`overprovisioned`, `OVER_PROVISIONED`, `finding`) onto the right spelling and echoes the
-result as `applied_filters`. If the API still rejects a filter, the error lists
-`valid_filters`.
+- Tags, on every operation except get_auto_scaling_group_recommendations (which rejects
+  them): `tag:<key>` matches the tag values given, e.g. {"name": "tag:Owner", "values":
+  ["TeamA"]}; `tag-key` matches resources that have any of the tag keys given, e.g.
+  {"name": "tag-key", "values": ["Owner"]}. The tool sends tag keys and values unchanged.
+The API is case-sensitive on filter names and values, though EC2 and Auto Scaling group
+Finding also accept the UPPER_SNAKE form (e.g. OVER_PROVISIONED for EC2, NOT_OPTIMIZED for
+Auto Scaling groups). The tool folds near-misses (e.g. `overprovisioned`, `finding`) onto
+the right spelling and echoes the result as `applied_filters`. If the API still rejects a
+filter, the error lists `valid_filters`.
 
 To look up specific resources, pass `resource_arns` as a JSON array of ARNs (e.g.
 '["arn:aws:ec2:us-east-1:123456789012:instance/i-0abc"]'). This is sent as the
@@ -121,6 +135,16 @@ default. To change it, pass `order_by` as a JSON object, e.g.
 SavingsValueAfterDiscount; order: Asc or Desc). Only get_idle_recommendations accepts
 `order_by`.
 
+Recommendations carry two savings figures: `savings_opportunity` at On-Demand prices, and
+`savings_opportunity_after_discounts` at prices after your discounts (such as Savings Plans
+and Reserved Instances). Each is the cost difference between the current and the
+recommended resource (for idle recommendations, the resource's whole cost) at its own
+prices, so neither caps the other: when the recommended
+resource gets a bigger dollar discount than the current one, the after-discounts figure is
+the larger. The two can also be equal, for example when Compute Optimizer has no discount
+data to apply, and `savings_opportunity_after_discounts` is null when Compute Optimizer
+returns no after-discounts figure. Say which one you report, and do not add them together.
+
 EC2, Auto Scaling group, and RDS recommendations rank options within the current CPU
 architecture by default (cpuVendorArchitectures CURRENT). To get Graviton options, pass
 `cpu_vendor_architectures` as a JSON array, e.g. '["AWS_ARM64"]' (Graviton only). Values:
@@ -131,13 +155,23 @@ preference, not an account setting; the result echoes it as
 `applied_recommendation_preferences`, and each recommendation's
 `effective_recommendation_preferences.cpuVendorArchitectures` reflects it. Only
 get_ec2_instance_recommendations, get_auto_scaling_group_recommendations, and
-get_rds_recommendations accept `cpu_vendor_architectures`.""",
+get_rds_recommendations accept `cpu_vendor_architectures`.
+
+PAGINATION:
+- `max_items` is the total number of recommendations returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow `filters` / `resource_arns`, for queries that can be large.
+- Top-N (get_idle_recommendations only): `order_by` + `max_items=N`, e.g. the 10 idle
+  resources with the highest savings is the default order with max_items=10.
+- If the response has `complete_dataset: false`, call again with a larger `max_items`,
+  continue with `pagination.next_token` (and otherwise identical parameters), or state in
+  the answer that the result is partial.""",
 )
 async def compute_optimizer(
     ctx: Context,
     operation: str,
     region: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     filters: Optional[str] = None,
     account_ids: Optional[str] = None,
     next_token: Optional[str] = None,
@@ -151,11 +185,13 @@ async def compute_optimizer(
         ctx: The MCP context
         operation: The operation to perform (e.g., 'get_ec2_instance_recommendations')
         region: AWS region to query (e.g., 'us-west-2'). Defaults to AWS_REGION env var or us-east-1.
-        max_results: Maximum number of results per page (up to 1000; up to 100 for
-            get_idle_recommendations)
+        max_items: Total number of items to return across all pages. Omit it to fetch
+            every page.
         filters: Optional filter expression as JSON string
-        account_ids: Optional list of AWS account IDs as JSON array string
-        next_token: Optional pagination token from a previous response
+        account_ids: Optional JSON array with a single AWS account ID, e.g. '["123456789012"]',
+            or the bare ID
+        next_token: The pagination.next_token from a previous response; continue with
+            otherwise identical parameters.
         resource_arns: Optional JSON array of resource ARNs to return recommendations for
         order_by: get_idle_recommendations only. Optional JSON object
             {"dimension": "SavingsValue"|"SavingsValueAfterDiscount", "order": "Asc"|"Desc"};
@@ -205,6 +241,10 @@ async def compute_optimizer(
             if error:
                 return error
 
+        # Resolve the default here (same rule as create_aws_client) so the response can
+        # say which region was queried; an empty result is otherwise unattributable.
+        region = region or os.environ.get('AWS_REGION', 'us-east-1')
+
         # Initialize Compute Optimizer client using shared utility
         co_client = create_aws_client('compute-optimizer', region_name=region)
 
@@ -240,9 +280,12 @@ async def compute_optimizer(
                             'enrollment_status': status,
                             'operation': operation,
                             'aws_error_code': 'ComputeOptimizerNotActive',
-                            'aws_region': region or os.environ.get('AWS_REGION', 'us-east-1'),
+                            'aws_region': region,
                         },
                         'Compute Optimizer is not active. Please activate the service in the AWS Console first.',
+                        error_type='enrollment_error',
+                        operation=operation,
+                        service=_CO_SERVICE_NAME,
                     )
 
         except ClientError as e:
@@ -259,10 +302,10 @@ async def compute_optimizer(
 
         # Process the operation
         if operation == 'get_ec2_instance_recommendations':
-            return await get_ec2_instance_recommendations(
+            result = await get_ec2_instance_recommendations(
                 ctx,
                 co_client,
-                max_results,
+                max_items,
                 filters,
                 account_ids,
                 next_token,
@@ -270,10 +313,10 @@ async def compute_optimizer(
                 cpu_vendor_architectures=cpu_architectures,
             )
         elif operation == 'get_auto_scaling_group_recommendations':
-            return await get_auto_scaling_group_recommendations(
+            result = await get_auto_scaling_group_recommendations(
                 ctx,
                 co_client,
-                max_results,
+                max_items,
                 filters,
                 account_ids,
                 next_token,
@@ -281,18 +324,18 @@ async def compute_optimizer(
                 cpu_vendor_architectures=cpu_architectures,
             )
         elif operation == 'get_ebs_volume_recommendations':
-            return await get_ebs_volume_recommendations(
-                ctx, co_client, max_results, filters, account_ids, next_token, arn_list
+            result = await get_ebs_volume_recommendations(
+                ctx, co_client, max_items, filters, account_ids, next_token, arn_list
             )
         elif operation == 'get_lambda_function_recommendations':
-            return await get_lambda_function_recommendations(
-                ctx, co_client, max_results, filters, account_ids, next_token, arn_list
+            result = await get_lambda_function_recommendations(
+                ctx, co_client, max_items, filters, account_ids, next_token, arn_list
             )
         elif operation == 'get_rds_recommendations':
-            return await get_rds_recommendations(
+            result = await get_rds_recommendations(
                 ctx,
                 co_client,
-                max_results,
+                max_items,
                 filters,
                 account_ids,
                 next_token,
@@ -300,14 +343,14 @@ async def compute_optimizer(
                 cpu_vendor_architectures=cpu_architectures,
             )
         elif operation == 'get_ecs_service_recommendations':
-            return await get_ecs_service_recommendations(
-                ctx, co_client, max_results, filters, account_ids, next_token, arn_list
+            result = await get_ecs_service_recommendations(
+                ctx, co_client, max_items, filters, account_ids, next_token, arn_list
             )
         elif operation == 'get_idle_recommendations':
-            return await get_idle_recommendations(
+            result = await get_idle_recommendations(
                 ctx,
                 co_client,
-                max_results,
+                max_items,
                 filters,
                 account_ids,
                 next_token,
@@ -331,7 +374,16 @@ async def compute_optimizer(
                     ],
                 },
                 f"Unsupported operation: {operation}. Use 'get_ec2_instance_recommendations', 'get_auto_scaling_group_recommendations', 'get_ebs_volume_recommendations', 'get_lambda_function_recommendations', 'get_rds_recommendations', 'get_ecs_service_recommendations' or 'get_idle_recommendations'.",
+                error_type='invalid_operation',
+                operation=operation,
+                service=_CO_SERVICE_NAME,
             )
+
+        # Compute Optimizer is regional: echo the queried region (like applied_filters)
+        # so an empty result can be read as "none in this region", not "none at all".
+        if isinstance(result.get('data'), dict):
+            result['data']['applied_region'] = region
+        return result
 
     except ClientError as e:
         # Specific handling for AWS service errors
@@ -353,15 +405,28 @@ async def compute_optimizer(
                 'aws_error_message': aws_message,
                 'request_id': request_id,
                 'http_status': http_status,
+                'aws_region': region,
             },
         }
 
         # Handle specific error codes with improved messages
         if error_code == 'AccessDeniedException' or error_code == 'AccessDenied':
             error_response['error_type'] = 'access_denied'
-            error_response['message'] = (
-                f'Access denied for Compute Optimizer {operation}. Ensure you have the compute-optimizer:{operation} permission.'
-            )
+            # Name the IAM action from the API that failed (e.g. GetRDSDatabaseRecommendations),
+            # not the tool operation (get_rds_recommendations), which is not an IAM action.
+            api_name = getattr(e, 'operation_name', None)
+            if api_name:
+                error_response['data']['required_permission'] = f'compute-optimizer:{api_name}'
+                error_response['message'] = (
+                    f'Access denied for Compute Optimizer {operation}. Ensure you have the '
+                    f'compute-optimizer:{api_name} permission; aws_error_message names the '
+                    'action that was denied.'
+                )
+            else:
+                error_response['message'] = (
+                    f'Access denied for Compute Optimizer {operation}; aws_error_message names '
+                    'the action that was denied.'
+                )
             error_response['resolution'] = (
                 'Check your IAM permissions and ensure your role has the ComputeOptimizerReadOnlyAccess policy or equivalent permissions.'
             )
@@ -418,8 +483,11 @@ async def compute_optimizer(
             await ctx_logger.error(f'Resource not found: {aws_message}', exc_info=True)
 
         else:
-            # For other AWS errors, use the generic handler
-            return await handle_aws_error(ctx, e, operation, 'Compute Optimizer')
+            # For other AWS errors, use the generic handler. Its response is flat (no
+            # data object), so the queried region goes at the top level.
+            generic_error = await handle_aws_error(ctx, e, operation, 'Compute Optimizer')
+            generic_error['aws_region'] = region
+            return generic_error
 
         return error_response
 
@@ -463,6 +531,25 @@ def _parse_resource_arns(resource_arns: Optional[str]) -> Optional[List[str]]:
     ):
         raise ValueError('resource_arns must be a JSON array of ARN strings')
     return parsed or None
+
+
+def _parse_account_ids(account_ids: str) -> List[str]:
+    """Parse account_ids into the list of ID strings the API expects.
+
+    Bare IDs are accepted too, alone or separated by commas or spaces. They are kept as
+    text: JSON would read 123456789012 as a number (which botocore rejects) and cannot read
+    012345678901 at all.
+    """
+    text = account_ids.strip()
+    if re.fullmatch(r'[0-9]+(?:[\s,]+[0-9]+)*', text):
+        parsed: Any = re.split(r'[\s,]+', text)
+    else:
+        parsed = parse_json(text, 'account_ids')
+    if not isinstance(parsed, list):
+        parsed = [parsed]
+    if not all(isinstance(i, (str, int)) and not isinstance(i, bool) for i in parsed):
+        raise ValueError('account_ids must be an account ID or a JSON array of account IDs')
+    return [str(i).strip() for i in parsed]
 
 
 def _resolve_region_for_arns(arns: List[str], region: Optional[str]) -> Optional[str]:
@@ -556,9 +643,6 @@ _CPU_VENDOR_ARCHITECTURE_OPERATIONS = (
     'get_rds_recommendations',
 )
 _CPU_VENDOR_ARCHITECTURES = ('CURRENT', 'AWS_ARM64')
-
-_DEFAULT_MAX_RESULTS_LIMIT = 1000
-_MAX_RESULTS_LIMITS = {'get_idle_recommendations': 100}
 
 
 def _error_response(
@@ -720,34 +804,22 @@ def _normalize_filters(operation: str, filters: Any) -> Tuple[Any, Optional[Dict
 
 def _build_request_params(
     operation: str,
-    max_results: Any,
     filters: Optional[str],
     account_ids: Optional[str],
-    next_token: Optional[str],
     resource_arns: Optional[List[str]],
     arn_param: str,
     cpu_vendor_architectures: Optional[List[str]] = None,
 ) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
     """Build the request for a get_*_recommendations call, validating locally first.
 
+    The token and page size are left out: the pagination helper adds them per page, and
+    everything else is resent unchanged on every page.
+
     Returns:
         (request params, None), or (partial params, error response) when a parameter is
         rejected before the call.
     """
     request_params: Dict[str, Any] = {}
-
-    if max_results:
-        max_results = int(max_results)
-        limit = _MAX_RESULTS_LIMITS.get(operation, _DEFAULT_MAX_RESULTS_LIMIT)
-        if max_results > limit:
-            return request_params, _error_response(
-                operation,
-                'validation_error',
-                f'max_results must be at most {limit} for {operation}; page through '
-                'next_token for more.',
-                {'provided_max_results': max_results, 'max_allowed': limit},
-            )
-        request_params['maxResults'] = max_results
 
     if filters:
         normalized, error = _normalize_filters(operation, parse_json(filters, 'filters'))
@@ -756,8 +828,8 @@ def _build_request_params(
         request_params['filters'] = normalized
 
     if account_ids:
-        parsed_accounts = parse_json(account_ids, 'account_ids')
-        if isinstance(parsed_accounts, list) and len(parsed_accounts) > 1:
+        parsed_accounts = _parse_account_ids(account_ids)
+        if len(parsed_accounts) > 1:
             return request_params, _error_response(
                 operation,
                 'validation_error',
@@ -765,9 +837,6 @@ def _build_request_params(
                 {'provided_account_ids': parsed_accounts},
             )
         request_params['accountIds'] = parsed_accounts
-
-    if next_token:
-        request_params['nextToken'] = next_token
 
     # Restrict to specific resources if ARNs were provided
     if resource_arns:
@@ -912,26 +981,62 @@ def _invalid_parameter_error(
     }
 
 
-def _call_recommendations_api(
-    co_client: Any, method: str, operation: str, request_params: Dict[str, Any]
-) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
-    """Call a get_*_recommendations API, turning InvalidParameterValue into an error response.
+def _recommendations_spec(result_key: str, page_max: int = 1000) -> PageSpec:
+    """Describe how a get_*_recommendations API pages (maxResults / nextToken)."""
+    return PageSpec(
+        result_key=result_key,
+        token_param='nextToken',
+        token_key_in_response='nextToken',
+        page_max=page_max,
+        page_size_param='maxResults',
+        # Compute Optimizer reports a stale or bad nextToken as InvalidParameterValueException;
+        # only when the caller sent a token is that code read as a rejected token.
+        caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
+    )
 
-    Returns (response, None), or ({}, error response). Other ClientErrors propagate to the
-    dispatcher's error handling.
+
+async def _fetch_recommendations(
+    ctx: Context,
+    co_client: Any,
+    method: str,
+    operation: str,
+    request_params: Dict[str, Any],
+    spec: PageSpec,
+    max_items: Optional[int],
+    next_token: Optional[str],
+) -> Tuple[Dict[str, Any], Dict[str, Any], Optional[Dict[str, Any]]]:
+    """Fetch a get_*_recommendations API's pages, turning InvalidParameterValue into an error.
+
+    Returns (merged response, pagination block, None), or ({}, {}, error response). The
+    merged response holds every kept recommendation under the spec's result key and the
+    response-level `errors` of every page. Other errors propagate to the dispatcher's error
+    handling.
     """
     try:
-        return getattr(co_client, method)(**request_params), None
+        items, pages, pagination = await paginate_aws_items(
+            ctx,
+            method,
+            getattr(co_client, method),
+            request_params,
+            spec,
+            max_items=max_items,
+            next_token=next_token,
+        )
     except ClientError as e:
         if e.response.get('Error', {}).get('Code') != 'InvalidParameterValueException':
             raise
-        return {}, _invalid_parameter_error(operation, e, request_params)
+        return {}, {}, _invalid_parameter_error(operation, e, request_params)
+    merged = {
+        spec.result_key: items,
+        'errors': [error for page in pages for error in page.get('errors', [])],
+    }
+    return merged, pagination, None
 
 
 def _new_formatted_response(
     response: Dict[str, Any], request_params: Dict[str, Any], include_errors: bool = True
 ):
-    """Start a formatted response with pagination, response-level errors, and filters.
+    """Start a formatted response with response-level errors and the applied filters.
 
     Set include_errors=False for APIs whose response has no `errors` member (Lambda), so
     the output doesn't imply "no errors" when the API cannot report any.
@@ -939,7 +1044,6 @@ def _new_formatted_response(
     formatted_response: Dict[str, Any] = {'recommendations': []}
     if include_errors:
         formatted_response['errors'] = response.get('errors', [])
-    formatted_response['next_token'] = response.get('nextToken')
     if 'filters' in request_params:
         # Echo what was actually queried (post-normalization), not what was typed.
         formatted_response['applied_filters'] = request_params['filters']
@@ -962,10 +1066,13 @@ def _format_metrics(metrics: Optional[List[Dict[str, Any]]]) -> List[Dict[str, A
     ]
 
 
+CO_GET_EC2_INSTANCE_RECOMMENDATIONS = _recommendations_spec('instanceRecommendations')
+
+
 async def get_ec2_instance_recommendations(
     ctx,
     co_client,
-    max_results,
+    max_items,
     filters,
     account_ids,
     next_token,
@@ -976,10 +1083,8 @@ async def get_ec2_instance_recommendations(
     operation = 'get_ec2_instance_recommendations'
     request_params, error = _build_request_params(
         operation,
-        max_results,
         filters,
         account_ids,
-        next_token,
         resource_arns,
         'instanceArns',
         cpu_vendor_architectures,
@@ -987,8 +1092,15 @@ async def get_ec2_instance_recommendations(
     if error:
         return error
 
-    response, error = _call_recommendations_api(
-        co_client, 'get_ec2_instance_recommendations', operation, request_params
+    response, pagination, error = await _fetch_recommendations(
+        ctx,
+        co_client,
+        'get_ec2_instance_recommendations',
+        operation,
+        request_params,
+        CO_GET_EC2_INSTANCE_RECOMMENDATIONS,
+        max_items,
+        next_token,
     )
     if error:
         return error
@@ -1046,7 +1158,7 @@ async def get_ec2_instance_recommendations(
             }
         )
 
-    return format_response('success', formatted_response)
+    return format_response('success', with_pagination(formatted_response, pagination))
 
 
 def _format_asg_configuration(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -1065,10 +1177,15 @@ def _format_asg_configuration(config: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+CO_GET_AUTO_SCALING_GROUP_RECOMMENDATIONS = _recommendations_spec(
+    'autoScalingGroupRecommendations'
+)
+
+
 async def get_auto_scaling_group_recommendations(
     ctx,
     co_client,
-    max_results,
+    max_items,
     filters,
     account_ids,
     next_token,
@@ -1079,10 +1196,8 @@ async def get_auto_scaling_group_recommendations(
     operation = 'get_auto_scaling_group_recommendations'
     request_params, error = _build_request_params(
         operation,
-        max_results,
         filters,
         account_ids,
-        next_token,
         resource_arns,
         'autoScalingGroupArns',
         cpu_vendor_architectures,
@@ -1090,8 +1205,15 @@ async def get_auto_scaling_group_recommendations(
     if error:
         return error
 
-    response, error = _call_recommendations_api(
-        co_client, 'get_auto_scaling_group_recommendations', operation, request_params
+    response, pagination, error = await _fetch_recommendations(
+        ctx,
+        co_client,
+        'get_auto_scaling_group_recommendations',
+        operation,
+        request_params,
+        CO_GET_AUTO_SCALING_GROUP_RECOMMENDATIONS,
+        max_items,
+        next_token,
     )
     if error:
         return error
@@ -1144,7 +1266,7 @@ async def get_auto_scaling_group_recommendations(
             }
         )
 
-    return format_response('success', formatted_response)
+    return format_response('success', with_pagination(formatted_response, pagination))
 
 
 def _format_ebs_configuration(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -1160,19 +1282,29 @@ def _format_ebs_configuration(config: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+CO_GET_EBS_VOLUME_RECOMMENDATIONS = _recommendations_spec('volumeRecommendations')
+
+
 async def get_ebs_volume_recommendations(
-    ctx, co_client, max_results, filters, account_ids, next_token, resource_arns=None
+    ctx, co_client, max_items, filters, account_ids, next_token, resource_arns=None
 ):
     """Get EBS volume recommendations."""
     operation = 'get_ebs_volume_recommendations'
     request_params, error = _build_request_params(
-        operation, max_results, filters, account_ids, next_token, resource_arns, 'volumeArns'
+        operation, filters, account_ids, resource_arns, 'volumeArns'
     )
     if error:
         return error
 
-    response, error = _call_recommendations_api(
-        co_client, 'get_ebs_volume_recommendations', operation, request_params
+    response, pagination, error = await _fetch_recommendations(
+        ctx,
+        co_client,
+        'get_ebs_volume_recommendations',
+        operation,
+        request_params,
+        CO_GET_EBS_VOLUME_RECOMMENDATIONS,
+        max_items,
+        next_token,
     )
     if error:
         return error
@@ -1219,22 +1351,32 @@ async def get_ebs_volume_recommendations(
             }
         )
 
-    return format_response('success', formatted_response)
+    return format_response('success', with_pagination(formatted_response, pagination))
+
+
+CO_GET_LAMBDA_FUNCTION_RECOMMENDATIONS = _recommendations_spec('lambdaFunctionRecommendations')
 
 
 async def get_lambda_function_recommendations(
-    ctx, co_client, max_results, filters, account_ids, next_token, resource_arns=None
+    ctx, co_client, max_items, filters, account_ids, next_token, resource_arns=None
 ):
     """Get Lambda function recommendations."""
     operation = 'get_lambda_function_recommendations'
     request_params, error = _build_request_params(
-        operation, max_results, filters, account_ids, next_token, resource_arns, 'functionArns'
+        operation, filters, account_ids, resource_arns, 'functionArns'
     )
     if error:
         return error
 
-    response, error = _call_recommendations_api(
-        co_client, 'get_lambda_function_recommendations', operation, request_params
+    response, pagination, error = await _fetch_recommendations(
+        ctx,
+        co_client,
+        'get_lambda_function_recommendations',
+        operation,
+        request_params,
+        CO_GET_LAMBDA_FUNCTION_RECOMMENDATIONS,
+        max_items,
+        next_token,
     )
     if error:
         return error
@@ -1290,13 +1432,16 @@ async def get_lambda_function_recommendations(
             }
         )
 
-    return format_response('success', formatted_response)
+    return format_response('success', with_pagination(formatted_response, pagination))
+
+
+CO_GET_RDS_DATABASE_RECOMMENDATIONS = _recommendations_spec('rdsDBRecommendations')
 
 
 async def get_rds_recommendations(
     ctx,
     co_client,
-    max_results,
+    max_items,
     filters,
     account_ids,
     next_token,
@@ -1308,10 +1453,10 @@ async def get_rds_recommendations(
     Args:
         ctx: MCP context
         co_client: AWS Compute Optimizer client
-        max_results: Maximum number of results to return
+        max_items: Total number of recommendations to return; None fetches every page
         filters: Optional filters as JSON string
         account_ids: Optional list of account IDs as JSON string
-        next_token: Pagination token
+        next_token: The pagination.next_token from a previous response
         resource_arns: Optional list of RDS DB instance or cluster ARNs
         cpu_vendor_architectures: Optional resolved list for
             recommendationPreferences.cpuVendorArchitectures
@@ -1325,10 +1470,8 @@ async def get_rds_recommendations(
     operation = 'get_rds_recommendations'
     request_params, error = _build_request_params(
         operation,
-        max_results,
         filters,
         account_ids,
-        next_token,
         resource_arns,
         'resourceArns',
         cpu_vendor_architectures,
@@ -1339,8 +1482,15 @@ async def get_rds_recommendations(
     await ctx_logger.info(
         f'Calling get_rds_database_recommendations with parameters: {request_params}'
     )
-    response, error = _call_recommendations_api(
-        co_client, 'get_rds_database_recommendations', operation, request_params
+    response, pagination, error = await _fetch_recommendations(
+        ctx,
+        co_client,
+        'get_rds_database_recommendations',
+        operation,
+        request_params,
+        CO_GET_RDS_DATABASE_RECOMMENDATIONS,
+        max_items,
+        next_token,
     )
     if error:
         return error
@@ -1427,11 +1577,14 @@ async def get_rds_recommendations(
             }
         )
 
-    return {'status': 'success', 'data': formatted_response}
+    return {'status': 'success', 'data': with_pagination(formatted_response, pagination)}
+
+
+CO_GET_ECS_SERVICE_RECOMMENDATIONS = _recommendations_spec('ecsServiceRecommendations')
 
 
 async def get_ecs_service_recommendations(
-    ctx, co_client, max_results, filters, account_ids, next_token, resource_arns=None
+    ctx, co_client, max_items, filters, account_ids, next_token, resource_arns=None
 ):
     """Get ECS service recommendations."""
     # Get context logger for consistent logging
@@ -1439,7 +1592,7 @@ async def get_ecs_service_recommendations(
 
     operation = 'get_ecs_service_recommendations'
     request_params, error = _build_request_params(
-        operation, max_results, filters, account_ids, next_token, resource_arns, 'serviceArns'
+        operation, filters, account_ids, resource_arns, 'serviceArns'
     )
     if error:
         return error
@@ -1447,8 +1600,15 @@ async def get_ecs_service_recommendations(
     await ctx_logger.info(
         f'Calling get_ecs_service_recommendations with parameters: {request_params}'
     )
-    response, error = _call_recommendations_api(
-        co_client, 'get_ecs_service_recommendations', operation, request_params
+    response, pagination, error = await _fetch_recommendations(
+        ctx,
+        co_client,
+        'get_ecs_service_recommendations',
+        operation,
+        request_params,
+        CO_GET_ECS_SERVICE_RECOMMENDATIONS,
+        max_items,
+        next_token,
     )
     if error:
         return error
@@ -1505,7 +1665,7 @@ async def get_ecs_service_recommendations(
             }
         )
 
-    return format_response('success', formatted_response)
+    return format_response('success', with_pagination(formatted_response, pagination))
 
 
 # Idle filter name -> botocore enum shape that holds its valid values.
@@ -1544,10 +1704,13 @@ def _normalize_idle_filters(filters: List[Dict[str, Any]]) -> List[Dict[str, Any
     return normalized
 
 
+CO_GET_IDLE_RECOMMENDATIONS = _recommendations_spec('idleRecommendations', page_max=100)
+
+
 async def get_idle_recommendations(
     ctx,
     co_client,
-    max_results,
+    max_items,
     filters,
     account_ids,
     next_token,
@@ -1566,18 +1729,26 @@ async def get_idle_recommendations(
 
     operation = 'get_idle_recommendations'
     request_params, error = _build_request_params(
-        operation, max_results, filters, account_ids, next_token, resource_arns, 'resourceArns'
+        operation, filters, account_ids, resource_arns, 'resourceArns'
     )
     if error:
         return error
-    # Sent on every page, including next_token follow-ups, so pagination stays consistent.
+    # Part of request_params, so it is sent on every page, including next_token follow-ups,
+    # and pagination stays consistent.
     request_params['orderBy'], error = _resolve_idle_order_by(order_by)
     if error:
         return error
 
     await ctx_logger.info(f'Calling get_idle_recommendations with parameters: {request_params}')
-    response, error = _call_recommendations_api(
-        co_client, 'get_idle_recommendations', operation, request_params
+    response, pagination, error = await _fetch_recommendations(
+        ctx,
+        co_client,
+        'get_idle_recommendations',
+        operation,
+        request_params,
+        CO_GET_IDLE_RECOMMENDATIONS,
+        max_items,
+        next_token,
     )
     if error:
         return error
@@ -1620,7 +1791,7 @@ async def get_idle_recommendations(
             }
         )
 
-    return format_response('success', formatted_response)
+    return format_response('success', with_pagination(formatted_response, pagination))
 
 
 def format_savings_opportunity(savings_opportunity):

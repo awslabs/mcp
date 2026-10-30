@@ -31,6 +31,7 @@ import os
 import re
 import sqlite3
 import uuid
+from .aws_service_base import partial_data_warning
 from .constants import (
     COST_OPTIMIZATION_HUB_EFFICIENCY_METRICS_COLUMNS,
     COST_OPTIMIZATION_HUB_EFFICIENCY_ORDER_DIMENSION_TO_COLUMN,
@@ -38,6 +39,7 @@ from .constants import (
     COST_OPTIMIZATION_HUB_RECOMMENDATION_COLUMNS,
     ColumnSpec,
 )
+from .error_contract import MODIFY_REQUEST
 from .logging_utils import get_context_logger, get_logger
 from datetime import datetime
 from fastmcp import Context
@@ -56,6 +58,18 @@ FORCE_SQL_CONVERSION = os.getenv('MCP_FORCE_SQL', 'false').lower() == 'true'
 BUSY_TIMEOUT_MS = int(
     os.getenv('BCM_MCP_SQLITE_TIMEOUT_MS', 30000)
 )  # 30s default — handles concurrent subagent writes
+
+# Ceilings on the handle fields that grow with the stored data's shape. A
+# per-cell cap alone does not bound them: a wide response puts hundreds of
+# at-cap cells or long flattened column names on the handle.
+# Longest preview cell text kept before it is shortened with a marker
+PREVIEW_CELL_MAX_CHARS = 200
+# Bytes the preview rows may use, costed as each cell's JSON encoding
+PREVIEW_BUDGET_BYTES = 4096
+# Most column names the handle's schema lists
+SCHEMA_COLUMN_LIMIT = 60
+# Bytes the handle's schema column list may use
+SCHEMA_BUDGET_BYTES = 4096
 
 # Session database path singleton
 _SESSION_DB_PATH = None
@@ -128,7 +142,7 @@ def cleanup_session_db() -> None:
 def _session_authorizer(action, arg1, arg2, db_name, trigger_name):
     """SQLite authorizer callback: deny cross-DB attach/detach.
 
-    Belt-and-suspenders with the regex blacklist in
+    Belt-and-suspenders with the regex denylist in
     :func:`validate_sql_query`. The regex catches the query text
     before SQLite parses it; this authorizer catches every SQL parser
     action the connection actually attempts, including anything the
@@ -404,6 +418,9 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
         'cost_optimization_hub_list_efficiency_metrics': 'coh_efficiency_metrics',
         'budget_actions': 'records',
         'budget_notifications': 'records',
+        'enterprise_support_list_linked_account_charges': 'records',
+        'business_support_list_account_charges': 'records',
+        'business_support_list_subscription_history': 'records',
         'sp_explorer_describe_savings_plans': 'records',
         'sp_explorer_describe_savings_plan_rates': 'records',
         'sp_explorer_describe_savings_plans_offerings': 'records',
@@ -572,77 +589,57 @@ def _create_and_insert(
     return count
 
 
-def _derive_pagination_envelope(
-    response: Dict[str, Any], token_key: str = 'NextPageToken'
-) -> Dict[str, Any]:
-    """Extract pagination metadata from a response so it survives SQL offload.
+def _derive_pagination_envelope(response: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract the pagination block from a response so it survives SQL offload.
 
-    Recognizes two shapes produced upstream:
-
-    - Multi-page wrapper built by callers after `paginate_aws_response`:
-      ``{'<ResultsKey>': [...], 'Pagination': {next_token, has_more, pages_fetched, ...}}``
-    - Single-page raw boto3 response with a continuation-token field (e.g.
-      ``NextPageToken``).
+    Reads the lowercase ``pagination`` block attached by
+    ``aws_service_base.with_pagination``. A partial result's ``warning`` sits at the top
+    level of the response.
 
     Args:
-        response: The API response (or paginated wrapper) being offloaded.
-        token_key: Name of the continuation-token field in the single-page
-            boto3 response. Defaults to ``NextPageToken`` (used by Cost
-            Explorer ops); pass e.g. ``NextToken`` for AWS Pricing.
+        response: The tool response being offloaded.
 
     Returns:
-        Dict with ``next_page_token``, ``has_more``, ``pages_fetched`` keys.
-        Empty dict if the response carries no pagination markers (e.g. a
-        forecast response), so unrelated APIs aren't polluted with bogus
-        pagination metadata.
+        ``{'complete_dataset', 'warning' (partial only), 'pagination': {...}}``, in that
+        order so the partial-data signal leads. Empty dict if the response carries no
+        pagination block (e.g. a forecast response).
     """
-    if 'Pagination' in response and isinstance(response['Pagination'], dict):
-        pag_meta = response['Pagination']
-        return {
-            'next_page_token': pag_meta.get('next_token'),
-            'has_more': pag_meta.get('has_more', False),
-            'pages_fetched': pag_meta.get('pages_fetched'),
-        }
-    if token_key in response:
-        token = response.get(token_key)
-        return {
-            'next_page_token': token,
-            'has_more': bool(token),
-            'pages_fetched': 1,
-        }
-    return {}
+    block = response.get('pagination')
+    if not isinstance(block, dict):
+        return {}
+    complete = bool(block.get('complete_dataset', True))
+    envelope: Dict[str, Any] = {'complete_dataset': complete}
+    if not complete:
+        envelope['warning'] = response.get('warning') or partial_data_warning(
+            block.get('items_returned') or 0
+        )
+    envelope['pagination'] = dict(block)
+    return envelope
 
 
 async def convert_response_if_needed(
     ctx: Context,
     response: Dict[str, Any],
     api_name: str,
-    pagination_token_key: str = 'NextPageToken',
     **metadata,
 ) -> Dict[str, Any]:
     """Offload an API response to SQL if it exceeds the size threshold.
 
-    Auto-derives pagination metadata (`next_page_token`, `has_more`,
-    `pages_fetched`) from the response shape so callers don't have to
-    pass it explicitly. Explicit kwargs in `metadata` override the
-    derived values.
+    The response's ``pagination`` block (and a partial result's ``warning``) is carried
+    into the offload sentinel, so the sentinel has the same pagination fields as an
+    inline result. Explicit kwargs in ``metadata`` override the derived values.
 
-    Return contract — always returns something the caller can pass
-    straight through to `format_response`:
-    - Offload happened: the offload sentinel dict (with `data_stored=True`,
-      `table_name`, sample queries, etc.).
-    - No offload (size below threshold): the original `response`.
-    - Conversion errored: log + return the original `response`.
-
-    The original response is returned on no-offload and on error so
-    callers don't need to unwrap a size-meta or error envelope.
+    Return contract — always returns something the caller can pass straight through
+    to ``format_response``:
+    - Offload happened: the offload sentinel dict (with ``data_stored=True``,
+      ``table_name``, sample queries, etc.).
+    - No offload (size below threshold), or the offload failed: the original
+      ``response``, led by ``complete_dataset: false`` and ``warning`` when partial.
 
     Args:
         ctx: MCP context
         response: API response data
         api_name: Name of the API operation (e.g. 'aws_pricing_get_products')
-        pagination_token_key: Name of the continuation-token field in
-            single-page boto3 responses. Defaults to 'NextPageToken'.
         **metadata: Additional metadata to include in the offload sentinel.
 
     Returns:
@@ -653,29 +650,278 @@ async def convert_response_if_needed(
 
     # Pull pagination markers out of the response so they survive offload —
     # caller-provided metadata still wins on key conflict.
-    metadata = {**_derive_pagination_envelope(response, pagination_token_key), **metadata}
+    metadata = {**_derive_pagination_envelope(response), **metadata}
+
+    # Inline results lead with the partial-data signal too, so it is read before the data.
+    inline_response = response
+    if metadata.get('complete_dataset') is False:
+        inline_response = {
+            'complete_dataset': False,
+            'warning': metadata.get('warning'),
+            **response,
+        }
 
     try:
         response_size = len(json.dumps(response).encode('utf-8'))
-
-        if not should_convert_to_sql(response_size):
-            await ctx_logger.debug(
-                f'Response size {response_size / 1024:.2f}KB below threshold, returning directly'
-            )
-            return response
-
-        await ctx_logger.info(
-            f'Response size {response_size / 1024:.2f}KB exceeds threshold, converting to SQL'
+    except (TypeError, ValueError) as e:
+        # Not JSON-serializable, so neither offload nor size check applies; return as is.
+        await ctx_logger.error(
+            f'Error processing response for {api_name}: {type(e).__name__}', exc_info=False
         )
+        return inline_response
+
+    if not should_convert_to_sql(response_size):
+        await ctx_logger.debug(
+            f'Response size {response_size / 1024:.2f}KB below threshold, returning directly'
+        )
+        return inline_response
+
+    await ctx_logger.info(
+        f'Response size {response_size / 1024:.2f}KB exceeds threshold, converting to SQL'
+    )
+    try:
         return await convert_api_response_to_table(ctx, response, api_name, **metadata)
     except Exception as e:
-        # Offload is an optimization — if it fails, fall back to the original
-        # response rather than propagating an error envelope the caller would
-        # have to unwrap anyway.
+        # Offload is an optimization: if it fails, return what was fetched inline rather
+        # than an error. The pagination block leads the response, so a client that trims
+        # an oversized result still sees whether it is complete and how to continue.
         await ctx_logger.error(
             f'Error processing response for {api_name}: {str(e)}', exc_info=True
         )
-        return response
+        return inline_response
+
+
+def _truncate_preview_value(value: Any, max_chars: int = PREVIEW_CELL_MAX_CHARS) -> Any:
+    """Shorten one preview cell.
+
+    Args:
+        value: The cell value read back from the table.
+        max_chars: Longest string kept before truncation.
+
+    Returns:
+        The value unchanged when it is short or not a string, otherwise the
+        first ``max_chars`` characters with an elision marker recording how much
+        was left in the table.
+    """
+    if not isinstance(value, str) or len(value) <= max_chars:
+        return value
+    return f'{value[:max_chars]}... [{len(value)} chars total, query the table for the full value]'
+
+
+def _bounded_schema(
+    columns: List[str], budget_bytes: int = SCHEMA_BUDGET_BYTES
+) -> Tuple[List[str], Optional[int]]:
+    """Return a bounded column list, by count and by bytes.
+
+    A count limit alone is not enough: flattened names repeat their parent
+    prefixes, so sixty long names can rebuild a sizeable share of the payload.
+
+    Args:
+        columns: Every column in the stored table.
+        budget_bytes: Bytes the serialized column list may use.
+
+    Returns:
+        The column names kept, and the full count when any were dropped
+        (``None`` otherwise, so the handle stays unchanged for normal tables).
+    """
+    kept: List[str] = []
+    spent = 0
+    for column in columns[:SCHEMA_COLUMN_LIMIT]:
+        cost = len(column.encode('utf-8')) + 4  # quotes and the ', ' separator json.dumps writes
+        if spent + cost > budget_bytes:
+            break
+        kept.append(column)
+        spent += cost
+    if len(kept) == len(columns):
+        return kept, None
+    return kept, len(columns)
+
+
+def _unserializable_preview_value(value: Any) -> str:
+    """Return a bounded text stand-in for a cell that is not a JSON scalar, such as a BLOB.
+
+    Args:
+        value: The cell value read back from the table.
+
+    Returns:
+        The value's ``str()`` form shortened like any other preview cell, or a
+        placeholder naming its type when even ``str()`` fails.
+    """
+    try:
+        text = str(value)
+    except Exception:
+        return f'<unserializable {type(value).__name__}>'
+    return _truncate_preview_value(text)
+
+
+def _bounded_preview(
+    preview_rows: Iterable[Tuple[Any, ...]], columns: List[str]
+) -> Tuple[List[Dict[str, Any]], bool]:
+    """Build the preview, stopping at :data:`PREVIEW_BUDGET_BYTES`.
+
+    Each row is costed in full and kept only when the whole row fits, so every
+    kept row carries every column. The one exception is a first row that alone
+    exceeds the budget: its cells are kept up to the budget, so the preview is
+    not empty for a very wide table.
+
+    Args:
+        preview_rows: Rows read back from the stored table.
+        columns: Column names, in cursor order.
+
+    Returns:
+        The preview rows kept, and whether anything was dropped.
+    """
+    preview: List[Dict[str, Any]] = []
+    spent = 0
+    for row in preview_rows:
+        cells: List[Tuple[str, Any, int]] = []
+        for index, column in enumerate(columns):
+            value = row[index]
+            if value is None or isinstance(value, (str, int, float, bool)):
+                cell = _truncate_preview_value(value)
+            else:
+                # Shorten the text form too, so a large BLOB is cut rather
+                # than costing the whole row.
+                cell = _unserializable_preview_value(value)
+            # Cost each cell as its JSON encoding, the form the handle takes on
+            # the wire; json.dumps escapes non-ASCII, so the count never undercounts.
+            cost = len(json.dumps({column: cell}).encode('utf-8'))
+            cells.append((column, cell, cost))
+
+        row_cost = sum(cost for _, _, cost in cells)
+        if spent + row_cost <= PREVIEW_BUDGET_BYTES:
+            preview.append({column: cell for column, cell, _ in cells})
+            spent += row_cost
+            continue
+
+        if not preview:
+            # A first row wider than the whole budget would otherwise leave
+            # the preview empty; keep its leading cells that fit instead.
+            item: Dict[str, Any] = {}
+            for column, cell, cost in cells:
+                if spent + cost > PREVIEW_BUDGET_BYTES:
+                    break
+                item[column] = cell
+                spent += cost
+            if item:
+                preview.append(item)
+        return preview, True
+    return preview, False
+
+
+# UTC midnight as ISO 8601 writes it: ``T00:00`` or ``T00:00:00`` with optional zero
+# fractional seconds, then ``Z``, ``+00:00``, ``+0000`` or no zone (Cost Explorer returns
+# ``...T00:00:00Z``). ``-00:00`` means an unknown offset, so it is not UTC. ASCII digits
+# only, matched with fullmatch so a trailing newline is not accepted.
+_UTC_MIDNIGHT_RE = re.compile(
+    r'([0-9]{4}-[0-9]{2}-[0-9]{2})T00:00(?::00(?:\.0+)?)?(?:Z|\+00:?00)?'
+)
+_ISO_DATE_RE = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}')
+
+
+def _ce_bound_date(value: str) -> Optional[str]:
+    """Return the ``YYYY-MM-DD`` of a date or UTC-midnight timestamp, or None if it is not one.
+
+    The date must exist on the calendar, so ``2026-02-30`` is not one.
+    """
+    if _ISO_DATE_RE.fullmatch(value):
+        date = value
+    else:
+        match = _UTC_MIDNIGHT_RE.fullmatch(value)
+        if match is None:
+            return None
+        date = match.group(1)
+    try:
+        datetime.strptime(date, '%Y-%m-%d')
+    except ValueError:
+        return None
+    return date
+
+
+def _ce_period_bounds(time_periods: List[Any]) -> Tuple[List[Tuple[Any, Any]], Optional[bool]]:
+    """Return the (start, end) to store for each Cost Explorer ``TimePeriod``.
+
+    getCostAndUsage returns DAILY and MONTHLY bounds as ``YYYY-MM-DD``;
+    getCostAndUsageWithResources returns the same bounds as UTC-midnight
+    timestamps. Stored verbatim, a date filter on TEXT drops the last day of the
+    timestamp table and a JOIN across the two matches nothing. So when every
+    bound in the response is a date or UTC midnight, all are stored as dates.
+    Otherwise (HOURLY, whose periods always have a non-midnight bound) every
+    bound is kept as returned, so one response never mixes the two formats.
+
+    Args:
+        time_periods: The ``TimePeriod`` of each result, in order.
+
+    Returns:
+        One (start, end) pair per period (a missing bound is None), and whether
+        the bounds are dates: None when there is no bound at all.
+    """
+    bounds = [
+        (tp.get('Start'), tp.get('End')) if isinstance(tp, dict) else (None, None)
+        for tp in time_periods
+    ]
+    dates: List[Tuple[Any, Any]] = []
+    seen_bound = False
+    for pair in bounds:
+        converted = []
+        for value in pair:
+            if value is None:
+                converted.append(None)
+                continue
+            seen_bound = True
+            date = _ce_bound_date(value) if isinstance(value, str) else None
+            if date is None:
+                return bounds, False
+            converted.append(date)
+        dates.append((converted[0], converted[1]))
+    return dates, (True if seen_bound else None)
+
+
+# The stored period formats, worded once for the handle and the sample query notes.
+_CE_DATE_FORMAT = "'YYYY-MM-DD'"
+_CE_KEPT_FORMAT = "as the API returned it, e.g. 'YYYY-MM-DDTHH:MM:SSZ' for HOURLY"
+
+
+def _ce_time_period_formats(as_dates: bool) -> Dict[str, str]:
+    """Describe how this table stores Cost Explorer periods, for the handle.
+
+    The columns are TEXT and compare byte by byte, so a literal of another form
+    silently matches nothing.
+
+    Args:
+        as_dates: Whether ``_ce_period_bounds`` stored the bounds as dates.
+
+    Returns:
+        A description per period column.
+    """
+    if as_dates:
+        start = (
+            f'TEXT {_CE_DATE_FORMAT} (UTC date). Compared as text: filter with date literals. '
+            "HOURLY tables store 'YYYY-MM-DDTHH:MM:SSZ'; use substr(time_period_start, 1, 10) "
+            'to compare their days with this table'
+        )
+    else:
+        start = (
+            f'TEXT {_CE_KEPT_FORMAT}. Compared as text: filter with literals of the same '
+            'form, or use substr(time_period_start, 1, 10) to compare days'
+        )
+    exclusive = (
+        'The end is exclusive: the period covers time_period_start up to, not including, '
+        'time_period_end'
+    )
+    return {
+        'time_period_start': start,
+        'time_period_end': (
+            f'TEXT {_CE_DATE_FORMAT} (UTC date). {exclusive}'
+            if as_dates
+            else f'TEXT as the API returned it. {exclusive}'
+        ),
+    }
+
+
+def _ce_time_format_note(as_dates: bool) -> str:
+    """One clause on the stored period format, for sample query descriptions."""
+    return f'time_period_start is {_CE_DATE_FORMAT if as_dates else _CE_KEPT_FORMAT}'
 
 
 async def convert_api_response_to_table(
@@ -716,6 +962,9 @@ async def convert_api_response_to_table(
 
     try:
         rows_inserted = 0
+        # Whether the Cost Explorer periods were stored as dates; None when this
+        # table holds no Cost Explorer periods.
+        ce_periods_as_dates: Optional[bool] = None
 
         # Create table and insert data based on response type
         if converter_type == 'pricing_products' and 'PriceList' in response:
@@ -770,10 +1019,11 @@ async def convert_api_response_to_table(
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
             cursor.execute(sql)
 
-            for result_by_time in response.get('ResultsByTime', []):
-                time_period = result_by_time.get('TimePeriod', {})
-                start = time_period.get('Start')
-                end = time_period.get('End')
+            results_by_time = response.get('ResultsByTime', [])
+            period_bounds, ce_periods_as_dates = _ce_period_bounds(
+                [r.get('TimePeriod', {}) for r in results_by_time]
+            )
+            for result_by_time, (start, end) in zip(results_by_time, period_bounds):
                 estimated = result_by_time.get('Estimated', False)
 
                 # Handle grouped data
@@ -861,8 +1111,11 @@ async def convert_api_response_to_table(
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
             cursor.execute(sql)
 
-            for forecast in response.get('ForecastResultsByTime', []):
-                time_period = forecast.get('TimePeriod', {})
+            forecasts = response.get('ForecastResultsByTime', [])
+            period_bounds, ce_periods_as_dates = _ce_period_bounds(
+                [f.get('TimePeriod', {}) for f in forecasts]
+            )
+            for forecast, (start, end) in zip(forecasts, period_bounds):
                 # Use validated table name
                 validate_table_name(table_name)
                 insert_sql = create_safe_sql_statement(
@@ -873,8 +1126,8 @@ async def convert_api_response_to_table(
                 cursor.execute(
                     insert_sql,
                     (
-                        time_period.get('Start'),
-                        time_period.get('End'),
+                        start,
+                        end,
                         float(forecast.get('MeanValue', 0)),
                         float(forecast.get('PredictionIntervalLowerBound', 0)),
                         float(forecast.get('PredictionIntervalUpperBound', 0)),
@@ -1053,20 +1306,29 @@ async def convert_api_response_to_table(
         # Get column names for preview
         columns = [description[0] for description in cursor.description]
 
-        # Format preview as list of dictionaries
-        preview = []
-        for row in preview_rows:
-            preview_item = {}
-            for i, col in enumerate(columns):
-                preview_item[col] = row[i]
-            preview.append(preview_item)
+        # Format preview as list of dictionaries, bounded so a wide or long-celled
+        # table cannot rebuild the payload the offload exists to keep off the handle
+        preview, preview_truncated = _bounded_preview(preview_rows, columns)
+        schema_columns, schema_column_count = _bounded_schema(columns)
 
-        # Register table in schema info
+        # Register table in schema info, and commit it before the await below. The INSERT opens a
+        # write transaction; holding it across the await lets a concurrent conversion on the same
+        # event loop block on the lock (sqlite's busy_timeout waits synchronously, so the holder
+        # never resumes) until it fails with "database is locked". Uncommitted, the row would
+        # also be rolled back when the connection closes.
         register_table_in_schema_info(
             cursor, table_name, operation_name, json.dumps(metadata), rows_inserted
         )
+        conn.commit()
 
         await ctx.info(f'Converted {rows_inserted} rows to SQL table: {table_name}')
+
+        # The stored period format, appended to the time-ordered sample query descriptions.
+        time_note = (
+            f'. {_ce_time_format_note(ce_periods_as_dates)}'
+            if ce_periods_as_dates is not None
+            else ''
+        )
 
         # Get sample queries based on table type with enhanced examples
         # Start with a basic query for all tables
@@ -1108,7 +1370,7 @@ async def convert_api_response_to_table(
             sample_queries.append(
                 {
                     'name': 'Cost trend over time',
-                    'description': 'Shows cost pattern across the time period',
+                    'description': 'Shows cost pattern across the time period' + time_note,
                     'sql': trend_query,
                 }
             )
@@ -1200,7 +1462,8 @@ async def convert_api_response_to_table(
             sample_queries.append(
                 {
                     'name': 'Forecast trend',
-                    'description': 'Shows forecast values with confidence bounds over time',
+                    'description': 'Shows forecast values with confidence bounds over time'
+                    + time_note,
                     'sql': forecast_query,
                 }
             )
@@ -1371,19 +1634,51 @@ async def convert_api_response_to_table(
                 }
             )
 
+        # A partial table leads with the signal, and its aggregates are labeled as undercounts.
+        # The pagination block goes under the same lowercase key as an inline result.
+        partial: Dict[str, Any] = {}
+        pagination_block = metadata.pop('pagination', None)
+        complete = metadata.pop('complete_dataset', None)
+        warning = metadata.pop('warning', None)
+        if complete is False:
+            partial = {'complete_dataset': False, 'warning': warning}
+            # The generic key/value flatten stores fields, not items, so its row count
+            # says nothing about how much data was retrieved.
+            if converter_type is not None:
+                partial['rows_retrieved'] = rows_inserted
+            for query in sample_queries:
+                query['description'] = f'PARTIAL DATA, undercounts: {query["description"]}'
+        if pagination_block is not None:
+            partial['pagination'] = pagination_block
+
         # Return info about the stored data
         db_path = get_session_db_path()
 
         return {
             'status': 'success',
+            **partial,
             'data_stored': True,
             'session_db': db_path,
             'table_name': table_name,
-            'schema': columns,
+            'schema': schema_columns,
             'row_count': rows_inserted,
             'sample_queries': sample_queries,
             'preview': preview,
             **metadata,
+            # Present only when a bound applied, and after the metadata so a
+            # caller's keyword cannot overwrite them.
+            **(
+                {'schema_column_count': schema_column_count}
+                if schema_column_count is not None
+                else {}
+            ),
+            **({'preview_truncated': True} if preview_truncated else {}),
+            # The stored time format, for the tables that hold Cost Explorer periods.
+            **(
+                {'column_formats': _ce_time_period_formats(ce_periods_as_dates)}
+                if ce_periods_as_dates is not None
+                else {}
+            ),
         }
 
     except Exception as e:
@@ -1449,19 +1744,21 @@ async def execute_session_sql(
         # Execute the main query
         await ctx.info(f'Executing SQL query: {query[:100]}...')
 
-        # Get query type (read or write)
-        query_upper = query.strip().upper()
-        is_write_operation = any(
-            query_upper.startswith(cmd)
-            for cmd in ['INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER']
-        )
-
         # Execute the query with validation
         validate_sql_query(query)
         cursor.execute(query)
 
-        # Commit if this is a write operation
-        if is_write_operation:
+        # Commit if the statement opened a transaction.
+        #
+        # We rely on sqlite3's own view of the transaction state rather than a
+        # keyword-prefix check on the query text. A prefix check misses writes
+        # that sqlite3 still runs inside an implicit transaction -- for example
+        # comment-prefixed DML ("/* c */ INSERT ...") and REPLACE statements --
+        # leaving the transaction uncommitted so the write is silently rolled
+        # back when the connection closes. conn.in_transaction reflects the
+        # actual engine state and commits exactly when there is something to
+        # commit.
+        if conn.in_transaction:
             conn.commit()
 
         # Get results
@@ -1503,13 +1800,19 @@ async def execute_session_sql(
         # Add a structured error_type/operation/service so failures are
         # classifiable. error_type is the exception class name only (e.g.
         # 'OperationalError').
-        return {
+        response = {
             'status': 'error',
             'service': 'SQL',
             'operation': 'session_sql',
             'error_type': type(e).__name__,
             'message': error_message,
         }
+        # Rejected or invalid SQL (ValueError from validation, sqlite3 syntax errors,
+        # unknown tables or columns) is fixed by changing the query. The class names
+        # are too generic for the shared error_type mapping, so it is set here.
+        if isinstance(e, (ValueError, sqlite3.Error)):
+            response['retry_strategy'] = MODIFY_REQUEST
+        return response
 
     finally:
         # Close connection only if it was successfully opened

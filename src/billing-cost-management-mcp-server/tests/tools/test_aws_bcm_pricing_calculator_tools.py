@@ -5,6 +5,7 @@ ensuring complete code coverage and proper error handling.
 """
 
 import pytest
+import time
 from awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools import (
     PREFERENCES_NOT_CONFIGURED_ERROR,
     bcm_pricing_calc_core,
@@ -17,7 +18,7 @@ from awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_too
     list_workload_estimates,
 )
 from botocore.exceptions import BotoCoreError, ClientError
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -267,7 +268,7 @@ class TestListWorkloadEstimates:
         mock_get_preferences.return_value = {'account_types': 'management account'}
 
         # Execute
-        result = await list_workload_estimates(mock_context, max_results=50)
+        result = await list_workload_estimates(mock_context, max_items=50)
 
         # Assert
         mock_create_client.assert_called_once_with('bcm-pricing-calculator')
@@ -277,8 +278,14 @@ class TestListWorkloadEstimates:
         assert result['status'] == 'success'
         assert 'workload_estimates' in result['data']
         assert len(result['data']['workload_estimates']) == 2
-        assert result['data']['total_count'] == 2
-        assert result['data']['has_more_results'] is False
+        assert result['data']['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 2,
+        }
+        assert 'total_count' not in result['data']
+        assert 'has_more_results' not in result['data']
 
         # Check first estimate details
         first_estimate = result['data']['workload_estimates'][0]
@@ -315,7 +322,7 @@ class TestListWorkloadEstimates:
             status_filter='VALID',
             name_filter='Test',
             name_match_option='CONTAINS',
-            max_results=25,
+            max_items=25,
         )
 
         # Assert
@@ -402,6 +409,217 @@ class TestListWorkloadEstimates:
         assert result['status'] == 'error'
 
 
+class TestDateFilterOrder:
+    """An after bound later than its before bound is rejected locally, before any AWS call.
+
+    The service rejects it too, but with a message that names the bounds the wrong way round.
+    """
+
+    @staticmethod
+    async def _list(client, **kwargs):
+        """Run list_workload_estimates against a client mock with preferences configured."""
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
+                return_value=client,
+            ) as create_client,
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences',
+                new=AsyncMock(return_value={'account_types': ['management account']}),
+            ) as get_prefs,
+        ):
+            ctx = MagicMock()
+            ctx.info = AsyncMock()
+            ctx.warning = AsyncMock()
+            ctx.error = AsyncMock()
+            result = await list_workload_estimates(ctx, **kwargs)
+            return result, get_prefs, create_client
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('prefix', ['created', 'expires'])
+    @pytest.mark.parametrize(
+        'after,before',
+        [
+            ('2026-02-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+            ('2026-01-01T00:00:01', '2026-01-01T00:00:00'),
+            # Mixed offsets compare as instants: 01:00+00:00 is later than 00:30Z.
+            ('2026-01-01T01:00:00+00:00', '2026-01-01T00:30:00Z'),
+            # A value without an offset is UTC, as botocore sends it.
+            ('2026-01-01T12:00:00', '2026-01-01T11:00:00Z'),
+            ('2026-01-01T06:00:00+05:00', '2026-01-01T00:00:00'),
+        ],
+    )
+    async def test_after_later_than_before_is_rejected(self, prefix, after, before):
+        """The error names both parameters in the right order, with no AWS call."""
+        client = MagicMock()
+
+        result, get_prefs, create_client = await self._list(
+            client, **{f'{prefix}_after': after, f'{prefix}_before': before}
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == f'{prefix}_after'
+        assert result['data']['value'] == after
+        expected = f'{prefix}_after ({after}) is later than {prefix}_before ({before})'
+        assert expected in result['message']
+        assert 'beforeTimestamp' not in result['message']
+        get_prefs.assert_not_called()
+        create_client.assert_not_called()
+        client.list_workload_estimates.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('prefix', ['created', 'expires'])
+    @pytest.mark.parametrize(
+        'after,before',
+        [
+            ('2026-01-01T00:00:00Z', '2026-02-01T00:00:00Z'),
+            # Equal bounds are accepted by the service.
+            ('2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+            ('2026-01-01T05:00:00+05:00', '2026-01-01T00:00:00'),
+            ('2026-01-01T00:30:00Z', '2026-01-01T01:00:00+00:00'),
+        ],
+    )
+    async def test_ordered_or_equal_bounds_are_sent(self, prefix, after, before):
+        """Ordered or equal bounds are sent as UTC instants in the matching filter."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(
+            client, **{f'{prefix}_after': after, f'{prefix}_before': before}
+        )
+
+        assert result['status'] == 'success'
+        sent = client.list_workload_estimates.call_args.kwargs[f'{prefix}AtFilter']
+        assert sent['afterTimestamp'] <= sent['beforeTimestamp']
+        assert sent['afterTimestamp'].utcoffset() == timedelta(0)
+        assert sent['beforeTimestamp'].utcoffset() == timedelta(0)
+
+    @pytest.fixture
+    def non_utc_local_time(self, monkeypatch):
+        """Run with a non-UTC local zone, so a naive value read as local time would show."""
+        if not hasattr(time, 'tzset'):
+            pytest.skip('time.tzset is not available on this platform')
+        monkeypatch.setenv('TZ', 'America/New_York')
+        time.tzset()
+        yield
+        monkeypatch.undo()
+        time.tzset()
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures('non_utc_local_time')
+    async def test_value_without_offset_is_sent_as_utc(self):
+        """A naive value is sent as the same UTC instant botocore would have sent."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        await self._list(client, created_after='2026-01-01T12:00:00')
+
+        sent = client.list_workload_estimates.call_args.kwargs['createdAtFilter']
+        assert sent == {'afterTimestamp': datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)}
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures('non_utc_local_time')
+    async def test_naive_and_utc_bounds_compare_as_utc_off_a_utc_host(self):
+        """Naive 12:00 is UTC noon, earlier than 13:00Z, even where local time is not UTC."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(
+            client, created_after='2026-01-01T12:00:00', created_before='2026-01-01T13:00:00Z'
+        )
+
+        assert result['status'] == 'success'
+        sent = client.list_workload_estimates.call_args.kwargs['createdAtFilter']
+        assert sent['afterTimestamp'] == datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'parameter', ['created_after', 'created_before', 'expires_after', 'expires_before']
+    )
+    async def test_unparseable_date_is_rejected_before_any_call(self, parameter):
+        """A value that is not ISO 8601 returns a validation_error naming it, with no AWS call."""
+        client = MagicMock()
+
+        result, get_prefs, create_client = await self._list(client, **{parameter: 'last week'})
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['data'] == {'invalid_parameter': parameter, 'value': 'last week'}
+        assert f'Invalid {parameter}: last week' in result['message']
+        assert 'ISO 8601' in result['message']
+        assert '(UTC when no offset is given)' in result['message']
+        get_prefs.assert_not_called()
+        create_client.assert_not_called()
+        client.list_workload_estimates.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_out_of_range_date_is_rejected_before_any_call(self):
+        """A date its offset moves outside the datetime range is a validation_error naming it."""
+        client = MagicMock()
+
+        result, get_prefs, create_client = await self._list(
+            client, created_before='0001-01-01T00:00:00+05:00'
+        )
+
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == 'created_before'
+        get_prefs.assert_not_called()
+        create_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_each_pair_is_checked_independently(self):
+        """created_after may be later than expires_before; only bounds of one pair are compared."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(
+            client,
+            created_after='2026-06-01T00:00:00Z',
+            expires_before='2026-01-01T00:00:00Z',
+        )
+
+        assert result['status'] == 'success'
+        kwargs = client.list_workload_estimates.call_args.kwargs
+        assert set(kwargs['createdAtFilter']) == {'afterTimestamp'}
+        assert set(kwargs['expiresAtFilter']) == {'beforeTimestamp'}
+
+    @pytest.mark.asyncio
+    async def test_core_returns_the_same_rejection(self, mock_context):
+        """The tool entry point returns the validation_error without calling the service."""
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+            ) as create_client,
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+            ) as get_prefs,
+        ):
+            result = await bcm_pricing_calc_core(
+                mock_context,
+                operation='list_workload_estimates',
+                expires_after='2026-03-01T00:00:00Z',
+                expires_before='2026-02-01T00:00:00Z',
+            )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == 'expires_after'
+        get_prefs.assert_not_called()
+        create_client.return_value.list_workload_estimates.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_served_arg_docs_state_the_order(self):
+        """The served schema says each after bound must not be later than its before bound."""
+        tool = await bcm_pricing_calculator_server.get_tool('bcm-pricing-calc')
+        assert tool is not None
+        properties = tool.parameters['properties']
+
+        for prefix in ('created', 'expires'):
+            description = properties[f'{prefix}_after']['description']
+            assert f'Must not be later than {prefix}_before' in description
+
+
 @pytest.mark.asyncio
 class TestGetWorkloadEstimate:
     """Tests for get_workload_estimate function."""
@@ -451,6 +669,7 @@ class TestGetWorkloadEstimate:
         # Assert
         assert result['status'] == 'error'
         assert 'Identifier is required' in result['data']['error']
+        assert result['message'] == result['data']['error']
         assert result['data']['error_code'] == 'MISSING_PARAMETER'
         assert result['error_type'] == 'validation_error'
         assert result['operation'] == 'get_workload_estimate'
@@ -503,7 +722,7 @@ class TestListWorkloadEstimateUsage:
             mock_context,
             workload_estimate_id='estimate-123',
             service_code_filter='AmazonEC2',
-            max_results=50,
+            max_items=50,
         )
 
         # Assert
@@ -536,6 +755,7 @@ class TestListWorkloadEstimateUsage:
         # Assert
         assert result['status'] == 'error'
         assert 'workload_estimate_id is required' in result['data']['error']
+        assert result['message'] == result['data']['error']
         assert result['data']['error_code'] == 'MISSING_PARAMETER'
         assert result['error_type'] == 'validation_error'
         assert result['operation'] == 'list_workload_estimate_usage'
@@ -567,9 +787,9 @@ class TestListWorkloadEstimateUsage:
             service_code_filter='AmazonEC2',
             usage_type_filter='BoxUsage',
             operation_filter='RunInstances',
-            location_filter='US East (N. Virginia)',
+            location_filter='us-east-1',
             usage_group_filter='EC2-Instance',
-            max_results=100,
+            max_items=100,
         )
 
         # Assert
@@ -1374,98 +1594,164 @@ class TestListWorkloadEstimateUsagePreferencesNotConfigured:
 class TestEdgeCases:
     """Tests for edge cases and error conditions."""
 
-    @pytest.mark.asyncio
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
-    )
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
-    )
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.paginate_aws_response'
-    )
-    async def test_list_workload_estimates_with_pagination(
-        self,
-        mock_paginate_aws_response,
-        mock_create_client,
-        mock_get_preferences,
-        mock_context,
-        mock_bcm_pricing_calculator_client,
-    ):
-        """Test list_workload_estimates with pagination token."""
-        # Setup
-        mock_create_client.return_value = mock_bcm_pricing_calculator_client
-        mock_get_preferences.return_value = {'account_types': ['management account']}
-
-        # Mock the paginate_aws_response function to prevent infinite loop
-        mock_paginate_aws_response.return_value = (
-            [],  # results
-            {  # pagination_metadata
-                'total_count': 0,
-                'next_token': 'next-page-token',
-                'has_more_results': True,
-                'pages_fetched': 1,
-            },
-        )
-
-        # Execute
-        result = await list_workload_estimates(
-            mock_context, next_token='current-token', max_pages=2
-        )
-
-        # Assert
-        mock_paginate_aws_response.assert_called_once()
-        assert result['status'] == 'success'
-        assert result['data']['pagination']['next_token'] == 'next-page-token'
-        assert result['data']['pagination']['has_more_results'] is True
+    @staticmethod
+    async def _call(handler, client, **kwargs):
+        """Run a list handler against a client mock with preferences configured."""
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
+                return_value=client,
+            ),
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences',
+                new=AsyncMock(return_value={'account_types': ['management account']}),
+            ),
+        ):
+            ctx = MagicMock()
+            ctx.info = AsyncMock()
+            ctx.warning = AsyncMock()
+            ctx.error = AsyncMock()
+            return await handler(ctx, **kwargs)
 
     @pytest.mark.asyncio
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
-    )
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
-    )
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.paginate_aws_response'
-    )
-    async def test_list_workload_estimate_usage_with_pagination(
-        self,
-        mock_paginate_aws_response,
-        mock_create_client,
-        mock_get_preferences,
-        mock_context,
-        mock_bcm_pricing_calculator_client,
-    ):
-        """Test list_workload_estimate_usage with pagination token."""
-        # Setup
-        mock_create_client.return_value = mock_bcm_pricing_calculator_client
-        mock_get_preferences.return_value = {'account_types': ['management account']}
+    async def test_list_workload_estimates_fetches_every_page(self):
+        """Without max_items every page is fetched at the largest page size."""
+        client = MagicMock()
+        client.list_workload_estimates.side_effect = [
+            {'items': [{'id': 'e1'}], 'nextToken': 'p2'},
+            {'items': [{'id': 'e2'}], 'nextToken': 'p3'},
+            {'items': [{'id': 'e3'}]},
+        ]
 
-        # Mock the paginate_aws_response function to prevent infinite loop
-        mock_paginate_aws_response.return_value = (
-            [],  # results
-            {  # pagination_metadata
-                'total_count': 0,
-                'next_token': 'usage-next-token',
-                'has_more_results': True,
-                'pages_fetched': 1,
-            },
+        result = await self._call(list_workload_estimates, client, status_filter='VALID')
+
+        calls = client.list_workload_estimates.call_args_list
+        assert [call.kwargs.get('nextToken') for call in calls] == [None, 'p2', 'p3']
+        assert all(call.kwargs['maxResults'] == 25 for call in calls)
+        data = result['data']
+        assert [e['id'] for e in data['workload_estimates']] == ['e1', 'e2', 'e3']
+        assert data['pagination']['complete_dataset'] is True
+        assert data['pagination']['items_returned'] == 3
+        assert 'warning' not in data
+
+    @pytest.mark.asyncio
+    async def test_list_workload_estimates_max_items_stops(self):
+        """max_items sizes the page and stops once reached, returning the service token."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {
+            'items': [{'id': 'e1'}, {'id': 'e2'}],
+            'nextToken': 'p2',
+        }
+
+        result = await self._call(list_workload_estimates, client, max_items=2)
+
+        assert client.list_workload_estimates.call_count == 1
+        assert client.list_workload_estimates.call_args.kwargs['maxResults'] == 2
+        data = result['data']
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'p2',
+            'items_returned': 2,
+        }
+
+    @pytest.mark.asyncio
+    async def test_list_workload_estimates_continuation_identical_params(self):
+        """A continuation sends the caller's token and otherwise the same request."""
+        client = MagicMock()
+        client.list_workload_estimates.side_effect = [
+            {'items': [{'id': 'e1'}], 'nextToken': 'p2'},
+            {'items': [{'id': 'e2'}]},
+        ]
+        kwargs = {'name_filter': 'Test', 'created_after': '2023-01-01T00:00:00Z', 'max_items': 1}
+
+        await self._call(list_workload_estimates, client, **kwargs)
+        result = await self._call(list_workload_estimates, client, next_token='p2', **kwargs)
+
+        first, resumed = (c.kwargs for c in client.list_workload_estimates.call_args_list)
+        assert resumed == {**first, 'nextToken': 'p2'}
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    @pytest.mark.asyncio
+    async def test_list_workload_estimate_usage_fetches_every_page(self):
+        """Without max_items every usage page is fetched at the largest page size."""
+        client = MagicMock()
+        client.list_workload_estimate_usage.side_effect = [
+            {'items': [{'id': 'u1'}], 'nextToken': 'p2'},
+            {'items': [{'id': 'u2'}]},
+        ]
+
+        result = await self._call(
+            list_workload_estimate_usage, client, workload_estimate_id='estimate-123'
         )
 
-        # Execute
-        result = await list_workload_estimate_usage(
-            mock_context,
+        calls = client.list_workload_estimate_usage.call_args_list
+        assert [call.kwargs for call in calls] == [
+            {'workloadEstimateId': 'estimate-123', 'maxResults': 300},
+            {'workloadEstimateId': 'estimate-123', 'maxResults': 300, 'nextToken': 'p2'},
+        ]
+        data = result['data']
+        assert [u['id'] for u in data['usage_items']] == ['u1', 'u2']
+        assert data['workload_estimate_id'] == 'estimate-123'
+        assert data['pagination']['complete_dataset'] is True
+        assert 'total_count' not in data
+
+    @pytest.mark.asyncio
+    async def test_list_workload_estimate_usage_max_items_stops(self):
+        """max_items stops the usage walk and returns the service token."""
+        client = MagicMock()
+        client.list_workload_estimate_usage.return_value = {
+            'items': [{'id': 'u1'}],
+            'nextToken': 'usage-next-token',
+        }
+
+        result = await self._call(
+            list_workload_estimate_usage,
+            client,
             workload_estimate_id='estimate-123',
-            next_token='usage-current-token',
-            max_pages=2,
+            max_items=1,
         )
 
-        # Assert
-        mock_paginate_aws_response.assert_called_once()
-        assert result['status'] == 'success'
-        assert result['data']['pagination']['next_token'] == 'usage-next-token'
-        assert result['data']['pagination']['has_more_results'] is True
+        assert client.list_workload_estimate_usage.call_args.kwargs['maxResults'] == 1
+        data = result['data']
+        assert data['complete_dataset'] is False
+        assert data['pagination']['next_token'] == 'usage-next-token'
+        assert data['pagination']['has_more'] is True
+
+    @pytest.mark.asyncio
+    async def test_list_workload_estimate_usage_continuation_identical_params(self):
+        """A usage continuation sends the caller's token and otherwise the same request."""
+        client = MagicMock()
+        client.list_workload_estimate_usage.side_effect = [
+            {'items': [{'id': 'u1'}], 'nextToken': 'p2'},
+            {'items': [{'id': 'u2'}]},
+        ]
+        kwargs = {
+            'workload_estimate_id': 'estimate-123',
+            'service_code_filter': 'AmazonEC2',
+            'max_items': 1,
+        }
+
+        await self._call(list_workload_estimate_usage, client, **kwargs)
+        await self._call(list_workload_estimate_usage, client, next_token='p2', **kwargs)
+
+        first, resumed = (c.kwargs for c in client.list_workload_estimate_usage.call_args_list)
+        assert resumed == {**first, 'nextToken': 'p2'}
+
+    @pytest.mark.asyncio
+    async def test_rejected_token_is_invalid_next_token(self):
+        """A token the service rejects maps to invalid_next_token."""
+        client = MagicMock()
+        client.list_workload_estimates.side_effect = ClientError(
+            {'Error': {'Code': 'InvalidNextTokenException', 'Message': 'bad'}},
+            'ListWorkloadEstimates',
+        )
+
+        result = await self._call(list_workload_estimates, client, next_token='stale')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'invalid_next_token'
 
     def test_format_workload_estimate_response_with_string_timestamps(self):
         """Test format_workload_estimate_response with string timestamps."""
@@ -1738,7 +2024,7 @@ class TestBcmPricingCalcCoreFunction:
             name_filter='Test',
             name_match_option='CONTAINS',
             next_token='token123',
-            max_results=50,
+            max_items=50,
         )
 
         # Assert
@@ -1753,7 +2039,6 @@ class TestBcmPricingCalcCoreFunction:
             'CONTAINS',
             'token123',
             50,
-            None,
         )
         assert result['status'] == 'success'
         mock_context.info.assert_called_with(
@@ -1779,10 +2064,10 @@ class TestBcmPricingCalcCoreFunction:
             service_code_filter='AmazonEC2',
             usage_type_filter='BoxUsage',
             operation_filter='RunInstances',
-            location_filter='US East (N. Virginia)',
+            location_filter='us-east-1',
             usage_group_filter='EC2-Instance',
             next_token='usage-token',
-            max_results=100,
+            max_items=100,
         )
 
         # Assert
@@ -1793,11 +2078,10 @@ class TestBcmPricingCalcCoreFunction:
             'AmazonEC2',
             'BoxUsage',
             'RunInstances',
-            'US East (N. Virginia)',
+            'us-east-1',
             'EC2-Instance',
             'usage-token',
             100,
-            None,
         )
         assert result['status'] == 'success'
         mock_context.info.assert_called_with(
@@ -1944,6 +2228,200 @@ class TestBcmPricingCalcCoreFunction:
         )
 
 
+class TestNameMatchOptionValidation:
+    """name_match_option must be EQUALS, STARTS_WITH or CONTAINS; the service rejects any other casing."""
+
+    @staticmethod
+    async def _list(client, **kwargs):
+        """Run list_workload_estimates against a client mock with preferences configured."""
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
+                return_value=client,
+            ) as create_client,
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences',
+                new=AsyncMock(return_value={'account_types': ['management account']}),
+            ) as get_prefs,
+        ):
+            ctx = MagicMock()
+            ctx.info = AsyncMock()
+            ctx.error = AsyncMock()
+            result = await list_workload_estimates(ctx, **kwargs)
+            return result, create_client, get_prefs
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'given,sent',
+        [
+            ('CONTAINS', 'CONTAINS'),
+            ('contains', 'CONTAINS'),
+            ('Equals', 'EQUALS'),
+            (' starts_with ', 'STARTS_WITH'),
+        ],
+    )
+    async def test_match_option_is_upper_cased(self, given, sent):
+        """Any casing of a valid option is sent upper-cased; the name value is sent unchanged."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(client, name_filter='Demo', name_match_option=given)
+
+        assert result['status'] == 'success'
+        filters = client.list_workload_estimates.call_args.kwargs['filters']
+        assert filters == [{'name': 'NAME', 'values': ['Demo'], 'matchOption': sent}]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('given', ['LIKE', 'starts with', 'EXACT', '   ', None])
+    async def test_unknown_match_option_is_rejected_before_any_call(self, given):
+        """A value outside the enum returns validation_error listing the valid values, with no AWS call."""
+        client = MagicMock()
+
+        result, create_client, get_prefs = await self._list(
+            client, name_filter='Demo', name_match_option=given
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == 'name_match_option'
+        assert result['data']['value'] == given
+        for option in ('EQUALS', 'STARTS_WITH', 'CONTAINS'):
+            assert option in result['message']
+        create_client.assert_not_called()
+        get_prefs.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_match_option_is_ignored_without_name_filter(self):
+        """name_match_option applies only to name_filter, so it is not checked or sent alone."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(client, name_match_option='LIKE')
+
+        assert result['status'] == 'success'
+        assert 'filters' not in client.list_workload_estimates.call_args.kwargs
+
+    @pytest.mark.asyncio
+    async def test_empty_name_filter_sends_no_filter(self):
+        """An empty name_filter is not sent, so its match option is not checked."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(client, name_filter='', name_match_option='LIKE')
+
+        assert result['status'] == 'success'
+        assert 'filters' not in client.list_workload_estimates.call_args.kwargs
+
+    @pytest.mark.asyncio
+    async def test_tool_entry_point_rejects_unknown_match_option(self):
+        """The validation also applies through bcm_pricing_calc_core, the tool's entry point."""
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+        ) as create_client:
+            ctx = MagicMock()
+            ctx.info = AsyncMock()
+            ctx.error = AsyncMock()
+            result = await bcm_pricing_calc_core(
+                ctx,
+                operation='list_workload_estimates',
+                name_filter='Demo',
+                name_match_option='LIKE',
+            )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == 'name_match_option'
+        create_client.assert_not_called()
+
+
+class TestFilterArgDocs:
+    """The served arg docs state how each filter is matched, since a mismatch returns no rows, not an error."""
+
+    @staticmethod
+    async def _docs():
+        tool = await bcm_pricing_calculator_server.get_tool('bcm-pricing-calc')
+        assert tool is not None
+        properties = tool.parameters['properties']
+        return {name: ' '.join(spec['description'].split()) for name, spec in properties.items()}
+
+    @pytest.mark.asyncio
+    async def test_name_filter_docs_state_case_rules(self):
+        """name_filter is case-sensitive; name_match_option lists its values and takes any case."""
+        docs = await self._docs()
+        assert 'always case-sensitive' in docs['name_filter']
+        assert 'EQUALS, STARTS_WITH or CONTAINS' in docs['name_match_option']
+        assert 'any case' in docs['name_match_option']
+        # The option's case rule must not read as a rule about the name match.
+        assert 'case-insensitive' not in docs['name_match_option']
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('param', ['usage_type_filter', 'operation_filter'])
+    async def test_substring_filters_are_documented(self, param):
+        """usage_type_filter and operation_filter are sent as case-sensitive CONTAINS."""
+        doc = (await self._docs())[param]
+        assert 'CONTAINS' in doc
+        assert 'case-sensitive' in doc
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'param',
+        [
+            'usage_account_id_filter',
+            'service_code_filter',
+            'location_filter',
+            'usage_group_filter',
+        ],
+    )
+    async def test_exact_filters_are_documented(self, param):
+        """The other usage filters are sent as EQUALS; the text-valued ones say case-sensitive."""
+        doc = (await self._docs())[param]
+        assert 'EQUALS' in doc
+        # Account IDs are 12 digits, so case does not apply to them.
+        if param != 'usage_account_id_filter':
+            assert 'case-sensitive' in doc
+
+    @pytest.mark.asyncio
+    async def test_operation_filter_warns_about_variants(self):
+        """CONTAINS on RunInstances also matches the platform variants such as RunInstances:0002."""
+        assert 'RunInstances:0002' in (await self._docs())['operation_filter']
+
+    @pytest.mark.asyncio
+    async def test_location_filter_documents_the_location_values(self):
+        """Local Zone codes, empty global usage, no AZs, and names that match nothing."""
+        doc = ' '.join((await self._docs())['location_filter'].split())
+        assert 'usually a region code such as us-east-1' in doc
+        assert 'Local Zone or Wavelength Zone code (e.g. us-east-1-lim-1)' in doc
+        assert "A region code does not match its Local Zones' lines." in doc
+        assert 'empty location, which this tool cannot select' in doc
+        assert 'an empty location_filter means no filter' in doc
+        assert 'Availability Zone (us-east-1a)' in doc
+        assert 'US East (N. Virginia)' in doc
+        assert 'Filter usage lines by region code' not in doc
+        assert 'location/region' not in doc
+
+    @pytest.mark.asyncio
+    async def test_empty_location_filter_sends_no_location_filter(self):
+        """An empty location_filter is no filter, so empty-location lines cannot be selected."""
+        client = MagicMock()
+        client.list_workload_estimate_usage.return_value = {'items': []}
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
+                return_value=client,
+            ),
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences',
+                new=AsyncMock(return_value={'account_types': ['management account']}),
+            ),
+        ):
+            ctx = MagicMock()
+            ctx.info = AsyncMock()
+            await list_workload_estimate_usage(
+                ctx, workload_estimate_id='estimate-1', location_filter=''
+            )
+        assert 'filters' not in client.list_workload_estimate_usage.call_args.kwargs
+
+
 class TestBcmPricingCalcToolSchema:
     """Tests that the registered bcm-pricing-calc tool exposes per-argument descriptions.
 
@@ -1968,3 +2446,315 @@ class TestBcmPricingCalcToolSchema:
             name for name, spec in properties.items() if not spec.get('description', '').strip()
         ]
         assert not missing, f'Tool params missing schema descriptions: {missing}'
+
+    @pytest.mark.asyncio
+    async def test_paging_parameters_follow_the_max_items_contract(self):
+        """The tool takes max_items/next_token; max_results and max_pages are gone."""
+        tool = await bcm_pricing_calculator_server.get_tool('bcm-pricing-calc')
+        assert tool is not None
+        properties = tool.parameters.get('properties', {})
+        description = tool.description or ''
+
+        assert 'max_items' in properties
+        assert 'next_token' in properties
+        assert 'max_results' not in properties
+        assert 'max_pages' not in properties
+        assert 'complete_dataset' in description
+        assert 'max_results' not in description
+
+
+class TestNonTransientBotocoreRetryStrategy:
+    """The guidance derived from the full error survives the tool's own repackaging."""
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_preferences_expired_sso_token_is_do_not_retry(self, mock_create_client):
+        """get_preferences' failure keeps handle_aws_error's do_not_retry."""
+        from botocore.exceptions import SSOTokenLoadError
+
+        mock_create_client.side_effect = SSOTokenLoadError(error_msg='token expired')
+
+        result = await bcm_pricing_calc_core(AsyncMock(), 'get_preferences')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'aws_connection_error'
+        assert result['retry_strategy'] == 'do_not_retry'
+        assert result['hint'].startswith('AWS credentials or client configuration')
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_preferences_unmapped_5xx_stays_retryable(self, mock_create_client):
+        """An unmapped code with a 5xx status is transient after get_preferences repackages it."""
+        mock_create_client.side_effect = ClientError(
+            {
+                'Error': {'Code': 'SomeServiceFault', 'Message': 'oops'},
+                'ResponseMetadata': {'HTTPStatusCode': 503},
+            },
+            'GetPreferences',
+        )
+
+        result = await bcm_pricing_calc_core(AsyncMock(), 'get_preferences')
+
+        assert result['error_type'] == 'SomeServiceFault'
+        assert result['retry_strategy'] == 'retry_same_request'
+
+    @pytest.mark.parametrize(
+        'error, expected',
+        [
+            (
+                ClientError(
+                    {
+                        'Error': {'Code': 'SomeServiceFault', 'Message': 'oops'},
+                        'ResponseMetadata': {'HTTPStatusCode': 503},
+                    },
+                    'GetWorkloadEstimate',
+                ),
+                'retry_same_request',
+            ),
+            (BotoCoreError(), 'do_not_retry'),
+        ],
+        ids=['unmapped-5xx', 'non-transient-botocore'],
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_workload_estimate'
+    )
+    async def test_core_repackaging_keeps_guidance(self, mock_get_estimate, error, expected):
+        """An error reaching bcm_pricing_calc_core's own handler keeps its derived guidance."""
+        mock_get_estimate.side_effect = error
+
+        result = await bcm_pricing_calc_core(
+            AsyncMock(), 'get_workload_estimate', identifier='estimate-1'
+        )
+
+        assert result['status'] == 'error'
+        assert result['retry_strategy'] == expected
+
+
+class TestStatusFilterValidation:
+    """status_filter is matched exactly by the service, so it is normalized and validated locally."""
+
+    @staticmethod
+    async def _list(client, **kwargs):
+        """Run list_workload_estimates against a client mock with preferences configured."""
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
+                return_value=client,
+            ) as create_client,
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences',
+                new=AsyncMock(return_value={'account_types': ['management account']}),
+            ) as get_prefs,
+        ):
+            ctx = MagicMock()
+            ctx.info = AsyncMock()
+            ctx.warning = AsyncMock()
+            ctx.error = AsyncMock()
+            result = await list_workload_estimates(ctx, **kwargs)
+            return result, create_client, get_prefs
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'given,sent',
+        [
+            ('VALID', 'VALID'),
+            ('valid', 'VALID'),
+            ('Action_Needed', 'ACTION_NEEDED'),
+            (' updating ', 'UPDATING'),
+            ('invalid', 'INVALID'),
+        ],
+    )
+    async def test_status_filter_is_upper_cased(self, given, sent):
+        """Any casing of a valid status is sent upper-cased, since the service match is case-sensitive."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(client, status_filter=given)
+
+        assert result['status'] == 'success'
+        filters = client.list_workload_estimates.call_args.kwargs['filters']
+        assert filters == [{'name': 'STATUS', 'values': [sent], 'matchOption': 'EQUALS'}]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('given', ['COMPLETE', 'VALIDATED', 'ACTION NEEDED', '   '])
+    async def test_unknown_status_is_rejected_before_any_call(self, given):
+        """A value outside the enum returns validation_error listing the valid values, with no AWS call."""
+        client = MagicMock()
+
+        result, create_client, get_prefs = await self._list(client, status_filter=given)
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == 'status_filter'
+        assert result['data']['value'] == given
+        for status in ('UPDATING', 'VALID', 'INVALID', 'ACTION_NEEDED'):
+            assert status in result['message']
+        create_client.assert_not_called()
+        get_prefs.assert_not_called()
+        client.list_workload_estimates.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_core_routes_rejection_for_list_operation(self, mock_context):
+        """The tool entry point returns the same validation_error for a bad status_filter."""
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+        ) as create_client:
+            result = await bcm_pricing_calc_core(
+                mock_context, operation='list_workload_estimates', status_filter='COMPLETE'
+            )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        create_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'given,sent',
+        [
+            (['VALID'], ['VALID']),
+            (['valid', ' Invalid '], ['VALID', 'INVALID']),
+            (['VALID', 'valid', 'ACTION_NEEDED'], ['VALID', 'ACTION_NEEDED']),
+        ],
+    )
+    async def test_status_list_is_sent_as_one_or_filter(self, given, sent):
+        """A list of statuses is normalized and sent as one STATUS filter, which the API ORs."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(client, status_filter=given)
+
+        assert result['status'] == 'success'
+        filters = client.list_workload_estimates.call_args.kwargs['filters']
+        assert filters == [{'name': 'STATUS', 'values': sent, 'matchOption': 'EQUALS'}]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'given,invalid',
+        [
+            (['VALID', 'COMPLETE'], ['COMPLETE']),
+            (['done', 'VALID', '  '], ['done', '  ']),
+            (['VALID', 7], [7]),
+        ],
+    )
+    async def test_status_list_with_unknown_values_is_rejected(self, given, invalid):
+        """Every unknown entry is named in one validation_error, with no AWS call."""
+        client = MagicMock()
+
+        result, create_client, get_prefs = await self._list(client, status_filter=given)
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['data'] == {'invalid_parameter': 'status_filter', 'value': invalid}
+        for status in ('UPDATING', 'VALID', 'INVALID', 'ACTION_NEEDED'):
+            assert status in result['message']
+        for entry in invalid:
+            assert repr(entry) in result['message']
+        create_client.assert_not_called()
+        get_prefs.assert_not_called()
+        client.list_workload_estimates.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'given,sent',
+        [
+            ('["valid", "INVALID"]', ['VALID', 'INVALID']),
+            (' ["ACTION_NEEDED"] ', ['ACTION_NEEDED']),
+        ],
+    )
+    async def test_json_array_string_is_read_as_a_list(self, given, sent):
+        """A list sent as a JSON array string is handled like the list itself."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(client, status_filter=given)
+
+        assert result['status'] == 'success'
+        filters = client.list_workload_estimates.call_args.kwargs['filters']
+        assert filters == [{'name': 'STATUS', 'values': sent, 'matchOption': 'EQUALS'}]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('given', ['[VALID', '["VALID"'])
+    async def test_malformed_json_array_string_is_rejected_as_given(self, given):
+        """A string that only looks like a JSON array is checked as one status and refused."""
+        client = MagicMock()
+
+        result, create_client, _ = await self._list(client, status_filter=given)
+
+        assert result['error_type'] == 'validation_error'
+        assert result['data'] == {'invalid_parameter': 'status_filter', 'value': given}
+        assert f'Invalid status_filter: {given}.' in result['message']
+        create_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('given', ['', None])
+    async def test_empty_string_or_none_sends_no_status_filter(self, given):
+        """An empty string or None still means no status filter."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(client, status_filter=given)
+
+        assert result['status'] == 'success'
+        assert 'filters' not in client.list_workload_estimates.call_args.kwargs
+
+    @pytest.mark.asyncio
+    async def test_empty_status_list_is_rejected(self):
+        """An empty list is refused locally; the service answers it with an internal-error message."""
+        client = MagicMock()
+
+        result, create_client, _ = await self._list(client, status_filter=[])
+
+        assert result['error_type'] == 'validation_error'
+        assert result['data'] == {'invalid_parameter': 'status_filter', 'value': []}
+        assert 'at least one status' in result['message']
+        create_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_core_passes_a_status_list_through(self, mock_context):
+        """The tool entry point accepts a list and sends every status in one filter."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
+                return_value=client,
+            ),
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences',
+                new=AsyncMock(return_value={'account_types': ['management account']}),
+            ),
+        ):
+            result = await bcm_pricing_calc_core(
+                mock_context,
+                operation='list_workload_estimates',
+                status_filter=['valid', 'INVALID'],
+            )
+
+        assert result['status'] == 'success'
+        assert client.list_workload_estimates.call_args.kwargs['filters'] == [
+            {'name': 'STATUS', 'values': ['VALID', 'INVALID'], 'matchOption': 'EQUALS'}
+        ]
+
+    @pytest.mark.asyncio
+    async def test_schema_accepts_a_string_or_a_list(self):
+        """The served schema takes one status or a list, and the description says a list is ORed."""
+        tool = await bcm_pricing_calculator_server.get_tool('bcm-pricing-calc')
+        assert tool is not None
+        prop = tool.parameters['properties']['status_filter']
+        types = {t.get('type') for t in prop['anyOf']}
+        assert {'string', 'array', 'null'} <= types
+        array = next(t for t in prop['anyOf'] if t.get('type') == 'array')
+        assert array['items'] == {'type': 'string'}
+        text = ' '.join(prop['description'].split())
+        assert 'or a list of them' in text
+        assert 'matches any of them' in text
+
+    @pytest.mark.asyncio
+    async def test_schema_lists_status_values(self):
+        """The served status_filter description lists the accepted values."""
+        tool = await bcm_pricing_calculator_server.get_tool('bcm-pricing-calc')
+        assert tool is not None
+        text = ' '.join(tool.parameters['properties']['status_filter']['description'].split())
+        assert 'UPDATING, VALID, INVALID, ACTION_NEEDED' in text

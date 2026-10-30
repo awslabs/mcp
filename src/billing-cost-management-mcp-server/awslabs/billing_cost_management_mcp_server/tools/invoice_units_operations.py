@@ -21,10 +21,12 @@ returns a standardized response envelope.
 """
 
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
+    with_pagination,
 )
 from ..utilities.time_utils import (
     normalize_datetimes_to_iso,
@@ -32,6 +34,18 @@ from ..utilities.time_utils import (
 )
 from fastmcp import Context
 from typing import Any, Dict, List, Optional
+
+
+# ListInvoiceUnits returns up to 500 invoice units per page.
+LIST_INVOICE_UNITS_PAGE_SPEC = PageSpec(
+    result_key='InvoiceUnits',
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=500,
+    page_size_param='MaxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
+)
 
 
 def _create_invoicing_client() -> Any:
@@ -54,9 +68,8 @@ async def list_invoice_units(
     accounts: Optional[List[str]] = None,
     bill_source_accounts: Optional[List[str]] = None,
     as_of: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """List AWS invoice unit definitions for the caller's organization.
 
@@ -71,17 +84,18 @@ async def list_invoice_units(
         invoice_receivers: Return only invoice units whose receiver is one of
             these AWS account IDs (12 digits).
         accounts: Return only invoice units that reference one of these AWS
-            account IDs anywhere — as the receiver, a linked (member) account,
-            or a bill-source account (a global search across all three roles).
+            account IDs as the receiver or as a linked (member) account. An
+            empty result does not establish that the account belongs to no
+            invoice unit: bill-source membership is filtered by
+            ``bill_source_accounts`` and reported in
+            ``Rule.BillSourceAccounts``.
         bill_source_accounts: Return only invoice units with one of these AWS
             account IDs as a bill-source account.
         as_of: Return the invoice unit definitions as they existed at this
             UTC instant (``YYYY-MM-DD`` or ``YYYY-MM-DDTHH:MM:SS``). Defaults to
             the current definitions when omitted.
-        max_results: Maximum number of results per page (1-500).
+        max_items: Most invoice units to return. None fetches every page.
         next_token: Pagination token from a previous response to resume from.
-        max_pages: Maximum number of pages to auto-paginate through. Defaults to
-            all pages.
 
     Returns:
         Dict containing ``invoice_units`` (with ISO 8601 timestamps) and a
@@ -109,22 +123,16 @@ async def list_invoice_units(
             except ValueError as parse_error:
                 return format_response('error', {'message': str(parse_error)})
 
-        if max_results is not None:
-            request_params['MaxResults'] = max_results
-        if next_token:
-            request_params['NextToken'] = next_token
-
         client = _create_invoicing_client()
 
-        units, pagination = await paginate_aws_response(
+        units, _, pagination = await paginate_aws_items(
             ctx,
             'ListInvoiceUnits',
             client.list_invoice_units,
             request_params,
-            'InvoiceUnits',
-            token_param='NextToken',
-            token_key='NextToken',
-            max_pages=max_pages,
+            LIST_INVOICE_UNITS_PAGE_SPEC,
+            max_items=max_items,
+            next_token=next_token,
         )
 
         normalized = normalize_datetimes_to_iso(units)
@@ -132,8 +140,7 @@ async def list_invoice_units(
         await ctx.info(f'Successfully listed {len(normalized)} invoice units')
 
         return format_response(
-            'success',
-            {'invoice_units': normalized, 'pagination': pagination},
+            'success', with_pagination({'invoice_units': normalized}, pagination)
         )
 
     except Exception as e:

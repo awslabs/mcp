@@ -22,6 +22,7 @@ every request parameter and response field.
 """
 
 from ..utilities.aws_service_base import format_response
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .invoicing_operations import list_invoice_summaries as _list_invoice_summaries
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
@@ -42,9 +43,8 @@ async def _invoicing(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     invoicing_entity: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Route an AWS Invoicing ``operation`` to its handler.
 
@@ -56,15 +56,14 @@ async def _invoicing(
         operation: The invoicing operation to perform (e.g.
             ``"list_invoice_summaries"``).
         account_id: 12-digit AWS account ID. Auto-detected via STS when omitted.
-        invoice_id: Retrieve a single invoice's summary.
+        invoice_id: Retrieve a single invoice's summary. Rejects any time filter.
         billing_period: Single calendar month in ``YYYY-MM`` format.
         start_date: Range start (``YYYY-MM-DD`` UTC, i.e. 00:00:00 that day).
         end_date: Range end (``YYYY-MM-DD`` UTC, i.e. 00:00:00 that day, so use
             the day after the last one you want).
         invoicing_entity: Filter by AWS legal selling entity name.
-        max_results: Maximum results per page (1-100).
-        next_token: Pagination token from a previous response.
-        max_pages: Maximum pages to auto-paginate through (default: all).
+        max_items: Most items to return (list operation only). None fetches every page.
+        next_token: Pagination token from a previous response (list operation only).
 
     Returns:
         The operation's response, or a standardized error for an unknown
@@ -81,9 +80,8 @@ async def _invoicing(
             start_date=start_date,
             end_date=end_date,
             invoicing_entity=invoicing_entity,
-            max_results=max_results,
+            max_items=max_items,
             next_token=next_token,
-            max_pages=max_pages,
         )
 
     return format_response(
@@ -107,15 +105,20 @@ async def _invoicing(
    Required: operation="list_invoice_summaries"
    Selector (choose one; the account is auto-detected if neither is given):
      - account_id: 12-digit AWS account ID; lists all invoices for that account. Auto-detected via STS GetCallerIdentity when omitted.
-     - invoice_id: retrieve one specific invoice's summary. Mutually exclusive with account_id.
-   Time filter — REQUIRED when selecting by account_id, optional for invoice_id. Provide exactly one:
+     - invoice_id: retrieve one specific invoice's summary. Mutually exclusive with account_id. Takes NO time filter: the service returns that invoice whatever its billing period or issued date, so billing_period/start_date/end_date are rejected with a validation_error. Check the returned BillingPeriod to see which month the invoice is for.
+   Time filter — REQUIRED when selecting by account_id, not allowed with invoice_id. Provide exactly one:
      - billing_period: a single calendar month "YYYY-MM" (e.g. "2026-05")
      - start_date + end_date: a UTC range "YYYY-MM-DD" (or "YYYY-MM-DDTHH:MM:SS"); required together and mutually exclusive with billing_period. A date-only bound means 00:00:00 UTC, so end_date must be the day AFTER the last day you want: all of June 2026 is start_date "2026-06-01" with end_date "2026-07-01". Using "2026-06-30" silently drops invoices issued during June 30.
    IMPORTANT — ONE MONTH MAXIMUM per call. A start_date/end_date range may span at most the number of days in the START date's month (31 from a January start, 28 from a February start); longer is rejected with "TimePeriod cannot last more than a month". Calendar alignment is NOT required: "2026-05-14" to "2026-06-13" is valid. For a longer period issue ONE CALL PER MONTH and combine the results yourself — never widen the range. A rejection returns `data.suggested_date_ranges`: the exact per-month calls to make.
    NOTE — the two time filters are not interchangeable: billing_period selects by BILLING MONTH, start_date/end_date select by ISSUED DATE. Pick whichever the question asks for, and keep using that same one when splitting a multi-month request.
    Other filters (optional):
-     - invoicing_entity: filter by the AWS legal selling entity (seller of record) name. Examples: "Amazon Web Services, Inc." (US), "Amazon Web Services EMEA SARL" (Europe/Middle East/Africa), "Amazon Web Services Australia Pty Ltd" (Australia), "Amazon Web Services Japan G.K." (Japan).
-   Pagination: max_results caps items per page (1-100); max_pages caps pages fetched (default: all). The response `pagination` block reports total_results, pages_fetched, has_more, and next_token.
+     - invoicing_entity: filter by the AWS legal selling entity (seller of record) name. Examples: "Amazon Web Services, Inc." (US), "Amazon Web Services EMEA SARL" (Europe/Middle East/Africa), "Amazon Web Services Australia Pty Ltd" (Australia), "Amazon Web Services Japan G.K." (Japan). Also applies with invoice_id. An empty list for an invoice_id means the invoice was not found, is not accessible, or belongs to a different entity.
+   Pagination:
+     - max_items: total invoice summaries returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow the filters, for queries that can be large.
+     - next_token: the `pagination.next_token` from a previous response, to continue where it stopped. Send every other parameter unchanged.
+     - A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token, or state in the answer that the result is partial. `pagination.items_returned` counts only this response, and a continuation call does not repeat earlier items.
    Returns: `data.invoice_summaries`, a list where each item contains:
      - AccountId; InvoiceId; InvoiceType ("INVOICE" or "CREDIT_MEMO"); OriginalInvoiceId (the invoice a CREDIT_MEMO adjusts); PurchaseOrderNumber
      - IssuedDate / DueDate: ISO 8601 UTC timestamps (converted from epoch)
@@ -140,9 +143,8 @@ async def invoicing(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     invoicing_entity: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """FastMCP wrapper for AWS Invoicing operations.
 
@@ -154,15 +156,14 @@ async def invoicing(
         operation: The invoicing operation to perform (e.g.
             ``"list_invoice_summaries"``).
         account_id: 12-digit AWS account ID (auto-detected via STS when omitted).
-        invoice_id: Retrieve a single invoice's summary.
+        invoice_id: Retrieve a single invoice's summary. Rejects any time filter.
         billing_period: Single calendar month in ``YYYY-MM`` format.
         start_date: Range start (``YYYY-MM-DD`` UTC, i.e. 00:00:00 that day).
         end_date: Range end (``YYYY-MM-DD`` UTC, i.e. 00:00:00 that day, so use
             the day after the last one you want).
         invoicing_entity: Filter by AWS legal selling entity name.
-        max_results: Maximum results per page (1-100).
-        next_token: Pagination token from a previous response.
-        max_pages: Maximum pages to auto-paginate through (default: all).
+        max_items: Most items to return (list operation only). None fetches every page.
+        next_token: Pagination token from a previous response (list operation only).
 
     Returns:
         Dict containing the operation result.
@@ -176,7 +177,6 @@ async def invoicing(
         start_date=start_date,
         end_date=end_date,
         invoicing_entity=invoicing_entity,
-        max_results=max_results,
+        max_items=max_items,
         next_token=next_token,
-        max_pages=max_pages,
     )

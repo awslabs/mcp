@@ -25,6 +25,7 @@ from ..utilities.constants import (
     ACTION_TYPE_PURCHASE_RESERVED_INSTANCE,
     ACTION_TYPE_PURCHASE_SAVINGS_PLAN,
     ACTION_TYPE_STOP,
+    DYNAMODB_PAYMENT_OPTION_MAP,
     LOOKBACK_PERIOD_MAP,
     PAYMENT_OPTION_MAP,
     RESOURCE_TYPE_EBS_VOLUME,
@@ -58,6 +59,20 @@ This tool combines data from:
 - Cost Explorer (Savings Plans/RI purchase recommendations)
 
 It provides comprehensive analysis with utilization metrics, savings calculations, and implementation guidance.
+
+COMMITMENT PURCHASE DETAILS:
+- For PurchaseReservedInstances, additional_details is the Cost Explorer reservation purchase
+  recommendation for the recommendation's service, term and payment option. It may list several
+  instance types and regions; EstimatedBreakEvenInMonths is per RecommendationDetails row.
+- When the Cost Explorer or Compute Optimizer lookup fails or is skipped,
+  the response leads with a warning and additional_details holds only an error;
+  base_recommendation is still valid. A lookup that runs but finds nothing
+  returns empty results and no warning.
+- Savings Plans recommendations carry no break-even. They return EstimatedROI (estimated savings /
+  Savings Plan cost x 100 over the lookback period), which is not a payback period.
+- DynamoDB reserved capacity: Cost Optimization Hub shows the payment option as PartialUpfront,
+  and Cost Explorer returns the same recommendation as Heavy_Utilization. These are two names for
+  one payment option, not a mismatch.
 
 RESPONSE FORMATTING INSTRUCTIONS:
 The tool may return both raw recommendation data and a formatting template.
@@ -108,11 +123,23 @@ async def process_recommendation(ctx: Context, recommendation: Dict[str, Any]) -
     if action_type in [ACTION_TYPE_PURCHASE_SAVINGS_PLAN, ACTION_TYPE_PURCHASE_RESERVED_INSTANCE]:
         # Get Cost Explorer data for Savings Plans or Reserved Instances
         additional_data = await get_cost_explorer_data(ctx, recommendation)
-        result['additional_details'] = additional_data
+        source = 'Cost Explorer purchase recommendation'
     else:
         # Get Compute Optimizer data for other recommendation types
         additional_data = await get_compute_optimizer_data(ctx, recommendation)
-        result['additional_details'] = additional_data
+        source = 'Compute Optimizer details'
+    result['additional_details'] = additional_data
+
+    # The base recommendation is still valid, so the status stays success, but lead with a
+    # warning so the missing details are not mistaken for data.
+    if additional_data.get('error'):
+        result = {
+            'warning': (
+                f'additional_details has no {source}; additional_details.error says why. '
+                'base_recommendation is still valid.'
+            ),
+            **result,
+        }
 
     # Get the appropriate template
     template_content = get_template_for_recommendation(
@@ -188,6 +215,24 @@ async def get_cost_explorer_data(ctx: Context, recommendation: Dict[str, Any]) -
         return {'error': f'Error getting Cost Explorer data: {str(e)}'}
 
 
+def missing_details_error(recommended_details: Dict[str, Any], kind: str) -> Dict[str, Any]:
+    """Explain why no supported commitment key was found in recommendedResourceDetails."""
+    # boto3 parses a union member its service model does not know as
+    # {'SDK_UNKNOWN_MEMBER': {'name': <member>}} and drops the member's configuration.
+    unknown = recommended_details.get('SDK_UNKNOWN_MEMBER')
+    if isinstance(unknown, dict):
+        return {
+            'error': (
+                f"Cost Optimization Hub returned a '{unknown.get('name')}' recommendation, "
+                f'which the installed AWS SDK cannot parse, so its {kind} purchase details '
+                'are unavailable. Upgrade boto3/botocore to retrieve them.'
+            )
+        }
+    return {
+        'error': f'No {kind} details found. Available keys: {list(recommended_details.keys())}'
+    }
+
+
 async def get_savings_plans_recommendation(
     ctx: Context, recommendation: Dict[str, Any], ce_client
 ) -> Dict[str, Any]:
@@ -196,16 +241,12 @@ async def get_savings_plans_recommendation(
     recommended_details = recommendation.get('recommendedResourceDetails', {})
 
     # Find the Savings Plans key in recommended details
-    savings_plans_key = None
-    for key in recommended_details.keys():
-        if key.endswith('SavingsPlans'):
-            savings_plans_key = key
-            break
+    savings_plans_key = next(
+        (key for key in recommended_details if key in SAVINGS_PLANS_TYPE_MAP), None
+    )
 
     if not savings_plans_key:
-        return {
-            'error': f'No Savings Plans details found. Available keys: {list(recommended_details.keys())}'
-        }
+        return missing_details_error(recommended_details, 'Savings Plans')
 
     # Extract configuration
     config = recommended_details[savings_plans_key].get('configuration', {})
@@ -264,17 +305,11 @@ async def get_reserved_instances_recommendation(
     # Get recommendation details
     recommended_details = recommendation.get('recommendedResourceDetails', {})
 
-    # Find the Reserved Instances key in recommended details
-    ri_key = None
-    for key in recommended_details.keys():
-        if key.endswith('ReservedInstances'):
-            ri_key = key
-            break
+    # Find the Reserved Instances (or DynamoDB reserved capacity) key in recommended details
+    ri_key = next((key for key in recommended_details if key in SERVICE_MAP), None)
 
     if not ri_key:
-        return {
-            'error': f'No Reserved Instances details found. Available keys: {list(recommended_details.keys())}'
-        }
+        return missing_details_error(recommended_details, 'Reserved Instances')
 
     # Extract configuration
     config = recommended_details[ri_key].get('configuration', {})
@@ -294,8 +329,11 @@ async def get_reserved_instances_recommendation(
 
     # Map payment option
     payment_option = config.get('paymentOption')
-    if payment_option and payment_option in PAYMENT_OPTION_MAP:
-        params['PaymentOption'] = PAYMENT_OPTION_MAP[payment_option]
+    payment_option_map = (
+        DYNAMODB_PAYMENT_OPTION_MAP if ri_key == 'dynamoDbReservedCapacity' else PAYMENT_OPTION_MAP
+    )
+    if payment_option and payment_option in payment_option_map:
+        params['PaymentOption'] = payment_option_map[payment_option]
 
     # Only proceed if we have the required parameters
     if not all(key in params for key in ['Service', 'TermInYears', 'PaymentOption']):
@@ -312,6 +350,7 @@ async def get_reserved_instances_recommendation(
     try:
         # Call Cost Explorer API
         response = ce_client.get_reservation_purchase_recommendation(**params)
+        response.pop('ResponseMetadata', None)
         return response
     except Exception as e:
         await ctx.error(f'Error getting Reserved Instance recommendation: {str(e)}')
@@ -337,22 +376,17 @@ async def get_compute_optimizer_data(
         # Handle Stop and Delete recommendations
         if action_type in [ACTION_TYPE_STOP, ACTION_TYPE_DELETE]:
             response = compute_optimizer.get_idle_recommendations(resourceArns=[resource_arn])
-            return response
-
         # Handle resource-specific recommendations
-        if resource_type == RESOURCE_TYPE_ECS_SERVICE:
+        elif resource_type == RESOURCE_TYPE_ECS_SERVICE:
             response = compute_optimizer.get_ecs_service_recommendations(
                 serviceArns=[resource_arn]
             )
-            return response
         elif resource_type == RESOURCE_TYPE_LAMBDA_FUNCTION:
             response = compute_optimizer.get_lambda_function_recommendations(
                 functionArns=[resource_arn]
             )
-            return response
         elif resource_type == RESOURCE_TYPE_EBS_VOLUME:
             response = compute_optimizer.get_ebs_volume_recommendations(volumeArns=[resource_arn])
-            return response
         elif resource_type == RESOURCE_TYPE_EC2_INSTANCE:
             response = compute_optimizer.get_ec2_instance_recommendations(
                 instanceArns=[resource_arn]
@@ -362,21 +396,20 @@ async def get_compute_optimizer_data(
                 for instance in response['instanceRecommendations']:
                     if 'recommendationOptions' in instance:
                         del instance['recommendationOptions']
-            return response
         elif resource_type == RESOURCE_TYPE_EC2_ASG:
             response = compute_optimizer.get_auto_scaling_group_recommendations(
                 autoScalingGroupArns=[resource_arn]
             )
-            return response
         elif resource_type == RESOURCE_TYPE_RDS:
             # Compute Optimizer's RDS API is GetRDSDatabaseRecommendations, keyed by
             # resourceArns; its results are under 'rdsDBRecommendations'.
             response = compute_optimizer.get_rds_database_recommendations(
                 resourceArns=[resource_arn]
             )
-            return response
         else:
             return {'error': f'Unsupported resource type: {resource_type}'}
+        response.pop('ResponseMetadata', None)
+        return response
     except Exception as e:
         await ctx.error(f'Error getting Compute Optimizer data: {str(e)}')
         return {'error': f'Error getting Compute Optimizer data: {str(e)}'}
@@ -427,7 +460,7 @@ def get_template_for_recommendation(
         )
 
         if os.path.exists(template_path):
-            with open(template_path, 'r') as f:
+            with open(template_path, 'r', encoding='utf-8') as f:
                 return f.read()
     except Exception:
         # Template loading is optional, so we'll silently continue if not found
