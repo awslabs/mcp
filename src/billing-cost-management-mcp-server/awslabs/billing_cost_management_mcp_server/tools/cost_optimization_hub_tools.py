@@ -326,10 +326,10 @@ def _summaries_valid_group_by() -> List[str]:
 def _resolve_summaries_group_by(group_by: Any) -> Tuple[Any, Optional[Dict[str, Any]]]:
     """Validate list_recommendation_summaries group_by, accepting 'TagKey:<tag key>'.
 
-    The API is case-sensitive. Fixed dimensions match case- and underscore-insensitively
-    (``resource_type`` -> ``ResourceType``), and the 'TagKey:' prefix case-insensitively;
-    both are sent in the spelling the API expects. The tag key itself is case-sensitive
-    and kept as given.
+    The API is case-sensitive. Fixed dimensions and the 'TagKey:' prefix match
+    case-insensitively and are sent in the API's spelling (``resourcetype`` ->
+    ``ResourceType``). Underscores are not ignored, so ``RESOURCE_TYPE`` is rejected. The
+    tag key itself is case-sensitive and kept as given.
 
     Returns:
         (group_by to send, None), or (None, error response).
@@ -346,8 +346,8 @@ def _resolve_summaries_group_by(group_by: Any) -> Tuple[Any, Optional[Dict[str, 
                 f'group_by {group_by} needs a tag key, e.g. {GROUP_BY_TAG_KEY_PREFIX}Environment.',
             )
         return GROUP_BY_TAG_KEY_PREFIX + tag_key, None
-    canonical = {_filter_key(v): v for v in COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES}
-    resolved = canonical.get(_filter_key(group_by)) if isinstance(group_by, str) else None
+    canonical = {v.casefold(): v for v in COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES}
+    resolved = canonical.get(group_by.casefold()) if isinstance(group_by, str) else None
     if resolved is None:
         return None, _error_response(
             OPERATION_LIST_RECOMMENDATION_SUMMARIES,
@@ -462,7 +462,7 @@ Supported Operations:
 
 IMPORTANT: 'list_recommendation_summaries' operation REQUIRES a 'group_by' parameter.
 Valid 'group_by' values: AccountId, Region, ActionType, ResourceType, RestartNeeded, RollbackPossible, ImplementationEffort
-(matched case- and underscore-insensitively). Or group by a tag's values with
+(matched case-insensitively). Or group by a tag's values with
 'TagKey:<tag key>' (e.g. 'TagKey:Environment'). The tag
 key is case-sensitive; recommendations without the tag, or for a key that does not exist,
 are grouped under 'NoTagKey'.

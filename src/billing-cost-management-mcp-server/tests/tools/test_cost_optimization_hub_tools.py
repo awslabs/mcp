@@ -1937,10 +1937,9 @@ async def test_description_documents_region_and_database_savings_plans_behavior(
         # The prefix folds; the tag key keeps its case.
         ('tagkey:Environment', 'TagKey:Environment'),
         ('TAGKEY:cost center', 'TagKey:cost center'),
-        # Fixed dimensions fold case and underscores onto the API's spelling.
+        # Fixed dimensions fold case onto the API's spelling.
         ('resourcetype', 'ResourceType'),
-        ('RESOURCE_TYPE', 'ResourceType'),
-        ('account_id', 'AccountId'),
+        ('ACCOUNTID', 'AccountId'),
         ('implementationeffort', 'ImplementationEffort'),
     ],
 )
@@ -1961,6 +1960,9 @@ def test_resolve_summaries_group_by(group_by, expected):
         ('Tag:Environment', 'Invalid group_by value'),
         ('Service', 'Invalid group_by value'),
         (5, 'Invalid group_by value'),
+        # Underscores are not ignored: the legacy upper-snake spelling is not a valid dimension.
+        ('RESOURCE_TYPE', 'Invalid group_by value'),
+        ('resource_type', 'Invalid group_by value'),
     ],
 )
 def test_resolve_summaries_group_by_rejects(group_by, message):
@@ -1995,7 +1997,7 @@ async def test_coh_summaries_group_by_folds_case(mock_context):
         ) as mock_summaries,
     ):
         res = await real_fn(  # type: ignore
-            mock_context, operation='list_recommendation_summaries', group_by='resource_type'
+            mock_context, operation='list_recommendation_summaries', group_by='resourcetype'
         )
 
     assert res['status'] == 'success'
