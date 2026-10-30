@@ -84,9 +84,24 @@ PAGINATION_COMPLETE = {
     'items_returned': 1,
 }
 
+PLAN_ID = 'a1b2c3d4-0000-4000-8000-000000000001'
+OTHER_PLAN_ID = 'a1b2c3d4-0000-4000-8000-000000000002'
+PLAN_ARN = f'arn:aws:savingsplans::123456789012:savingsplan/{PLAN_ID}'
+ANALYSIS_ID = '23a6da4c-c5f8-448b-8e69-31c27d0f2603'
+TOOLS_MODULE = 'awslabs.billing_cost_management_mcp_server.tools.sp_purchase_analyzer_tools'
+
 COMPUTE_SP_TO_ADD = [
     {'SavingsPlansType': 'COMPUTE_SP', 'TermInYears': 'ONE_YEAR', 'PaymentOption': 'NO_UPFRONT'}
 ]
+
+
+def _analysis(status):
+    """A GetCommitmentPurchaseAnalysis response with the given status."""
+    return {
+        'AnalysisId': ANALYSIS_ID,
+        'AnalysisStatus': status,
+        'EstimatedCompletionTime': '2026-08-11T22:13:42Z',
+    }
 
 
 def _analysis_config(mock_ce_client):
@@ -148,13 +163,13 @@ class TestStartCommitmentPurchaseAnalysis:
         assert config['AccountScope'] == 'PAYER'
 
     async def test_excluding_a_plan_models_an_expiry(self, mock_context, mock_ce_client):
-        """SavingsPlansToExclude takes plan ARNs and reaches the config unchanged."""
+        """A plan ID reaches SavingsPlansToExclude unchanged."""
         await start_commitment_purchase_analysis(
             mock_context,
             mock_ce_client,
             'MAX_SAVINGS',
             COMPUTE_SP_TO_ADD,
-            ['arn:aws:savingsplans::123456789012:savingsplan/d6a9a682'],
+            [PLAN_ID],
             '2026-07-15',
             '2026-08-14',
             None,
@@ -163,11 +178,91 @@ class TestStartCommitmentPurchaseAnalysis:
         )
 
         config = _analysis_config(mock_ce_client)
-        assert config['SavingsPlansToExclude'] == [
-            'arn:aws:savingsplans::123456789012:savingsplan/d6a9a682'
-        ]
+        assert config['SavingsPlansToExclude'] == [PLAN_ID]
         assert config['AccountId'] == '123456789012'
         assert config['AccountScope'] == 'LINKED'
+
+    async def test_excluded_plan_arn_is_sent_as_its_plan_id(self, mock_context, mock_ce_client):
+        """The API takes only the 36-character plan ID, so an ARN is reduced to it, in order."""
+        await start_commitment_purchase_analysis(
+            mock_context,
+            mock_ce_client,
+            'MAX_SAVINGS',
+            COMPUTE_SP_TO_ADD,
+            [PLAN_ARN, OTHER_PLAN_ID],
+            '2026-07-15',
+            '2026-08-14',
+            None,
+            None,
+            None,
+        )
+
+        assert _analysis_config(mock_ce_client)['SavingsPlansToExclude'] == [
+            PLAN_ID,
+            OTHER_PLAN_ID,
+        ]
+
+    @pytest.mark.parametrize(
+        'given, sent',
+        [
+            (f' {PLAN_ID} ', PLAN_ID),
+            (f' {PLAN_ARN}\n', PLAN_ID),
+            (f'arn:aws-cn:savingsplans::123456789012:savingsplan/{PLAN_ID}', PLAN_ID),
+            (f'arn:aws-us-gov:savingsplans::123456789012:savingsplan/{PLAN_ID}', PLAN_ID),
+            # Not a Savings Plan ARN: sent as given, for the service to reject by name.
+            (
+                'arn:aws:ec2:us-east-1:123456789012:instance/i-0abc',
+                'arn:aws:ec2:us-east-1:123456789012:instance/i-0abc',
+            ),
+            (f'{PLAN_ARN}/', f'{PLAN_ARN}/'),
+            ('not-a-plan', 'not-a-plan'),
+        ],
+    )
+    async def test_excluded_plan_values_are_normalised_only_when_they_are_plan_arns(
+        self, mock_context, mock_ce_client, given, sent
+    ):
+        """Whitespace is trimmed and any partition's plan ARN is reduced; nothing else changes."""
+        await start_commitment_purchase_analysis(
+            mock_context,
+            mock_ce_client,
+            'MAX_SAVINGS',
+            COMPUTE_SP_TO_ADD,
+            [given],
+            '2026-07-15',
+            '2026-08-14',
+            None,
+            None,
+            None,
+        )
+
+        assert _analysis_config(mock_ce_client)['SavingsPlansToExclude'] == [sent]
+
+    async def test_excluded_plan_request_passes_the_botocore_model(self, mock_context):
+        """The request built from an ARN satisfies the botocore SavingsPlansId length.
+
+        botocore checks only the minimum length client-side, so an ARN would otherwise reach the
+        service and be rejected there.
+        """
+        from botocore.session import get_session
+
+        client = MagicMock()
+        client.start_commitment_purchase_analysis.return_value = {'AnalysisId': PLAN_ID}
+        await start_commitment_purchase_analysis(
+            mock_context,
+            client,
+            'MAX_SAVINGS',
+            COMPUTE_SP_TO_ADD,
+            [PLAN_ARN],
+            '2026-07-15',
+            '2026-08-14',
+            None,
+            None,
+            None,
+        )
+
+        shape = get_session().get_service_model('ce').shape_for('SavingsPlansId')
+        for plan_id in _analysis_config(client)['SavingsPlansToExclude']:
+            assert shape.metadata['min'] <= len(plan_id) <= shape.metadata['max']
 
     async def test_missing_required_parameters_are_rejected_by_botocore(
         self, mock_context, mock_ce_client
@@ -264,6 +359,220 @@ class TestGetCommitmentPurchaseAnalysis:
         assert result['data']['AnalysisStatus'] == 'SUCCEEDED'
         details = result['data']['AnalysisDetails']['SavingsPlansPurchaseAnalysisDetails']
         assert details['EstimatedAverageCoverage'] == '84.37'
+
+    async def test_default_is_a_single_call(self, mock_context, mock_ce_client):
+        """Without await_completion a PROCESSING analysis is returned at once, not waited on."""
+        mock_ce_client.get_commitment_purchase_analysis.return_value = _analysis('PROCESSING')
+
+        with patch(f'{TOOLS_MODULE}._sleep', new_callable=AsyncMock) as sleep:
+            result = await get_commitment_purchase_analysis(
+                mock_context, mock_ce_client, ANALYSIS_ID
+            )
+
+        assert mock_ce_client.get_commitment_purchase_analysis.call_count == 1
+        sleep.assert_not_awaited()
+        assert result['data']['AnalysisStatus'] == 'PROCESSING'
+        assert 'message' not in result
+
+    @pytest.mark.parametrize('terminal', ['SUCCEEDED', 'FAILED'])
+    async def test_await_completion_returns_on_a_terminal_status(
+        self, mock_context, mock_ce_client, terminal
+    ):
+        """The wait polls until AnalysisStatus leaves PROCESSING, and FAILED ends it too."""
+        mock_ce_client.get_commitment_purchase_analysis.side_effect = [
+            _analysis('PROCESSING'),
+            _analysis('PROCESSING'),
+            _analysis(terminal),
+        ]
+
+        with patch(f'{TOOLS_MODULE}._sleep', new_callable=AsyncMock) as sleep:
+            result = await get_commitment_purchase_analysis(
+                mock_context, mock_ce_client, ANALYSIS_ID, await_completion=True
+            )
+
+        assert mock_ce_client.get_commitment_purchase_analysis.call_count == 3
+        assert sleep.await_count == 2
+        assert result['status'] == 'success'
+        assert result['data']['AnalysisStatus'] == terminal
+        assert 'message' not in result
+
+    async def test_await_completion_stops_at_max_wait_seconds(self, mock_context, mock_ce_client):
+        """A wait that runs out returns the PROCESSING analysis and says how to go on.
+
+        With jitter fixed, checks run at 0, 2, 6, 14 and 27 seconds: the last one starts
+        LAST_CHECK_LEAD_SECONDS before the 30-second deadline, and none after it.
+        """
+        mock_ce_client.get_commitment_purchase_analysis.return_value = _analysis('PROCESSING')
+        clock = {'now': 0.0}
+        checks = []
+
+        def check(**_):
+            checks.append(clock['now'])
+            return _analysis('PROCESSING')
+
+        async def advance(seconds):
+            clock['now'] += seconds
+
+        mock_ce_client.get_commitment_purchase_analysis.side_effect = check
+        with (
+            patch(f'{TOOLS_MODULE}._monotonic', side_effect=lambda: clock['now']),
+            patch(f'{TOOLS_MODULE}._sleep', side_effect=advance),
+            patch(f'{TOOLS_MODULE}.random.random', return_value=0.5),
+        ):
+            result = await get_commitment_purchase_analysis(
+                mock_context, mock_ce_client, ANALYSIS_ID, True, 30
+            )
+
+        assert checks == [0, 2, 6, 14, 27]
+        assert result['status'] == 'success'
+        assert result['data']['AnalysisId'] == ANALYSIS_ID
+        assert result['data']['AnalysisStatus'] == 'PROCESSING'
+        assert '30-second wait' in result['message']
+        assert 'do not start a new analysis' in result['message'].lower()
+
+    @pytest.mark.parametrize(
+        'answered, expected',
+        [
+            ([], 'unknown_timeouterror'),
+            (['PROCESSING'], 'PROCESSING'),
+            (['THROTTLED'], 'ThrottlingException'),
+        ],
+    )
+    async def test_await_completion_cuts_off_a_check_in_flight(
+        self, mock_context, mock_ce_client, answered, expected
+    ):
+        """A status check that hangs past max_wait_seconds does not hold the call open.
+
+        The call reports the last check that answered: its PROCESSING analysis, its throttle, or,
+        if none answered, a timeout (mapped to retry_same_request by the error contract).
+        """
+        import threading
+        import time as real_time
+        from botocore.exceptions import ClientError
+
+        release = threading.Event()
+        replies = list(answered)
+
+        def check(**_):
+            if replies:
+                reply = replies.pop(0)
+                if reply == 'THROTTLED':
+                    raise ClientError(
+                        {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
+                        'GetCommitmentPurchaseAnalysis',
+                    )
+                return _analysis(reply)
+            release.wait(30)
+            return _analysis('SUCCEEDED')
+
+        mock_ce_client.get_commitment_purchase_analysis.side_effect = check
+
+        started = real_time.monotonic()
+        try:
+            with (
+                patch(f'{TOOLS_MODULE}._sleep', new_callable=AsyncMock),
+                patch(f'{TOOLS_MODULE}.LAST_CHECK_LEAD_SECONDS', 0),
+            ):
+                result = await get_commitment_purchase_analysis(
+                    mock_context, mock_ce_client, ANALYSIS_ID, True, 1
+                )
+        finally:
+            release.set()
+
+        assert real_time.monotonic() - started < 2.5
+        # Every answered check, then the one cut off in flight.
+        assert mock_ce_client.get_commitment_purchase_analysis.call_count == len(answered) + 1
+        if expected == 'PROCESSING':
+            assert result['status'] == 'success'
+            assert result['data']['AnalysisStatus'] == 'PROCESSING'
+            assert '1-second wait' in result['message']
+        else:
+            assert result['status'] == 'error'
+            assert result['error_type'] == expected
+            assert expected != 'unknown_timeouterror' or 'new analysis' in result['message']
+
+    async def test_await_completion_rides_out_a_throttled_poll(self, mock_context, mock_ce_client):
+        """A throttled status check is not a failure; the wait goes on."""
+        from botocore.exceptions import ClientError
+
+        mock_ce_client.get_commitment_purchase_analysis.side_effect = [
+            ClientError(
+                {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
+                'GetCommitmentPurchaseAnalysis',
+            ),
+            _analysis('SUCCEEDED'),
+        ]
+
+        with patch(f'{TOOLS_MODULE}._sleep', new_callable=AsyncMock):
+            result = await get_commitment_purchase_analysis(
+                mock_context, mock_ce_client, ANALYSIS_ID, await_completion=True
+            )
+
+        assert result['status'] == 'success'
+        assert result['data']['AnalysisStatus'] == 'SUCCEEDED'
+
+    async def test_await_completion_reports_a_throttle_that_never_clears(
+        self, mock_context, mock_ce_client
+    ):
+        """If every status check is throttled until the deadline, the throttle is reported."""
+        from botocore.exceptions import ClientError
+
+        mock_ce_client.get_commitment_purchase_analysis.side_effect = ClientError(
+            {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
+            'GetCommitmentPurchaseAnalysis',
+        )
+        clock = {'now': 0.0}
+
+        async def advance(seconds):
+            clock['now'] += seconds
+
+        with (
+            patch(f'{TOOLS_MODULE}._monotonic', side_effect=lambda: clock['now']),
+            patch(f'{TOOLS_MODULE}._sleep', side_effect=advance),
+            patch(f'{TOOLS_MODULE}.random.random', return_value=0.5),
+        ):
+            result = await get_commitment_purchase_analysis(
+                mock_context, mock_ce_client, ANALYSIS_ID, True, 10
+            )
+
+        # Checks at 0, 2, 6 and 7 seconds, then the throttle is reported.
+        assert mock_ce_client.get_commitment_purchase_analysis.call_count == 4
+        assert clock['now'] == 7
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'ThrottlingException'
+
+    async def test_await_completion_reports_other_errors(self, mock_context, mock_ce_client):
+        """Any other error ends the wait and is reported as the AWS error."""
+        from botocore.exceptions import ClientError
+
+        mock_ce_client.get_commitment_purchase_analysis.side_effect = ClientError(
+            {'Error': {'Code': 'AnalysisNotFoundException', 'Message': 'not found'}},
+            'GetCommitmentPurchaseAnalysis',
+        )
+
+        with patch(f'{TOOLS_MODULE}._sleep', new_callable=AsyncMock) as sleep:
+            result = await get_commitment_purchase_analysis(
+                mock_context, mock_ce_client, ANALYSIS_ID, await_completion=True
+            )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'AnalysisNotFoundException'
+        sleep.assert_not_awaited()
+
+    @pytest.mark.parametrize('await_completion', [True, False])
+    @pytest.mark.parametrize('max_wait_seconds', [0, -5, 601])
+    async def test_max_wait_seconds_out_of_range_is_rejected_locally(
+        self, mock_context, mock_ce_client, max_wait_seconds, await_completion
+    ):
+        """An out-of-range wait is a validation error, and the analysis is not fetched."""
+        result = await get_commitment_purchase_analysis(
+            mock_context, mock_ce_client, ANALYSIS_ID, await_completion, max_wait_seconds
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert '600' in result['message']
+        mock_ce_client.get_commitment_purchase_analysis.assert_not_called()
 
     async def test_error(self, mock_context, mock_ce_client):
         """An unknown id is reported rather than raised."""
@@ -432,7 +741,29 @@ class TestSpPurchaseAnalyzerDispatch:
             analysis_id='23a6da4c',
         )
 
-        assert mock_impl.await_args[0][2] == '23a6da4c'
+        assert mock_impl.await_args[0][2:] == ('23a6da4c', False, None)
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_purchase_analyzer_tools.create_aws_client'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_purchase_analyzer_tools.get_commitment_purchase_analysis'
+    )
+    async def test_routes_the_wait_to_get_analysis(
+        self, mock_impl, mock_create_client, mock_context
+    ):
+        """await_completion and max_wait_seconds arrive with the analysis id."""
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        await sp_purchase_analyzer(
+            mock_context,
+            operation='get_commitment_purchase_analysis',
+            analysis_id='23a6da4c',
+            await_completion=True,
+            max_wait_seconds=120,
+        )
+
+        assert mock_impl.await_args[0][2:] == ('23a6da4c', True, 120)
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.sp_purchase_analyzer_tools.create_aws_client'
@@ -490,3 +821,37 @@ def test_sp_purchase_analyzer_server_initialization():
     """The server is named and carries instructions."""
     assert sp_purchase_analyzer_server.name == 'sp-purchase-analyzer-tools'
     assert sp_purchase_analyzer_server.instructions is not None
+
+
+@pytest.mark.asyncio
+async def test_served_docs_name_plan_ids_and_the_wait():
+    """The served description and schema say plan IDs, not ARNs, and offer the wait."""
+    tool = await sp_purchase_analyzer_server.get_tool('sp-purchase-analyzer')
+    assert tool is not None and tool.description is not None
+    properties = tool.parameters['properties']
+
+    assert properties['await_completion']['default'] is False
+    assert properties['max_wait_seconds']['default'] is None
+    assert 'Savings Plan ARNs' not in tool.description + str(tool.parameters)
+    assert 'await_completion' in tool.description
+    assert 'INVALID_SAVINGS_PLANS_TO_EXCLUDE' in str(tool.parameters)
+
+
+@pytest.mark.asyncio
+async def test_served_exclusion_doc_names_who_may_exclude_which_plans():
+    """A member account may exclude only its own plans, the management account any in the org.
+
+    Queued plans, and plans that ended before the lookback period, cannot be excluded.
+    """
+    tool = await sp_purchase_analyzer_server.get_tool('sp-purchase-analyzer')
+    assert tool is not None
+    doc = ' '.join(
+        tool.parameters['properties']['savings_plans_to_exclude']['description'].split()
+    )
+
+    assert "Each must be one of the account's plans" not in doc
+    assert (
+        'Each must be an active or recently ended plan the calling account owns (from the '
+        'management account, any such plan in the organization); a queued plan, or any other ID, '
+        'ends the analysis FAILED with ErrorCode INVALID_SAVINGS_PLANS_TO_EXCLUDE.'
+    ) in doc

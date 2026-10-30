@@ -475,6 +475,22 @@ the savings estimation mode preference is AfterDiscounts and the only filters ar
 accountIds, regions and tags; otherwise metrics.savings_percentage_unavailable_reason gives
 the service's reason instead. The metrics block can be absent.
 
+SAVINGS TOTALS:
+- For a portfolio total, use list_recommendation_summaries estimated_total_deduped_savings
+  with no filter, or with only accountIds and/or regions. Never add up list_recommendations
+  estimated_monthly_savings: items overlap (commitment purchases and rightsizing or idle
+  actions on the same usage, Auto Scaling groups and their instances, Payer and Linked copies).
+- Filters other than accountIds and regions (actionTypes, resourceTypes, implementationEfforts,
+  restartNeeded, rollbackPossible) change how overlap is netted out, so a filtered total is
+  not that slice's share of the portfolio total, and filtered totals do not sum to it.
+- list_recommendation_summaries totals and groups do not include DatabaseSavingsPlans
+  recommendations. list_recommendations returns them, so add their estimated_monthly_savings
+  to the summary total and say that the total was built that way.
+- Commitment (Savings Plans/Reserved Instance) savings assume current usage; implementing
+  rightsizing or idle recommendations reduces them.
+- With include_all_recommendations=true, the same purchase appears once per term, payment
+  option, and Payer/Linked scope, so a sum is inflated further.
+
 CRITICAL PARAMETER REQUIREMENTS:
 - 'filters' parameter must be passed as JSON string format
 - 'max_items' must be integer (not string)
@@ -632,8 +648,9 @@ async def cost_optimization_hub(
             omitted (default): one deduplicated recommendation per resource, and
             one Savings Plans/Reserved Instances purchase option per covered usage,
             chosen first by the account's commitment preference; Cost Optimization Hub
-            hides the alternatives. True: every recommendation,
-            including alternatives whose savings must not be added together.
+            hides the alternatives. True: every recommendation, including one row per
+            term, payment option, and Payer/Linked scope for the same purchase, so do
+            not sum their estimated_monthly_savings to get a total.
         next_token: Pagination token to resume from a previous response.
             Applies to list_recommendations, list_recommendation_summaries, and
             list_efficiency_metrics.
