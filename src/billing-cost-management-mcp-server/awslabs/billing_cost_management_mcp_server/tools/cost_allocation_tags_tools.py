@@ -23,8 +23,9 @@ from ..utilities.aws_service_base import (
     paginate_aws_items,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from fastmcp import Context, FastMCP
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 cost_allocation_tags_server = FastMCP(
@@ -49,6 +50,54 @@ LIST_COST_ALLOCATION_TAG_BACKFILL_HISTORY = PageSpec(
 )
 
 
+async def _list_by_tag_keys(
+    ctx: Context,
+    api_call: Callable[..., Any],
+    params: Dict[str, Any],
+    max_items: Optional[int],
+) -> Tuple[List[Any], Dict[str, Any]]:
+    """Fetch a tag_keys lookup in one request and apply max_items locally.
+
+    With TagKeys, the service's NextToken is an offset into the key list that advances by
+    the number of tags returned, not keys read, so later pages repeat some tags and skip
+    others. Each key matches at most one tag and the API takes at most 100 keys, so one
+    page of 1000 holds every match; the lookup never follows or returns a token.
+    """
+    if max_items is not None and max_items < 1:
+        raise ValueError('max_items must be at least 1. Omit it to fetch every page.')
+    tags, _, pagination = await paginate_aws_items(
+        ctx,
+        'ListCostAllocationTags',
+        api_call,
+        params,
+        LIST_COST_ALLOCATION_TAGS,
+        max_pages=1,
+    )
+    kept = tags[:max_items] if max_items is not None else tags
+    if pagination['next_token'] is not None:
+        warning = (
+            f'Partial data: returned {len(kept)} tags, and the service returned a continuation '
+            'token for a tag_keys lookup, which cannot be continued correctly. Split tag_keys '
+            'across smaller calls, or state in the answer that the result is partial.'
+        )
+    elif len(kept) < len(tags):
+        warning = (
+            f'Partial data: returned {len(kept)} of the {len(tags)} tags that match tag_keys. '
+            'A tag_keys lookup has no next_token: call again with a larger max_items, or '
+            'without it, to get every match, or state in the answer that the result is '
+            'partial.'
+        )
+    else:
+        return tags, pagination
+    return kept, {
+        'complete_dataset': False,
+        'has_more': False,
+        'next_token': None,
+        'items_returned': len(kept),
+        'warning': warning,
+    }
+
+
 @cost_allocation_tags_server.tool(
     name='list-cost-allocation-tags',
     description="""Lists cost allocation tags in the account using the ListCostAllocationTags API.
@@ -69,10 +118,14 @@ You can filter tags by:
 - tag_type: AWSGenerated or UserDefined
 
 Pagination:
-- max_items: total number of tags returned. Omit it to fetch every page (no limit). Pass it,
+- max_items: total number of tags returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it,
   or narrow the filters, when the account can have many tags.
 - If the result has complete_dataset: false, it is partial: call again with a larger
   max_items, continue with next_token, or say the result is partial.
+- With tag_keys, one call returns every matching tag and there is no next_token: max_items
+  only caps how many are returned. Do not pass next_token with tag_keys.
 
 Limits: 500 active cost allocation tag keys per payer account (adjustable via Service Quotas
 up to 1,000). Max 20 tags per UpdateCostAllocationTagsStatus request.
@@ -97,7 +150,7 @@ async def list_cost_allocation_tags(
         tag_keys: JSON array of tag key strings to filter by (max 100)
         tag_type: Filter by tag type (AWSGenerated, UserDefined)
         max_items: Total tags to return. None fetches every page.
-        next_token: Pagination token from previous response
+        next_token: Pagination token from previous response. Not used with tag_keys.
 
     Returns:
         Dict containing the list of cost allocation tags
@@ -126,15 +179,31 @@ async def list_cost_allocation_tags(
         if tag_type:
             params['Type'] = tag_type
 
-        tags, _, pagination = await paginate_aws_items(
-            ctx,
-            'ListCostAllocationTags',
-            ce_client.list_cost_allocation_tags,
-            params,
-            LIST_COST_ALLOCATION_TAGS,
-            max_items=max_items,
-            next_token=next_token,
-        )
+        if 'TagKeys' in params:
+            if next_token is not None:
+                return format_response(
+                    'error',
+                    {
+                        'message': 'next_token cannot be used with tag_keys: a tag_keys lookup '
+                        'returns every matching tag in one call. Omit next_token.',
+                    },
+                    error_type='validation_error',
+                    operation='ListCostAllocationTags',
+                    service='Cost Explorer',
+                )
+            tags, pagination = await _list_by_tag_keys(
+                ctx, ce_client.list_cost_allocation_tags, params, max_items
+            )
+        else:
+            tags, _, pagination = await paginate_aws_items(
+                ctx,
+                'ListCostAllocationTags',
+                ce_client.list_cost_allocation_tags,
+                params,
+                LIST_COST_ALLOCATION_TAGS,
+                max_items=max_items,
+                next_token=next_token,
+            )
         return format_response(
             'success', with_pagination({'CostAllocationTags': tags}, pagination)
         )
@@ -152,7 +221,6 @@ Backfill retroactively applies the current tag activation status to historical b
 Without backfill, tag activation only affects future billing periods.
 
 Backfill requests progress through these states:
-- SCHEDULED: Initial state when the backfill is requested
 - PROCESSING: System is rewriting historical tag data and reprocessing bills
 - SUCCEEDED: Backfill completed, historical data updated
 - FAILED: Processing error occurred (can be retried)
@@ -167,8 +235,9 @@ The tool returns CostAllocationTagBackfillRequest objects containing:
 - RequestedAt, CompletedAt (null if still processing), LastUpdatedAt
 
 Pagination:
-- max_items: total number of backfill requests returned. Omit it to fetch every page
-  (no limit).
+- max_items: total number of backfill requests returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result.
 - If the result has complete_dataset: false, it is partial: call again with a larger
   max_items, continue with next_token, or say the result is partial.
 

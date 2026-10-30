@@ -53,6 +53,19 @@ PATCH_LIST_ACCOUNT_ASSOCIATIONS_OP = (
 )
 
 
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_bc_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import billing_conductor_tools as module
+
+    importlib.reload(module)
+
+
 def _reload_bc_with_identity_decorator():
     """Reload billing_conductor_tools with FastMCP.tool patched to return the original function.
 
@@ -113,6 +126,43 @@ def test_list_account_associations_tool_registered():
     assert tool.name == 'list-account-associations'
 
 
+def _description(tool_name):
+    tool = asyncio.run(billing_conductor_server.get_tool(tool_name))
+    assert tool is not None
+    return ' '.join((tool.description or '').split())
+
+
+def test_list_billing_groups_describes_filter_limits():
+    """Names takes one case-sensitive prefix, Statuses at most 2, PricingPlan a full ARN."""
+    description = _description('list-billing-groups')
+    assert 'Names: exactly one name search, a case-sensitive prefix match' in description
+    assert 'Statuses: at most 2 of ACTIVE, PRIMARY_ACCOUNT_MISSING, PENDING' in description
+    assert 'PricingPlan: a full pricing plan ARN' in description
+    assert 'supports STARTS_WITH search' not in description
+    assert 'validation_error' not in description
+
+
+def test_list_account_associations_describes_filter_rules():
+    """AccountId and AccountIds exclude each other, and Association takes a full ARN."""
+    description = _description('list-account-associations')
+    assert 'Use AccountId or AccountIds, not both' in description
+    assert 'A full billing group ARN' in description
+    assert 'MONITORED and UNMONITORED are upper case' in description
+    assert 'bare billing group ID' not in description
+    assert 'validation_error' not in description
+
+
+def test_get_billing_group_cost_report_describes_period_defaults():
+    """No range means the current month to date; the end is exclusive; months sum without BILLING_PERIOD."""
+    description = _description('get-billing-group-cost-report')
+    assert 'Without it, the report covers only the current month, month-to-date' in description
+    assert 'The end month is excluded' in description
+    assert 'Include BILLING_PERIOD in GroupBy to get one row per month' in description
+    assert 'the months of a range are summed' in description
+    assert 'BILLING_PERIOD: "2025-01"' in description
+    assert 'Nov 2023' not in description
+
+
 def test_list_billing_group_cost_reports_tool_registered():
     """Test that the list_billing_group_cost_reports tool is registered."""
     tool = asyncio.run(billing_conductor_server.get_tool('list-billing-group-cost-reports'))
@@ -134,6 +184,37 @@ def test_get_billing_group_cost_report_describes_page_sizes():
     description = ' '.join((tool.description or '').split())
     assert 'Results come in pages of up to 300' in description
     assert 'a `max_items` below 200 can return up to 200' in description
+
+
+@pytest.mark.parametrize(
+    'tool_name', ['list-billing-group-cost-reports', 'get-billing-group-cost-report']
+)
+def test_cost_report_descriptions_state_margin_sign_and_unit(tool_name):
+    """Margin is proforma minus AWS cost, and margin percentage is a fraction, not a percent."""
+    tool = asyncio.run(billing_conductor_server.get_tool(tool_name))
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert (
+        'Margin (proforma cost minus AWS cost; negative means the proforma cost is below'
+        in description
+    )
+    assert 'as a fraction, not a percent: -0.25 means -25%' in description
+    assert '"0.0" when the AWS cost is 0' in description
+    assert 'percentage of billing group margin' not in description
+
+
+@pytest.mark.parametrize(
+    'tool_name', ['list-billing-group-cost-reports', 'get-billing-group-cost-report']
+)
+def test_cost_report_descriptions_say_how_to_read_amount_strings(tool_name):
+    """Amounts are strings that can use exponent form; decimal_values gives them plain."""
+    tool = asyncio.run(billing_conductor_server.get_tool(tool_name))
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert 'exponent form ("5.0E-7")' in description
+    assert '`decimal_values`' in description
+    assert 'MONETARY AMOUNTS ARE STRINGS' in description
+    assert 'parse them as decimals, never floats' in description
 
 
 def test_list_pricing_rules_tool_registered():
@@ -885,3 +966,71 @@ async def test_tool_schemas_follow_the_max_items_contract():
         else:
             assert {'max_items', 'next_token'} <= params, name
             assert 'max_items' in tool.description, name
+
+
+@pytest.mark.asyncio
+async def test_descriptions_state_future_billing_period_behavior():
+    """Each tool that takes a billing period says what a month after the current one does."""
+    from awslabs.billing_cost_management_mcp_server.tools import billing_conductor_tools as bct
+
+    # Other tests reload this module under a patched FastMCP; reload the real one here.
+    real = importlib.reload(bct)
+    tools = {t.name: t for t in await real.billing_conductor_server.list_tools()}
+    rejected = {'list-billing-group-cost-reports', 'get-billing-group-cost-report'}
+    projected = {
+        name
+        for name, tool in tools.items()
+        if 'billing_period' in tool.parameters['properties'] and name not in rejected
+    }
+    assert len(projected) == 8, 'a new tool takes billing_period: add it to the checks below'
+    for name in projected:
+        description = ' '.join((tools[name].description or '').split())
+        assert 'after the current month (UTC) is a projection, not a record' in description, name
+        assert '`billing_period_is_future: true`' in description, name
+    for name in rejected:
+        description = ' '.join((tools[name].description or '').split())
+        assert 'after the current month (UTC) fails with validation_error' in description, name
+
+
+@pytest.mark.asyncio
+async def test_descriptions_state_past_month_with_nothing_in_effect():
+    """Tools that answer a month with nothing in effect predictably say so; the rest stay silent."""
+    from awslabs.billing_cost_management_mcp_server.tools import billing_conductor_tools as bct
+
+    # Other tests reload this module under a patched FastMCP; reload the real one here.
+    real = importlib.reload(bct)
+    tools = {t.name: t for t in await real.billing_conductor_server.list_tools()}
+    expected = {
+        'list-billing-group-cost-reports': (
+            'A past month with no billing group in effect returns an empty list, not an error.'
+        ),
+        'get-billing-group-cost-report': (
+            'A range with no data for the billing group (for example, months before it took '
+            'effect) returns no results, not an error.'
+        ),
+        'list-resources-associated-to-custom-line-item': (
+            'was not in effect (before it started or after it ended) fails with '
+            'ResourceNotFoundException ("Custom line item does not exist."), not an empty list. '
+            'A mistyped ARN can return the same error: confirm the ARN with list-custom-line-items'
+            ' for a recent month.'
+        ),
+        'list-pricing-rules-for-plan': (
+            'fails with ResourceNotFoundException ("Pricing plan does not exist."), not an empty '
+            'list. A mistyped ARN can return the same error: confirm the ARN with list-pricing-plans'
+            ' for a recent month.'
+        ),
+        'list-pricing-plans-for-rule': (
+            'fails with ResourceNotFoundException ("Pricing rule does not exist."), not an empty '
+            'list. A mistyped ARN can return the same error: confirm the ARN with list-pricing-rules'
+            ' for a recent month.'
+        ),
+    }
+    for name, text in expected.items():
+        description = ' '.join((tools[name].description or '').split())
+        assert text in description, name
+    # These lists can be non-empty for a month with nothing in effect (very old months return
+    # historical records), or list the payer's linked accounts, so they make no such claim.
+    for name in set(tools) - set(expected):
+        description = ' '.join((tools[name].description or '').split())
+        assert 'returns an empty list' not in description, name
+        assert 'returns no results, not an error' not in description, name
