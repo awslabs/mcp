@@ -524,9 +524,7 @@ Rule criteria (`criteria`, preview operations) is a JSON object string of the fo
 StringLike, StringEqualsIgnoreCase, ...). Number fields: `ebsVolumeSizeInGib`,
 `lookBackPeriodInDays`, `estimatedMonthlySavings`; they take Numeric* operators
 (NumericEquals, NumericGreaterThan, ...). `resourceTag` also takes a "key" and String*
-operators. AWS rejects a Numeric* operator on a text field and the reverse. StringEquals is
-case-sensitive. restartNeeded takes "true" or "false" in lowercase, so the tool lowercases its
-values. An OrganizationRule needs organization_scope; the tool rejects one without it.
+operators. An OrganizationRule needs organization_scope; the tool rejects one without it.
 
 PAGINATION (list_* operations only; the get_* operations and list_tags_for_resource take
 neither max_items nor next_token):
@@ -592,7 +590,7 @@ async def compute_optimizer_automation(
             Required when rule_type is OrganizationRule.
         criteria: Optional JSON object string of rule criteria for the preview operations:
             {"<field>": [{"comparison": "<operator>", "values": [...]}]}. See the tool
-            description for the fields and operators. restartNeeded values are lowercased.
+            description for the fields and operators.
         max_items: Total number of items to return across all pages (per region when
             regions is set). Omit it to fetch every page. List operations only.
         next_token: The pagination.next_token from a previous response; continue with

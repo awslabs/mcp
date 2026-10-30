@@ -105,7 +105,7 @@ async def test_tool_registered_with_name():
 
 
 async def test_description_documents_account_scope_and_value_formats():
-    """The description states the org scope and the criteria shape and case rule."""
+    """The description states the org scope and the criteria shape and fields."""
     tool = await compute_optimizer_automation_server.get_tool('compute-optimizer-automation')
     assert tool is not None
     description = ' '.join((tool.description or '').split())
@@ -115,7 +115,7 @@ async def test_description_documents_account_scope_and_value_formats():
     scope = description.split('**Account scope:**')[1].split('Supported operations')[0]
     assert 'member accounts' in scope
     assert 'AccountId' in scope
-    # The criteria shape, its fields, and the restartNeeded case rule.
+    # The criteria shape and its fields.
     assert '{"<field>": [{"comparison": "<operator>", "values": [...]}]}' in description
     for field in (
         'region',
@@ -128,7 +128,6 @@ async def test_description_documents_account_scope_and_value_formats():
         'resourceTag',
     ):
         assert f'`{field}`' in description
-    assert 'restartNeeded takes "true" or "false" in lowercase' in description
     assert 'OrganizationRule needs organization_scope' in description
 
 
