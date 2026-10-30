@@ -22,6 +22,7 @@ response field.
 """
 
 from ..utilities.aws_service_base import format_response
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .procurement_preferences_operations import (
     get_procurement_portal_preference as _get_procurement_portal_preference,
 )
@@ -108,7 +109,9 @@ async def _procurement_preferences(
 1) list_procurement_portal_preferences - list configured procurement portal preferences
    Required: operation="list_procurement_portal_preferences"
    Pagination:
-     - max_items: total preferences returned. Omit it to fetch every page (no limit). Pass it for queries that can be large.
+     - max_items: total preferences returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it for queries that can be large.
      - next_token: the `pagination.next_token` from a previous response, to continue where it stopped. Send every other parameter unchanged.
      - A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token, or state in the answer that the result is partial. `pagination.items_returned` counts only this response, and a continuation call does not repeat earlier items.
    Returns: `data.procurement_portal_preferences`, each a summary with ProcurementPortalPreferenceArn, AwsAccountId, ProcurementPortalName, BuyerDomain / BuyerIdentifier, SupplierDomain / SupplierIdentifier, Selector, EinvoiceDeliveryEnabled, PurchaseOrderRetrievalEnabled, MarketplacePunchOutEnabled, EinvoiceDeliveryPreferenceStatus / EinvoiceDeliveryPreferenceStatusReason, PurchaseOrderRetrievalPreferenceStatus / PurchaseOrderRetrievalPreferenceStatusReason, Version, and CreateDate / LastUpdateDate (ISO 8601 UTC).

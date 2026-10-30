@@ -26,10 +26,11 @@ from ..utilities.aws_service_base import (
     paginate_aws_items,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.error_contract import add_retry_guidance
 from datetime import datetime, timezone
 from fastmcp import Context, FastMCP
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 
 # Constants
@@ -109,7 +110,7 @@ async def bcm_pricing_calc_core(
     created_before: Optional[str] = None,
     expires_after: Optional[str] = None,
     expires_before: Optional[str] = None,
-    status_filter: Optional[str] = None,
+    status_filter: Optional[Union[str, List[str]]] = None,
     name_filter: Optional[str] = None,
     name_match_option: str = 'CONTAINS',
     usage_account_id_filter: Optional[str] = None,
@@ -131,7 +132,7 @@ async def bcm_pricing_calc_core(
         created_before: Filter estimates created before this timestamp
         expires_after: Filter estimates expiring after this timestamp
         expires_before: Filter estimates expiring before this timestamp
-        status_filter: Filter by status
+        status_filter: Filter by status, or a list of statuses (any of them matches)
         name_filter: Filter by name
         name_match_option: Match option for name filter (EQUALS, STARTS_WITH, CONTAINS)
         usage_account_id_filter: Filter by AWS account ID
@@ -271,7 +272,9 @@ USE THIS TOOL FOR:
    Returns: Retrieves the current preferences for AWS Billing and Cost Management Pricing Calculator.
 
 ## PAGINATION (list_workload_estimates, list_workload_estimate_usage only)
-- max_items: total items returned. Omit it to fetch every page (no limit). Pass it, or narrow the filters, when an estimate can have many usage lines.
+- max_items: total items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow the filters, when an estimate can have many usage lines.
 - A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token (the `pagination.next_token` from that response, sent with every other parameter unchanged), or state in the answer that the result is partial.
 - Counts cover only the items in that response; a continuation call does not repeat earlier items.
 """,
@@ -284,7 +287,7 @@ async def bcm_pricing_calc(
     created_before: Optional[str] = None,
     expires_after: Optional[str] = None,
     expires_before: Optional[str] = None,
-    status_filter: Optional[str] = None,
+    status_filter: Optional[Union[str, List[str]]] = None,
     name_filter: Optional[str] = None,
     name_match_option: str = 'CONTAINS',
     usage_account_id_filter: Optional[str] = None,
@@ -313,7 +316,8 @@ async def bcm_pricing_calc(
         expires_before: Filter estimates expiring before this timestamp
             (ISO format: YYYY-MM-DDTHH:MM:SS).
         status_filter: Filter by status: one of UPDATING, VALID, INVALID, ACTION_NEEDED
-            (case-insensitive). Any other value is rejected.
+            (case-insensitive), or a list of them; a list matches any of them. Any other
+            value, or an empty list, is rejected.
         name_filter: Filter by name (supports partial matching).
             Matched using name_match_option; always case-sensitive: Demo does not
             match DEMO.
@@ -432,7 +436,7 @@ async def list_workload_estimates(
     created_before: Optional[str] = None,
     expires_after: Optional[str] = None,
     expires_before: Optional[str] = None,
-    status_filter: Optional[str] = None,
+    status_filter: Optional[Union[str, List[str]]] = None,
     name_filter: Optional[str] = None,
     name_match_option: str = 'CONTAINS',
     next_token: Optional[str] = None,
@@ -449,7 +453,8 @@ async def list_workload_estimates(
             Must not be later than expires_before.
         expires_before: Filter estimates expiring before this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
         status_filter: Filter by status: one of UPDATING, VALID, INVALID, ACTION_NEEDED
-            (case-insensitive). Any other value is rejected.
+            (case-insensitive), or a list of them; a list matches any of them. Any other
+            value, or an empty list, is rejected.
         name_filter: Filter by name (supports partial matching)
             Matching is case-sensitive.
         name_match_option: Match option for name filter (EQUALS, STARTS_WITH, CONTAINS),
@@ -482,19 +487,11 @@ async def list_workload_estimates(
         await ctx.info('Listing workload estimates')
 
         # Validate before any AWS call: an unknown or wrongly cased status matches nothing.
-        if status_filter:
-            normalized_status = status_filter.strip().upper()
-            if normalized_status not in VALID_WORKLOAD_ESTIMATE_STATUSES:
-                return format_response(
-                    'error',
-                    {'invalid_parameter': 'status_filter', 'value': status_filter},
-                    f'Invalid status_filter: {status_filter}. '
-                    f'Must be one of: {", ".join(VALID_WORKLOAD_ESTIMATE_STATUSES)}.',
-                    error_type='validation_error',
-                    operation='list_workload_estimates',
-                    service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
-                )
-            status_filter = normalized_status
+        statuses: List[str] = []
+        if isinstance(status_filter, list) or status_filter:
+            statuses, status_error = _normalize_statuses(status_filter)
+            if status_error:
+                return status_error
 
         # Check each date bound before any AWS call: an unparseable value names its
         # parameter, and an after bound later than its before bound is rejected here since
@@ -554,8 +551,9 @@ async def list_workload_estimates(
 
         # Add additional filters
         filters = []
-        if status_filter:
-            filters.append({'name': 'STATUS', 'values': [status_filter], 'matchOption': 'EQUALS'})
+        if statuses:
+            # Several values in one STATUS filter are ORed by the service; separate filters are ANDed.
+            filters.append({'name': 'STATUS', 'values': statuses, 'matchOption': 'EQUALS'})
 
         if name_filter:
             filters.append(
@@ -588,6 +586,61 @@ async def list_workload_estimates(
         return await handle_aws_error(
             ctx, e, 'list_workload_estimates', BCM_PRICING_CALCULATOR_SERVICE_NAME
         )
+
+
+def _normalize_statuses(
+    status_filter: Union[str, List[str], None],
+) -> tuple[List[str], Optional[Dict[str, Any]]]:
+    """Upper-case and check status_filter (one status or a list), keeping order without repeats.
+
+    A JSON array string such as '["VALID", "INVALID"]' is read as a list, since some clients
+    send lists that way. Returns (statuses, None) when every value is a known status, or
+    ([], error response).
+    """
+    if isinstance(status_filter, str) and status_filter.strip().startswith('['):
+        try:
+            parsed = json.loads(status_filter)
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, list):
+            status_filter = parsed
+    values = status_filter if isinstance(status_filter, list) else [status_filter]
+    if not values:
+        return [], format_response(
+            'error',
+            {'invalid_parameter': 'status_filter', 'value': []},
+            'Invalid status_filter: give at least one status, or omit it for no filter. '
+            f'Must be one of: {", ".join(VALID_WORKLOAD_ESTIMATE_STATUSES)}.',
+            error_type='validation_error',
+            operation='list_workload_estimates',
+            service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+        )
+    statuses: List[str] = []
+    invalid: List[Any] = []
+    for value in values:
+        status = value.strip().upper() if isinstance(value, str) else None
+        if status not in VALID_WORKLOAD_ESTIMATE_STATUSES:
+            invalid.append(value)
+        elif status not in statuses:
+            statuses.append(status)
+    if invalid:
+        # repr shows a blank or non-string list entry; a single string is shown as given.
+        shown = (
+            ', '.join(repr(v) for v in invalid) if isinstance(status_filter, list) else invalid[0]
+        )
+        return [], format_response(
+            'error',
+            {
+                'invalid_parameter': 'status_filter',
+                'value': invalid if isinstance(status_filter, list) else status_filter,
+            },
+            f'Invalid status_filter: {shown}. '
+            f'Must be one of: {", ".join(VALID_WORKLOAD_ESTIMATE_STATUSES)}.',
+            error_type='validation_error',
+            operation='list_workload_estimates',
+            service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+        )
+    return statuses, None
 
 
 def _parse_timestamp(value: str) -> datetime:

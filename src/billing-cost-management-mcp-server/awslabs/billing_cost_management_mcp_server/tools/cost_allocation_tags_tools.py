@@ -23,6 +23,7 @@ from ..utilities.aws_service_base import (
     paginate_aws_items,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from fastmcp import Context, FastMCP
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -117,7 +118,9 @@ You can filter tags by:
 - tag_type: AWSGenerated or UserDefined
 
 Pagination:
-- max_items: total number of tags returned. Omit it to fetch every page (no limit). Pass it,
+- max_items: total number of tags returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it,
   or narrow the filters, when the account can have many tags.
 - If the result has complete_dataset: false, it is partial: call again with a larger
   max_items, continue with next_token, or say the result is partial.
@@ -232,8 +235,9 @@ The tool returns CostAllocationTagBackfillRequest objects containing:
 - RequestedAt, CompletedAt (null if still processing), LastUpdatedAt
 
 Pagination:
-- max_items: total number of backfill requests returned. Omit it to fetch every page
-  (no limit).
+- max_items: total number of backfill requests returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result.
 - If the result has complete_dataset: false, it is partial: call again with a larger
   max_items, continue with next_token, or say the result is partial.
 

@@ -54,6 +54,12 @@ def _positive_int_env(name: str, default: int) -> int:
 # queries rather than returned into the agent's context.
 PAGINATION_MAX_SECONDS = _positive_int_env('BCM_MCP_PAGINATION_MAX_SECONDS', 300)
 
+# Shared paging-limit phrase for tool descriptions, so the clause shows the limit the server is
+# actually using rather than a hardcoded "300 seconds". Evaluated at import, like the limit itself,
+# so a BCM_MCP_PAGINATION_MAX_SECONDS override set before server start is reflected in the served
+# descriptions. With the default env it renders exactly "up to 300 seconds (BCM_MCP_PAGINATION_MAX_SECONDS)".
+PAGINATION_LIMIT_TEXT = f'up to {PAGINATION_MAX_SECONDS} seconds (BCM_MCP_PAGINATION_MAX_SECONDS)'
+
 # ===== Cost Optimization Hub =====
 # Service name reported in error responses (top-level ``service``).
 COST_OPTIMIZATION_HUB_SERVICE_NAME = 'Cost Optimization Hub'
@@ -207,8 +213,9 @@ RESOURCE_TYPE_RDS = 'RdsDbInstance'
 
 # ===== Recommendation Details - Mapping Constants =====
 
-# Term mapping (1-year, 3-year)
-TERM_MAP = {'OneYear': 'ONE_YEAR', 'ThreeYear': 'THREE_YEARS'}
+# Term mapping (1-year, 3-year). Cost Optimization Hub spells the three-year term
+# 'ThreeYears'; the singular spelling is kept in case a payload uses it.
+TERM_MAP = {'OneYear': 'ONE_YEAR', 'ThreeYears': 'THREE_YEARS', 'ThreeYear': 'THREE_YEARS'}
 
 # Payment option mapping
 PAYMENT_OPTION_MAP = {
@@ -216,6 +223,10 @@ PAYMENT_OPTION_MAP = {
     'PartialUpfront': 'PARTIAL_UPFRONT',
     'NoUpfront': 'NO_UPFRONT',
 }
+
+# DynamoDB reserved capacity: Cost Optimization Hub shows Cost Explorer's HEAVY_UTILIZATION
+# recommendation as PartialUpfront, and Cost Explorer has none under PARTIAL_UPFRONT.
+DYNAMODB_PAYMENT_OPTION_MAP = {**PAYMENT_OPTION_MAP, 'PartialUpfront': 'HEAVY_UTILIZATION'}
 
 # Account scope mapping
 ACCOUNT_SCOPE_MAP = {'Linked': 'LINKED', 'Payer': 'PAYER'}

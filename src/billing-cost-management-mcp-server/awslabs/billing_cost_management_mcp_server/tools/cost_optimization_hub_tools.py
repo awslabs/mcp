@@ -46,6 +46,7 @@ from ..utilities.constants import (
     OPERATION_LIST_RECOMMENDATION_SUMMARIES,
     OPERATION_LIST_RECOMMENDATIONS,
     ORDER_BY_VALID_ORDERS,
+    PAGINATION_LIMIT_TEXT,
 )
 from .cost_optimization_hub_helpers import (
     get_preferences,
@@ -479,12 +480,14 @@ CRITICAL PARAMETER REQUIREMENTS:
 - 'max_items' must be integer (not string)
 
 PAGINATION (list_recommendations, list_recommendation_summaries, list_efficiency_metrics):
-- 'max_items' is the total number of items returned. Omit it to fetch every page (no limit). Pass it, or narrow 'filters', for queries that can be large (e.g. list_recommendations across an organization).
+- 'max_items' is the total number of items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow 'filters', for queries that can be large (e.g. list_recommendations across an organization).
 - Top N: pass 'order_by' with max_items=N (list_recommendations, list_efficiency_metrics). Without order_by, the first N are not the top N.
 - If the result has complete_dataset: false, it is partial: totals and counts undercount. Call again with a larger 'max_items', continue with 'next_token', or state that the result is partial. Never report the number of returned items as a total count.
 - Summary fields (estimated_total_deduped_savings, currency_code, metrics) cover the whole filtered result and are the same on every page, including continuation calls: do not add them across pages (total_recommendation_count is different; see the next bullet).
 - list_recommendation_summaries returns total_recommendation_count (the sum of the groups' recommendation_count) only when every group was fetched; use it as the overall count instead of adding the groups. It is absent on a partial result, a continuation call, or when a group has no recommendation_count.
-- In ranking_mode='performance', 'max_items' only limits how many ranked groups are returned; the fetch behind the ranking is fixed. A ranking has no 'next_token'; a larger 'max_items' or a continuation does not widen it. complete_dataset: false there means only the top spenders were fetched and ranked: group_by=Region (fewer groups) for a complete ranking, or state that it covers only the top spenders.
+- In ranking_mode='performance', 'max_items' only limits how many ranked groups are returned; the fetch behind the ranking is fixed. A ranking has no 'next_token'; a larger 'max_items' or a continuation does not widen it. complete_dataset: false there means only the top spenders were fetched and ranked: group_by=Region (fewer groups) for a complete ranking, or state that it covers only the top spenders. If 'ranking_mode' is omitted, the tool returns the raw per-group series without ranking.
 - list_enrollment_statuses, get_recommendation and get_preferences are not paginated.
 - 'get_recommendation' requires only 'recommendation_id' (mapped to the API's recommendationId)
 - Service only available in us-east-1 region
