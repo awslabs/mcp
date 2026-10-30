@@ -2064,3 +2064,5 @@ async def test_description_states_the_summaries_group_limit():
     assert 'group by a dimension with fewer values (such as Region)' in flat
     assert 'its last page is not marked' in flat
     assert '1,000 groups across all pages means the same' in flat
+    assert 'use list_recommendations with the same filters' not in flat
+    assert 'until fewer than 1,000 groups come back' not in flat

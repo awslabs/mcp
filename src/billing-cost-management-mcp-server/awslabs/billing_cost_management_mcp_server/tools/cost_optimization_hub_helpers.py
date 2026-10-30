@@ -303,9 +303,7 @@ def _summaries_group_limit_warning(group_by: str) -> str:
         f'estimated savings, and no next_token for the rest. This result has {limit}, so '
         'groups may be missing and estimated_total_deduped_savings may cover only the '
         'returned groups. For totals, group by a dimension with fewer values (such as '
-        f'Region). To cover every group, narrow filters until fewer than {limit} groups '
-        'come back, or, for rows and counts, use list_recommendations with the same filters '
-        '(its savings are not de-duplicated).'
+        'Region).'
     )
     if str(group_by).startswith(GROUP_BY_TAG_KEY_PREFIX):
         warning += (

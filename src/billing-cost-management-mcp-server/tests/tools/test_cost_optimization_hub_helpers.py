@@ -470,6 +470,8 @@ class TestListRecommendationSummaries:
         }
         assert 'returns at most 1,000 groups' in data['warning']
         assert 'group by a dimension with fewer values' in data['warning']
+        assert 'list_recommendations' not in data['warning']
+        assert 'narrow filters' not in data['warning']
         assert 'NoTagKey' not in data['warning']
         assert 'total_recommendation_count' not in data
         assert len(data['summaries']) == 1000
