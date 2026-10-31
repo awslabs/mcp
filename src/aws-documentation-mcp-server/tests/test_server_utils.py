@@ -1777,12 +1777,12 @@ class TestRedirectOnNonHtmlContent:
 
     @pytest.mark.asyncio
     async def test_read_sections_non_html_names_the_redirect(self):
-        """The non-HTML message does not hide that the page moved."""
+        """A non-HTML page with no sections does not hide that the page moved."""
         ctx = MagicMock(spec=Context)
         ctx.error = AsyncMock()
         patcher = self._client_for(self._redirected_non_html())
         try:
-            with pytest.raises(ValueError, match='non-HTML content') as excinfo:
+            with pytest.raises(ValueError, match='does not contain subsections') as excinfo:
                 await read_sections_impl(ctx, self.URL, ['Service endpoints'], 'test-uuid')
         finally:
             patcher.stop()
@@ -2106,3 +2106,110 @@ class TestRecoverableFailuresNameANextStep:
         finally:
             patcher.stop()
         assert 'search_documentation' not in str(excinfo.value)
+
+
+async def _run_against(call, url, text, content_type):
+    """Run a tool against one mocked response; return its result and the mocked client."""
+    import awslabs.aws_documentation_mcp_server.server_utils as server_utils
+
+    # A cached query_id would extend the URL; other tests reload the module, rebinding it
+    server_utils.SEARCH_RESULT_CACHE.clear()
+    ctx = MagicMock(spec=Context)
+    ctx.error = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.url = url
+    mock_response.text = text
+    mock_response.headers = {'content-type': content_type}
+    with patch('httpx.AsyncClient') as mock_client_class:
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value = mock_client
+        return await call(ctx), mock_client
+
+
+class TestAcceptNegotiation:
+    """Each tool asks for the form its processing needs."""
+
+    URL = 'https://docs.aws.amazon.com/test.html'
+
+    @pytest.mark.asyncio
+    async def test_read_sections_prefers_markdown(self):
+        """read_sections negotiates the same way read_documentation does."""
+        _, client = await _run_against(
+            lambda ctx: read_sections_impl(ctx, self.URL, ['Intro', 'Two Words'], 'test-uuid'),
+            self.URL,
+            '## Intro\n\nBody.',
+            'text/markdown',
+        )
+        assert client.get.call_args.kwargs['headers']['Accept'] == (
+            'text/markdown, text/html;q=0.9'
+        )
+        assert client.get.call_args.args[0] == (
+            f'{self.URL}?session=test-uuid&sections=Intro,Two%20Words'
+        )
+
+    @pytest.mark.asyncio
+    async def test_search_table_asks_for_html(self):
+        """search_table needs table structure that published Markdown flattens."""
+        html = '<html><body><table><tr><th>A</th></tr><tr><td>x</td></tr></table></body></html>'
+        _, client = await _run_against(
+            lambda ctx: search_table_impl(ctx, self.URL, 'My Section', 'x y', 10, 'test-uuid'),
+            self.URL,
+            html,
+            'text/html',
+        )
+        assert client.get.call_args.kwargs['headers']['Accept'] == 'text/html'
+        assert client.get.call_args.args[0] == (
+            f'{self.URL}?session=test-uuid&tool=search_table&query=x%20y&section=My%20Section'
+        )
+
+
+class TestReadSectionsOnConvertedHtml:
+    """HTML pages are converted first, so sections come from the page as a reader sees it."""
+
+    URL = 'https://docs.aws.amazon.com/lambda/latest/dg/example.html'
+
+    HTML = (
+        '<html><body><div id="main-content"><h1>Example</h1>'
+        '<div class="section"><div class="titlepage"><h2>Quotas</h2></div>'
+        '<p>See <a href="./other.html">other</a>.</p>'
+        '<div class="section"><h3>Details</h3><p># of hosts is 3</p></div></div>'
+        '<div class="section"><div class="titlepage"><h2>Other</h2></div><p>Elsewhere.</p></div>'
+        '</div></body></html>'
+    )
+
+    async def _read(self, text, content_type, titles):
+        """Run read_sections_impl against a single mocked response."""
+        result, _ = await _run_against(
+            lambda ctx: read_sections_impl(ctx, self.URL, titles, 'test-uuid'),
+            self.URL,
+            text,
+            content_type,
+        )
+        return result
+
+    @pytest.mark.asyncio
+    async def test_section_nested_in_wrapper_divs_is_found_whole(self):
+        """An h2 inside AWS 'titlepage' wrappers still owns the content after it."""
+        result = await self._read(self.HTML, 'text/html', ['Quotas'])
+        assert '## Quotas' in result
+        assert '### Details' in result
+        assert '# of hosts is 3' in result
+        assert 'Elsewhere.' not in result
+
+    @pytest.mark.asyncio
+    async def test_markdown_section_links_are_rewritten(self):
+        """Section results get the same link rewrite as read_documentation."""
+        markdown = '## Quotas\n\nSee [other](other.md).\n\n## Other\n\nElsewhere.\n'
+        result = await self._read(markdown, 'text/markdown', ['Quotas'])
+        assert '[other](https://docs.aws.amazon.com/lambda/latest/dg/other.html)' in result
+
+    @pytest.mark.asyncio
+    async def test_unresolvable_link_does_not_fail_the_read(self):
+        """A link the rewrite cannot parse is left as written instead of failing the tool."""
+        markdown = '## Quotas\n\nSee [bad](http://[bad.md).\n'
+        result = await self._read(markdown, 'text/markdown', ['Quotas'])
+        assert '[bad](http://[bad.md)' in result

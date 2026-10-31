@@ -21,7 +21,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     add_search_intent_to_search_request,
     enforce_redirect_allowlist,
     extract_content_from_html,
-    extract_sections_from_html,
+    extract_sections_from_markdown,
     format_documentation_result,
     has_empty_link_target,
     has_readable_text,
@@ -671,75 +671,63 @@ class TestAddSearchIntentToSearchRequest:
         assert result == 'https://docs.aws.amazon.com/search?foo=bar&search_intent=test'
 
 
-class TestExtractSectionsFromHtml:
-    """Tests for extract_sections_from_html function."""
+class TestExtractSectionsFromMarkdown:
+    """Tests for extract_sections_from_markdown function."""
 
-    def test_empty_input(self):
-        """Test with empty HTML content."""
-        result = extract_sections_from_html('', ['section1'])
-        assert result == 'No content or section titles provided'
+    def test_empty_input_is_unreadable(self):
+        """Empty content is unreadable, like whitespace-only content."""
+        with pytest.raises(UnreadablePageError):
+            extract_sections_from_markdown('', ['section1'])
 
     def test_empty_section_list(self):
         """Test with empty section_titles list."""
-        result = extract_sections_from_html('<html><body><h1>Test</h1></body></html>', [])
+        result = extract_sections_from_markdown('# Test', [])
         assert result == 'No content or section titles provided'
+
+    def test_whitespace_only_content_is_unreadable(self):
+        """Content with no text at all cannot hold a section."""
+        with pytest.raises(UnreadablePageError):
+            extract_sections_from_markdown('  \n\n ', ['Main Section'])
 
     def test_single_section_extraction(self):
         """Test extracting a single section with content."""
-        html = """<html><body>
-            <h2>Introduction</h2>
-            <p>This is the intro.</p>
-            <h2>Main Section</h2>
-            <p>This is the main content.</p>
-            <p>Some more content here.</p>
-            <h2>Conclusion</h2>
-            <p>This is the end.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['Main Section'])
-        assert '<h2>Main Section</h2>' in result
-        assert '<p>This is the main content.</p>' in result
-        assert '<p>Some more content here.</p>' in result
-        assert '<h2>Introduction</h2>' not in result
-        assert '<h2>Conclusion</h2>' not in result
+        markdown = (
+            '## Introduction\n\nThis is the intro.\n\n'
+            '## Main Section\n\nThis is the main content.\n\nSome more content here.\n\n'
+            '## Conclusion\n\nThis is the end.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Main Section'])
+        assert result == (
+            '## Main Section\n\nThis is the main content.\n\nSome more content here.'
+        )
 
     def test_multiple_sections_extraction(self):
         """Test extracting multiple sections."""
-        html = """<html><body>
-            <h2>Introduction</h2>
-            <p>This is the intro.</p>
-            <h2>First Section</h2>
-            <p>First content.</p>
-            <h2>Second Section</h2>
-            <p>Second content.</p>
-            <h2>Third Section</h2>
-            <p>Third content.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['First Section', 'Third Section'])
-        assert '<h2>First Section</h2>' in result
-        assert 'First content' in result
-        assert '<h2>Third Section</h2>' in result
-        assert 'Third content' in result
-        assert '<h2>Second Section</h2>' not in result
-        assert 'Second content' not in result
+        markdown = (
+            '## Introduction\n\nThis is the intro.\n\n'
+            '## First Section\n\nFirst content.\n\n'
+            '## Second Section\n\nSecond content.\n\n'
+            '## Third Section\n\nThird content.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['First Section', 'Third Section'])
+        assert result == (
+            '## First Section\n\nFirst content.\n\n## Third Section\n\nThird content.'
+        )
 
     def test_case_insensitive_matching(self):
         """Test case-insensitive section matching."""
-        html = """<html><body>
-            <h2>Main Section</h2>
-            <p>Content here.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['MAIN SECTION'])
-        assert '<h2>Main Section</h2>' in result
+        result = extract_sections_from_markdown(
+            '## Main Section\n\nContent here.', ['MAIN SECTION']
+        )
+        assert '## Main Section' in result
         assert 'Content here' in result
 
     def test_whitespace_handling(self):
         """Test section titles with leading/trailing whitespace."""
-        html = """<html><body>
-            <h2>Best practices</h2>
-            <p>This is content for best practices.</p>
-            <h2>Another Section</h2>
-            <p>More content here.</p>
-        </body></html>"""
+        markdown = (
+            '## Best practices\n\nThis is content for best practices.\n\n'
+            '## Another Section\n\nMore content here.\n'
+        )
         test_cases = [
             ' Best practices\n',
             '  Best practices  ',
@@ -749,153 +737,131 @@ class TestExtractSectionsFromHtml:
         ]
 
         for test_input in test_cases:
-            result = extract_sections_from_html(html, [test_input])
-            assert '<h2>Best practices</h2>' in result, f"Failed to match '{repr(test_input)}'"
-            assert 'best practices' in result.lower(), f"Content missing for '{repr(test_input)}'"
-            assert '<h2>Another Section</h2>' not in result, (
+            result = extract_sections_from_markdown(markdown, [test_input])
+            assert '## Best practices' in result, f"Failed to match '{repr(test_input)}'"
+            assert 'content for best practices' in result, (
+                f"Content missing for '{repr(test_input)}'"
+            )
+            assert '## Another Section' not in result, (
                 f"Should not include other sections for '{repr(test_input)}'"
             )
 
     def test_nested_sections_included(self):
         """Test that subsections within matching sections are included."""
-        html = """<html><body>
-            <h2>Main Section</h2>
-            <p>Main content.</p>
-            <h3>Subsection 1</h3>
-            <p>Sub content 1.</p>
-            <h4>Sub-subsection</h4>
-            <p>Sub-sub content.</p>
-            <h3>Subsection 2</h3>
-            <p>Sub content 2.</p>
-            <h2>Another Section</h2>
-            <p>Other content.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['Main Section'])
-        assert '<h2>Main Section</h2>' in result
-        assert 'Main content' in result
-        assert '<h3>Subsection 1</h3>' in result
-        assert 'Sub content 1' in result
-        assert '<h4>Sub-subsection</h4>' in result
-        assert 'Sub-sub content' in result
-        assert '<h3>Subsection 2</h3>' in result
-        assert 'Sub content 2' in result
-        assert '<h2>Another Section</h2>' not in result
+        markdown = (
+            '## Main Section\n\nMain content.\n\n'
+            '### Subsection 1\n\nSub content 1.\n\n'
+            '#### Sub-subsection\n\nSub-sub content.\n\n'
+            '### Subsection 2\n\nSub content 2.\n\n'
+            '## Another Section\n\nOther content.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Main Section'])
+        for expected in (
+            '## Main Section',
+            'Main content',
+            '### Subsection 1',
+            'Sub content 1',
+            '#### Sub-subsection',
+            'Sub-sub content',
+            '### Subsection 2',
+            'Sub content 2',
+        ):
+            assert expected in result
+        assert '## Another Section' not in result
         assert 'Other content' not in result
 
     def test_no_sections_found_with_h2_headings(self):
-        """Test when no sections match but document has h2 headings."""
-        html = """<html><body>
-            <h1>Introduction</h1>
-            <p>Intro content.</p>
-            <h2>Subsection A</h2>
-            <p>Content A.</p>
-            <h2>Subsection B</h2>
-            <p>Content B.</p>
-        </body></html>"""
+        """Test when no sections match but document has level-2 headings."""
+        markdown = (
+            '# Introduction\n\nIntro content.\n\n'
+            '## Subsection A\n\nContent A.\n\n'
+            '## Subsection B\n\nContent B.\n'
+        )
         with pytest.raises(ValueError) as exc_info:
-            extract_sections_from_html(html, ['Nonexistent Section'])
+            extract_sections_from_markdown(markdown, ['Nonexistent Section'])
         error_msg = str(exc_info.value)
         assert 'No matching sections were found' in error_msg
-        assert 'Available sections:' in error_msg
-        assert '"Subsection A"' in error_msg
-        assert '"Subsection B"' in error_msg
+        assert 'Available sections: "Subsection A", "Subsection B".' in error_msg
 
     def test_no_sections_found_without_h2_headings(self):
-        """Test when no sections match and no h2 headings exist."""
-        html = """<html><body>
-            <h1>Introduction</h1>
-            <p>This is the intro.</p>
-            <h1>Main Section</h1>
-            <p>Content here.</p>
-        </body></html>"""
+        """Test when no sections match and no level-2 headings exist."""
+        markdown = '# Introduction\n\nThis is the intro.\n\n# Main Section\n\nContent here.'
         with pytest.raises(ValueError) as exc_info:
-            extract_sections_from_html(html, ['Nonexistent Section', 'Another Missing'])
-        error_msg = str(exc_info.value)
-        assert 'This document does not contain subsections' in error_msg
+            extract_sections_from_markdown(markdown, ['Nonexistent Section', 'Another Missing'])
+        assert 'This document does not contain subsections' in str(exc_info.value)
 
     def test_partial_success(self):
         """Test when some sections found, others missing (graceful handling)."""
-        html = """<html><body>
-            <h2>Introduction</h2>
-            <p>Intro content.</p>
-            <h2>Found Section</h2>
-            <p>Found content.</p>
-            <h2>Another Found</h2>
-            <p>More content.</p>
-        </body></html>"""
-        result = extract_sections_from_html(
-            html, ['Found Section', 'Missing Section', 'Another Found']
+        markdown = (
+            '## Introduction\n\nIntro content.\n\n'
+            '## Found Section\n\nFound content.\n\n'
+            '## Another Found\n\nMore content.\n'
         )
-
-        assert '<h2>Found Section</h2>' in result
-        assert 'Found content' in result
-        assert '<h2>Another Found</h2>' in result
-        assert 'More content' in result
-        assert 'The following requested sections were not found: "Missing Section"' in result
+        result = extract_sections_from_markdown(
+            markdown, ['Found Section', 'Missing Section', 'Another Found']
+        )
+        assert result == (
+            '## Found Section\n\nFound content.\n\n## Another Found\n\nMore content.'
+            '\n\n> **Note**: The following requested sections were not found: "Missing Section"'
+        )
 
     def test_section_at_end_of_document(self):
         """Test extracting the final section."""
-        html = """<html><body>
-            <h2>First Section</h2>
-            <p>First content.</p>
-            <h2>Last Section</h2>
-            <p>Last content.</p>
-            <p>Final line.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['Last Section'])
-        assert '<h2>Last Section</h2>' in result
-        assert 'Last content' in result
-        assert 'Final line' in result
-        assert '<h2>First Section</h2>' not in result
+        markdown = (
+            '## First Section\n\nFirst content.\n\n'
+            '## Last Section\n\nLast content.\n\nFinal line.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Last Section'])
+        assert result == '## Last Section\n\nLast content.\n\nFinal line.'
 
     def test_section_with_no_content(self):
         """Test empty sections."""
-        html = """<html><body>
-            <h2>Section With Content</h2>
-            <p>Some content here.</p>
-            <h2>Empty Section</h2>
-            <h2>Another Section</h2>
-            <p>More content.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['Empty Section'])
-        assert '<h2>Empty Section</h2>' in result
+        markdown = (
+            '## Section With Content\n\nSome content here.\n\n'
+            '## Empty Section\n\n'
+            '## Another Section\n\nMore content.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Empty Section'])
+        assert result == '## Empty Section'
 
     def test_mixed_heading_levels(self):
         """Test mixed heading hierarchy."""
-        html = """<html><body>
-            <h1>Level 1</h1>
-            <p>Content 1.</p>
-            <h2>Level 2</h2>
-            <p>Content 2.</p>
-            <h3>Level 3</h3>
-            <p>Content 3.</p>
-            <h2>Another Level 2</h2>
-            <p>Content 2B.</p>
-            <h1>Another Level 1</h1>
-            <p>Content 1B.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['Level 2'])
-        assert '<h2>Level 2</h2>' in result
-        assert 'Content 2' in result
-        assert '<h3>Level 3</h3>' in result  # Should include subsection
-        assert 'Content 3' in result
-        assert '<h2>Another Level 2</h2>' not in result  # Should stop at same level
-        assert '<h1>Another Level 1</h1>' not in result
+        markdown = (
+            '# Level 1\n\nContent 1.\n\n'
+            '## Level 2\n\nContent 2.\n\n'
+            '### Level 3\n\nContent 3.\n\n'
+            '## Another Level 2\n\nContent 2B.\n\n'
+            '# Another Level 1\n\nContent 1B.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Level 2'])
+        assert result == '## Level 2\n\nContent 2.\n\n### Level 3\n\nContent 3.'
+
+    def test_level_one_line_does_not_end_a_section(self):
+        """Converted HTML leaves a paragraph starting with '#' unescaped; it is section text."""
+        markdown = '## Hosts\n\nIntro.\n\n# of hosts is 3\n\nMore detail.\n\n## Next\n\nOther.\n'
+        result = extract_sections_from_markdown(markdown, ['Hosts'])
+        assert result == '## Hosts\n\nIntro.\n\n# of hosts is 3\n\nMore detail.'
 
     def test_duplicate_section_names(self):
         """Test handling of duplicate section titles (should get all matches)."""
-        html = """<html><body>
-            <h2>Introduction</h2>
-            <p>First intro.</p>
-            <h2>Main Section</h2>
-            <p>First main content.</p>
-            <h2>Main Section</h2>
-            <p>Second main content.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['Main Section'])
-        assert '<h2>Main Section</h2>' in result
+        markdown = (
+            '## Introduction\n\nFirst intro.\n\n'
+            '## Main Section\n\nFirst main content.\n\n'
+            '## Main Section\n\nSecond main content.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Main Section'])
         assert 'First main content' in result
         assert 'Second main content' in result  # Should include both matching sections
+
+    def test_headings_inside_code_blocks_are_ignored(self):
+        """A '#' line inside a fenced code block neither starts nor ends a section."""
+        markdown = (
+            '## Example\n\n```bash\n## not a heading\necho hi\n```\n\n## Next\n\nNext content.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Example'])
+        assert result == '## Example\n\n```bash\n## not a heading\necho hi\n```'
+        with pytest.raises(ValueError, match='Available sections: "Example", "Next".'):
+            extract_sections_from_markdown(markdown, ['not a heading'])
 
 
 class TestEmptyLinkTargets:
@@ -1056,31 +1022,55 @@ class TestShellPagesDoNotSimplify:
 class TestSectionTitleMatching:
     """A caller passing a rendered heading finds the section, whatever markup it contains."""
 
-    HTML = (
-        '<html><body><main>'
-        '<h2>Using the <code>Switch Role</code> API</h2><p>First body.</p>'
-        '<h2>Plain Heading</h2><p>Second body.</p>'
-        '</main></body></html>'
+    MARKDOWN = (
+        '## Using the `Switch Role` API\n\nFirst body.\n\n## Plain Heading\n\nSecond body.\n'
     )
 
     def test_a_heading_with_inline_markup_is_matchable(self):
         """The rendered text of the heading is what a caller can see and pass."""
-        result = extract_sections_from_html(self.HTML, ['Using the Switch Role API'])
+        result = extract_sections_from_markdown(self.MARKDOWN, ['Using the Switch Role API'])
         assert 'First body.' in result
         assert 'Second body.' not in result
 
     def test_available_sections_are_reported_readably(self):
         """A miss lists titles a caller can actually retry with."""
         with pytest.raises(ValueError) as excinfo:
-            extract_sections_from_html(self.HTML, ['No Such Section'])
+            extract_sections_from_markdown(self.MARKDOWN, ['No Such Section'])
         message = str(excinfo.value)
-        assert 'Using the Switch Role API' in message
-        assert 'UsingtheSwitchRoleAPI' not in message
+        assert '"Using the Switch Role API"' in message
+        assert '`' not in message
+
+    def test_a_title_copied_with_markup_matches(self):
+        """Requested titles get the same normalization as the page's headings."""
+        result = extract_sections_from_markdown(self.MARKDOWN, ['Using the `Switch Role` API'])
+        assert 'First body.' in result
+
+    def test_indented_code_is_not_a_heading(self):
+        """Four leading spaces make an indented code block, so '## x' there is code."""
+        markdown = '## Example\n\n    ## a shell comment\n    echo hi\n\n## Next\n\nNext.\n'
+        result = extract_sections_from_markdown(markdown, ['Example'])
+        assert result == '## Example\n\n    ## a shell comment\n    echo hi'
 
     def test_a_plain_heading_still_matches(self):
         """The normalizer does not disturb headings without markup."""
-        result = extract_sections_from_html(self.HTML, ['Plain Heading'])
+        result = extract_sections_from_markdown(self.MARKDOWN, ['Plain Heading'])
         assert 'Second body.' in result
+
+    @pytest.mark.parametrize(
+        'heading, title',
+        [
+            ('## **CloudWatch**', 'CloudWatch'),  # bold-wrapped in published Markdown
+            ('## Using [roles](roles.md)', 'Using roles'),  # link keeps its text
+            ('## x86\\_64 instances', 'x86_64 instances'),  # escaped underscore
+            ('## Options \u00b6', 'Options'),  # pilcrow permalink
+            ('## Using C #', 'Using C #'),  # a trailing '#' is part of the title
+            ('   ## Indented', 'Indented'),  # up to three leading spaces is still a heading
+        ],
+    )
+    def test_published_markdown_heading_forms_match(self, heading, title):
+        """Heading markup seen in published and converted Markdown reduces to its text."""
+        result = extract_sections_from_markdown(f'{heading}\n\nBody.\n', [title])
+        assert result == f'{heading.strip()}\n\nBody.'
 
 
 class TestWhitespaceOnlyBody:

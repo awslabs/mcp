@@ -24,7 +24,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     UnreadablePageError,
     enforce_redirect_allowlist,
     extract_content_from_html,
-    extract_sections_from_html,
+    extract_sections_from_markdown,
     format_documentation_result,
     is_html_content,
     rewrite_markdown_links,
@@ -73,7 +73,9 @@ _USE_SEARCH = 'Use search_documentation.'
 
 
 # Pages with a published Markdown variant serve it directly; the rest fall back to HTML.
-_READ_DOCUMENTATION_ACCEPT = 'text/markdown, text/html;q=0.9'
+_ACCEPT_MARKDOWN = 'text/markdown, text/html;q=0.9'
+# Table search needs the HTML table structure, which published Markdown flattens.
+_ACCEPT_HTML = 'text/html'
 
 
 # - '/a/index.html' 301s to '/a/' everywhere on the site
@@ -124,18 +126,18 @@ class Page:
         return ' '.join(part for part in (note, *parts) if part)
 
 
-async def read_documentation_impl(
+async def _fetch(
     ctx: Context,
     url_str: str,
-    max_length: int,
-    start_index: int,
     session_uuid: str,
-    allowed_domain_regexes: Sequence[str] = COMMERCIAL_ALLOWED_DOMAIN_REGEXES,
-) -> str:
-    """The implementation of the read_documentation tool."""
-    logger.debug(f'Fetching documentation from {url_str}')
-
+    query: str,
+    accept: str,
+    allowed_domain_regexes: Sequence[str],
+) -> tuple[Page, httpx.Response]:
+    """Request a documentation page, failing on transport errors and error statuses."""
     url_with_session = f'{url_str}?session={session_uuid}'
+    if query:
+        url_with_session += f'&{query}'
 
     query_id = get_query_id_from_cache(url_str)
     if query_id:
@@ -150,7 +152,7 @@ async def read_documentation_impl(
                 headers={
                     'User-Agent': DEFAULT_USER_AGENT,
                     'X-MCP-Session-Id': session_uuid,
-                    'Accept': _READ_DOCUMENTATION_ACCEPT,
+                    'Accept': accept,
                 },
                 timeout=30,
             )
@@ -160,24 +162,36 @@ async def read_documentation_impl(
             await ctx.error(error_msg)
             raise DocumentationToolError(error_msg) from e
 
-        page = Page.of(url_str, response)
+    page = Page.of(url_str, response)
 
-        if response.status_code >= 400:
-            error_msg = page.message(
-                f'Failed to fetch {page.served} - status code {response.status_code}.',
-                _USE_SEARCH,
-            )
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise DocumentationToolError(error_msg)
+    if response.status_code >= 400:
+        error_msg = page.message(
+            f'Failed to fetch {page.served} - status code {response.status_code}.',
+            _USE_SEARCH,
+        )
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise DocumentationToolError(error_msg)
 
-        page_raw = response.text
-        content_type = response.headers.get('content-type', '')
+    return page, response
 
-    # Normalize to Markdown, then clean up once regardless of which form the server sent.
-    if is_html_content(page_raw, content_type):
+
+async def fetch_markdown(
+    ctx: Context,
+    url_str: str,
+    session_uuid: str,
+    query: str,
+    allowed_domain_regexes: Sequence[str],
+) -> tuple[Page, str]:
+    """Read a page as cleaned-up Markdown, converting it when the server only has HTML."""
+    page, response = await _fetch(
+        ctx, url_str, session_uuid, query, _ACCEPT_MARKDOWN, allowed_domain_regexes
+    )
+    content = response.text
+
+    if is_html_content(content, response.headers.get('content-type', '')):
         try:
-            content = extract_content_from_html(page_raw)
+            content = extract_content_from_html(content)
         except UnreadablePageError as e:
             error_msg = page.message(
                 f'{page.served} could not be read: {e}',
@@ -186,11 +200,52 @@ async def read_documentation_impl(
             logger.error(error_msg)
             await ctx.error(error_msg)
             raise DocumentationToolError(error_msg) from e
-    else:
-        content = page_raw
 
-    content = rewrite_markdown_links(content, base_url=page.served)
-    content = truncate_large_tables(content, url=page.served)
+    try:
+        content = rewrite_markdown_links(content, base_url=page.served)
+        return page, truncate_large_tables(content, url=page.served)
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise
+
+
+async def fetch_html(
+    ctx: Context,
+    url_str: str,
+    session_uuid: str,
+    query: str,
+    allowed_domain_regexes: Sequence[str],
+) -> tuple[Page, str]:
+    """Fetch a page as HTML, failing when the server sends anything else."""
+    page, response = await _fetch(
+        ctx, url_str, session_uuid, query, _ACCEPT_HTML, allowed_domain_regexes
+    )
+    if not is_html_content(response.text, response.headers.get('content-type', '')):
+        error_msg = page.message(
+            'Page content is not HTML. Use read_documentation to view this page.'
+        )
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise DocumentationToolError(error_msg)
+
+    return page, response.text
+
+
+async def read_documentation_impl(
+    ctx: Context,
+    url_str: str,
+    max_length: int,
+    start_index: int,
+    session_uuid: str,
+    allowed_domain_regexes: Sequence[str] = COMMERCIAL_ALLOWED_DOMAIN_REGEXES,
+) -> str:
+    """The implementation of the read_documentation tool."""
+    logger.debug(f'Fetching documentation from {url_str}')
+
+    page, content = await fetch_markdown(ctx, url_str, session_uuid, '', allowed_domain_regexes)
+
     result = format_documentation_result(page.served, content, start_index, max_length)
     if note := page.message():
         result = f'<e>{note}</e>\n\n{result}'
@@ -256,55 +311,13 @@ async def read_sections_impl(
     """The implementation of the read_sections tool."""
     logger.debug(f'Fetching sections {section_titles} from {url_str}')
 
-    url_with_session = f'{url_str}?session={session_uuid}'
     sections_param = ','.join(quote(title.strip(), safe='') for title in section_titles)
-    url_with_session += f'&sections={sections_param}'
-
-    query_id = get_query_id_from_cache(url_str)
-    if query_id:
-        url_with_session += f'&query_id={query_id}'
-        logger.debug(f'Using query_id {query_id}')
-
-    async with _docs_client(allowed_domain_regexes) as client:
-        try:
-            response = await client.get(
-                url_with_session,
-                follow_redirects=True,
-                headers={
-                    'User-Agent': DEFAULT_USER_AGENT,
-                    'X-MCP-Session-Id': session_uuid,
-                },
-                timeout=30,
-            )
-        except httpx.HTTPError as e:
-            error_msg = f'Failed to fetch {url_str}: {str(e)}'
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise DocumentationToolError(error_msg) from e
-
-        page = Page.of(url_str, response)
-
-        if response.status_code >= 400:
-            error_msg = page.message(
-                f'Failed to fetch {page.served} - status code {response.status_code}.',
-                _USE_SEARCH,
-            )
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise DocumentationToolError(error_msg)
-
-        page_raw = response.text
-        content_type = response.headers.get('content-type', '')
-
-    if not is_html_content(page_raw, content_type):
-        non_html_msg = 'Cannot extract sections from non-HTML content. Please use the read_documentation tool instead to get the full document content.'
-        error_msg = page.message(non_html_msg)
-        logger.error(error_msg)
-        await ctx.error(error_msg)
-        raise DocumentationToolError(error_msg)
+    page, content = await fetch_markdown(
+        ctx, url_str, session_uuid, f'sections={sections_param}', allowed_domain_regexes
+    )
 
     try:
-        filtered_content = extract_sections_from_html(page_raw, section_titles)
+        markdown = extract_sections_from_markdown(content, section_titles)
     except UnreadablePageError as e:
         error_msg = page.message(
             f'{page.served} could not be read: {e}',
@@ -318,23 +331,6 @@ async def read_sections_impl(
         logger.error(error_msg)
         await ctx.error(error_msg)
         raise DocumentationToolError(error_msg) from e
-
-    try:
-        markdown = extract_content_from_html(filtered_content)
-        markdown = truncate_large_tables(markdown, url=page.served)
-    except UnreadablePageError as e:
-        error_msg = page.message(
-            f'{page.served} could not be read: {e}',
-            _USE_SEARCH if page.substituted else '',
-        )
-        logger.error(error_msg)
-        await ctx.error(error_msg)
-        raise DocumentationToolError(error_msg) from e
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(error_msg)
-        await ctx.error(error_msg)
-        raise
 
     markdown = f'AWS Documentation from {page.served}:\n\n{markdown}'
     if note := page.message():
@@ -360,53 +356,12 @@ async def search_table_impl(
 
     logger.debug(f'Searching tables in section "{section_title}" of {url_str} for "{query}"')
 
-    url_with_session = (
-        f'{url_str}?session={session_uuid}&tool=search_table&query={quote(query, safe="")}'
-    )
+    query_param = f'tool=search_table&query={quote(query, safe="")}'
     if section_title:
-        url_with_session += f'&section={quote(section_title, safe="")}'
-
-    query_id = get_query_id_from_cache(url_str)
-    if query_id:
-        url_with_session += f'&query_id={query_id}'
-
-    async with _docs_client(allowed_domain_regexes) as client:
-        try:
-            response = await client.get(
-                url_with_session,
-                follow_redirects=True,
-                headers={
-                    'User-Agent': DEFAULT_USER_AGENT,
-                    'X-MCP-Session-Id': session_uuid,
-                },
-                timeout=30,
-            )
-        except httpx.HTTPError as e:
-            error_msg = f'Failed to fetch {url_str}: {str(e)}'
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise DocumentationToolError(error_msg) from e
-
-        page = Page.of(url_str, response)
-
-        if response.status_code >= 400:
-            error_msg = page.message(
-                f'Failed to fetch {page.served} - status code {response.status_code}.',
-                _USE_SEARCH,
-            )
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise DocumentationToolError(error_msg)
-
-        page_raw = response.text
-        content_type = response.headers.get('content-type', '')
-
-    if not is_html_content(page_raw, content_type):
-        non_html_msg = 'Page content is not HTML. Use read_documentation to view this page.'
-        error_msg = page.message(non_html_msg)
-        logger.error(error_msg)
-        await ctx.error(error_msg)
-        raise DocumentationToolError(error_msg)
+        query_param += f'&section={quote(section_title, safe="")}'
+    page, page_raw = await fetch_html(
+        ctx, url_str, session_uuid, query_param, allowed_domain_regexes
+    )
 
     try:
         table_data = parse_html_tables(page_raw, section_title if section_title else None)
