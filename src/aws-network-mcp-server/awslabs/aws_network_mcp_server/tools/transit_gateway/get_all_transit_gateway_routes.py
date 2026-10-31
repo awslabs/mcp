@@ -89,9 +89,15 @@ async def get_all_tgw_routes(
 
         # Validate that the Transit Gateway is registered to the Cloud WAN Global Network
         global_network_ids = []
-        for core_network in cloudwan_client.list_core_networks()['CoreNetworks']:
-            if core_network['State'] == 'AVAILABLE':
-                global_network_ids.append(core_network['GlobalNetworkId'])
+        next_token = None
+        while True:
+            params = {'NextToken': next_token} if next_token else {}
+            core_net_resp = cloudwan_client.list_core_networks(**params)
+            for core_network in core_net_resp['CoreNetworks']:
+                if core_network['State'] == 'AVAILABLE':
+                    global_network_ids.append(core_network['GlobalNetworkId'])
+            next_token = core_net_resp.get('NextToken')
+            if not next_token:
                 break
 
         if global_network_ids == []:
@@ -103,14 +109,20 @@ async def get_all_tgw_routes(
         transit_gateway_region = None
         transit_gateway_account_id = None
         for global_net_id in global_network_ids:
-            reg_resp = cloudwan_client.get_transit_gateway_registrations(
-                GlobalNetworkId=global_net_id,
-            )
-            for tgw in reg_resp['TransitGatewayRegistrations']:
-                if tgw['TransitGatewayArn'].endswith(transit_gateway_id):
-                    registered_global_net = global_net_id
-                    transit_gateway_region = tgw['TransitGatewayArn'].split(':')[3]
-                    transit_gateway_account_id = tgw['TransitGatewayArn'].split(':')[4]
+            next_token = None
+            while True:
+                params = {'GlobalNetworkId': global_net_id}
+                if next_token:
+                    params['NextToken'] = next_token
+                reg_resp = cloudwan_client.get_transit_gateway_registrations(**params)
+                for tgw in reg_resp['TransitGatewayRegistrations']:
+                    if tgw['TransitGatewayArn'].endswith(transit_gateway_id):
+                        registered_global_net = global_net_id
+                        transit_gateway_region = tgw['TransitGatewayArn'].split(':')[3]
+                        transit_gateway_account_id = tgw['TransitGatewayArn'].split(':')[4]
+                        break
+                next_token = reg_resp.get('NextToken')
+                if registered_global_net == global_net_id or not next_token:
                     break
 
         if not registered_global_net:
