@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `read_documentation` now requests `Accept: text/markdown, text/html;q=0.9`. Pages that publish a Markdown variant return it directly, which is smaller and skips the HTML-to-Markdown conversion. Pages without one, such as the CLI reference, still return HTML and are converted as before. The table-truncation pass now runs on both forms, all in a single request with no extra probe for pages that lack Markdown. Same-site links to `.md` pages are rewritten to their absolute `.html` URLs, so they can be passed straight back to the read tools.
+- `read_sections` negotiates Markdown the same way and extracts level-2 sections from it, converting HTML first when that is what the page serves. Pages that only serve Markdown or plain text no longer fail with "Cannot extract sections from non-HTML content", and section results get the same link rewriting as `read_documentation`. `search_table` keeps requesting HTML, because published Markdown flattens the merged-cell structure its nested output depends on.
 - Raised the `mcp` floor to `>=2.1.0`. 2.1.0 is where the SDK stopped forwarding non-`ToolError` messages, so an environment that resolved 2.0.0 hid this entire class of bug, CI included. The lock now resolves 2.3.0.
 
 ### Added
