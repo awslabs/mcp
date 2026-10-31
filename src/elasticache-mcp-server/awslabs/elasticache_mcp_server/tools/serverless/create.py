@@ -150,12 +150,20 @@ async def create_serverless_cache(request: CreateServerlessCacheRequest) -> Dict
         if isinstance(request.tags, str):
             # Parse string format "key=value,key2=value2"
             tags = []
-            for pair in request.tags.split(','):
-                key, value = pair.split('=')
+            for pair in (p.strip() for p in request.tags.split(',')):
+                if not pair:
+                    continue
+                if '=' not in pair:
+                    return {'error': 'Invalid tag format. Each tag must be in Key=Value format'}
+                # Split on the first '=' only: tag values may contain '='.
+                key, value = pair.split('=', 1)
+                key = key.strip()
+                if not key:
+                    return {'error': 'Tag key cannot be empty'}
                 tags.append(
                     {
-                        'Key': str(key.strip()),
-                        'Value': str(value.strip()) if value.strip() else None,
+                        'Key': key,
+                        'Value': value.strip() if value.strip() else None,
                     }
                 )
             create_request['Tags'] = tags
