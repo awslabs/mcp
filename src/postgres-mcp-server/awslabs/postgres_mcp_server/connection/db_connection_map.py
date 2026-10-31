@@ -167,6 +167,23 @@ class DBConnectionMap:
                 entries.append(entry)
         return json.dumps(entries, indent=2)
 
+    async def close_all_async(self) -> None:
+        """Close all connections and clear the map on the current event loop.
+
+        MCP's lifespan calls this before its serving loop shuts down. In
+        particular, direct psycopg pools hold asyncio primitives that must be
+        closed on the same loop that initialized them.
+        """
+        with self._lock:
+            connections = list(self.map.items())
+            self.map.clear()
+
+        for key, conn in connections:
+            try:
+                await conn.close()
+            except Exception as e:
+                logger.warning(f'Failed to close connection {key}: {e}')
+
     def close_all(self) -> None:
         """Close all connections and clear the map.
 

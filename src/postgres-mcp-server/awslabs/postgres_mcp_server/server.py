@@ -43,13 +43,20 @@ from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
 from awslabs.postgres_mcp_server.connection.rds_api_connection import RDSDataAPIConnection
 from awslabs.postgres_mcp_server.sql_guard import SqlPolicyError, assert_executable
 from botocore.exceptions import ClientError
+from contextlib import asynccontextmanager
 from datetime import datetime
 from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.shared.exceptions import MCPError
 from mcp.types import INVALID_PARAMS
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Tuple
+from typing import Annotated, Any, AsyncIterator, Dict, List, Optional, Tuple
+
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup
+else:
+    from builtins import BaseExceptionGroup
 
 
 # Max identifier length in bytes (NAMEDATALEN - 1, default compile-time constant)
@@ -105,6 +112,11 @@ privilege_check_policy = PRIVILEGE_CHECK_WARN
 # matches; cluster/instance MasterUserSecret is used as a final fallback.
 configured_secret_arns: Dict[str, str] = {}
 configured_default_secret_arn: Optional[str] = None
+# A configured PG-wire connection is constructed and cached synchronously in
+# main(), but its pool must not be initialized until MCP starts serving on its
+# own event loop. The lifespan validates it on that loop before tool calls are
+# accepted.
+startup_pg_wire_connection: Optional[PsycopgPoolConnection] = None
 
 
 def _configure_windows_event_loop_policy() -> None:
@@ -168,6 +180,19 @@ class ConnectionValidationError(Exception):
     attribute) under the 'enforce' policy, or an inability to verify the
     role's privileges (fail-closed).
     """
+
+
+class _StartupRefusedError(ConnectionValidationError):
+    """Mark a deliberate validation refusal before MCP begins serving."""
+
+
+def _is_startup_refusal(error: BaseException) -> bool:
+    """Recognize only startup refusals, including nested AnyIO exception groups."""
+    if isinstance(error, _StartupRefusedError):
+        return True
+    if isinstance(error, BaseExceptionGroup):
+        return all(_is_startup_refusal(child) for child in error.exceptions)
+    return False
 
 
 # Determine whether the connected role is over-privileged: a superuser, a
@@ -356,11 +381,43 @@ def attach_privilege_advisory(llm_response: str, db_connection: AbstractDBConnec
     return json.dumps(payload, indent=2, default=str)
 
 
+@asynccontextmanager
+async def server_lifespan(server: MCPServer) -> AsyncIterator[Dict[str, Any]]:
+    """Validate startup PG-wire state and close cached connections on MCP's loop."""
+    global startup_pg_wire_connection
+
+    try:
+        if startup_pg_wire_connection is not None:
+            # A PsycopgPoolConnection lazily initializes its AsyncConnectionPool
+            # and aiorwlock on first use. Doing this here keeps the startup
+            # validation and every subsequent tool call on MCP's serving loop,
+            # instead of binding them to the temporary loop from asyncio.run().
+            try:
+                await validate_connection(startup_pg_wire_connection, privilege_check_policy)
+                logger.success('Successfully validated database connection to Postgres')
+            except ConnectionValidationError as e:
+                logger.error(f'Refusing to start: {e}')
+                raise _StartupRefusedError(str(e)) from e
+            except Exception as e:
+                logger.error(
+                    f'Failed to validate database connection to Postgres: {e}. Exit the MCP server'
+                )
+                raise
+
+        yield {}
+    finally:
+        # Pools and their locks are loop-bound after validation/tool use, so
+        # close them before MCP tears down this same serving loop.
+        await db_connection_map.close_all_async()
+        startup_pg_wire_connection = None
+
+
 mcp = MCPServer(
     'pg-mcp MCP server. This is the starting point for all solutions created',
     dependencies=[
         'loguru',
     ],
+    lifespan=server_lifespan,
 )
 
 
@@ -1388,6 +1445,11 @@ def main():
     global privilege_check_policy
     global configured_ca_bundle
     global configured_sslmode
+    global startup_pg_wire_connection
+
+    # main() is normally called once, but reset this lifecycle handoff so a
+    # failed/test invocation cannot leave a stale connection for a later run.
+    startup_pg_wire_connection = None
 
     # psycopg's async mode does not support ProactorEventLoop. Set the policy
     # before startup validation or MCP can create an event loop.
@@ -1586,29 +1648,46 @@ def main():
             # rds_superuser connection aborts startup; under the default
             # 'warn' it is allowed with a logged warning.
             if db_connection:
-                try:
-                    asyncio.run(validate_connection(db_connection, privilege_check_policy))
-                    logger.success('Successfully validated database connection to Postgres')
-                except ConnectionValidationError as e:
-                    # The exception message carries its own remediation: an
-                    # over-privileged rejection mentions the --privilege_check
-                    # override, while a connectivity/unverifiable failure does
-                    # not (relaxing the policy would not make an unreachable DB
-                    # reachable).
-                    logger.error(f'Refusing to start: {e}')
-                    sys.exit(1)
-                except Exception as e:
-                    logger.error(
-                        f'Failed to validate database connection to Postgres: {e}. '
-                        'Exit the MCP server'
-                    )
-                    sys.exit(1)
+                if isinstance(db_connection, PsycopgPoolConnection):
+                    # Defer PG-wire validation to the MCP lifespan. Running it
+                    # through asyncio.run() here would initialize the pool and
+                    # RWLock on a temporary loop that closes before mcp.run().
+                    startup_pg_wire_connection = db_connection
+                else:
+                    try:
+                        asyncio.run(validate_connection(db_connection, privilege_check_policy))
+                        logger.success('Successfully validated database connection to Postgres')
+                    except ConnectionValidationError as e:
+                        # The exception message carries its own remediation: an
+                        # over-privileged rejection mentions the --privilege_check
+                        # override, while a connectivity/unverifiable failure does
+                        # not (relaxing the policy would not make an unreachable DB
+                        # reachable).
+                        logger.error(f'Refusing to start: {e}')
+                        sys.exit(1)
+                    except Exception as e:
+                        logger.error(
+                            f'Failed to validate database connection to Postgres: {e}. '
+                            'Exit the MCP server'
+                        )
+                        sys.exit(1)
 
         logger.info('Postgres MCP server started')
-        mcp.run()
+        try:
+            mcp.run()
+        except (_StartupRefusedError, BaseExceptionGroup) as e:
+            # stdio's AnyIO task group wraps lifespan failures. Translate only
+            # deliberate startup refusals after those task groups have unwound;
+            # an unrelated failure (even in a mixed group) must retain its traceback.
+            if not _is_startup_refusal(e):
+                raise
+            raise SystemExit(1) from None
         logger.info('Postgres MCP server stopped')
     finally:
+        # The lifespan closes loop-bound pools on MCP's serving loop. Keep this
+        # synchronous fallback for exits before that lifespan is entered.
         db_connection_map.close_all()
+        startup_pg_wire_connection = None
 
 
 if __name__ == '__main__':

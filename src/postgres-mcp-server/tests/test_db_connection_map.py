@@ -514,6 +514,51 @@ class TestDBConnectionMap:
         # completion, so its body never ran.
         assert started['count'] == 0
 
+    @pytest.mark.asyncio
+    async def test_close_all_async_awaits_coroutine_closes(self, connection_map):
+        """close_all_async() closes connections on the current event loop."""
+        completed = []
+
+        async def async_close():
+            completed.append('closed')
+
+        conn = MagicMock()
+        conn.close = MagicMock(side_effect=async_close)
+        connection_map.set(ConnectionMethod.RDS_API, 'c', 'e', 'db', conn)
+
+        await connection_map.close_all_async()
+
+        assert completed == ['closed']
+        conn.close.assert_called_once()
+        assert connection_map.map == {}
+
+    @pytest.mark.asyncio
+    async def test_close_all_async_warns_and_continues_after_failed_close(self, connection_map):
+        """A failed async close warns and still drains later cached connections."""
+        completed = []
+
+        class Connection:
+            def __init__(self, name, fail=False):
+                self.name = name
+                self.fail = fail
+
+            async def close(self):
+                completed.append(self.name)
+                if self.fail:
+                    raise ValueError('async close failed')
+
+        connection_map.set(ConnectionMethod.RDS_API, 'first', 'e', 'db', Connection('first', True))
+        connection_map.set(ConnectionMethod.RDS_API, 'second', 'e', 'db', Connection('second'))
+
+        with patch('awslabs.postgres_mcp_server.connection.db_connection_map.logger') as logger:
+            await connection_map.close_all_async()
+
+        assert completed == ['first', 'second']
+        assert connection_map.map == {}
+        assert len(logger.warning.call_args_list) == 1
+        assert 'async close failed' in logger.warning.call_args.args[0]
+        assert 'first' in logger.warning.call_args.args[0]
+
     def test_close_all_warns_when_coroutine_await_fails(self, connection_map):
         """A coroutine close() that raises is caught and logged, not propagated."""
 
