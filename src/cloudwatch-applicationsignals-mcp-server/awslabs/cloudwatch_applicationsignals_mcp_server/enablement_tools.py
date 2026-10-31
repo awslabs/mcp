@@ -138,7 +138,7 @@ async def get_enablement_guide(
         return error_msg
 
     try:
-        with open(template_file, 'r') as f:
+        with open(template_file, 'r', encoding='utf-8') as f:
             guide_content = f.read()
 
         context = f"""# Application Signals Enablement Guide
