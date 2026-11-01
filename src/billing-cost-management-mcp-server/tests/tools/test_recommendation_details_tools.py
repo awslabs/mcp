@@ -40,12 +40,16 @@ from awslabs.billing_cost_management_mcp_server.tools.recommendation_details_too
     recommendation_details_server,
 )
 from awslabs.billing_cost_management_mcp_server.utilities.constants import (
+    ACCOUNT_SCOPE_MAP,
+    PAYMENT_OPTION_MAP,
     SAVINGS_PLANS_TYPE_MAP,
     SERVICE_MAP,
+    TERM_MAP,
 )
 from datetime import datetime, timezone
 from fastmcp import Context
 from pathlib import Path
+from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 
@@ -590,6 +594,26 @@ class TestGetSavingsPlansRecommendation:
         assert 'Error getting Savings Plans recommendation' in result['error']
         mock_context.error.assert_called_once()
 
+    async def test_savings_plans_keep_partial_upfront(self, mock_context, mock_ce_client):
+        """The DynamoDB reserved capacity remap does not reach Savings Plans lookups."""
+        recommendation = {
+            'recommendationId': 'rec-sp',
+            'recommendedResourceDetails': {
+                'computeSavingsPlans': {
+                    'configuration': {
+                        'term': 'OneYear',
+                        'paymentOption': 'PartialUpfront',
+                        'accountScope': 'Payer',
+                    }
+                }
+            },
+        }
+
+        await get_savings_plans_recommendation(mock_context, recommendation, mock_ce_client)
+
+        call_kwargs = mock_ce_client.get_savings_plans_purchase_recommendation.call_args[1]
+        assert call_kwargs['PaymentOption'] == 'PARTIAL_UPFRONT'
+
 
 @pytest.mark.asyncio
 class TestGetReservedInstancesRecommendation:
@@ -757,6 +781,114 @@ class TestGetReservedInstancesRecommendation:
         assert 'error' in result
         assert 'Error getting Reserved Instance recommendation' in result['error']
         mock_context.error.assert_called_once()
+
+    async def test_dynamodb_reserved_capacity_requests_heavy_utilization(
+        self, mock_context, mock_ce_client
+    ):
+        """COH's PartialUpfront DynamoDB reserved capacity is HEAVY_UTILIZATION in Cost Explorer.
+
+        Cost Explorer returns no DynamoDB recommendation for PARTIAL_UPFRONT.
+        """
+        # The configuration shape Cost Optimization Hub returns for DynamoDB reserved capacity
+        recommendation = {
+            'recommendationId': 'rec-ddb',
+            'accountId': '123456789012',
+            'actionType': 'PurchaseReservedInstances',
+            'currentResourceType': 'DynamoDbReservedCapacity',
+            'recommendationLookbackPeriodInDays': 30,
+            'recommendedResourceDetails': {
+                'dynamoDbReservedCapacity': {
+                    'configuration': {
+                        'accountScope': 'Payer',
+                        'service': 'Amazon DynamoDB Service',
+                        'term': 'OneYear',
+                        'paymentOption': 'PartialUpfront',
+                        'reservedInstancesRegion': 'us-west-2',
+                        'upfrontCost': '150.0',
+                        'monthlyRecurringCost': '9.49',
+                        'numberOfCapacityUnitsToPurchase': '100',
+                        'capacityUnits': 'Write',
+                    },
+                    'costCalculation': {},
+                }
+            },
+        }
+        mock_ce_client.get_reservation_purchase_recommendation.return_value = {
+            'Recommendations': [
+                {
+                    'AccountScope': 'Payer',
+                    'LookbackPeriodInDays': '30',
+                    'TermInYears': '1',
+                    'PaymentOption': 'Heavy_Utilization',
+                    'RecommendationDetails': [
+                        {
+                            'AccountId': '123456789012',
+                            'RecommendedNumberOfCapacityUnitsToPurchase': '100',
+                            'ReservedCapacityDetails': {
+                                'DynamoDBCapacityDetails': {
+                                    'CapacityUnits': 'Write',
+                                    'Region': 'us-west-2',
+                                }
+                            },
+                        }
+                    ],
+                }
+            ]
+        }
+
+        result = await get_reserved_instances_recommendation(
+            mock_context, recommendation, mock_ce_client
+        )
+
+        call_kwargs = mock_ce_client.get_reservation_purchase_recommendation.call_args[1]
+        assert call_kwargs == {
+            'Service': 'Amazon DynamoDB Service',
+            'TermInYears': 'ONE_YEAR',
+            'PaymentOption': 'HEAVY_UTILIZATION',
+            'LookbackPeriodInDays': 'THIRTY_DAYS',
+            'AccountScope': 'PAYER',
+        }
+        assert result['Recommendations'][0]['PaymentOption'] == 'Heavy_Utilization'
+        output = _ce_model().operation_model('GetReservationPurchaseRecommendation').output_shape
+        assert list(_keys_outside_shape(result, output)) == []
+
+    @pytest.mark.parametrize('ri_key', sorted(set(SERVICE_MAP) - {'dynamoDbReservedCapacity'}))
+    async def test_other_reserved_instances_keep_partial_upfront(
+        self, mock_context, mock_ce_client, ri_key
+    ):
+        """Only DynamoDB reserved capacity is remapped; RIs send PARTIAL_UPFRONT as before."""
+        recommendation = {
+            'recommendationId': 'rec-12345',
+            'actionType': 'PurchaseReservedInstances',
+            'recommendedResourceDetails': {
+                ri_key: {'configuration': {'term': 'OneYear', 'paymentOption': 'PartialUpfront'}}
+            },
+        }
+
+        await get_reserved_instances_recommendation(mock_context, recommendation, mock_ce_client)
+
+        call_kwargs = mock_ce_client.get_reservation_purchase_recommendation.call_args[1]
+        assert call_kwargs['PaymentOption'] == 'PARTIAL_UPFRONT'
+
+    @pytest.mark.parametrize('payment_option', ['AllUpfront', 'PartialUpfront', 'NoUpfront'])
+    async def test_dynamodb_payment_options_are_cost_explorer_values(
+        self, mock_context, mock_ce_client, payment_option
+    ):
+        """Every DynamoDB payment option the tool sends is in Cost Explorer's PaymentOption enum."""
+        recommendation = {
+            'recommendationId': 'rec-ddb',
+            'actionType': 'PurchaseReservedInstances',
+            'recommendedResourceDetails': {
+                'dynamoDbReservedCapacity': {
+                    'configuration': {'term': 'OneYear', 'paymentOption': payment_option}
+                }
+            },
+        }
+
+        await get_reserved_instances_recommendation(mock_context, recommendation, mock_ce_client)
+
+        call_kwargs = mock_ce_client.get_reservation_purchase_recommendation.call_args[1]
+        assert call_kwargs['PaymentOption'] in _ce_model().shape_for('PaymentOption').enum
 
 
 @pytest.mark.asyncio
@@ -1317,6 +1449,7 @@ class TestProcessRecommendation:
 
         assert result['base_recommendation'] == {'formatted': 'base_data'}
         assert result['additional_details'] == {'optimizer': 'data'}
+        assert 'warning' not in result
         assert result['template'] == 'Template content'
         assert 'formatting_instructions' in result
 
@@ -1351,6 +1484,7 @@ class TestProcessRecommendation:
 
         assert result['base_recommendation'] == {'formatted': 'base_data'}
         assert result['additional_details'] == {'cost_explorer': 'data'}
+        assert 'warning' not in result
         assert result['template'] == 'Template content'
         assert 'formatting_instructions' in result
 
@@ -1385,6 +1519,7 @@ class TestProcessRecommendation:
 
         assert result['base_recommendation'] == {'formatted': 'base_data'}
         assert result['additional_details'] == {'cost_explorer': 'data'}
+        assert 'warning' not in result
         assert result['template'] == 'Template content'
         assert 'formatting_instructions' in result
 
@@ -1440,6 +1575,16 @@ async def test_rec_details_description_documents_commitment_metrics():
     assert 'EstimatedBreakEvenInMonths is per RecommendationDetails row' in description
     assert 'Savings Plans recommendations carry no break-even' in description
     assert 'EstimatedROI' in description and 'not a payback period' in description
+
+
+async def test_rec_details_description_names_dynamodb_payment_option():
+    """The schema tells the agent why a DynamoDB rec's two payment options differ."""
+    tools = {t.name: t for t in await recommendation_details_server.list_tools()}
+    description = tools['rec-details'].description or ''
+
+    assert 'DynamoDB reserved capacity' in description
+    assert 'PartialUpfront' in description and 'Heavy_Utilization' in description
+    assert 'not a mismatch' in description
 
 
 def _ce_model():
@@ -1501,6 +1646,792 @@ def test_every_ce_savings_plans_type_is_mapped():
     supported = set(_ce_model().shape_for('SupportedSavingsPlansType').enum)
 
     assert supported - set(SAVINGS_PLANS_TYPE_MAP.values()) == set()
+
+
+MEMBER = '111122223333'
+PAYER = '444455556666'
+
+
+def _ri_row(account_id, instance_type, region, savings='10.0'):
+    return {
+        'AccountId': account_id,
+        'InstanceDetails': {
+            'EC2InstanceDetails': {
+                'InstanceType': instance_type,
+                'Region': region,
+                'Platform': 'Linux/UNIX',
+                'Tenancy': 'Shared',
+            }
+        },
+        'RecommendedNumberOfInstancesToPurchase': '12',
+        'EstimatedMonthlySavingsAmount': savings,
+    }
+
+
+def _ri_response(rows, scope='Linked'):
+    return {
+        'Recommendations': [
+            {
+                'AccountScope': scope,
+                'RecommendationDetails': rows,
+                'RecommendationSummary': {'TotalEstimatedMonthlySavingsAmount': '45.0'},
+            }
+        ]
+    }
+
+
+def _ec2_ri_rec(scope='Linked', account_id=MEMBER, offering_class='Standard', region='us-east-2'):
+    """An EC2 RI recommendation in the shape Cost Optimization Hub returns it."""
+    return {
+        'recommendationId': 'rec-ri-linked',
+        'accountId': account_id,
+        'region': region,
+        'actionType': 'PurchaseReservedInstances',
+        'currentResourceType': 'Ec2ReservedInstances',
+        'recommendationLookbackPeriodInDays': 30,
+        'recommendedResourceDetails': {
+            'ec2ReservedInstances': {
+                'configuration': {
+                    'accountScope': scope,
+                    'service': 'Amazon Elastic Compute Cloud - Compute',
+                    'term': 'OneYear',
+                    'paymentOption': 'AllUpfront',
+                    'reservedInstancesRegion': region,
+                    'numberOfInstancesToPurchase': '12',
+                    'offeringClass': offering_class,
+                    'instanceFamily': 'm5',
+                    'instanceType': 'm5.large',
+                    'platform': 'Linux/UNIX',
+                    'tenancy': 'Shared',
+                    'sizeFlexEligible': True,
+                }
+            }
+        },
+    }
+
+
+def _sp_rec(scope='Linked', account_id=MEMBER):
+    """A Compute Savings Plans recommendation in the shape Cost Optimization Hub returns it."""
+    return {
+        'recommendationId': 'rec-sp-linked',
+        'accountId': account_id,
+        'region': 'Global',
+        'actionType': 'PurchaseSavingsPlans',
+        'currentResourceType': 'ComputeSavingsPlans',
+        'recommendationLookbackPeriodInDays': 30,
+        'recommendedResourceDetails': {
+            'computeSavingsPlans': {
+                'configuration': {
+                    'accountScope': scope,
+                    'term': 'OneYear',
+                    'paymentOption': 'AllUpfront',
+                    'hourlyCommitment': '1.0',
+                }
+            }
+        },
+    }
+
+
+def _sp_response(account_ids):
+    return {
+        'SavingsPlansPurchaseRecommendation': {
+            'AccountScope': 'Linked',
+            'SavingsPlansPurchaseRecommendationDetails': [
+                {'AccountId': a, 'HourlyCommitmentToPurchase': '1.0'} for a in account_ids
+            ],
+            'SavingsPlansPurchaseRecommendationSummary': {'HourlyCommitmentToPurchase': '1.0'},
+        }
+    }
+
+
+async def _ce_data(mock_context, recommendation, ce_client):
+    with patch.object(recommendation_details_tools, 'create_aws_client', return_value=ce_client):
+        return await get_cost_explorer_data(mock_context, recommendation)
+
+
+@pytest.mark.asyncio
+class TestCommitmentRecommendationScope:
+    """Cost Explorer is asked for, and answers with, the recommendation's own scope and account."""
+
+    async def test_ri_call_carries_scope_account_filter_and_offering_class(self, mock_context):
+        """A Linked EC2 RI call sends AccountScope, a LINKED_ACCOUNT filter and OfferingClass."""
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response([])
+
+        await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        kwargs = ce.get_reservation_purchase_recommendation.call_args[1]
+        assert kwargs['AccountScope'] == 'LINKED'
+        assert kwargs['Filter'] == {'Dimensions': {'Key': 'LINKED_ACCOUNT', 'Values': [MEMBER]}}
+        assert kwargs['ServiceSpecification'] == {
+            'EC2Specification': {'OfferingClass': 'STANDARD'}
+        }
+        # Cost Explorer rejects an AccountId other than the caller's own account.
+        assert 'AccountId' not in kwargs
+
+    async def test_ri_payer_call_has_payer_scope_and_no_account_filter(self, mock_context):
+        """A Payer RI call asks for PAYER scope and does not narrow it to one account."""
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response([], 'Payer')
+
+        await _ce_data(mock_context, _ec2_ri_rec('Payer', PAYER, 'Convertible'), ce)
+
+        kwargs = ce.get_reservation_purchase_recommendation.call_args[1]
+        assert kwargs['AccountScope'] == 'PAYER'
+        assert 'Filter' not in kwargs
+        assert kwargs['ServiceSpecification'] == {
+            'EC2Specification': {'OfferingClass': 'CONVERTIBLE'}
+        }
+
+    async def test_non_ec2_ri_call_has_no_ec2_specification(self, mock_context):
+        """ServiceSpecification only has an EC2 member, so other services send none."""
+        rec = _ec2_ri_rec()
+        rec['recommendedResourceDetails'] = {
+            'rdsReservedInstances': {
+                'configuration': {
+                    'accountScope': 'Linked',
+                    'term': 'OneYear',
+                    'paymentOption': 'AllUpfront',
+                    'instanceType': 'db.r6g.large',
+                    'reservedInstancesRegion': 'us-east-2',
+                }
+            }
+        }
+        ce = MagicMock()
+        rds_row = {'AccountId': MEMBER, 'InstanceDetails': {'RDSInstanceDetails': {}}}
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(
+            [rds_row, {'AccountId': PAYER, 'InstanceDetails': {'RDSInstanceDetails': {}}}]
+        )
+
+        result = await _ce_data(mock_context, rec, ce)
+
+        kwargs = ce.get_reservation_purchase_recommendation.call_args[1]
+        assert kwargs['AccountScope'] == 'LINKED'
+        assert 'ServiceSpecification' not in kwargs
+        assert result['Recommendations'][0]['RecommendationDetails'] == [rds_row]
+
+    async def test_ri_rows_filtered_to_account_instance_type_and_region(self, mock_context):
+        """Only the row for the recommendation's account, instance type and Region is kept."""
+        target = _ri_row(MEMBER, 'm5.large', 'US East (Ohio)', '30.0')
+        rows = [
+            _ri_row(PAYER, 'm5.large', 'US East (Ohio)'),
+            target,
+            _ri_row(MEMBER, 't4g.nano', 'US West (N. California)', '5.0'),
+            _ri_row(MEMBER, 'm5.large', 'US East (N. Virginia)'),
+        ]
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(rows)
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        ri = result['Recommendations'][0]
+        assert ri['RecommendationDetails'] == [target]
+        # The summary is Cost Explorer's own, for every row it returned; the response says so.
+        assert ri['RecommendationSummary'] == {'TotalEstimatedMonthlySavingsAmount': '45.0'}
+        assert 'summary still totals all of them' in result['note']
+        assert 'warning' not in result
+
+    async def test_payer_ri_rows_filtered_to_instance_type_and_region(self, mock_context):
+        """A Payer EC2 RI keeps only its instance type and Region from the payer-wide answer."""
+        target = _ri_row(PAYER, 'm5.large', 'US East (Ohio)')
+        rows = [target, _ri_row(PAYER, 'c5.large', 'US East (Ohio)')]
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(rows, 'Payer')
+
+        result = await _ce_data(mock_context, _ec2_ri_rec('Payer', PAYER), ce)
+
+        assert result['Recommendations'][0]['RecommendationDetails'] == [target]
+
+    async def test_ri_region_code_matches_eu_region_name(self, mock_context):
+        """Cost Explorer names eu-west-3 'EU (Paris)', not botocore's 'Europe (Paris)'."""
+        target = _ri_row(MEMBER, 'm5.large', 'EU (Paris)')
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response([target])
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(region='eu-west-3'), ce)
+
+        assert result['Recommendations'][0]['RecommendationDetails'] == [target]
+        assert 'warning' not in result
+
+    async def test_ri_unknown_region_or_type_is_not_filtered_on(self, mock_context):
+        """A Region code botocore does not know, or a missing instance type, is not filtered on."""
+        rec = _ec2_ri_rec(region='xx-nowhere-1')
+        del rec['recommendedResourceDetails']['ec2ReservedInstances']['configuration'][
+            'instanceType'
+        ]
+        rows = [_ri_row(MEMBER, 'm5.large', 'US East (Ohio)'), _ri_row(MEMBER, 'c5.large', 'X')]
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(rows)
+
+        result = await _ce_data(mock_context, rec, ce)
+
+        assert result['Recommendations'][0]['RecommendationDetails'] == rows
+        assert 'note' not in result and 'warning' not in result
+
+    async def test_ri_no_matching_row_is_reported(self, mock_context):
+        """When no row matches, the response says so instead of returning an empty detail."""
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(
+            [_ri_row(PAYER, 'c5.large', 'US East (N. Virginia)')]
+        )
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert result['Recommendations'][0]['RecommendationDetails'] == []
+        assert MEMBER in result['warning']
+        assert 'm5.large' in result['warning'] and 'us-east-2' in result['warning']
+
+    async def test_ri_no_match_warning_mentions_unread_pages(self, mock_context):
+        """A no-match warning says when Cost Explorer has more pages."""
+        ce = MagicMock()
+        response: Dict[str, Any] = _ri_response(
+            [_ri_row(PAYER, 'c5.large', 'US East (N. Virginia)')]
+        )
+        response['NextPageToken'] = 'token'
+        ce.get_reservation_purchase_recommendation.return_value = response
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert 'later page' in result['warning']
+
+    async def test_ri_newer_europe_region_name_matches(self, mock_context):
+        """Newer European Regions keep the 'Europe (...)' name."""
+        target = _ri_row(MEMBER, 'm5.large', 'Europe (Zurich)')
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response([target])
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(region='eu-central-2'), ce)
+
+        assert result['Recommendations'][0]['RecommendationDetails'] == [target]
+
+    async def test_ri_row_without_instance_details_is_dropped(self, mock_context):
+        """A row with no EC2InstanceDetails cannot match an EC2 recommendation."""
+        target = _ri_row(MEMBER, 'm5.large', 'US East (Ohio)')
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(
+            [{'AccountId': MEMBER}, target]
+        )
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert result['Recommendations'][0]['RecommendationDetails'] == [target]
+
+    async def test_linked_rec_without_account_id_is_not_narrowed(self, mock_context):
+        """With no accountId, a Linked call sends no account filter and keeps every account."""
+        rec = _sp_rec()
+        del rec['accountId']
+        ce = MagicMock()
+        ce.get_savings_plans_purchase_recommendation.return_value = _sp_response([PAYER, MEMBER])
+
+        result = await _ce_data(mock_context, rec, ce)
+
+        kwargs = ce.get_savings_plans_purchase_recommendation.call_args[1]
+        assert kwargs['AccountScope'] == 'LINKED' and 'Filter' not in kwargs
+        assert len(result['SavingsPlansPurchaseRecommendationDetails']) == 2
+
+    async def test_sp_linked_call_carries_account_filter(self, mock_context):
+        """A Linked SP call is narrowed to the recommendation's account with LINKED_ACCOUNT."""
+        ce = MagicMock()
+        ce.get_savings_plans_purchase_recommendation.return_value = _sp_response([MEMBER])
+
+        result = await _ce_data(mock_context, _sp_rec(), ce)
+
+        kwargs = ce.get_savings_plans_purchase_recommendation.call_args[1]
+        assert kwargs['AccountScope'] == 'LINKED'
+        assert kwargs['Filter'] == {'Dimensions': {'Key': 'LINKED_ACCOUNT', 'Values': [MEMBER]}}
+        assert 'AccountId' not in kwargs
+        assert 'warning' not in result
+
+    async def test_sp_rows_filtered_to_account(self, mock_context):
+        """SP rows for any other account are dropped."""
+        ce = MagicMock()
+        ce.get_savings_plans_purchase_recommendation.return_value = _sp_response([PAYER, MEMBER])
+
+        result = await _ce_data(mock_context, _sp_rec(), ce)
+
+        rows = result['SavingsPlansPurchaseRecommendationDetails']
+        assert [r['AccountId'] for r in rows] == [MEMBER]
+
+    async def test_sp_payer_call_has_no_account_filter(self, mock_context):
+        """A Payer SP call keeps the payer-wide scope."""
+        ce = MagicMock()
+        ce.get_savings_plans_purchase_recommendation.return_value = _sp_response([PAYER])
+
+        result = await _ce_data(mock_context, _sp_rec('Payer', PAYER), ce)
+
+        kwargs = ce.get_savings_plans_purchase_recommendation.call_args[1]
+        assert kwargs['AccountScope'] == 'PAYER'
+        assert 'Filter' not in kwargs
+        assert [r['AccountId'] for r in result['SavingsPlansPurchaseRecommendationDetails']] == [
+            PAYER
+        ]
+
+    async def test_sp_no_matching_row_is_reported(self, mock_context):
+        """An SP answer with no row for the account says so."""
+        ce = MagicMock()
+        ce.get_savings_plans_purchase_recommendation.return_value = _sp_response([])
+
+        result = await _ce_data(mock_context, _sp_rec(), ce)
+
+        assert result['SavingsPlansPurchaseRecommendationDetails'] == []
+        assert MEMBER in result['warning']
+
+    async def test_sp_no_match_warning_mentions_unread_pages(self, mock_context):
+        """The SP NextPageToken is a top-level response key; it still reaches the warning."""
+        ce = MagicMock()
+        response: Dict[str, Any] = {**_sp_response([PAYER]), 'NextPageToken': 'page-2'}
+        ce.get_savings_plans_purchase_recommendation.return_value = response
+
+        result = await _ce_data(mock_context, _sp_rec(), ce)
+
+        assert result['NextPageToken'] == 'page-2'
+        assert 'Only the first page was read' in result['warning']
+
+    async def test_non_ec2_ri_rows_are_noted_as_not_matched_on_type_or_region(self, mock_context):
+        """Non-EC2 RI rows can span other instance types and regions, and the note says so."""
+        rec = _ec2_ri_rec('Payer', PAYER)
+        rec['recommendedResourceDetails'] = {
+            'rdsReservedInstances': {
+                'configuration': {
+                    'accountScope': 'Payer',
+                    'term': 'OneYear',
+                    'paymentOption': 'AllUpfront',
+                    'instanceType': 'db.r6g.large',
+                    'reservedInstancesRegion': 'us-east-2',
+                }
+            }
+        }
+        rows = [
+            {'AccountId': PAYER, 'InstanceDetails': {'RDSInstanceDetails': {'InstanceType': t}}}
+            for t in ('db.r6g.large', 'db.t4g.micro')
+        ]
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(rows, 'Payer')
+
+        result = await _ce_data(mock_context, rec, ce)
+
+        assert result['Recommendations'][0]['RecommendationDetails'] == rows
+        assert 'not matched on instance type or region' in result['note']
+        assert 'DynamoDB: ReservedCapacityDetails' in result['note']
+        assert 'warning' not in result
+
+    async def test_non_ec2_ri_note_follows_the_dropped_rows_note(self, mock_context):
+        """A Linked non-EC2 RI note counts the dropped rows and says the rest are unmatched."""
+        rec = _ec2_ri_rec()
+        rec['recommendedResourceDetails'] = {
+            'rdsReservedInstances': {
+                'configuration': {
+                    'accountScope': 'Linked',
+                    'term': 'OneYear',
+                    'paymentOption': 'AllUpfront',
+                }
+            }
+        }
+        rows = [
+            {'AccountId': a, 'InstanceDetails': {'RDSInstanceDetails': {}}}
+            for a in (MEMBER, PAYER)
+        ]
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(rows)
+
+        result = await _ce_data(mock_context, rec, ce)
+
+        assert result['note'].startswith('RecommendationDetails keeps only the 1 row(s)')
+        assert result['note'].endswith("match the recommendation's configuration.")
+
+    async def test_ri_unknown_region_name_keeps_rows_and_says_so(self, mock_context):
+        """A row whose Region name is no known Region's is kept, and the note names it."""
+        ce = MagicMock()
+        row = _ri_row(MEMBER, 'm5.large', 'US East Ohio')
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(
+            [row, _ri_row(MEMBER, 't3.nano', 'US East Ohio')]
+        )
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert result['Recommendations'][0]['RecommendationDetails'] == [row]
+        assert 'warning' not in result
+        assert (
+            'not a known Region (US East Ohio) were kept, not matched to us-east-2'
+            in (result['note'])
+        )
+
+    async def test_ri_row_for_another_known_region_is_still_dropped(self, mock_context):
+        """A row for a different, known Region is dropped, so a stale rec still gets the warning."""
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(
+            [_ri_row(MEMBER, 'm5.large', 'US East (N. Virginia)')]
+        )
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert result['Recommendations'][0]['RecommendationDetails'] == []
+        assert 'region us-east-2' in result['warning']
+        assert 'note' not in result
+
+    async def test_ri_unknown_region_name_with_other_type_is_still_reported(self, mock_context):
+        """The unknown-name rule does not override the instance type match."""
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = _ri_response(
+            [_ri_row(MEMBER, 't3.nano', 'US East Ohio')]
+        )
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert 'instance type m5.large, region us-east-2' in result['warning']
+        assert 'note' not in result
+
+    async def test_ri_page_hint_when_rows_kept_and_none_dropped(self, mock_context):
+        """A kept row with more pages unread still gets the page hint."""
+        ce = MagicMock()
+        rows = [_ri_row(MEMBER, 'm5.large', 'US East (Ohio)')]
+        response: Dict[str, Any] = {**_ri_response(rows), 'NextPageToken': 'page-2'}
+        ce.get_reservation_purchase_recommendation.return_value = response
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert result['note'] == 'Later pages, which this tool cannot fetch, were not read.'
+
+    async def test_ri_dropped_rows_note_mentions_unread_pages(self, mock_context):
+        """When rows were kept and more pages exist, the note says later pages were not read."""
+        ce = MagicMock()
+        rows = [
+            _ri_row(MEMBER, 'm5.large', 'US East (Ohio)'),
+            _ri_row(MEMBER, 't3.nano', 'US East (Ohio)'),
+        ]
+        response: Dict[str, Any] = {**_ri_response(rows), 'NextPageToken': 'page-2'}
+        ce.get_reservation_purchase_recommendation.return_value = response
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert result['note'].endswith('Later pages, which this tool cannot fetch, were not read.')
+
+    async def test_ri_empty_recommendations_are_reported(self, mock_context):
+        """An RI answer with no recommendation at all carries the no-row warning."""
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.return_value = {'Recommendations': []}
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert 'returned no RecommendationDetails row' in result['warning']
+        assert 'note' not in result
+
+    async def test_error_results_pass_through_unscoped(self, mock_context):
+        """An error from the lookup is returned unchanged."""
+        ce = MagicMock()
+        ce.get_reservation_purchase_recommendation.side_effect = Exception('boom')
+
+        result = await _ce_data(mock_context, _ec2_ri_rec(), ce)
+
+        assert set(result) == {'error'}
+
+
+async def test_rec_details_description_states_commitment_scope():
+    """The served description says which rows are kept and what the summaries cover."""
+    tools = {t.name: t for t in await recommendation_details_server.list_tools()}
+    description = ' '.join((tools['rec-details'].description or '').split())
+
+    assert "keep only the rows for the recommendation's own account" in description
+    assert 'The summary is not recomputed from the kept rows' in description
+    assert 'It may list several instance types and regions' not in description
+    assert 'Non-EC2 RI rows are not matched on instance type or region' in description
+    assert 'whose Region name is not a known Region is kept and the note names it' in description
+
+
+def test_offering_class_enum_matches_botocore_model():
+    """Pin Cost Explorer's OfferingClass spelling, which differs from Cost Optimization Hub's."""
+    assert set(_ce_model().shape_for('OfferingClass').enum) == {'STANDARD', 'CONVERTIBLE'}
+
+
+# Commitment configurations in the shape Cost Optimization Hub returns them (field names and
+# enum spellings from live responses; amounts are synthetic, sizing fields trimmed).
+# COH spells the three-year term 'ThreeYears'.
+COH_SP_THREE_YEAR = {
+    'actionType': 'PurchaseSavingsPlans',
+    'recommendationLookbackPeriodInDays': 30,
+    'recommendedResourceDetails': {
+        'computeSavingsPlans': {
+            'configuration': {
+                'accountScope': 'Linked',
+                'term': 'ThreeYears',
+                'paymentOption': 'AllUpfront',
+                'hourlyCommitment': '0.50',
+            }
+        }
+    },
+}
+COH_RDS_RI_THREE_YEAR = {
+    'actionType': 'PurchaseReservedInstances',
+    'recommendationLookbackPeriodInDays': 30,
+    'recommendedResourceDetails': {
+        'rdsReservedInstances': {
+            'configuration': {
+                'accountScope': 'Linked',
+                'service': 'Amazon Relational Database Service',
+                'term': 'ThreeYears',
+                'paymentOption': 'AllUpfront',
+                'instanceType': 'db.r6g.large',
+                'databaseEngine': 'Aurora PostgreSQL',
+            }
+        }
+    },
+}
+COH_DYNAMODB_RC_THREE_YEAR = {
+    'actionType': 'PurchaseReservedInstances',
+    'recommendationLookbackPeriodInDays': 30,
+    'recommendedResourceDetails': {
+        'dynamoDbReservedCapacity': {
+            'configuration': {
+                'accountScope': 'Linked',
+                'service': 'Amazon DynamoDB Service',
+                'term': 'ThreeYears',
+                'paymentOption': 'PartialUpfront',
+                'capacityUnits': 'Write',
+            }
+        }
+    },
+}
+COH_EC2_RI_ONE_YEAR = {
+    'actionType': 'PurchaseReservedInstances',
+    'recommendationLookbackPeriodInDays': 30,
+    'recommendedResourceDetails': {
+        'ec2ReservedInstances': {
+            'configuration': {
+                'accountScope': 'Linked',
+                'service': 'Amazon Elastic Compute Cloud - Compute',
+                'term': 'OneYear',
+                'paymentOption': 'AllUpfront',
+                'offeringClass': 'Standard',
+                'instanceType': 'm5.large',
+            }
+        }
+    },
+}
+COH_SP_ONE_YEAR = {
+    'actionType': 'PurchaseSavingsPlans',
+    'recommendationLookbackPeriodInDays': 30,
+    'recommendedResourceDetails': {
+        'computeSavingsPlans': {
+            'configuration': {
+                'accountScope': 'Linked',
+                'term': 'OneYear',
+                'paymentOption': 'AllUpfront',
+                'hourlyCommitment': '1.00',
+            }
+        }
+    },
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'recommendation, term, payment_option',
+    [
+        (COH_SP_THREE_YEAR, 'THREE_YEARS', 'ALL_UPFRONT'),
+        (COH_SP_ONE_YEAR, 'ONE_YEAR', 'ALL_UPFRONT'),
+    ],
+)
+async def test_savings_plans_coh_terms_reach_cost_explorer(
+    mock_context, mock_ce_client, recommendation, term, payment_option
+):
+    """A Savings Plans recommendation of either COH term is looked up in Cost Explorer."""
+    result = await get_savings_plans_recommendation(mock_context, recommendation, mock_ce_client)
+
+    assert 'error' not in result
+    call_kwargs = mock_ce_client.get_savings_plans_purchase_recommendation.call_args[1]
+    assert call_kwargs['SavingsPlansType'] == 'COMPUTE_SP'
+    assert call_kwargs['TermInYears'] == term
+    assert call_kwargs['PaymentOption'] == payment_option
+    assert call_kwargs['AccountScope'] == 'LINKED'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'recommendation, service, term, payment_option',
+    [
+        (
+            COH_RDS_RI_THREE_YEAR,
+            'Amazon Relational Database Service',
+            'THREE_YEARS',
+            'ALL_UPFRONT',
+        ),
+        # DynamoDB reserved capacity's PartialUpfront is HEAVY_UTILIZATION in Cost Explorer.
+        (
+            COH_DYNAMODB_RC_THREE_YEAR,
+            'Amazon DynamoDB Service',
+            'THREE_YEARS',
+            'HEAVY_UTILIZATION',
+        ),
+        (COH_EC2_RI_ONE_YEAR, 'Amazon Elastic Compute Cloud - Compute', 'ONE_YEAR', 'ALL_UPFRONT'),
+    ],
+)
+async def test_reserved_instances_coh_terms_reach_cost_explorer(
+    mock_context, mock_ce_client, recommendation, service, term, payment_option
+):
+    """A reservation recommendation of either COH term is looked up in Cost Explorer."""
+    result = await get_reserved_instances_recommendation(
+        mock_context, recommendation, mock_ce_client
+    )
+
+    assert 'error' not in result
+    call_kwargs = mock_ce_client.get_reservation_purchase_recommendation.call_args[1]
+    assert call_kwargs['Service'] == service
+    assert call_kwargs['TermInYears'] == term
+    assert call_kwargs['PaymentOption'] == payment_option
+
+
+def test_term_map_accepts_legacy_three_year_spelling():
+    """The singular 'ThreeYear' spelling still maps, in case a payload uses it."""
+    assert TERM_MAP['ThreeYear'] == 'THREE_YEARS'
+
+
+@pytest.mark.parametrize(
+    'coh_map, coh_enum, ce_enum',
+    [
+        (TERM_MAP, 'Term', 'TermInYears'),
+        (PAYMENT_OPTION_MAP, 'PaymentOption', 'PaymentOption'),
+    ],
+)
+def test_coh_commitment_enums_map_to_cost_explorer_values(coh_map, coh_enum, ce_enum):
+    """Every COH term and payment option value maps to a value Cost Explorer accepts."""
+    coh = botocore.session.get_session().get_service_model('cost-optimization-hub')
+
+    assert set(coh.shape_for(coh_enum).enum) - set(coh_map) == set()
+    assert set(coh_map.values()) - set(_ce_model().shape_for(ce_enum).enum) == set()
+
+
+def test_account_scope_map_values_are_cost_explorer_values():
+    """The account scope map only produces values Cost Explorer accepts."""
+    assert set(ACCOUNT_SCOPE_MAP.values()) <= set(_ce_model().shape_for('AccountScope').enum)
+
+
+@pytest.mark.asyncio
+@patch(
+    'awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools.create_aws_client'
+)
+async def test_process_recommendation_warns_when_purchase_details_are_missing(
+    mock_create_aws_client, mock_context, mock_ce_client
+):
+    """A skipped Cost Explorer lookup leads the response with a warning, not a buried error."""
+    mock_create_aws_client.return_value = mock_ce_client
+    recommendation = {
+        'actionType': 'PurchaseSavingsPlans',
+        'recommendedResourceDetails': {
+            'computeSavingsPlans': {'configuration': {'term': 'TenYears'}}
+        },
+    }
+
+    result = await process_recommendation(mock_context, recommendation)
+
+    assert list(result)[0] == 'warning'
+    assert 'has no Cost Explorer purchase recommendation;' in result['warning']
+    assert 'additional_details.error says why' in result['warning']
+    assert 'base_recommendation' in result
+    assert 'Missing required parameters' in result['additional_details']['error']
+    mock_ce_client.get_savings_plans_purchase_recommendation.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch(
+    'awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools.create_aws_client'
+)
+async def test_process_recommendation_three_year_has_no_warning(
+    mock_create_aws_client, mock_context, mock_ce_client
+):
+    """A three-year recommendation returns Cost Explorer purchase details and no warning."""
+    mock_create_aws_client.return_value = mock_ce_client
+
+    result = await process_recommendation(mock_context, COH_SP_THREE_YEAR)
+
+    assert 'warning' not in result
+    assert 'SavingsPlansPurchaseRecommendationSummary' in result['additional_details']
+
+
+@pytest.mark.asyncio
+@patch(
+    'awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools.create_aws_client'
+)
+async def test_process_recommendation_warns_when_compute_optimizer_fails(
+    mock_create_aws_client, mock_context
+):
+    """Missing Compute Optimizer details also lead the response with a warning."""
+    recommendation = {'actionType': 'Rightsize', 'currentResourceType': 'Ec2Instance'}
+
+    result = await process_recommendation(mock_context, recommendation)
+
+    assert list(result)[0] == 'warning'
+    assert 'has no Compute Optimizer details;' in result['warning']
+    assert 'No resource ARN found' in result['additional_details']['error']
+    mock_create_aws_client.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_process_recommendation_warns_on_unsupported_resource_type(mock_context):
+    """A skipped Compute Optimizer lookup (unsupported resource type) also leads with a warning."""
+    recommendation = {
+        'actionType': 'Rightsize',
+        'currentResourceType': 'SomeNewResource',
+        'resourceArn': 'arn:aws:ec2:us-east-1:123456789012:instance/i-0abc',
+    }
+
+    with patch.object(recommendation_details_tools, 'create_aws_client', return_value=MagicMock()):
+        result = await process_recommendation(mock_context, recommendation)
+
+    assert list(result)[0] == 'warning'
+    assert 'has no Compute Optimizer details;' in result['warning']
+    assert result['additional_details'] == {'error': 'Unsupported resource type: SomeNewResource'}
+
+
+@pytest.mark.asyncio
+async def test_process_recommendation_empty_lookup_has_no_warning(mock_context):
+    """A lookup that runs but finds nothing returns its empty result and no warning."""
+    client = MagicMock()
+    # Compute Optimizer's shape for an ARN it has no recommendation for.
+    client.get_ec2_instance_recommendations.return_value = {
+        'instanceRecommendations': [],
+        'errors': [],
+    }
+    recommendation = {
+        'actionType': 'Rightsize',
+        'currentResourceType': 'Ec2Instance',
+        'resourceArn': 'arn:aws:ec2:us-east-1:123456789012:instance/i-0abc',
+    }
+
+    with patch.object(recommendation_details_tools, 'create_aws_client', return_value=client):
+        result = await process_recommendation(mock_context, recommendation)
+
+    assert 'warning' not in result
+    assert result['additional_details'] == {'instanceRecommendations': [], 'errors': []}
+
+
+@pytest.mark.asyncio
+async def test_process_recommendation_commitment_no_match_warns_only_inside_details(mock_context):
+    """A commitment lookup whose rows are all for another account warns inside additional_details."""
+    ce = MagicMock()
+    ce.get_savings_plans_purchase_recommendation.return_value = _sp_response([PAYER])
+
+    with patch.object(recommendation_details_tools, 'create_aws_client', return_value=ce):
+        result = await process_recommendation(mock_context, _sp_rec())
+
+    assert 'warning' not in result
+    assert (
+        'returned no SavingsPlansPurchaseRecommendationDetails row'
+        in (result['additional_details']['warning'])
+    )
+
+
+@pytest.mark.asyncio
+async def test_rec_details_description_documents_lookup_warning():
+    """The served description says missing details lead with a warning."""
+    tools = {t.name: t for t in await recommendation_details_server.list_tools()}
+    description = tools['rec-details'].description or ''
+
+    assert 'lookup fails or is skipped' in description
+    assert 'the response leads with a warning' in description
+    assert 'base_recommendation is still valid' in description
+    # Commitment lookups add their own additional_details.warning when no row matches.
+    assert 'returns empty results and no response-level warning' in description
+    assert 'details are unavailable' not in description
 
 
 _RESPONSE_METADATA = {'RequestId': 'req-1', 'HTTPStatusCode': 200, 'HTTPHeaders': {}}

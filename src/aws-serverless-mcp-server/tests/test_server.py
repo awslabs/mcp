@@ -123,7 +123,7 @@ class TestServer:
         assert result == 0
 
         # Verify directories are created
-        mock_makedirs.assert_called_once_with(DEPLOYMENT_STATUS_DIR, exist_ok=True)
+        mock_makedirs.assert_called_once_with(DEPLOYMENT_STATUS_DIR, mode=0o700, exist_ok=True)
 
         # Verify logger is configured
         mock_logger.remove.assert_called_once()

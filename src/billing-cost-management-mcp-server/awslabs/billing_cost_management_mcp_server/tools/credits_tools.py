@@ -22,6 +22,7 @@ response field.
 """
 
 from ..utilities.aws_service_base import format_response
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .credits_operations import get_credit_allocation_history as _get_credit_allocation_history
 from .credits_operations import get_credits as _get_credits
 from fastmcp import Context, FastMCP
@@ -136,7 +137,9 @@ async def _credits(
    Optional:
      - account_id: as above.
      - credit_id: restrict the ledger to one credit. Pass the `creditId` string from get_credits unchanged; the tool converts it to the numeric type this API requires.
-     - max_items: total ledger rows returned. Omit it to fetch every page (no limit). Pass it, or narrow the window (billing_period, credit_id), when the ledger can be large.
+     - max_items: total ledger rows returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow the window (billing_period, credit_id), when the ledger can be large.
      - next_token: the `pagination.next_token` from a previous allocation-history response, to continue where it stopped. Send every other parameter unchanged, and continue within the same billing month: the token is a position in a newest-first list of bills, so once a new month's bill appears the positions shift. After a month boundary, call again without next_token.
    Returns: `data.credit_allocation_history`, sorted by billingMonth descending, a list where each item contains creditId, creditAmount {currencyCode, currencyAmount} where a negative value means the credit reduced that bill, description, accountId, appliedServiceName, billingMonth (YYYY-MM), and isEstimatedBill (true when the entry applied to an in-flight bill that is not yet finalized).
    Also returns `data.completeness`, `data.time_range` and `data.pagination`, all of which must be read before summarizing (see below).

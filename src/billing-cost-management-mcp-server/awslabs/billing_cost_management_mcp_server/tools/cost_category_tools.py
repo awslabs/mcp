@@ -30,6 +30,7 @@ from ..utilities.aws_service_base import (
     validate_date_format,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
 
@@ -185,8 +186,9 @@ You can filter with:
   "billingview" or "billing:", fails with ValidationException.
 
 Pagination:
-- max_items: total number of cost categories returned. Omit it to fetch every page
-  (no limit).
+- max_items: total number of cost categories returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result.
 - If the result has complete_dataset: false, it is partial: call again with a larger
   max_items, continue with next_token, or say the result is partial.
 

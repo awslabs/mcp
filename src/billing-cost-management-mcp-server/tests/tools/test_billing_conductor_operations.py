@@ -19,6 +19,7 @@ import inspect
 import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operations import (
+    MARGIN_NOTE,
     _format_billing_group_cost_report_results,
     _format_billing_group_cost_reports,
     _format_billing_groups,
@@ -27,6 +28,7 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operatio
     _format_linked_accounts,
     _format_pricing_plans,
     _format_pricing_rules,
+    _plain_decimal,
     get_billing_group_cost_report,
     get_billing_transfer_preference,
     list_account_associations,
@@ -42,6 +44,7 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operatio
 )
 from botocore.exceptions import ClientError
 from botocore.stub import Stubber
+from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -1215,16 +1218,16 @@ def sample_cost_reports():
             'Arn': BILLING_GROUP_ARN_1,
             'AWSCost': '1000.00',
             'ProformaCost': '900.00',
-            'Margin': '100.00',
-            'MarginPercentage': '10.0',
+            'Margin': '-100.00',
+            'MarginPercentage': '-0.1',
             'Currency': 'USD',
         },
         {
             'Arn': BILLING_GROUP_ARN_2,
             'AWSCost': '500.00',
             'ProformaCost': '475.00',
-            'Margin': '25.00',
-            'MarginPercentage': '5.0',
+            'Margin': '-25.00',
+            'MarginPercentage': '-0.05',
             'Currency': 'USD',
         },
     ]
@@ -1238,8 +1241,8 @@ def sample_cost_report_results():
             'Arn': BILLING_GROUP_ARN_1,
             'AWSCost': '200.00',
             'ProformaCost': '180.00',
-            'Margin': '20.00',
-            'MarginPercentage': '10.0',
+            'Margin': '-20.00',
+            'MarginPercentage': '-0.1',
             'Currency': 'USD',
             'Attributes': [
                 {'Key': 'PRODUCT_NAME', 'Value': 'Amazon S3'},
@@ -1249,8 +1252,8 @@ def sample_cost_report_results():
             'Arn': BILLING_GROUP_ARN_1,
             'AWSCost': '800.00',
             'ProformaCost': '720.00',
-            'Margin': '80.00',
-            'MarginPercentage': '10.0',
+            'Margin': '-80.00',
+            'MarginPercentage': '-0.1',
             'Currency': 'USD',
             'Attributes': [
                 {'Key': 'PRODUCT_NAME', 'Value': 'Amazon EC2'},
@@ -1278,9 +1281,68 @@ class TestFormatBillingGroupCostReports:
         assert result[0]['arn'] == BILLING_GROUP_ARN_1
         assert result[0]['aws_cost'] == '1000.00'
         assert result[0]['proforma_cost'] == '900.00'
-        assert result[0]['margin'] == '100.00'
-        assert result[0]['margin_percentage'] == '10.0'
+        assert result[0]['margin'] == '-100.00'
+        assert result[0]['margin_percentage'] == '-0.1'
         assert result[0]['currency'] == 'USD'
+
+
+class TestPlainDecimalAmounts:
+    """Tests for _plain_decimal and the decimal_values field on cost report rows."""
+
+    @pytest.mark.parametrize(
+        'value,expected',
+        [
+            ('5.0E-7', '0.00000050'),
+            ('-1.2345678E7', '-12345678'),
+            ('1.0E-6', '0.0000010'),
+            ('-12.340000000000003', '-12.340000000000003'),
+            ('0.0', '0.0'),
+            ('-0.0', '-0.0'),
+            ('100', '100'),
+            (None, None),
+            ('', None),
+            (0.0, None),
+            ('not-a-number', None),
+            ('NaN', None),
+            ('Infinity', None),
+        ],
+    )
+    def test_plain_decimal_keeps_every_digit_and_never_exponent(self, value, expected):
+        """Exponent strings become exact plain decimals; digits are never rounded."""
+        assert _plain_decimal(value) == expected
+
+    def test_cost_report_row_adds_decimal_values_and_keeps_raw_strings(self):
+        """The raw service strings are unchanged; decimal_values adds the plain-notation copies."""
+        row = {
+            'Arn': BILLING_GROUP_ARN_1,
+            'AWSCost': '5.0E-7',
+            'ProformaCost': '4.0E-7',
+            'Margin': '-1.0000000000000002E-7',
+            'MarginPercentage': '-0.20000000000000004',
+            'Currency': 'USD',
+        }
+        for formatted in (
+            _format_billing_group_cost_reports([row])[0],
+            _format_billing_group_cost_report_results([row])[0],
+        ):
+            assert formatted['aws_cost'] == '5.0E-7'
+            assert formatted['margin'] == '-1.0000000000000002E-7'
+            assert formatted['decimal_values'] == {
+                'aws_cost': '0.00000050',
+                'proforma_cost': '0.00000040',
+                'margin': '-0.00000010000000000000002',
+                'margin_percentage': '-0.20000000000000004',
+            }
+
+    def test_cost_report_row_decimal_values_none_for_missing_amounts(self):
+        """A missing amount stays None in decimal_values instead of failing the row."""
+        formatted = _format_billing_group_cost_reports([{'Arn': BILLING_GROUP_ARN_1}])[0]
+        assert formatted['decimal_values'] == {
+            'aws_cost': None,
+            'proforma_cost': None,
+            'margin': None,
+            'margin_percentage': None,
+        }
 
 
 class TestFormatBillingGroupCostReportResults:
@@ -1309,8 +1371,8 @@ class TestFormatBillingGroupCostReportResults:
                 'Arn': BILLING_GROUP_ARN_1,
                 'AWSCost': '100.00',
                 'ProformaCost': '90.00',
-                'Margin': '10.00',
-                'MarginPercentage': '10.0',
+                'Margin': '-10.00',
+                'MarginPercentage': '-0.1',
                 'Currency': 'USD',
             }
         ]
@@ -1318,6 +1380,14 @@ class TestFormatBillingGroupCostReportResults:
 
         assert len(result) == 1
         assert 'attributes' not in result[0]
+
+
+def test_margin_note_states_sign_and_unit():
+    """The response note gives the margin formula and says margin_percentage is a fraction."""
+    assert 'margin = proforma_cost - aws_cost' in MARGIN_NOTE
+    assert 'margin_percentage = margin / aws_cost as a fraction, not a percent' in MARGIN_NOTE
+    assert '-0.25 means -25%' in MARGIN_NOTE
+    assert 'it is 0.0 when aws_cost is 0' in MARGIN_NOTE
 
 
 # --- List Billing Group Cost Reports Operation Tests ---
@@ -1343,6 +1413,7 @@ class TestListBillingGroupCostReports:
         assert result['status'] == STATUS_SUCCESS
         assert result['data']['pagination']['items_returned'] == 2
         assert len(result['data']['billing_group_cost_reports']) == 2
+        assert result['data']['margin_note'] == MARGIN_NOTE
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_cost_reports_with_billing_period(
@@ -1416,6 +1487,7 @@ class TestListBillingGroupCostReports:
 
         assert result['status'] == STATUS_SUCCESS
         assert result['data']['pagination']['items_returned'] == 0
+        assert 'margin_note' not in result['data']
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_cost_reports_aws_error(self, mock_create_client, mock_ctx):
@@ -1456,6 +1528,23 @@ class TestGetBillingGroupCostReport:
         assert result['status'] == STATUS_SUCCESS
         assert result['data']['pagination']['items_returned'] == 2
         assert result['data']['arn'] == BILLING_GROUP_ARN_1
+        assert result['data']['margin_note'] == MARGIN_NOTE
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_get_cost_report_empty_result_has_no_margin_note(
+        self, mock_create_client, mock_ctx
+    ):
+        """No rows means no margin to read, so the note is left out."""
+        mock_client = MagicMock()
+        mock_client.get_billing_group_cost_report.return_value = {
+            'BillingGroupCostReportResults': [],
+        }
+        mock_create_client.return_value = mock_client
+
+        result = await get_billing_group_cost_report(mock_ctx, BILLING_GROUP_ARN_1)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert 'margin_note' not in result['data']
 
     @patch(PATCH_BC_CLIENT)
     async def test_get_cost_report_with_group_by(
@@ -2277,3 +2366,193 @@ class TestConductorPaginationContract:
         assert result['data']['billing_period'] == '2025-02'
         assert result['data']['pricing_plan_arn'] == PRICING_PLAN_ARN_2
         assert len(result['data']['pricing_rule_arns']) == 2
+
+
+# --- Future billing periods ---
+
+PATCH_BC_TODAY = (
+    'awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operations._utc_today'
+)
+# Pinned "today" for the future-period tests: the current billing period is 2026-10.
+TODAY = date(2026, 10, 28)
+
+# (operation, AWS method, result key, positional args before billing_period)
+CONFIG_LISTS = [
+    (list_billing_groups, 'list_billing_groups', 'BillingGroups', ()),
+    (list_account_associations, 'list_account_associations', 'LinkedAccounts', ()),
+    (list_custom_line_items, 'list_custom_line_items', 'CustomLineItems', ()),
+    (
+        list_resources_associated_to_custom_line_item,
+        'list_resources_associated_to_custom_line_item',
+        'AssociatedResources',
+        (CUSTOM_LINE_ITEM_ARN_1,),
+    ),
+    (list_pricing_rules, 'list_pricing_rules', 'PricingRules', ()),
+    (list_pricing_plans, 'list_pricing_plans', 'PricingPlans', ()),
+    (
+        list_pricing_rules_associated_to_pricing_plan,
+        'list_pricing_rules_associated_to_pricing_plan',
+        'PricingRuleArns',
+        (PRICING_PLAN_ARN_1,),
+    ),
+    (
+        list_pricing_plans_associated_with_pricing_rule,
+        'list_pricing_plans_associated_with_pricing_rule',
+        'PricingPlanArns',
+        (PRICING_RULE_ARN_1,),
+    ),
+]
+
+
+@pytest.mark.asyncio
+@patch(PATCH_BC_TODAY, return_value=TODAY)
+class TestFutureBillingPeriod:
+    """A billing period after the current UTC month is rejected or flagged."""
+
+    @pytest.mark.parametrize('period', ['2026-11', '2026-12', '2027-1', '2030-01'])
+    @patch(PATCH_BC_CLIENT)
+    async def test_cost_reports_reject_future_month(
+        self, mock_create_client, _today, mock_ctx, period
+    ):
+        """The service returns $0 rows for a future month, so it is refused before any call."""
+        result = await list_billing_group_cost_reports(mock_ctx, period)
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'validation_error'
+        assert f'billing_period {period} is after the current month (2026-10' in result['message']
+        mock_create_client.assert_not_called()
+
+    @pytest.mark.parametrize(
+        'period',
+        [None, '', '2026-10', '2026-9', '2024-01', '2026-13', 'bad', ' 2026-12', '2027-01\n'],
+    )
+    @patch(PATCH_BC_CLIENT)
+    async def test_cost_reports_current_past_or_malformed_reach_aws(
+        self, mock_create_client, _today, mock_ctx, period
+    ):
+        """Current and past months are sent; a malformed one is left to the service to reject."""
+        mock_client = MagicMock()
+        mock_client.list_billing_group_cost_reports.return_value = {'BillingGroupCostReports': []}
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_group_cost_reports(mock_ctx, period)
+
+        assert result['status'] == STATUS_SUCCESS
+        mock_client.list_billing_group_cost_reports.assert_called_once()
+
+    @pytest.mark.parametrize('start,end', [('2026-11', '2026-12'), ('2027-01', '2027-03')])
+    @patch(PATCH_BC_CLIENT)
+    async def test_cost_report_range_starting_in_future_rejected(
+        self, mock_create_client, _today, mock_ctx, start, end
+    ):
+        """A range that starts after the current month returns nothing, so it is refused."""
+        rng = json.dumps({'InclusiveStartBillingPeriod': start, 'ExclusiveEndBillingPeriod': end})
+
+        result = await get_billing_group_cost_report(mock_ctx, BILLING_GROUP_ARN_1, rng)
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'validation_error'
+        assert (
+            f'InclusiveStartBillingPeriod {start} is after the current month'
+            in (result['message'])
+        )
+        mock_create_client.assert_not_called()
+
+    @pytest.mark.parametrize(
+        'rng',
+        [
+            None,
+            {'InclusiveStartBillingPeriod': '2026-10', 'ExclusiveEndBillingPeriod': '2026-11'},
+            {'InclusiveStartBillingPeriod': '2026-09', 'ExclusiveEndBillingPeriod': '2027-01'},
+            {'ExclusiveEndBillingPeriod': '2027-01'},
+            ['2027-01'],
+        ],
+    )
+    @patch(PATCH_BC_CLIENT)
+    async def test_cost_report_range_starting_now_or_earlier_reaches_aws(
+        self, mock_create_client, _today, mock_ctx, rng
+    ):
+        """A range that starts in the current month or earlier is sent unchanged."""
+        mock_client = MagicMock()
+        mock_client.get_billing_group_cost_report.return_value = {
+            'BillingGroupCostReportResults': []
+        }
+        mock_create_client.return_value = mock_client
+
+        result = await get_billing_group_cost_report(
+            mock_ctx, BILLING_GROUP_ARN_1, json.dumps(rng) if rng else None
+        )
+
+        assert result['status'] == STATUS_SUCCESS
+        call_kwargs = mock_client.get_billing_group_cost_report.call_args[1]
+        assert call_kwargs.get('BillingPeriodRange') == rng
+
+    @pytest.mark.parametrize('op,method,key,args', CONFIG_LISTS)
+    @patch(PATCH_BC_CLIENT)
+    async def test_config_lists_flag_future_month(
+        self, mock_create_client, _today, mock_ctx, op, method, key, args
+    ):
+        """A future month is sent, and the result is marked as a projection."""
+        mock_client = MagicMock()
+        getattr(mock_client, method).return_value = {key: []}
+        mock_create_client.return_value = mock_client
+
+        result = await op(mock_ctx, *args, '2026-12')
+
+        assert result['status'] == STATUS_SUCCESS
+        assert getattr(mock_client, method).call_args[1]['BillingPeriod'] == '2026-12'
+        assert result['data']['billing_period_is_future'] is True
+        assert 'is a projection, not a record' in result['data']['billing_period_note']
+
+    @pytest.mark.parametrize('period', [None, '2026-10', '2024-01'])
+    @pytest.mark.parametrize('op,method,key,args', CONFIG_LISTS)
+    @patch(PATCH_BC_CLIENT)
+    async def test_config_lists_current_or_past_not_flagged(
+        self, mock_create_client, _today, mock_ctx, op, method, key, args, period
+    ):
+        """The current month, a past month, or no month carries no future flag."""
+        mock_client = MagicMock()
+        getattr(mock_client, method).return_value = {key: []}
+        mock_create_client.return_value = mock_client
+
+        result = await op(mock_ctx, *args, period)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert 'billing_period_is_future' not in result['data']
+        assert 'billing_period_note' not in result['data']
+
+
+@pytest.mark.parametrize(
+    'today,period,future',
+    [
+        (date(2026, 12, 31), '2027-01', True),
+        (date(2027, 1, 1), '2027-01', False),
+        (date(2027, 1, 1), '2026-12', False),
+        (date(2026, 10, 28), '2026-10', False),
+        (date(2026, 10, 28), '2026-11', True),
+        (date(2026, 10, 28), '2026-13', False),
+        (date(2026, 10, 28), '2026-00', False),
+        (date(2026, 10, 28), None, False),
+    ],
+)
+def test_is_future_billing_period_year_boundary(today, period, future):
+    """The comparison uses year then month; malformed or missing periods are never future."""
+    from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operations import (
+        _is_future_billing_period,
+    )
+
+    with patch(PATCH_BC_TODAY, return_value=today):
+        assert _is_future_billing_period(period) is future
+
+
+def test_utc_today_reads_the_utc_date():
+    """Today is the UTC date: 23:30 UTC on Oct 31 is still October wherever the host is."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        billing_conductor_operations as bco,
+    )
+
+    utc_now = datetime(2026, 10, 31, 23, 30, tzinfo=timezone.utc)
+    with patch.object(bco, 'datetime') as mock_datetime:
+        mock_datetime.now.side_effect = lambda tz=None: utc_now.astimezone(tz)
+        assert bco._current_billing_period() == '2026-10'
+        mock_datetime.now.assert_called_with(timezone.utc)

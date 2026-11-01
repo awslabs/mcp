@@ -128,7 +128,7 @@ async def _business_support(
 2) list_subscription_history - the Business Support subscription contract history
    Required: operation="list_subscription_history". Everything else is optional.
    Optional:
-     - billing_month: a single calendar month "YYYY-MM" to scope the history to contracts in effect that month. When omitted, the API defaults to the CURRENT month, not the full history; to cover several months pass start_date/end_date. Same 2024-01 and future-month bounds as above, applied only when supplied.
+     - billing_month: a single calendar month "YYYY-MM" to scope the history to contracts in effect that month. When omitted, the API defaults to the CURRENT month (UTC), not the full history; to cover several months pass start_date/end_date. A month with no Business Support data returns a not_found error, not an empty list. Same 2024-01 and future-month bounds as above, applied only when supplied.
      - account_id: a 12-digit AWS account number to filter to one account. Same omit-means-no-filter rule as above.
      - start_date, end_date: ISO-8601 dates or timestamps bounding the contract window (e.g. "2025-01-01" or "2025-01-01T00:00:00Z"). They are validated locally (format, and start_date on or before end_date) and then sent as given.
      - max_items, next_token: paging, as above.
@@ -136,7 +136,7 @@ async def _business_support(
    Returns: `data.subscription_contracts`, a list where each item contains:
      - accountId: the account the contract belongs to.
      - planName: the Support plan for the contract: AWSSupportBusiness (Business), AWSSupportDeveloper (Developer) or AWSSupportEssential (Basic). Report it verbatim.
-     - contractStartDate, contractEndDate: the start and end of the contract term (normalized from timestamps). Both are required by the API, so both are always present.
+     - contractStartDate, contractEndDate: the contract period as recorded for that billing month (normalized from timestamps). It can be just that month, giving one row per month, and a contract spanning several months can appear in each month's result. When combining months, drop duplicate rows and merge back-to-back rows for the same account and plan before reporting a contract term. The API model marks both as required.
    Also returns `data.pagination`.
 
 ## READING THE RESPONSE CORRECTLY

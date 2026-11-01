@@ -12,57 +12,63 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from .decorator import finops_prompt
 from fastmcp.prompts import Message
-from typing import List
+from typing import Dict, List
 
 
 @finops_prompt(
     name='analyze_graviton_opportunities',
-    description='Analyzes EC2 instances and identifies opportunities to migrate to AWS Graviton processors',
+    description=(
+        'Analyzes EC2 instances and other compute resources and identifies opportunities to '
+        'migrate to AWS Graviton processors'
+    ),
     tags={'cost-optimization', 'ec2', 'graviton'},
 )
-def graviton_migration_analysis(
-    account_ids: str, lookback_days: int = 14, region: str = ''
-) -> List[Message]:  # type: ignore
+def graviton_migration_analysis(account_ids: str, region: str = '') -> List[Message]:  # type: ignore
     """Creates a structured conversation to guide the LLM through analyzing Graviton migration opportunities.
 
     Args:
         account_ids: AWS account ID(s) to analyze (comma-separated if multiple)
-        lookback_days: Number of days to look back for usage data (default: 14)
         region: Optional AWS region to focus on (default: all regions)
 
     Returns:
         List[Message]: A list of messages forming the prompt conversation
     """
-    # Convert comma-separated account IDs to a list for display
-    account_id_list = [aid.strip() for aid in account_ids.split(',')]
+    account_id_list = [aid.strip() for aid in account_ids.split(',') if aid.strip()]
+    coh_filters: Dict[str, List[str]] = {'actionTypes': ['MigrateToGraviton']}
+    if account_id_list:
+        coh_filters['accountIds'] = account_id_list
+    if region:
+        coh_filters['regions'] = [region]
+    filters = json.dumps(coh_filters)
+    order_by = json.dumps({'dimension': 'EstimatedMonthlySavings', 'order': 'Desc'})
+    arm64 = json.dumps(['AWS_ARM64'])
 
     messages = [
         Message(
-            f"""I need to identify opportunities to migrate EC2 instances to AWS Graviton processors for cost savings.
+            f"""I need to identify opportunities to migrate to AWS Graviton (ARM64) processors for cost savings.
 
 Please analyze the following AWS account(s): {', '.join(account_id_list)}
-Lookback period for cost analysis: {lookback_days} days
 {f'Focus on region: {region}' if region else 'Analyze all regions'}
 
 Follow these steps:
-1. Use compute_optimizer_get_ec2_instance_recommendations to retrieve instance recommendations
-2. Filter the results to find instances with Graviton alternatives (look for m6g, c6g, r6g, etc. in recommendationOptions)
-3. For each candidate instance:
-   - Look at the potential monthly and annual savings
-   - Assess migration complexity based on instance type and usage patterns
-   - Note any compatibility considerations
-4. Summarize the findings with:
-   - Total number of instances that could benefit from Graviton migration
-   - Total potential monthly and annual savings
-   - Instances grouped by migration complexity (Easy, Medium, Complex)
-   - Top 5 instances with highest savings potential
+1. Use `cost-optimization` `list_recommendation_summaries` with `group_by` 'ResourceType' and `filters` '{filters}' to count the Graviton migration recommendations and their estimated monthly savings per resource type.
+2. Use `cost-optimization` `list_recommendations` with the same `filters` and `order_by` '{order_by}' to list them, highest savings first. Each recommendation carries `current_resource_type`, `recommended_resource_type`, `estimated_monthly_savings` and `implementation_effort`.
+3. If Cost Optimization Hub is not enrolled (`cost-optimization` `list_enrollment_statuses`) or returns no Graviton recommendations, use `compute-optimizer` `get_ec2_instance_recommendations` with `cpu_vendor_architectures` '{arm64}', one call per account (`account_ids` takes one ID) and per region. Without `cpu_vendor_architectures`, Compute Optimizer ranks only options in the instance's current CPU architecture.
+4. For each candidate, note compatibility considerations (the operating system, software and dependencies must support ARM64).
+5. Summarize the findings with:
+   - Number of resources that could migrate to Graviton, by resource type
+   - Total estimated monthly savings, and annual savings (12 x monthly)
+   - Recommendations grouped by the `implementation_effort` each one reports (do not grade effort yourself)
+   - Top 5 resources with the highest estimated monthly savings
+   If a result has `complete_dataset: false`, say that the totals are partial.
 
 Present the results in a clear, actionable format with tables where appropriate."""
         ),
         Message(
-            "I'll analyze the EC2 instances for Graviton migration opportunities and provide a comprehensive report with savings estimates and migration complexity assessment.",
+            "I'll analyze the Graviton migration opportunities and provide a report with savings estimates and the implementation effort of each recommendation.",
             role='assistant',
         ),
     ]

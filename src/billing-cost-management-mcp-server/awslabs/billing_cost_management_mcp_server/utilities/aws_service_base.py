@@ -221,7 +221,43 @@ def parse_json(
     try:
         return json.loads(json_str)
     except json.JSONDecodeError:
-        raise ValueError(f'Invalid JSON format for {parameter_name} parameter: {json_str}')
+        raise ValueError(
+            f'Invalid JSON format for {parameter_name} parameter: {json_str}. Pass valid JSON, '
+            'with double quotes around strings (single quotes, as in a Python repr, are not '
+            'JSON).'
+        )
+
+
+def parse_filter(
+    filter_expr: Optional[Union[str, Dict[str, Any]]], parameter_name: str = 'filter'
+) -> Any:
+    """Parse a filter expression, rejecting an empty one.
+
+    An empty filter (``''``, ``{}``, ``[]``, ``null``) is an error rather than "no filter":
+    dropping it would run the query unfiltered, and the result would read as a filtered one.
+
+    Args:
+        filter_expr: The filter, as an object or a JSON string. None means no filter.
+        parameter_name: Name of the parameter (for error messages)
+
+    Returns:
+        The parsed filter (not shape-checked; the service validates it), or None when
+        ``filter_expr`` is None
+
+    Raises:
+        ValueError: If the filter is empty or not valid JSON
+    """
+    if filter_expr is None:
+        return None
+    if isinstance(filter_expr, str):
+        filter_expr = filter_expr.strip()
+    parsed = parse_json(filter_expr, parameter_name)
+    if parsed is None or parsed == {} or parsed == []:
+        raise ValueError(
+            f'{parameter_name} is empty. Omit {parameter_name} to query without one, or pass '
+            'a filter expression.'
+        )
+    return parsed
 
 
 DEFAULT_COST_METRICS = ['UnblendedCost']

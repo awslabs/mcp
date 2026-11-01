@@ -24,6 +24,7 @@ from awslabs.billing_cost_management_mcp_server.tools.business_support_operation
     list_subscription_history,
 )
 from awslabs.billing_cost_management_mcp_server.utilities import sql_utils
+from awslabs.billing_cost_management_mcp_server.utilities.error_contract import add_retry_guidance
 from botocore.exceptions import ClientError, EndpointConnectionError
 from botocore.stub import Stubber
 from datetime import datetime, timezone
@@ -976,6 +977,72 @@ class TestRealPaginator:
         assert result['data']['pagination']['items_returned'] == 1
 
 
+# The service rejects a bad caller token with ValidationException (HTTP 400) for
+# both operations: "Invalid nextToken" for a well-formed token, a constraint
+# message naming nextToken for a malformed one. The PageSpecs must name the code.
+INVALID_TOKEN_CASES = (
+    (list_account_charges, 'list_business_support_account_charges', {'billing_month': '2026-06'}),
+    (list_subscription_history, 'list_business_support_subscription_history', {}),
+)
+
+
+async def _run_with_stubbed_error(mock_context, handler, operation, message, **handler_kwargs):
+    """Run a handler through the real paginator against a client that raises ValidationException."""
+    client = boto3.client('billing', region_name='us-east-1')
+    stubber = Stubber(client)
+    stubber.add_client_error(
+        operation,
+        service_error_code='ValidationException',
+        service_message=message,
+        http_status_code=400,
+    )
+    stubber.activate()
+    with patch(CREATE_CLIENT_PATH, return_value=client):
+        result = await handler(mock_context, **handler_kwargs)
+    stubber.assert_no_pending_responses()
+    return result
+
+
+class TestRejectedCallerToken:
+    """A rejected caller next_token is reported as invalid_next_token, not a generic error."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('handler,operation,kwargs', INVALID_TOKEN_CASES)
+    @pytest.mark.parametrize(
+        'message',
+        [
+            'Invalid nextToken',
+            "1 validation error detected: Value at 'nextToken' failed to satisfy constraint: "
+            'Member must satisfy regular expression pattern: [-a-zA-Z0-9+=/_]+',
+        ],
+    )
+    async def test_rejected_caller_token_is_invalid_next_token(
+        self, mock_context, handler, operation, kwargs, message
+    ):
+        """A ValidationException naming the caller's token maps to invalid_next_token."""
+        result = await _run_with_stubbed_error(
+            mock_context, handler, operation, message, next_token='stale', **kwargs
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'invalid_next_token'
+        # The server's error middleware adds the hint the caller sees.
+        assert 'without next_token' in add_retry_guidance(result)['hint']
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('handler,operation,kwargs', INVALID_TOKEN_CASES)
+    async def test_validation_error_without_caller_token_is_unchanged(
+        self, mock_context, handler, operation, kwargs
+    ):
+        """Without a caller next_token the same code stays the service's validation error."""
+        result = await _run_with_stubbed_error(
+            mock_context, handler, operation, 'Invalid nextToken', **kwargs
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] != 'invalid_next_token'
+
+
 # ---------------------------------------------------------------------------
 # Real SQL offload (convert_response_if_needed is NOT mocked)
 # ---------------------------------------------------------------------------
@@ -1386,6 +1453,23 @@ class TestToolRegistration:
         tool = await business_support_server.get_tool('business-support')
         assert tool is not None
         assert 'tierCharges' in (tool.description or '')
+
+    @pytest.mark.asyncio
+    async def test_description_documents_subscription_history_per_month(self):
+        """The UTC default month, not_found for an empty month, and per-month contract rows are stated."""
+        from awslabs.billing_cost_management_mcp_server.tools.business_support_tools import (
+            business_support_server,
+        )
+
+        tool = await business_support_server.get_tool('business-support')
+        assert tool is not None
+        desc = tool.description or ''
+        assert 'the API defaults to the CURRENT month (UTC)' in desc
+        assert 'returns a not_found error, not an empty list' in desc
+        assert 'the contract period as recorded for that billing month' in desc
+        assert 'merge back-to-back rows for the same account and plan' in desc
+        assert 'Both are required by the API, so both are always present' not in desc
+        assert 'HTTP 500' not in desc
 
 
 # ---------------------------------------------------------------------------

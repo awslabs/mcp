@@ -71,6 +71,10 @@ ACCOUNT_CHARGES_SUMMARY_FIELDS = (
 
 # Note: ``'nextToken'`` below is the Billing API's pagination field name, not a
 # credential; the same PageSpec shape is used by enterprise_support_operations.
+# Both operations reject a bad caller token with HTTP 400 ValidationException
+# and a message naming nextToken ("Invalid nextToken", or a constraint message
+# for a malformed one), so that code counts as a rejected token on the caller's
+# own next_token.
 
 # How ListBusinessSupportAccountCharges pages: the per-account charge rows come
 # back under ``accountCharges``, continued by ``nextToken``, at up to 100 per
@@ -81,6 +85,7 @@ LIST_ACCOUNT_CHARGES_PAGE_SPEC = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 # How ListBusinessSupportSubscriptionHistory pages: the contract rows come back
@@ -92,6 +97,7 @@ LIST_SUBSCRIPTION_HISTORY_PAGE_SPEC = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 
