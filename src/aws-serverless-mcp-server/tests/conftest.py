@@ -15,7 +15,7 @@
 
 import os
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 def pytest_addoption(parser):
@@ -40,6 +40,29 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if 'live' in item.keywords:
                 item.add_marker(skip_live)
+
+
+@pytest.fixture(autouse=True)
+def isolated_deployment_status_dir(tmp_path):
+    """Point the const, deployment_manager, and deploy_webapp copies of DEPLOYMENT_STATUS_DIR at a private temp directory.
+
+    Keeps tests from reading, creating, or changing the permissions of the real
+    status directory under the system temp directory.
+    """
+    status_dir = str(tmp_path / 'deployments')
+    os.mkdir(status_dir, 0o700)
+    with (
+        patch('awslabs.aws_serverless_mcp_server.utils.const.DEPLOYMENT_STATUS_DIR', status_dir),
+        patch(
+            'awslabs.aws_serverless_mcp_server.utils.deployment_manager.DEPLOYMENT_STATUS_DIR',
+            status_dir,
+        ),
+        patch(
+            'awslabs.aws_serverless_mcp_server.tools.webapps.deploy_webapp.DEPLOYMENT_STATUS_DIR',
+            status_dir,
+        ),
+    ):
+        yield status_dir
 
 
 @pytest.fixture

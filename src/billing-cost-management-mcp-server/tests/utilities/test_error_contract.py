@@ -93,6 +93,13 @@ class TestClassifyError:
         assert classify_error(error_type)[0] == MODIFY_REQUEST
 
     @pytest.mark.parametrize(
+        'error_type', ['InvalidNextTokenException', 'ExpiredNextTokenException']
+    )
+    def test_service_next_token_codes_share_invalid_next_token_guidance(self, error_type):
+        """A token the service rejects gets the restart-without-next_token hint."""
+        assert classify_error(error_type) == classify_error('invalid_next_token')
+
+    @pytest.mark.parametrize(
         'error_type',
         ['AccessDenied', 'AccessDeniedException', 'access_denied', 'UnauthorizedOperation'],
     )
@@ -262,3 +269,26 @@ class TestFormatResponseOverrides:
 
         assert 'retry_strategy' not in response
         assert 'hint' not in response
+
+
+class TestSdkStandardRetryableCodes:
+    """Codes the AWS SDKs' standard retry mode lists as transient or throttling."""
+
+    @pytest.mark.parametrize(
+        'error_type',
+        [
+            'InternalError',
+            'IDPCommunicationError',
+            'PriorRequestNotComplete',
+            'RequestThrottled',
+            'RequestThrottledException',
+            'ProvisionedThroughputExceededException',
+            'TransactionInProgressException',
+            'EC2ThrottledException',
+            'SlowDown',
+            'BandwidthLimitExceeded',
+        ],
+    )
+    def test_retry_same_request(self, error_type):
+        """These arrive with a 4xx status too, so they need an explicit mapping."""
+        assert classify_error(error_type, 400)[0] == RETRY_SAME_REQUEST
