@@ -71,29 +71,16 @@ def temp_db_path():
 class TestShouldConvertToSql:
     """Tests for should_convert_to_sql function."""
 
-    def test_should_convert_large_response(self):
-        """Test should_convert_to_sql with large response."""
-        # Setup - Response size above threshold
-        threshold = int(os.getenv('MCP_SQL_THRESHOLD', 50 * 1024))  # 50KB default
-        large_size = threshold + 1024  # 1KB over threshold
+    @pytest.mark.parametrize('offset,expected', [(1024, True), (0, False), (-1024, False)])
+    def test_converts_only_above_threshold(self, offset, expected):
+        """A response converts only when it is larger than SQL_CONVERSION_THRESHOLD."""
+        from awslabs.billing_cost_management_mcp_server.utilities import (
+            sql_utils as sql_utils_mod,
+        )
 
-        # Execute
-        result = should_convert_to_sql(large_size)
-
-        # Assert
-        assert result is True
-
-    def test_should_not_convert_small_response(self):
-        """Test should_convert_to_sql with small response."""
-        # Setup - Response size below threshold
-        threshold = int(os.getenv('MCP_SQL_THRESHOLD', 50 * 1024))  # 50KB default
-        small_size = threshold - 1024  # 1KB under threshold
-
-        # Execute
-        result = should_convert_to_sql(small_size)
-
-        # Assert
-        assert result is True
+        size = sql_utils_mod.SQL_CONVERSION_THRESHOLD + offset
+        with patch.object(sql_utils_mod, 'FORCE_SQL_CONVERSION', False):
+            assert should_convert_to_sql(size) is expected
 
     def test_should_convert_with_force_enabled(self):
         """Test should_convert_to_sql with FORCE_SQL_CONVERSION enabled."""
@@ -597,6 +584,94 @@ class TestExecuteSessionSql:
             # Reset mock
             mock_connection.reset_mock()
             mock_cursor.reset_mock()
+
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_comment_prefixed_insert_is_durable(
+        self, mock_get_path, temp_db_path, mock_context
+    ):
+        """A comment-prefixed INSERT must persist after the connection closes.
+
+        Regression test for the keyword-prefix commit check: ``.strip()`` does
+        not remove a leading SQL comment, so ``startswith('INSERT')`` was False
+        and the write was never committed. sqlite3 still opens an implicit
+        transaction for the statement, so the write was silently rolled back on
+        close. We read the row back on a FRESH connection to assert durability,
+        not just in-memory visibility.
+        """
+        mock_get_path.return_value = temp_db_path
+
+        # Seed a table on its own connection so the INSERT below is the only
+        # thing under test.
+        seed = sqlite3.connect(temp_db_path)
+        seed.execute('CREATE TABLE t (id INTEGER)')
+        seed.execute('INSERT INTO t VALUES (101)')
+        seed.commit()
+        seed.close()
+
+        result = await execute_session_sql(mock_context, '/* c */ INSERT INTO t VALUES (2)')
+        assert result['status'] == 'success'
+
+        # Fresh connection: only committed data is visible here.
+        check = sqlite3.connect(temp_db_path)
+        rows = check.execute('SELECT id FROM t ORDER BY id').fetchall()
+        check.close()
+        assert rows == [(2,), (101,)], f'comment-prefixed INSERT was not committed: {rows}'
+
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_replace_statement_is_durable(self, mock_get_path, temp_db_path, mock_context):
+        """A REPLACE statement must persist after the connection closes.
+
+        Regression test: ``REPLACE`` is valid SQLite DML (synonym for
+        ``INSERT OR REPLACE``) but was absent from the keyword list, so the
+        write was never committed and was rolled back on close.
+        """
+        mock_get_path.return_value = temp_db_path
+
+        seed = sqlite3.connect(temp_db_path)
+        seed.execute('CREATE TABLE t (id INTEGER PRIMARY KEY)')
+        seed.execute('INSERT INTO t VALUES (101)')
+        seed.commit()
+        seed.close()
+
+        result = await execute_session_sql(mock_context, 'REPLACE INTO t VALUES (3)')
+        assert result['status'] == 'success'
+
+        check = sqlite3.connect(temp_db_path)
+        rows = check.execute('SELECT id FROM t ORDER BY id').fetchall()
+        check.close()
+        assert rows == [(3,), (101,)], f'REPLACE was not committed: {rows}'
+
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_plain_write_operations_still_durable(
+        self, mock_get_path, temp_db_path, mock_context
+    ):
+        """Baseline: plain INSERT/UPDATE still commit after the fix.
+
+        Guards against a regression where switching to ``conn.in_transaction``
+        might stop committing ordinary writes. DELETE/DROP/ALTER/TRUNCATE are
+        intentionally not covered because ``validate_sql_query`` rejects them.
+        """
+        mock_get_path.return_value = temp_db_path
+
+        seed = sqlite3.connect(temp_db_path)
+        seed.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT)')
+        seed.commit()
+        seed.close()
+
+        insert_result = await execute_session_sql(
+            mock_context, "INSERT INTO t VALUES (1, 'alice')"
+        )
+        assert insert_result['status'] == 'success'
+
+        update_result = await execute_session_sql(
+            mock_context, "UPDATE t SET name = 'bob' WHERE id = 1"
+        )
+        assert update_result['status'] == 'success'
+
+        check = sqlite3.connect(temp_db_path)
+        rows = check.execute('SELECT id, name FROM t').fetchall()
+        check.close()
+        assert rows == [(1, 'bob')], f'plain write operations were not committed: {rows}'
 
     @patch('sqlite3.connect')
     @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
@@ -1298,7 +1373,7 @@ class TestValidateSqlQuery:
         Without this rejection, an attacker (or a prompt-injected
         agent) can attach any SQLite file readable by the process
         and read it back via subsequent SELECTs — a filter bypass
-        that the blacklist previously missed.
+        that the denylist previously missed.
         """
         from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
             validate_sql_query,
@@ -1330,8 +1405,8 @@ class TestSessionAuthorizer:
     """Engine-level defense against ATTACH DATABASE.
 
     The authorizer is the second line of defense behind the regex
-    blacklist in ``validate_sql_query``. Even if the query text were
-    to slip past the blacklist (comment tricks, whitespace variants,
+    denylist in ``validate_sql_query``. Even if the query text were
+    to slip past the denylist (comment tricks, whitespace variants,
     dynamic SQL from a trigger), the SQLite parser calls the
     authorizer for every operation the query would perform. ATTACH
     returns SQLITE_DENY here, so the connection refuses to mount any

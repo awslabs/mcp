@@ -30,6 +30,7 @@ from ..utilities.aws_service_base import (
 )
 from ..utilities.sql_utils import convert_response_if_needed
 from ..utilities.time_utils import (
+    format_timestamp_to_utc_iso,
     timestamp_to_utc_iso_string,
     utc_datetime_string_to_epoch_seconds,
 )
@@ -37,7 +38,7 @@ from botocore.exceptions import ClientError
 from calendar import monthrange
 from datetime import datetime, timezone
 from fastmcp import Context
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 
 # CreditData fields that AWS returns as timestamps. We normalize these to
@@ -64,6 +65,8 @@ GET_CREDIT_ALLOCATION_HISTORY_PAGE_SPEC = PageSpec(
     token_key_in_response='nextToken',
     page_max=500,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 # IAM action required by each operation, used to build an actionable message
@@ -83,24 +86,90 @@ def _create_billing_client() -> Any:
     return create_aws_client('billing')
 
 
-def _normalize_credit_data(credit: Dict[str, Any]) -> Dict[str, Any]:
+def _utc_now() -> datetime:
+    """Return the current UTC time, truncated to whole seconds.
+
+    Returns:
+        Timezone-aware current UTC time.
+    """
+    return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def _read_credit_date(value: Any) -> Tuple[bool, Optional[datetime]]:
+    """Read a CreditData timestamp of any wire form.
+
+    Parsing is delegated to ``format_timestamp_to_utc_iso``, which accepts
+    datetimes (naive taken as UTC), epoch seconds or milliseconds, and their
+    string forms, so the date shown and the date classified always agree.
+
+    Args:
+        value: The raw timestamp value.
+
+    Returns:
+        Tuple of (present, moment). ``present`` is False for None or a blank
+        string. ``moment`` is the UTC datetime, or None when the value is absent
+        or present but unreadable.
+    """
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return False, None
+    iso = format_timestamp_to_utc_iso(value)
+    return True, (datetime.fromisoformat(iso).replace(tzinfo=timezone.utc) if iso else None)
+
+
+def _credit_validity_status(
+    dates: Dict[str, Tuple[bool, Optional[datetime]]], now: datetime
+) -> str:
+    """Classify a credit as active, expired or not yet active at ``now``.
+
+    GetCredits can return credits that have already expired, which keep their
+    ``remainingAmount`` and a ``creditStatus`` of ``ENABLED``, and credits whose
+    ``startDate`` is still ahead, so neither field says whether the balance can be
+    used now. ``endDate`` is the expiration date, so a credit is treated as expired
+    once it is reached. A readable date that settles the
+    status wins; otherwise a date that is present but unreadable gives ``UNKNOWN``
+    rather than a guess, so it is never counted as usable by default. A credit
+    with no ``endDate`` is treated as not expiring.
+
+    Args:
+        dates: ``_read_credit_date`` results keyed by field name.
+        now: The evaluation time.
+
+    Returns:
+        ``EXPIRED``, ``NOT_YET_ACTIVE``, ``UNKNOWN`` or ``ACTIVE``.
+    """
+    end_present, end = dates['endDate']
+    start_present, start = dates['startDate']
+    if end is not None and end <= now:
+        return 'EXPIRED'
+    if start is not None and start > now:
+        return 'NOT_YET_ACTIVE'
+    if (end_present and end is None) or (start_present and start is None):
+        return 'UNKNOWN'
+    return 'ACTIVE'
+
+
+def _normalize_credit_data(credit: Dict[str, Any], now: datetime) -> Dict[str, Any]:
     """Normalize a raw CreditData item for agent consumption.
 
-    Converts the epoch timestamp fields (``startDate``, ``endDate`` and
-    ``exhaustDate``) into human-readable strings. All other fields are returned
-    exactly as provided by the AWS API to preserve fidelity, so monetary
-    amounts remain decimal strings.
+    Adds the derived ``validityStatus`` (see ``_credit_validity_status``) and
+    converts the timestamp fields (``startDate``, ``endDate`` and ``exhaustDate``)
+    into UTC ISO 8601 strings. A date that cannot be read is left as returned
+    rather than dropped. All other fields are returned exactly as provided by the
+    AWS API to preserve fidelity, so monetary amounts remain decimal strings.
 
     Args:
         credit: A single ``CreditData`` object from the Billing API.
+        now: The time ``validityStatus`` is evaluated at.
 
     Returns:
-        The credit with its timestamp fields converted to ISO 8601 strings.
+        The credit with ``validityStatus`` added and its readable timestamp
+        fields converted to ISO 8601 strings.
     """
-    for field in _CREDIT_TIMESTAMP_FIELDS:
-        value = credit.get(field)
-        if value is not None and not isinstance(value, str):
-            credit[field] = timestamp_to_utc_iso_string(value)
+    dates = {field: _read_credit_date(credit.get(field)) for field in _CREDIT_TIMESTAMP_FIELDS}
+    credit['validityStatus'] = _credit_validity_status(dates, now)
+    for field, (_, moment) in dates.items():
+        if moment is not None:
+            credit[field] = timestamp_to_utc_iso_string(moment)
     return credit
 
 
@@ -425,8 +494,9 @@ def _build_get_credit_allocation_history_request(
 def _clamp_get_credits_range(start_epoch: int, end_epoch: Optional[int]) -> tuple:
     """Narrow a range to the enforced one-year lookback ending no later than now.
 
-    An omitted end date is left as None because the API defaults it to the
-    current date, so supplying one would only restate the default.
+    An omitted end date is left as None, so no end date is sent and the service
+    applies no upper bound; clamping it to now would drop credits that start
+    later.
 
     Args:
         start_epoch: Requested range start in epoch seconds.
@@ -484,8 +554,8 @@ def _build_get_credits_time_range(
     """Describe the window actually queried alongside the one requested.
 
     Reporting both makes a limited window visible to the agent so a limited
-    result is never mistaken for a complete one. A null end date means the API
-    default of the current date applies.
+    result is never mistaken for a complete one. A null end date means no end
+    date was sent, so the service applied no upper bound.
 
     Args:
         start_epoch: Effective range start after clamping.
@@ -699,7 +769,9 @@ async def get_credits(
 
     Returns every credit object visible to the account within the requested window,
     including initial and remaining amounts, expiration and exhaustion dates,
-    applicable products, and credit-sharing configuration.
+    applicable products, and credit-sharing configuration. The window can include
+    expired credits and credits that have not started yet, so each credit carries a
+    derived ``validityStatus``.
 
     A payer-level query can return a large credit portfolio, so the shared size
     threshold decides whether to offload to session SQL via convert_response_if_needed.
@@ -715,8 +787,9 @@ async def get_credits(
             than for the individual account.
 
     Returns:
-        Dict containing ``credits`` with timestamps, or a standardized error
-        response.
+        Dict containing ``credits`` with timestamps and ``validityStatus``, the
+        ``time_range`` queried and ``validity_evaluated_at``, or a standardized
+        error response.
     """
     try:
         start_epoch, end_epoch, error = _parse_epoch_range(start_date, end_date, False)
@@ -742,13 +815,18 @@ async def get_credits(
 
         api_response = client.get_credits(**request_params)
 
-        credits = [_normalize_credit_data(credit) for credit in api_response.get('credits', [])]
+        now = _utc_now()
+        credits = [
+            _normalize_credit_data(credit, now) for credit in api_response.get('credits', [])
+        ]
 
         await ctx.info(f'Successfully retrieved {len(credits)} credits')
 
+        validity_evaluated_at = timestamp_to_utc_iso_string(now)
         response = {
             'credits': credits,
             'time_range': time_range,
+            'validity_evaluated_at': validity_evaluated_at,
         }
 
         return await _finalize_response(
@@ -759,6 +837,7 @@ async def get_credits(
             start_date=start_date,
             end_date=end_date,
             time_range=time_range,
+            validity_evaluated_at=validity_evaluated_at,
         )
 
     except Exception as e:

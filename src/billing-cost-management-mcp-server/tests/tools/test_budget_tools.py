@@ -22,17 +22,23 @@ These tests verify the functionality of the AWS Budgets API tools, including:
 - Formatting budget data for display and analysis
 """
 
+import asyncio
+import boto3
+import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import (
+    _describe_budget_by_name,
     budget_server,
     budgets,
     describe_budgets,
     format_budgets,
     get_aws_account_id,
 )
+from botocore.awsrequest import AWSResponse
 from botocore.exceptions import ClientError
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from fastmcp import Context
+from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -289,6 +295,266 @@ class TestFormatBudgets:
         assert 'Region' in result[0]['cost_filters']
         assert 'Amazon EC2' in result[0]['cost_filters']['Service']
 
+    def test_format_budgets_with_filter_expression(self):
+        """A budget scoped by FilterExpression keeps its filter, metric and billing view.
+
+        Such a budget has no CostFilters, so dropping these fields made it look account-wide.
+        """
+        filter_expression = {
+            'And': [
+                {'CostCategories': {'Key': 'Team', 'Values': ['Analytics']}},
+                {'Not': {'Dimensions': {'Key': 'RECORD_TYPE', 'Values': ['Credit', 'Refund']}}},
+            ]
+        }
+        billing_view_arn = 'arn:aws:billing::123456789012:billingview/billing-group-210987654321'
+        budgets_list = [
+            {
+                'BudgetName': 'Team Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'FilterExpression': filter_expression,
+                'Metrics': ['NetUnblendedCost'],
+                'BillingViewArn': billing_view_arn,
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['filter_expression'] == filter_expression
+        assert result[0]['metrics'] == ['NetUnblendedCost']
+        assert result[0]['billing_view_arn'] == billing_view_arn
+        assert 'cost_filters' not in result[0]
+        assert 'cost_types' not in result[0]
+
+    def test_format_budgets_with_health_status(self):
+        """An unhealthy budget says why, without the raw timestamp."""
+        budgets_list = [
+            {
+                'BudgetName': 'View Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'HealthStatus': {
+                    'Status': 'UNHEALTHY',
+                    'StatusReason': 'BILLING_VIEW_NO_ACCESS',
+                    'LastUpdatedTime': datetime(2026, 1, 15),
+                },
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['health_status'] == {
+            'status': 'UNHEALTHY',
+            'status_reason': 'BILLING_VIEW_NO_ACCESS',
+        }
+
+    def test_format_budgets_healthy_budget_has_no_status_reason(self):
+        """A healthy budget has no StatusReason, so none is returned."""
+        budgets_list = [
+            {
+                'BudgetName': 'View Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'HealthStatus': {'Status': 'HEALTHY', 'LastUpdatedTime': datetime(2026, 1, 15)},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['health_status'] == {'status': 'HEALTHY'}
+
+    def test_format_budgets_with_cost_types(self):
+        """A budget using the deprecated CostFilters form keeps its CostTypes."""
+        cost_types = {'IncludeCredit': False, 'IncludeRefund': False, 'UseAmortized': True}
+        budgets_list = [
+            {
+                'BudgetName': 'Legacy Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'CostFilters': {'Service': ['Amazon Elastic Compute Cloud - Compute']},
+                'CostTypes': cost_types,
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['cost_filters'] == {'Service': ['Amazon Elastic Compute Cloud - Compute']}
+        assert result[0]['cost_types'] == cost_types
+        assert 'filter_expression' not in result[0]
+        assert 'metrics' not in result[0]
+
+    def test_format_budgets_omits_empty_scope_fields(self):
+        """Empty scope fields are left out, as an empty CostFilters already was.
+
+        A regression guard: the old code emitted none of these except cost_filters.
+        FilterExpression is not among them: an unfiltered budget has none, and a present but
+        empty one is a filter the SDK could not read (TestFilterExpressionIncomplete).
+        """
+        budgets_list = [
+            {
+                'BudgetName': 'Account Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'CostFilters': {},
+                'Metrics': [],
+                'CostTypes': {},
+                'BillingViewArn': '',
+                'HealthStatus': {},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        for key in (
+            'cost_filters',
+            'metrics',
+            'cost_types',
+            'billing_view_arn',
+            'health_status',
+        ):
+            assert key not in result[0]
+
+    def test_format_budgets_with_planned_budget_limits(self):
+        """A planned budget returns its per-period limits, oldest first, keyed by UTC date.
+
+        Without them a planned budget's budget_limit looked like a fixed limit.
+        """
+        budgets_list = [
+            {
+                'BudgetName': 'Planned Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '200.0', 'Unit': 'USD'},
+                'PlannedBudgetLimits': {
+                    # 2026-02-01 and 2026-01-01 00:00 UTC, out of order as a map may be.
+                    '1769904000': {'Amount': '200.0', 'Unit': 'USD'},
+                    '1767225600': {'Amount': '100.0', 'Unit': 'USD'},
+                },
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['planned_budget_limits'] == [
+            {'period_start': '2026-01-01', 'amount': '100.0', 'unit': 'USD'},
+            {'period_start': '2026-02-01', 'amount': '200.0', 'unit': 'USD'},
+        ]
+        assert result[0]['budget_limit']['amount'] == '200.0'
+
+    def test_format_budgets_planned_limit_with_unparseable_key(self):
+        """A key that is not epoch seconds, or an empty limit, is kept rather than dropped."""
+        budgets_list = [
+            {
+                'BudgetName': 'Planned Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'PlannedBudgetLimits': {
+                    'not-a-number': {'Amount': '5.0', 'Unit': 'USD'},
+                    '1767225600': None,
+                },
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['planned_budget_limits'] == [
+            {'period_start': '2026-01-01', 'amount': None, 'unit': None},
+            {'period_start': 'not-a-number', 'amount': '5.0', 'unit': 'USD'},
+        ]
+
+    def test_format_budgets_with_auto_adjust(self):
+        """An auto-adjusting budget says how its limit is recomputed and when it last was."""
+        budgets_list = [
+            {
+                'BudgetName': 'Auto Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '150.0', 'Unit': 'USD'},
+                'AutoAdjustData': {
+                    'AutoAdjustType': 'HISTORICAL',
+                    'HistoricalOptions': {
+                        'BudgetAdjustmentPeriod': 6,
+                        'LookBackAvailablePeriods': 4,
+                    },
+                    # boto3 returns a zone-aware local time; the output is UTC.
+                    'LastAutoAdjustTime': datetime(
+                        2026, 10, 3, 8, 30, tzinfo=timezone(timedelta(hours=-4))
+                    ),
+                },
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['auto_adjust'] == {
+            'auto_adjust_type': 'HISTORICAL',
+            'budget_adjustment_period': 6,
+            'look_back_available_periods': 4,
+            'last_auto_adjust_time': '2026-10-03T12:30:00',
+        }
+
+    def test_format_budgets_auto_adjust_epoch_time(self):
+        """An epoch-seconds LastAutoAdjustTime is returned as the same UTC string."""
+        budgets_list = [
+            {
+                'BudgetName': 'Auto Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'AutoAdjustData': {
+                    'AutoAdjustType': 'HISTORICAL',
+                    'HistoricalOptions': {'BudgetAdjustmentPeriod': 3},
+                    'LastAutoAdjustTime': 1791030600,
+                },
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['auto_adjust'] == {
+            'auto_adjust_type': 'HISTORICAL',
+            'budget_adjustment_period': 3,
+            'last_auto_adjust_time': '2026-10-03T12:30:00',
+        }
+
+    def test_format_budgets_forecast_auto_adjust_without_history(self):
+        """A FORECAST budget has no HistoricalOptions, so only the fields present are returned."""
+        budgets_list = [
+            {
+                'BudgetName': 'Forecast Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'AutoAdjustData': {'AutoAdjustType': 'FORECAST'},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['auto_adjust'] == {'auto_adjust_type': 'FORECAST'}
+
+    def test_format_budgets_fixed_budget_has_no_plan_or_auto_adjust(self):
+        """A fixed budget, or one with empty plan fields, gets neither field."""
+        budgets_list = [
+            {
+                'BudgetName': 'Fixed Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '100.0', 'Unit': 'USD'},
+            },
+            {
+                'BudgetName': 'Empty Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'PlannedBudgetLimits': {},
+                'AutoAdjustData': {},
+            },
+        ]
+
+        result = format_budgets(budgets_list)
+
+        for budget in result:
+            assert 'planned_budget_limits' not in budget
+            assert 'auto_adjust' not in budget
+
     def test_format_budgets_status_exceeded(self):
         """Test format_budgets correctly calculates EXCEEDED status."""
         # Setup
@@ -433,6 +699,90 @@ class TestFormatBudgets:
             f'Budget with actual={actual_amount}, forecast={forecast_amount}, limit={budget_limit} should have status {expected_status}'
         )
 
+    def test_format_budgets_status_usage_budget(self):
+        """A USAGE budget gets a status, since more usage is worse, as it is for COST."""
+        budgets_list = [
+            {
+                'BudgetName': 'Usage Budget',
+                'BudgetType': 'USAGE',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '1000.0', 'Unit': 'GB'},
+                'CalculatedSpend': {'ActualSpend': {'Amount': '1200.0', 'Unit': 'GB'}},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['status'] == 'EXCEEDED'
+
+    @pytest.mark.parametrize(
+        'budget_type',
+        [
+            'RI_UTILIZATION',
+            'RI_COVERAGE',
+            'SAVINGS_PLANS_UTILIZATION',
+            'SAVINGS_PLANS_COVERAGE',
+        ],
+    )
+    @pytest.mark.parametrize('actual_amount', ['100.0', '20.0'])
+    def test_format_budgets_no_status_for_utilization_and_coverage(
+        self, budget_type, actual_amount
+    ):
+        """Utilization and coverage budgets get no status.
+
+        Their limit is always 100 PERCENTAGE and a higher actual is better, so a
+        spend-vs-limit status read 100% as EXCEEDED and 20% as OK.
+        """
+        budgets_list = [
+            {
+                'BudgetName': 'Commitment Budget',
+                'BudgetType': budget_type,
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '100.0', 'Unit': 'PERCENTAGE'},
+                'CalculatedSpend': {
+                    'ActualSpend': {'Amount': actual_amount, 'Unit': 'PERCENTAGE'}
+                },
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert 'status' not in result[0]
+        assert result[0]['calculated_spend']['actual_spend']['amount'] == actual_amount
+        assert result[0]['budget_limit']['amount'] == '100.0'
+
+    def test_format_budgets_no_status_for_unknown_budget_type(self):
+        """Status is derived only for known spend types, so a new budget type gets none."""
+        budgets_list = [
+            {
+                'BudgetName': 'Future Budget',
+                'BudgetType': 'SOME_FUTURE_TYPE',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '100.0', 'Unit': 'PERCENTAGE'},
+                'CalculatedSpend': {'ActualSpend': {'Amount': '100.0', 'Unit': 'PERCENTAGE'}},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert 'status' not in result[0]
+
+    def test_format_budgets_status_ok_without_forecast(self):
+        """A spend budget under its limit with no forecast is OK."""
+        budgets_list = [
+            {
+                'BudgetName': 'Cost Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'BudgetLimit': {'Amount': '100.0', 'Unit': 'USD'},
+                'CalculatedSpend': {'ActualSpend': {'Amount': '50.0', 'Unit': 'USD'}},
+            }
+        ]
+
+        result = format_budgets(budgets_list)
+
+        assert result[0]['status'] == 'OK'
+
 
 @pytest.mark.asyncio
 class TestDescribeBudgets:
@@ -499,6 +849,29 @@ class TestDescribeBudgets:
             'items_returned': 1,
         }
         assert result['data']['budgets'][0]['budget_name'] == 'S3 Budget'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_describe_budget_by_name_keeps_filter_expression(
+        self, mock_create_aws_client, mock_context, mock_budgets_client
+    ):
+        """The DescribeBudget path returns the budget's FilterExpression scope too."""
+        mock_create_aws_client.return_value = mock_budgets_client
+        filter_expression = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon S3']}}
+        mock_budgets_client.describe_budget.return_value = {
+            'Budget': {
+                'BudgetName': 'S3 Budget',
+                'BudgetType': 'COST',
+                'TimeUnit': 'MONTHLY',
+                'FilterExpression': filter_expression,
+                'Metrics': ['UnblendedCost'],
+            }
+        }
+
+        result = await describe_budgets(mock_context, '123456789012', 'S3 Budget')
+
+        budget = result['data']['budgets'][0]
+        assert budget['filter_expression'] == filter_expression
+        assert budget['metrics'] == ['UnblendedCost']
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
     async def test_describe_budgets_unknown_name_returns_empty_list(
@@ -587,6 +960,245 @@ class TestDescribeBudgets:
         assert result['message'] == 'API error'
 
 
+class _WireBody:
+    """Raw HTTP body for botocore's AWSResponse."""
+
+    def __init__(self, body: bytes):
+        self._body = body
+
+    def stream(self, **kwargs):
+        yield self._body
+
+
+class TestBudgetFilterExpressionParsing:
+    """The installed botocore must parse every FilterExpression member the service returns.
+
+    botocore silently drops a response member its service model does not define. Before
+    botocore 1.43.110 the budgets model had no ProductAttributes, so a budget scoped by a
+    product attribute came back with that filter node as an empty dict.
+
+    Stubber would bypass the response parser, so these tests stub the HTTP send instead and let
+    botocore parse the wire JSON.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _no_ambient_profile(self, monkeypatch):
+        monkeypatch.delenv('AWS_PROFILE', raising=False)
+        monkeypatch.delenv('AWS_DEFAULT_PROFILE', raising=False)
+
+    FILTER_EXPRESSION = {
+        'And': [
+            {'ProductAttributes': {'Key': 'feature', 'Values': ['On-demand Inference']}},
+            {'Not': {'Dimensions': {'Key': 'RECORD_TYPE', 'Values': ['Credit', 'Refund']}}},
+        ]
+    }
+
+    def _client_returning(self, payload):
+        """A real budgets client whose HTTP send returns ``payload`` as the wire response."""
+        client = boto3.Session(
+            aws_access_key_id='a', aws_secret_access_key='b', region_name='us-east-1'
+        ).client('budgets')
+        body = json.dumps(payload).encode()
+
+        def send(request, **kwargs):
+            return AWSResponse(request.url, 200, {}, _WireBody(body))
+
+        client.meta.events.register('before-send.budgets', send)
+        return client
+
+    def _budget(self):
+        return {
+            'BudgetName': 'Feature Budget',
+            'BudgetType': 'COST',
+            'TimeUnit': 'MONTHLY',
+            'FilterExpression': self.FILTER_EXPRESSION,
+        }
+
+    def test_describe_budget_keeps_product_attributes(self):
+        """DescribeBudget (the budget_name path) keeps the ProductAttributes leaf."""
+        client = self._client_returning({'Budget': self._budget()})
+
+        result = _describe_budget_by_name(client, '123456789012', 'Feature Budget')
+
+        assert result[0]['FilterExpression'] == self.FILTER_EXPRESSION
+
+    def test_describe_budgets_keeps_product_attributes(self):
+        """DescribeBudgets (the listing path) keeps the ProductAttributes leaf."""
+        client = self._client_returning({'Budgets': [self._budget()]})
+
+        response = client.describe_budgets(AccountId='123456789012')
+
+        assert response['Budgets'][0]['FilterExpression'] == self.FILTER_EXPRESSION
+
+    @pytest.mark.parametrize(
+        'wire_filter, parsed_filter',
+        [
+            ({'FutureLeaf': {'Key': 'k'}}, {}),
+            (
+                {'And': [{'FutureLeaf': {}}, {'Tags': {'Key': 'team'}}]},
+                {'And': [{}, {'Tags': {'Key': 'team'}}]},
+            ),
+            ({'Not': {'FutureLeaf': {}}}, {'Not': {}}),
+        ],
+    )
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_unknown_filter_member_is_flagged_incomplete(
+        self, mock_create_aws_client, mock_context, wire_filter, parsed_filter
+    ):
+        """A filter member this botocore does not know parses as {} and is flagged, not dropped.
+
+        At the top level the parsed filter is falsy, so without the flag the budget read as
+        unfiltered.
+        """
+        budget = {**self._budget(), 'FilterExpression': wire_filter}
+        mock_create_aws_client.return_value = self._client_returning({'Budget': budget})
+
+        result = await describe_budgets(mock_context, '123456789012', 'Feature Budget')
+
+        formatted = result['data']['budgets'][0]
+        assert formatted['filter_expression'] == parsed_filter
+        assert formatted['filter_expression_incomplete'] is True
+        assert 'could not be read' in formatted['filter_expression_note']
+
+
+class TestFilterExpressionIncomplete:
+    """format_budgets flags a filter with an unreadable node and leaves a readable one alone."""
+
+    def _budget(self, filter_expression):
+        return {
+            'BudgetName': 'b',
+            'BudgetType': 'COST',
+            'TimeUnit': 'MONTHLY',
+            'FilterExpression': filter_expression,
+        }
+
+    @pytest.mark.parametrize(
+        'filter_expression',
+        [
+            {},
+            {'And': [{}, {'Tags': {'Key': 'team', 'Values': ['a']}}]},
+            {'Or': [{'Dimensions': {'Key': 'SERVICE', 'Values': ['x']}}, None]},
+            {'Not': {}},
+            {'And': [{'Not': {}}, {'Tags': {'Key': 'team', 'Values': ['a']}}]},
+        ],
+    )
+    def test_unreadable_node_is_flagged(self, filter_expression):
+        """An empty or null node anywhere in the tree flags the filter as incomplete."""
+        result = format_budgets([self._budget(filter_expression)])[0]
+
+        assert result['filter_expression'] == filter_expression
+        assert result['filter_expression_incomplete'] is True
+        assert 'calculated_spend' in result['filter_expression_note']
+
+    @pytest.mark.parametrize(
+        'filter_expression',
+        [
+            {'Dimensions': {'Key': 'SERVICE', 'Values': []}},
+            {
+                'And': [
+                    {'ProductAttributes': {'Key': 'model', 'Values': ['m']}},
+                    {'Not': {'Dimensions': {'Key': 'RECORD_TYPE', 'Values': ['Credit']}}},
+                ]
+            },
+            {'Or': [{'CostCategories': {'Key': 'c', 'Values': ['v']}}, {'Tags': {'Key': 't'}}]},
+        ],
+    )
+    def test_readable_filter_is_not_flagged(self, filter_expression):
+        """A filter whose every node has a member is returned without the flag."""
+        result = format_budgets([self._budget(filter_expression)])[0]
+
+        assert result['filter_expression'] == filter_expression
+        assert 'filter_expression_incomplete' not in result
+        assert 'filter_expression_note' not in result
+
+    def test_budget_without_filter_has_no_filter_fields(self):
+        """An unfiltered budget (the API omits FilterExpression) gets no filter field or note."""
+        budget = {'BudgetName': 'b', 'BudgetType': 'COST', 'TimeUnit': 'MONTHLY'}
+
+        result = format_budgets([budget])[0]
+
+        for key in (
+            'filter_expression',
+            'filter_expression_incomplete',
+            'filter_expression_note',
+            'forecast_note',
+        ):
+            assert key not in result
+
+    def test_product_attributes_and_unreadable_node_get_both_notes(self):
+        """A filter with a ProductAttributes leaf and an unreadable node carries both notes."""
+        filter_expression = {'And': [{'ProductAttributes': {'Key': 'model', 'Values': ['m']}}, {}]}
+
+        result = format_budgets([self._budget(filter_expression)])[0]
+
+        assert result['filter_expression_incomplete'] is True
+        assert 'forecast_note' in result
+
+
+class TestProductAttributesForecastNote:
+    """COST and USAGE budgets filtered by product attributes get no forecast, and say so."""
+
+    PA_LEAF = {'ProductAttributes': {'Key': 'feature', 'Values': ['On-demand Inference']}}
+
+    def _budget(self, filter_expression, budget_type='COST', forecast=False):
+        spend: Dict[str, Any] = {'ActualSpend': {'Amount': '10.0', 'Unit': 'USD'}}
+        if forecast:
+            spend['ForecastedSpend'] = {'Amount': '20.0', 'Unit': 'USD'}
+        return {
+            'BudgetName': 'b',
+            'BudgetType': budget_type,
+            'TimeUnit': 'MONTHLY',
+            'BudgetLimit': {'Amount': '15.0', 'Unit': 'USD'},
+            'CalculatedSpend': spend,
+            'FilterExpression': filter_expression,
+        }
+
+    @pytest.mark.parametrize('budget_type', ['COST', 'USAGE'])
+    @pytest.mark.parametrize(
+        'filter_expression',
+        [
+            PA_LEAF,
+            {
+                'And': [
+                    PA_LEAF,
+                    {'Not': {'Dimensions': {'Key': 'RECORD_TYPE', 'Values': ['Credit']}}},
+                ]
+            },
+            {'Or': [{'Tags': {'Key': 't', 'Values': ['a']}}, PA_LEAF]},
+            {'Not': PA_LEAF},
+        ],
+    )
+    def test_product_attribute_budget_gets_forecast_note(self, budget_type, filter_expression):
+        """A ProductAttributes leaf at any depth adds the note; status stays from actual spend."""
+        result = format_budgets([self._budget(filter_expression, budget_type)])[0]
+
+        assert result['status'] == 'OK'
+        assert 'forecasted_spend' not in result['calculated_spend']
+        assert 'does not forecast' in result['forecast_note']
+        assert 'FORECASTED_TO_EXCEED' in result['forecast_note']
+
+    def test_product_attribute_budget_with_a_forecast_gets_no_note(self):
+        """If a response ever carries a forecast, the note is left out so it cannot contradict status."""
+        result = format_budgets([self._budget(self.PA_LEAF, forecast=True)])[0]
+
+        assert result['status'] == 'FORECASTED_TO_EXCEED'
+        assert 'forecast_note' not in result
+
+    @pytest.mark.parametrize(
+        'filter_expression, budget_type',
+        [
+            ({'Dimensions': {'Key': 'SERVICE', 'Values': ['x']}}, 'COST'),
+            ({'Not': {'Tags': {'Key': 't', 'Values': ['a']}}}, 'USAGE'),
+            (PA_LEAF, 'RI_UTILIZATION'),
+        ],
+    )
+    def test_other_budgets_get_no_forecast_note(self, filter_expression, budget_type):
+        """No ProductAttributes leaf, or a budget type without spend forecasts: no note."""
+        result = format_budgets([self._budget(filter_expression, budget_type)])[0]
+
+        assert 'forecast_note' not in result
+
+
 def test_budget_server_initialization():
     """Test that the budget_server is properly initialized."""
     # Verify the server name
@@ -596,6 +1208,28 @@ def test_budget_server_initialization():
     instructions = budget_server.instructions
     assert instructions is not None
     assert 'Tools for working with AWS Budgets API' in instructions if instructions else False
+
+
+def test_budgets_description_states_scope_and_health():
+    """The description names every Expression member and what UNHEALTHY does to the spend."""
+    tool = asyncio.run(budget_server.get_tool('budgets'))
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert 'Dimensions, Tags, CostCategories and ProductAttributes' in description
+    assert "means AWS has stopped updating the budget's spend" in description
+    assert 'cannot read its billing view or filter' not in description
+
+
+def test_budgets_description_states_product_attribute_and_incomplete_filter_gotchas():
+    """The description says product-attribute budgets have no forecast and explains the flag."""
+    tool = asyncio.run(budget_server.get_tool('budgets'))
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert (
+        'AWS does not forecast a COST or USAGE budget filtered by ProductAttributes' in description
+    )
+    assert 'its alerts can fire only on actual spend, not on a forecast' in description
+    assert '`filter_expression_incomplete` is true' in description
 
 
 # ---------------------------------------------------------------------------
@@ -1011,6 +1645,16 @@ class TestBudgetsPaginationContract:
         assert _strip_paging(first) == _strip_paging(second) == {'AccountId': ACCOUNT}
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.get_aws_account_id')
+    async def test_budgets_tool_entrypoint_error_is_handled(self, mock_get_id, mock_context):
+        """A failure resolving the account ID is returned as an error, not raised."""
+        mock_get_id.side_effect = Exception('sts down')
+
+        result = await budgets(mock_context)
+
+        mock_get_id.assert_awaited_once()
+        assert result['status'] == 'error'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.get_aws_account_id')
     @patch(PATCH_BUDGETS_CLIENT)
     async def test_budgets_tool_resolves_account_and_forwards_paging(
         self, mock_create, mock_get_id, mock_context
@@ -1136,3 +1780,50 @@ class TestBudgetsPaginationContract:
             params = set(tools[name].parameters['properties'])
             assert {'max_items', 'next_token'} <= params, name
             assert not {'max_results', 'max_pages'} & params, name
+
+
+@pytest.mark.asyncio
+async def test_budgets_description_names_zero_spend_traps_and_limit_fields():
+    """The description warns that a filtered 0 can be a filter matching nothing.
+
+    It also states the CostTypes credit and refund default and names the planned and
+    auto-adjusting limit fields, which the old description left out.
+    """
+    tools = {t.name: t for t in await budget_server.list_tools()}
+    description = ' '.join((tools['budgets'].description or '').split())
+
+    for text in (
+        'An `actual_spend` of 0 on a filtered budget does not prove there was no spend',
+        'service codes such as `AmazonEC2`',
+        '`Amazon Elastic Compute Cloud - Compute`',
+        '`cost_filters` keys are combined with AND',
+        'run the equivalent filter, metric and billing view with `cost-explorer`',
+        'a tag value of `""` matches costs that have no value for that tag key',
+        '`IncludeCredit` and `IncludeRefund` default to true',
+        '`planned_budget_limits`',
+        '`auto_adjust`',
+        'when an RI or Savings Plans budget returns it',
+        'past periods are included',
+        'periods before the first one with cost are left out',
+    ):
+        assert text in description, text
+
+
+@pytest.mark.asyncio
+async def test_budgets_description_drops_disproved_claims():
+    """Claims the service contradicts stay out of the description.
+
+    A SERVICE_CODE filter fails in the budget's spend calculation, so it is not a fix for a
+    service-code filter; planned limits include past periods; and an RI or Savings Plans budget
+    in the filter-expression form returns no cost_types at all.
+    """
+    tools = {t.name: t for t in await budget_server.list_tools()}
+    description = ' '.join((tools['budgets'].description or '').split())
+
+    for text in (
+        'service codes belong under',
+        'current or future period',
+        'it is always `IncludeSubscription`',
+        'is how many had cost data',
+    ):
+        assert text not in description, text

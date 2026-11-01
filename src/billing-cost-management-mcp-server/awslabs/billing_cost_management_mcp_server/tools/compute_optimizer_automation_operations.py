@@ -335,7 +335,10 @@ async def get_automation_rule(
     await ctx.info(f'Fetching automation rule {rule_arn}')
     response = await asyncio.to_thread(client.get_automation_rule, ruleArn=rule_arn)
 
-    return format_response('success', {'automation_rule': _format_automation_rule(response)})
+    rule = _format_automation_rule(response)
+    # A rule with no conditions may omit criteria; report it as empty rather than unread.
+    rule['criteria'] = rule.get('criteria') or {}
+    return format_response('success', {'automation_rule': rule})
 
 
 async def get_enrollment_configuration(
@@ -381,6 +384,8 @@ COA_LIST_AUTOMATION_EVENTS = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 COA_LIST_AUTOMATION_EVENT_STEPS = PageSpec(
     result_key='automationEventSteps',
@@ -388,6 +393,8 @@ COA_LIST_AUTOMATION_EVENT_STEPS = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 COA_LIST_AUTOMATION_EVENT_SUMMARIES = PageSpec(
     result_key='automationEventSummaries',
@@ -395,6 +402,8 @@ COA_LIST_AUTOMATION_EVENT_SUMMARIES = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 COA_LIST_AUTOMATION_RULES = PageSpec(
     result_key='automationRules',
@@ -402,6 +411,8 @@ COA_LIST_AUTOMATION_RULES = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 COA_LIST_RECOMMENDED_ACTIONS = PageSpec(
     result_key='recommendedActions',
@@ -409,6 +420,8 @@ COA_LIST_RECOMMENDED_ACTIONS = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 COA_LIST_RECOMMENDED_ACTION_SUMMARIES = PageSpec(
     result_key='recommendedActionSummaries',
@@ -416,6 +429,8 @@ COA_LIST_RECOMMENDED_ACTION_SUMMARIES = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 COA_LIST_AUTOMATION_RULE_PREVIEW = PageSpec(
     result_key='previewResults',
@@ -423,6 +438,8 @@ COA_LIST_AUTOMATION_RULE_PREVIEW = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 COA_LIST_AUTOMATION_RULE_PREVIEW_SUMMARIES = PageSpec(
     result_key='previewResultSummaries',
@@ -430,6 +447,8 @@ COA_LIST_AUTOMATION_RULE_PREVIEW_SUMMARIES = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 
 
@@ -1029,8 +1048,28 @@ def _rule_preview_request(
         request_params['organizationScope'] = parsed_scope
     parsed_criteria = parse_json(criteria, 'criteria')
     if parsed_criteria:
-        request_params['criteria'] = parsed_criteria
+        request_params['criteria'] = _fold_restart_needed_values(parsed_criteria)
     return request_params
+
+
+def _fold_restart_needed_values(criteria: Any) -> Any:
+    """Lowercase the string values of the restartNeeded criteria conditions.
+
+    AWS compares restartNeeded against the strings "true" and "false", so a StringEquals
+    "True" silently matches nothing. Any shape other than a list of condition objects
+    with a values list is returned unchanged for AWS to validate.
+    """
+    if not isinstance(criteria, dict) or not isinstance(criteria.get('restartNeeded'), list):
+        return criteria
+    conditions = []
+    for condition in criteria['restartNeeded']:
+        if isinstance(condition, dict) and isinstance(condition.get('values'), list):
+            condition = {
+                **condition,
+                'values': [v.lower() if isinstance(v, str) else v for v in condition['values']],
+            }
+        conditions.append(condition)
+    return {**criteria, 'restartNeeded': conditions}
 
 
 async def _collect_automation_rule_preview(

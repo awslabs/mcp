@@ -56,6 +56,8 @@ LIST_LINKED_ACCOUNT_CHARGES_PAGE_SPEC = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 

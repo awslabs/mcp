@@ -26,9 +26,11 @@ from ..utilities.aws_service_base import (
     paginate_aws_items,
     with_pagination,
 )
-from datetime import datetime
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
+from ..utilities.error_contract import add_retry_guidance
+from datetime import datetime, timezone
 from fastmcp import Context, FastMCP
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 
 # Constants
@@ -42,6 +44,9 @@ VALID_OPERATIONS = [
     'list_workload_estimate_usage',
     'get_preferences',
 ]
+# WorkloadEstimateStatus values. The service matches the STATUS filter exactly and
+# case-sensitively, and returns no estimates (not an error) for any other value.
+VALID_WORKLOAD_ESTIMATE_STATUSES = ('UPDATING', 'VALID', 'INVALID', 'ACTION_NEEDED')
 # ListWorkloadEstimates returns up to 25 estimates per page.
 LIST_WORKLOAD_ESTIMATES_PAGE_SPEC = PageSpec(
     result_key='items',
@@ -49,6 +54,8 @@ LIST_WORKLOAD_ESTIMATES_PAGE_SPEC = PageSpec(
     token_key_in_response='nextToken',
     page_max=25,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 # ListWorkloadEstimateUsage returns up to 300 usage lines per page.
 LIST_WORKLOAD_ESTIMATE_USAGE_PAGE_SPEC = PageSpec(
@@ -57,7 +64,11 @@ LIST_WORKLOAD_ESTIMATE_USAGE_PAGE_SPEC = PageSpec(
     token_key_in_response='nextToken',
     page_max=300,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
+# MatchOption values. The service rejects any other value, including other casings.
+VALID_MATCH_OPTIONS = ('EQUALS', 'STARTS_WITH', 'CONTAINS')
 PREFERENCES_NOT_CONFIGURED_ERROR = 'BCM Pricing Calculator preferences are not configured. Please configure preferences before using this service.'
 
 bcm_pricing_calculator_server = FastMCP(
@@ -86,6 +97,8 @@ def _preferences_error_response(preferences_result: Dict[str, Any]) -> Dict[str,
         error_type=preferences_result.get('error_type', 'PREFERENCES_NOT_CONFIGURED'),
         operation='get_preferences',
         service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+        retry_strategy=preferences_result.get('retry_strategy'),
+        hint=preferences_result.get('hint'),
     )
 
 
@@ -97,7 +110,7 @@ async def bcm_pricing_calc_core(
     created_before: Optional[str] = None,
     expires_after: Optional[str] = None,
     expires_before: Optional[str] = None,
-    status_filter: Optional[str] = None,
+    status_filter: Optional[Union[str, List[str]]] = None,
     name_filter: Optional[str] = None,
     name_match_option: str = 'CONTAINS',
     usage_account_id_filter: Optional[str] = None,
@@ -119,14 +132,15 @@ async def bcm_pricing_calc_core(
         created_before: Filter estimates created before this timestamp
         expires_after: Filter estimates expiring after this timestamp
         expires_before: Filter estimates expiring before this timestamp
-        status_filter: Filter by status
+        status_filter: Filter by status, or a list of statuses (any of them matches)
         name_filter: Filter by name
-        name_match_option: Match option for name filter
+        name_match_option: Match option for name filter (EQUALS, STARTS_WITH, CONTAINS)
         usage_account_id_filter: Filter by AWS account ID
         service_code_filter: Filter by AWS service code
         usage_type_filter: Filter by usage type
         operation_filter: Filter by operation name
-        location_filter: Filter by location/region
+        location_filter: Filter by location: usually a region code (e.g. us-east-1), or a
+            Local Zone or Wavelength Zone code
         usage_group_filter: Filter by usage group
         next_token: Continuation token from a previous response (list operations only)
         max_items: Total items to return (list operations only). None fetches every page.
@@ -201,8 +215,10 @@ async def bcm_pricing_calc_core(
 
     except Exception as e:
         # Use shared error handler for consistent error handling
-        error_response = await handle_aws_error(
-            ctx, e, operation, BCM_PRICING_CALCULATOR_SERVICE_NAME
+        # The guidance is derived before repackaging: it can depend on fields
+        # (retry_strategy, http_status) the rebuilt response does not keep.
+        error_response = add_retry_guidance(
+            await handle_aws_error(ctx, e, operation, BCM_PRICING_CALCULATOR_SERVICE_NAME)
         )
         # handle_aws_error puts the message and classification at the top level.
         error_message = error_response.get('message', str(e))
@@ -215,6 +231,8 @@ async def bcm_pricing_calc_core(
             error_type=error_response.get('error_type', 'unknown_error'),
             operation=operation,
             service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+            retry_strategy=error_response.get('retry_strategy'),
+            hint=error_response.get('hint'),
         )
 
 
@@ -254,7 +272,9 @@ USE THIS TOOL FOR:
    Returns: Retrieves the current preferences for AWS Billing and Cost Management Pricing Calculator.
 
 ## PAGINATION (list_workload_estimates, list_workload_estimate_usage only)
-- max_items: total items returned. Omit it to fetch every page (no limit). Pass it, or narrow the filters, when an estimate can have many usage lines.
+- max_items: total items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow the filters, when an estimate can have many usage lines.
 - A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token (the `pagination.next_token` from that response, sent with every other parameter unchanged), or state in the answer that the result is partial.
 - Counts cover only the items in that response; a continuation call does not repeat earlier items.
 """,
@@ -267,7 +287,7 @@ async def bcm_pricing_calc(
     created_before: Optional[str] = None,
     expires_after: Optional[str] = None,
     expires_before: Optional[str] = None,
-    status_filter: Optional[str] = None,
+    status_filter: Optional[Union[str, List[str]]] = None,
     name_filter: Optional[str] = None,
     name_match_option: str = 'CONTAINS',
     usage_account_id_filter: Optional[str] = None,
@@ -288,24 +308,39 @@ async def bcm_pricing_calc(
         identifier: The workload estimate identifier. Required for get_workload_estimate
             and list_workload_estimate_usage.
         created_after: Filter estimates created after this timestamp
-            (ISO format: YYYY-MM-DDTHH:MM:SS).
+            (ISO format: YYYY-MM-DDTHH:MM:SS). Must not be later than created_before.
         created_before: Filter estimates created before this timestamp
             (ISO format: YYYY-MM-DDTHH:MM:SS).
         expires_after: Filter estimates expiring after this timestamp
-            (ISO format: YYYY-MM-DDTHH:MM:SS).
+            (ISO format: YYYY-MM-DDTHH:MM:SS). Must not be later than expires_before.
         expires_before: Filter estimates expiring before this timestamp
             (ISO format: YYYY-MM-DDTHH:MM:SS).
-        status_filter: Filter by status (UPDATING, VALID, INVALID, ACTION_NEEDED).
+        status_filter: Filter by status: one of UPDATING, VALID, INVALID, ACTION_NEEDED
+            (case-insensitive), or a list of them; a list matches any of them. Any other
+            value, or an empty list, is rejected.
         name_filter: Filter by name (supports partial matching).
-        name_match_option: Match option for the name filter
-            (EQUALS, STARTS_WITH, CONTAINS). Defaults to CONTAINS.
-        usage_account_id_filter: Filter usage lines by AWS account ID.
-        service_code_filter: Filter usage lines by AWS service code
-            (e.g. AmazonEC2, AmazonS3).
-        usage_type_filter: Filter usage lines by usage type.
-        operation_filter: Filter usage lines by operation name.
-        location_filter: Filter usage lines by location/region.
-        usage_group_filter: Filter usage lines by usage group.
+            Matched using name_match_option; always case-sensitive: Demo does not
+            match DEMO.
+        name_match_option: How name_filter is matched: EQUALS, STARTS_WITH or CONTAINS.
+            Defaults to CONTAINS. The option may be given in any case; when name_filter
+            is set, any other value is rejected.
+        usage_account_id_filter: Filter usage lines by AWS account ID (EQUALS).
+        service_code_filter: Filter usage lines by AWS service code (EQUALS,
+            case-sensitive), e.g. AmazonEC2 or AmazonS3; amazonec2 matches nothing.
+        usage_type_filter: Filter usage lines whose usage type contains this text
+            (CONTAINS, case-sensitive), e.g. BoxUsage.
+        operation_filter: Filter usage lines whose operation contains this text
+            (CONTAINS, case-sensitive). RunInstances also matches RunInstances:0002
+            and the other platform variants; an exact match is not available.
+        location_filter: Filter usage lines by location (EQUALS, case-sensitive):
+            usually a region code such as us-east-1, but a Local Zone or Wavelength
+            Zone code (e.g. us-east-1-lim-1) for usage there. A region code does not
+            match its Local Zones' lines. Global usage such as CloudFront or Global
+            Accelerator has an empty location, which this tool cannot select (an empty
+            location_filter means no filter). An Availability Zone (us-east-1a) or a
+            location name such as US East (N. Virginia), as used by aws-pricing,
+            matches nothing.
+        usage_group_filter: Filter usage lines by usage group (EQUALS, case-sensitive).
         next_token: Continuation token from a previous response (list operations only).
         max_items: Total items to return (list operations only). None fetches every page.
 
@@ -378,14 +413,20 @@ async def get_preferences(ctx: Context) -> dict:
 
     except Exception as e:
         # Use shared error handler for consistent error handling
-        error_response = await handle_aws_error(
-            ctx, e, 'get_preferences', BCM_PRICING_CALCULATOR_SERVICE_NAME
+        error_response = add_retry_guidance(
+            await handle_aws_error(ctx, e, 'get_preferences', BCM_PRICING_CALCULATOR_SERVICE_NAME)
         )
         error_msg = f'Failed to check BCM Pricing Calculator preferences: {error_response.get("message", str(e))}'
         await ctx.error(error_msg)
+        # Keep the retry_strategy and hint derived from the full error response
         return {
             'error': error_msg,
             'error_type': error_response.get('error_type', 'unknown_error'),
+            **{
+                key: error_response[key]
+                for key in ('retry_strategy', 'hint')
+                if key in error_response
+            },
         }
 
 
@@ -395,7 +436,7 @@ async def list_workload_estimates(
     created_before: Optional[str] = None,
     expires_after: Optional[str] = None,
     expires_before: Optional[str] = None,
-    status_filter: Optional[str] = None,
+    status_filter: Optional[Union[str, List[str]]] = None,
     name_filter: Optional[str] = None,
     name_match_option: str = 'CONTAINS',
     next_token: Optional[str] = None,
@@ -405,13 +446,19 @@ async def list_workload_estimates(
 
     Args:
         ctx: The MCP context object
-        created_after: Filter estimates created after this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
+        created_after: Filter estimates created after this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS).
+            Must not be later than created_before.
         created_before: Filter estimates created before this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
-        expires_after: Filter estimates expiring after this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
+        expires_after: Filter estimates expiring after this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS).
+            Must not be later than expires_before.
         expires_before: Filter estimates expiring before this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
-        status_filter: Filter by status (UPDATING, VALID, INVALID, ACTION_NEEDED)
+        status_filter: Filter by status: one of UPDATING, VALID, INVALID, ACTION_NEEDED
+            (case-insensitive), or a list of them; a list matches any of them. Any other
+            value, or an empty list, is rejected.
         name_filter: Filter by name (supports partial matching)
-        name_match_option: Match option for name filter (EQUALS, STARTS_WITH, CONTAINS)
+            Matching is case-sensitive.
+        name_match_option: Match option for name filter (EQUALS, STARTS_WITH, CONTAINS),
+            in any case. Checked only when name_filter is set.
         next_token: Continuation token from a previous response
         max_items: Total items to return. None fetches every page.
 
@@ -419,10 +466,73 @@ async def list_workload_estimates(
         Dict containing the workload estimates information. This contains the following information about a workload estimate:
         id: The unique identifier of the workload estimate.
         name: The name of the workload estimate.
-        status: The current status of the workload estimate. Possible values are UPDATIN, VALID, INVALID, ACTION_NEEDED
+        status: The current status of the workload estimate. Possible values are UPDATING, VALID, INVALID, ACTION_NEEDED
     """
     try:
+        # The service accepts only upper-case match options; reject others before any AWS call.
+        if name_filter:
+            normalized_match_option = (name_match_option or '').strip().upper()
+            if normalized_match_option not in VALID_MATCH_OPTIONS:
+                return format_response(
+                    'error',
+                    {'invalid_parameter': 'name_match_option', 'value': name_match_option},
+                    f'Invalid name_match_option: {name_match_option}. '
+                    f'Must be one of: {", ".join(VALID_MATCH_OPTIONS)}.',
+                    error_type='validation_error',
+                    operation='list_workload_estimates',
+                    service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+                )
+            name_match_option = normalized_match_option
+
         await ctx.info('Listing workload estimates')
+
+        # Validate before any AWS call: an unknown or wrongly cased status matches nothing.
+        statuses: List[str] = []
+        if isinstance(status_filter, list) or status_filter:
+            statuses, status_error = _normalize_statuses(status_filter)
+            if status_error:
+                return status_error
+
+        # Check each date bound before any AWS call: an unparseable value names its
+        # parameter, and an after bound later than its before bound is rejected here since
+        # the service's message names the bounds the wrong way round.
+        bounds = {
+            'created_after': created_after,
+            'created_before': created_before,
+            'expires_after': expires_after,
+            'expires_before': expires_before,
+        }
+        timestamps: Dict[str, datetime] = {}
+        for name, value in bounds.items():
+            if value:
+                try:
+                    timestamps[name] = _parse_timestamp(value)
+                except (ValueError, OverflowError):
+                    return format_response(
+                        'error',
+                        {'invalid_parameter': name, 'value': value},
+                        f'Invalid {name}: {value}. Use an ISO 8601 timestamp such as '
+                        f'2026-01-31T00:00:00 (UTC when no offset is given).',
+                        error_type='validation_error',
+                        operation='list_workload_estimates',
+                        service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+                    )
+        for prefix in ('created', 'expires'):
+            after = timestamps.get(f'{prefix}_after')
+            before = timestamps.get(f'{prefix}_before')
+            if after and before and after > before:
+                return format_response(
+                    'error',
+                    {'invalid_parameter': f'{prefix}_after', 'value': bounds[f'{prefix}_after']},
+                    f'Invalid date range: {prefix}_after ({bounds[f"{prefix}_after"]}) is later '
+                    f'than {prefix}_before ({bounds[f"{prefix}_before"]}). {prefix}_after must be '
+                    f'earlier than or equal to {prefix}_before.',
+                    error_type='validation_error',
+                    operation='list_workload_estimates',
+                    service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+                )
+        created_filter = _timestamp_filter(timestamps, 'created')
+        expires_filter = _timestamp_filter(timestamps, 'expires')
 
         # Create BCM Pricing Calculator client
         bcm_client = create_aws_client('bcm-pricing-calculator')
@@ -434,37 +544,16 @@ async def list_workload_estimates(
 
         # Build request parameters. The token and page size are added per page.
         request_params: Dict[str, Any] = {}
-
-        # Add created at filter
-        if created_after or created_before:
-            created_filter = {}
-            if created_after:
-                created_filter['afterTimestamp'] = datetime.fromisoformat(
-                    created_after.replace('Z', UTC_TIMEZONE_OFFSET)
-                )
-            if created_before:
-                created_filter['beforeTimestamp'] = datetime.fromisoformat(
-                    created_before.replace('Z', UTC_TIMEZONE_OFFSET)
-                )
+        if created_filter:
             request_params['createdAtFilter'] = created_filter
-
-        # Add expires at filter
-        if expires_after or expires_before:
-            expires_filter = {}
-            if expires_after:
-                expires_filter['afterTimestamp'] = datetime.fromisoformat(
-                    expires_after.replace('Z', UTC_TIMEZONE_OFFSET)
-                )
-            if expires_before:
-                expires_filter['beforeTimestamp'] = datetime.fromisoformat(
-                    expires_before.replace('Z', UTC_TIMEZONE_OFFSET)
-                )
+        if expires_filter:
             request_params['expiresAtFilter'] = expires_filter
 
         # Add additional filters
         filters = []
-        if status_filter:
-            filters.append({'name': 'STATUS', 'values': [status_filter], 'matchOption': 'EQUALS'})
+        if statuses:
+            # Several values in one STATUS filter are ORed by the service; separate filters are ANDed.
+            filters.append({'name': 'STATUS', 'values': statuses, 'matchOption': 'EQUALS'})
 
         if name_filter:
             filters.append(
@@ -497,6 +586,83 @@ async def list_workload_estimates(
         return await handle_aws_error(
             ctx, e, 'list_workload_estimates', BCM_PRICING_CALCULATOR_SERVICE_NAME
         )
+
+
+def _normalize_statuses(
+    status_filter: Union[str, List[str], None],
+) -> tuple[List[str], Optional[Dict[str, Any]]]:
+    """Upper-case and check status_filter (one status or a list), keeping order without repeats.
+
+    A JSON array string such as '["VALID", "INVALID"]' is read as a list, since some clients
+    send lists that way. Returns (statuses, None) when every value is a known status, or
+    ([], error response).
+    """
+    if isinstance(status_filter, str) and status_filter.strip().startswith('['):
+        try:
+            parsed = json.loads(status_filter)
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, list):
+            status_filter = parsed
+    values = status_filter if isinstance(status_filter, list) else [status_filter]
+    if not values:
+        return [], format_response(
+            'error',
+            {'invalid_parameter': 'status_filter', 'value': []},
+            'Invalid status_filter: give at least one status, or omit it for no filter. '
+            f'Must be one of: {", ".join(VALID_WORKLOAD_ESTIMATE_STATUSES)}.',
+            error_type='validation_error',
+            operation='list_workload_estimates',
+            service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+        )
+    statuses: List[str] = []
+    invalid: List[Any] = []
+    for value in values:
+        status = value.strip().upper() if isinstance(value, str) else None
+        if status not in VALID_WORKLOAD_ESTIMATE_STATUSES:
+            invalid.append(value)
+        elif status not in statuses:
+            statuses.append(status)
+    if invalid:
+        # repr shows a blank or non-string list entry; a single string is shown as given.
+        shown = (
+            ', '.join(repr(v) for v in invalid) if isinstance(status_filter, list) else invalid[0]
+        )
+        return [], format_response(
+            'error',
+            {
+                'invalid_parameter': 'status_filter',
+                'value': invalid if isinstance(status_filter, list) else status_filter,
+            },
+            f'Invalid status_filter: {shown}. '
+            f'Must be one of: {", ".join(VALID_WORKLOAD_ESTIMATE_STATUSES)}.',
+            error_type='validation_error',
+            operation='list_workload_estimates',
+            service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+        )
+    return statuses, None
+
+
+def _parse_timestamp(value: str) -> datetime:
+    """Parse an ISO 8601 bound as a UTC instant, so two bounds compare.
+
+    A value without an offset is taken as UTC, which is how botocore sends it.
+    Raises ValueError for a value that is not ISO 8601, and OverflowError for one whose
+    offset moves it outside the datetime range.
+    """
+    parsed = datetime.fromisoformat(value.replace('Z', UTC_TIMEZONE_OFFSET))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _timestamp_filter(timestamps: Dict[str, datetime], prefix: str) -> Dict[str, datetime]:
+    """Build a FilterTimestamp from the parsed <prefix>_after and <prefix>_before bounds."""
+    timestamp_filter: Dict[str, datetime] = {}
+    for key, suffix in (('afterTimestamp', 'after'), ('beforeTimestamp', 'before')):
+        if f'{prefix}_{suffix}' in timestamps:
+            timestamp_filter[key] = timestamps[f'{prefix}_{suffix}']
+    return timestamp_filter
 
 
 async def get_workload_estimate(
@@ -605,12 +771,13 @@ async def list_workload_estimate_usage(
     Args:
         ctx: The MCP context object
         workload_estimate_id: The unique identifier of the workload estimate
-        usage_account_id_filter: Filter by AWS account ID
-        service_code_filter: Filter by AWS service code (e.g., AmazonEC2, AmazonS3)
-        usage_type_filter: Filter by usage type
-        operation_filter: Filter by operation name
-        location_filter: Filter by location/region
-        usage_group_filter: Filter by usage group
+        usage_account_id_filter: Filter by AWS account ID (EQUALS)
+        service_code_filter: Filter by AWS service code (EQUALS, e.g. AmazonEC2, AmazonS3)
+        usage_type_filter: Filter by usage type (CONTAINS)
+        operation_filter: Filter by operation name (CONTAINS)
+        location_filter: Filter by location (EQUALS): usually a region code (e.g. us-east-1),
+            or a Local Zone or Wavelength Zone code
+        usage_group_filter: Filter by usage group (EQUALS)
         next_token: Continuation token from a previous response
         max_items: Total items to return. None fetches every page.
 

@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -74,7 +74,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aurora-dsql-mcp-server"
-version = "1.1.4"
+version = "1.1.5"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
@@ -815,8 +815,8 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio", version = "4.9.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "anyio", version = "4.14.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
-    { name = "httpx2", version = "2.6.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.14' and sys_platform != 'emscripten') or (python_full_version < '3.12' and sys_platform == 'emscripten')" },
-    { name = "httpx2", version = "2.10.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.14' and sys_platform != 'emscripten') or (python_full_version >= '3.12' and sys_platform == 'emscripten')" },
+    { name = "httpx2", version = "2.6.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or (python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten')" },
+    { name = "httpx2", version = "2.10.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14' or (python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten')" },
     { name = "jsonschema" },
     { name = "mcp-types" },
     { name = "opentelemetry-api" },

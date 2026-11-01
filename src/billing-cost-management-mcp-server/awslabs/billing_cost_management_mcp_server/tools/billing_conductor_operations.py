@@ -18,6 +18,7 @@ This module contains the individual operation handlers for the Billing Conductor
 Each operation handles the AWS API call, pagination, and response formatting.
 """
 
+import re
 from ..utilities.aws_service_base import (
     PageSpec,
     create_aws_client,
@@ -30,12 +31,22 @@ from ..utilities.aws_service_base import (
 )
 from ..utilities.constants import REGION_US_EAST_1
 from ..utilities.time_utils import timestamp_to_utc_iso_string
+from datetime import date, datetime, timezone
+from decimal import Decimal, InvalidOperation
 from fastmcp import Context
 from typing import Any, Dict, List, Optional
 
 
 # AWS Billing Conductor is a global service that operates in us-east-1
 BILLING_CONDUCTOR_DEFAULT_REGION = REGION_US_EAST_1
+
+# The service computes Margin as ProformaCost - AWSCost and MarginPercentage as Margin / AWSCost
+# (0 when AWSCost is 0). The field name says percentage, but the value is a fraction.
+MARGIN_NOTE = (
+    'margin = proforma_cost - aws_cost; negative means the proforma cost is below the AWS cost. '
+    'margin_percentage = margin / aws_cost as a fraction, not a percent: -0.25 means -25%; '
+    'it is 0.0 when aws_cost is 0.'
+)
 
 
 def _create_billing_conductor_client() -> Any:
@@ -55,6 +66,8 @@ def _bc_page_spec(result_key: str) -> PageSpec:
         token_key_in_response='NextToken',
         page_max=100,
         page_size_param='MaxResults',
+        # Billing Conductor reports a bad caller next_token as ValidationException.
+        caller_token_error_codes=frozenset({'ValidationException'}),
     )
 
 
@@ -80,6 +93,66 @@ def _request_params(
     if parsed_filters:
         request_params['Filters'] = parsed_filters
     return request_params
+
+
+# The service's BillingPeriod pattern, anchored: YYYY-MM, with an optional leading zero.
+_BILLING_PERIOD_PATTERN = re.compile(r'([0-9]{4})-(0?[1-9]|1[012])')
+
+FUTURE_BILLING_PERIOD_NOTE = (
+    'billing_period is after the current month (UTC), so this is a projection, not a record: '
+    'Billing Conductor lists what is recorded today as in effect that month and leaves out items '
+    'already set to end before then, such as a billing group whose primary account has left. '
+    'Changes made between now and the start of that month are not shown.'
+)
+
+
+def _utc_today() -> date:
+    """Return today's date in UTC. Tests patch this to pin the current billing period."""
+    return datetime.now(timezone.utc).date()
+
+
+def _current_billing_period() -> str:
+    """Return the current UTC month as YYYY-MM."""
+    today = _utc_today()
+    return f'{today.year:04d}-{today.month:02d}'
+
+
+def _is_future_billing_period(billing_period: Optional[str]) -> bool:
+    """Return True when billing_period is a well-formed month after the current UTC month.
+
+    A missing or malformed value is not future; the service validates the format.
+    """
+    match = _BILLING_PERIOD_PATTERN.fullmatch(billing_period or '')
+    if not match:
+        return False
+    today = _utc_today()
+    return (int(match.group(1)), int(match.group(2))) > (today.year, today.month)
+
+
+def _reject_future_billing_period(billing_period: Optional[str], field: str, outcome: str) -> None:
+    """Raise ValueError when a cost report is asked for a month that has not started.
+
+    Args:
+        billing_period: The requested month (YYYY-MM).
+        field: The parameter name to quote in the message.
+        outcome: What the service returns for that month, quoted in the message.
+
+    Raises:
+        ValueError: billing_period is after the current UTC month.
+    """
+    if _is_future_billing_period(billing_period):
+        raise ValueError(
+            f'{field} {billing_period} is after the current month ({_current_billing_period()}, '
+            f'UTC). Billing Conductor has no costs for a month that has not started and {outcome}. '
+            'Use the current month (month-to-date) or an earlier one.'
+        )
+
+
+def _future_period_fields(billing_period: Optional[str]) -> Dict[str, Any]:
+    """Return the projection flag and note for a configuration list asked for a future month."""
+    if not _is_future_billing_period(billing_period):
+        return {}
+    return {'billing_period_is_future': True, 'billing_period_note': FUTURE_BILLING_PERIOD_NOTE}
 
 
 # ListBillingGroups: MaxResults 1-100.
@@ -122,6 +195,7 @@ async def list_billing_groups(
         response_data: Dict[str, Any] = {
             'billing_groups': _format_billing_groups(billing_groups),
             'billing_period': billing_period or 'current',
+            **_future_period_fields(billing_period),
         }
         return format_response('success', with_pagination(response_data, pagination))
 
@@ -188,6 +262,8 @@ BC_LIST_ACCOUNT_ASSOCIATIONS = PageSpec(
     token_param='NextToken',
     token_key_in_response='NextToken',
     page_max=100,
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 
@@ -227,6 +303,7 @@ async def list_account_associations(
         response_data: Dict[str, Any] = {
             'linked_accounts': _format_linked_accounts(linked_accounts),
             'billing_period': billing_period or 'current',
+            **_future_period_fields(billing_period),
         }
         return format_response('success', with_pagination(response_data, pagination))
 
@@ -286,6 +363,9 @@ async def list_billing_group_cost_reports(
         Dict containing the formatted billing group cost reports and a ``pagination`` block.
     """
     try:
+        _reject_future_billing_period(
+            billing_period, 'billing_period', 'returns $0 for every billing group'
+        )
         request_params = _request_params(billing_period=billing_period, filters=filters)
         bc_client = _create_billing_conductor_client()
 
@@ -303,6 +383,8 @@ async def list_billing_group_cost_reports(
             'billing_group_cost_reports': _format_billing_group_cost_reports(cost_reports),
             'billing_period': billing_period or 'current',
         }
+        if cost_reports:
+            response_data['margin_note'] = MARGIN_NOTE
         return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
@@ -315,7 +397,8 @@ async def list_billing_group_cost_reports(
 # A changed parameter or a malformed token fails with ValidationException, and an expired token
 # can fail with ValidationException or InternalServerException. Either code on a call that
 # carried a next_token means that token is unusable, so the helper maps it to
-# invalid_next_token only then.
+# invalid_next_token only then. The expired-token InternalServerException need not name the
+# token, so this spec does not require the message to.
 BC_GET_BILLING_GROUP_COST_REPORT = PageSpec(
     result_key='BillingGroupCostReportResults',
     token_param='NextToken',
@@ -324,6 +407,7 @@ BC_GET_BILLING_GROUP_COST_REPORT = PageSpec(
     page_size_param='MaxResults',
     page_min=200,
     caller_token_error_codes=frozenset({'ValidationException', 'InternalServerException'}),
+    caller_token_message_required=False,
 )
 
 
@@ -355,6 +439,12 @@ async def get_billing_group_cost_report(
 
         parsed_range = parse_json(billing_period_range, 'billing_period_range')
         if parsed_range:
+            if isinstance(parsed_range, dict):
+                _reject_future_billing_period(
+                    parsed_range.get('InclusiveStartBillingPeriod'),
+                    'InclusiveStartBillingPeriod',
+                    'returns no results',
+                )
             request_params['BillingPeriodRange'] = parsed_range
 
         parsed_group_by = parse_json(group_by, 'group_by')
@@ -379,10 +469,28 @@ async def get_billing_group_cost_report(
             ),
             'arn': arn,
         }
+        if results:
+            response_data['margin_note'] = MARGIN_NOTE
         return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'getBillingGroupCostReport', 'Billing Conductor')
+
+
+def _plain_decimal(value: Optional[str]) -> Optional[str]:
+    """Rewrite a cost report amount string in plain decimal notation, digit for digit.
+
+    The service can return a small or large amount in exponent form ("5.0E-7"). Decimal
+    parses it exactly and format 'f' writes it without an exponent or any rounding. Returns
+    None for a missing, non-numeric or non-finite value.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        number = Decimal(value)
+    except InvalidOperation:
+        return None
+    return format(number, 'f') if number.is_finite() else None
 
 
 def _format_cost_report_base(report: Dict[str, Any]) -> Dict[str, Any]:
@@ -401,6 +509,10 @@ def _format_cost_report_base(report: Dict[str, Any]) -> Dict[str, Any]:
         'margin': report.get('Margin'),
         'margin_percentage': report.get('MarginPercentage'),
         'currency': report.get('Currency'),
+    }
+    formatted['decimal_values'] = {
+        key: _plain_decimal(formatted[key])
+        for key in ('aws_cost', 'proforma_cost', 'margin', 'margin_percentage')
     }
     return formatted
 
@@ -488,6 +600,7 @@ async def list_custom_line_items(
         response_data: Dict[str, Any] = {
             'custom_line_items': _format_custom_line_items(custom_line_items),
             'billing_period': billing_period or 'current',
+            **_future_period_fields(billing_period),
         }
         return format_response('success', with_pagination(response_data, pagination))
 
@@ -519,6 +632,8 @@ async def list_custom_line_item_versions(
         Dict containing the formatted custom line item versions and a ``pagination`` block.
     """
     try:
+        # No future-period check: BillingPeriodRange here selects versions, and a version can
+        # legitimately start in a future month.
         request_params = _request_params({'Arn': arn}, filters=filters)
         bc_client = _create_billing_conductor_client()
 
@@ -587,6 +702,7 @@ async def list_resources_associated_to_custom_line_item(
             'arn': arn,
             'associated_resources': _format_associated_resources(resources),
             'billing_period': billing_period or 'current',
+            **_future_period_fields(billing_period),
         }
         return format_response('success', with_pagination(response_data, pagination))
 
@@ -770,6 +886,7 @@ async def list_pricing_rules(
         response_data: Dict[str, Any] = {
             'pricing_rules': _format_pricing_rules(pricing_rules),
             'billing_period': billing_period or 'current',
+            **_future_period_fields(billing_period),
         }
         return format_response('success', with_pagination(response_data, pagination))
 
@@ -817,6 +934,7 @@ async def list_pricing_plans(
         response_data: Dict[str, Any] = {
             'pricing_plans': _format_pricing_plans(pricing_plans),
             'billing_period': billing_period or 'current',
+            **_future_period_fields(billing_period),
         }
         return format_response('success', with_pagination(response_data, pagination))
 
@@ -869,6 +987,7 @@ async def list_pricing_rules_associated_to_pricing_plan(
             'pricing_rule_arns': pricing_rule_arns,
             'pricing_plan_arn': first_page.get('PricingPlanArn') or pricing_plan_arn,
             'billing_period': first_page.get('BillingPeriod') or billing_period or 'current',
+            **_future_period_fields(billing_period),
         }
         return format_response('success', with_pagination(response_data, pagination))
 
@@ -923,6 +1042,7 @@ async def list_pricing_plans_associated_with_pricing_rule(
             'pricing_plan_arns': pricing_plan_arns,
             'pricing_rule_arn': first_page.get('PricingRuleArn') or pricing_rule_arn,
             'billing_period': first_page.get('BillingPeriod') or billing_period or 'current',
+            **_future_period_fields(billing_period),
         }
         return format_response('success', with_pagination(response_data, pagination))
 

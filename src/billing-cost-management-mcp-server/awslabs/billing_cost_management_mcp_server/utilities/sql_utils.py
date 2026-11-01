@@ -142,7 +142,7 @@ def cleanup_session_db() -> None:
 def _session_authorizer(action, arg1, arg2, db_name, trigger_name):
     """SQLite authorizer callback: deny cross-DB attach/detach.
 
-    Belt-and-suspenders with the regex blacklist in
+    Belt-and-suspenders with the regex denylist in
     :func:`validate_sql_query`. The regex catches the query text
     before SQLite parses it; this authorizer catches every SQL parser
     action the connection actually attempts, including anything the
@@ -419,6 +419,8 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
         'budget_actions': 'records',
         'budget_notifications': 'records',
         'enterprise_support_list_linked_account_charges': 'records',
+        'business_support_list_account_charges': 'records',
+        'business_support_list_subscription_history': 'records',
         'sp_explorer_describe_savings_plans': 'records',
         'sp_explorer_describe_savings_plan_rates': 'records',
         'sp_explorer_describe_savings_plans_offerings': 'records',
@@ -807,6 +809,121 @@ def _bounded_preview(
     return preview, False
 
 
+# UTC midnight as ISO 8601 writes it: ``T00:00`` or ``T00:00:00`` with optional zero
+# fractional seconds, then ``Z``, ``+00:00``, ``+0000`` or no zone (Cost Explorer returns
+# ``...T00:00:00Z``). ``-00:00`` means an unknown offset, so it is not UTC. ASCII digits
+# only, matched with fullmatch so a trailing newline is not accepted.
+_UTC_MIDNIGHT_RE = re.compile(
+    r'([0-9]{4}-[0-9]{2}-[0-9]{2})T00:00(?::00(?:\.0+)?)?(?:Z|\+00:?00)?'
+)
+_ISO_DATE_RE = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}')
+
+
+def _ce_bound_date(value: str) -> Optional[str]:
+    """Return the ``YYYY-MM-DD`` of a date or UTC-midnight timestamp, or None if it is not one.
+
+    The date must exist on the calendar, so ``2026-02-30`` is not one.
+    """
+    if _ISO_DATE_RE.fullmatch(value):
+        date = value
+    else:
+        match = _UTC_MIDNIGHT_RE.fullmatch(value)
+        if match is None:
+            return None
+        date = match.group(1)
+    try:
+        datetime.strptime(date, '%Y-%m-%d')
+    except ValueError:
+        return None
+    return date
+
+
+def _ce_period_bounds(time_periods: List[Any]) -> Tuple[List[Tuple[Any, Any]], Optional[bool]]:
+    """Return the (start, end) to store for each Cost Explorer ``TimePeriod``.
+
+    getCostAndUsage returns DAILY and MONTHLY bounds as ``YYYY-MM-DD``;
+    getCostAndUsageWithResources returns the same bounds as UTC-midnight
+    timestamps. Stored verbatim, a date filter on TEXT drops the last day of the
+    timestamp table and a JOIN across the two matches nothing. So when every
+    bound in the response is a date or UTC midnight, all are stored as dates.
+    Otherwise (HOURLY, whose periods always have a non-midnight bound) every
+    bound is kept as returned, so one response never mixes the two formats.
+
+    Args:
+        time_periods: The ``TimePeriod`` of each result, in order.
+
+    Returns:
+        One (start, end) pair per period (a missing bound is None), and whether
+        the bounds are dates: None when there is no bound at all.
+    """
+    bounds = [
+        (tp.get('Start'), tp.get('End')) if isinstance(tp, dict) else (None, None)
+        for tp in time_periods
+    ]
+    dates: List[Tuple[Any, Any]] = []
+    seen_bound = False
+    for pair in bounds:
+        converted = []
+        for value in pair:
+            if value is None:
+                converted.append(None)
+                continue
+            seen_bound = True
+            date = _ce_bound_date(value) if isinstance(value, str) else None
+            if date is None:
+                return bounds, False
+            converted.append(date)
+        dates.append((converted[0], converted[1]))
+    return dates, (True if seen_bound else None)
+
+
+# The stored period formats, worded once for the handle and the sample query notes.
+_CE_DATE_FORMAT = "'YYYY-MM-DD'"
+_CE_KEPT_FORMAT = "as the API returned it, e.g. 'YYYY-MM-DDTHH:MM:SSZ' for HOURLY"
+
+
+def _ce_time_period_formats(as_dates: bool) -> Dict[str, str]:
+    """Describe how this table stores Cost Explorer periods, for the handle.
+
+    The columns are TEXT and compare byte by byte, so a literal of another form
+    silently matches nothing.
+
+    Args:
+        as_dates: Whether ``_ce_period_bounds`` stored the bounds as dates.
+
+    Returns:
+        A description per period column.
+    """
+    if as_dates:
+        start = (
+            f'TEXT {_CE_DATE_FORMAT} (UTC date). Compared as text: filter with date literals. '
+            "HOURLY tables store 'YYYY-MM-DDTHH:MM:SSZ'; use substr(time_period_start, 1, 10) "
+            'to compare their days with this table'
+        )
+    else:
+        start = (
+            f'TEXT {_CE_KEPT_FORMAT}. Compared as text: filter with literals of the same '
+            'form, or use substr(time_period_start, 1, 10) to compare days'
+        )
+    exclusive = (
+        'The end is exclusive: the period covers time_period_start up to, not including, '
+        'time_period_end'
+    )
+    return {
+        'time_period_start': start,
+        'time_period_end': (
+            f'TEXT {_CE_DATE_FORMAT} (UTC date). {exclusive}'
+            if as_dates
+            else f'TEXT as the API returned it. {exclusive}'
+        ),
+    }
+
+
+def _ce_time_format_note(as_dates: bool) -> str:
+    """One clause on the stored period format, for sample query descriptions."""
+    return f'time_period_start is {_CE_DATE_FORMAT if as_dates else _CE_KEPT_FORMAT}'
+
+
 async def convert_api_response_to_table(
     ctx: Context, response: Dict[str, Any], operation_name: str, **metadata
 ) -> Dict[str, Any]:
@@ -845,6 +962,9 @@ async def convert_api_response_to_table(
 
     try:
         rows_inserted = 0
+        # Whether the Cost Explorer periods were stored as dates; None when this
+        # table holds no Cost Explorer periods.
+        ce_periods_as_dates: Optional[bool] = None
 
         # Create table and insert data based on response type
         if converter_type == 'pricing_products' and 'PriceList' in response:
@@ -899,10 +1019,11 @@ async def convert_api_response_to_table(
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
             cursor.execute(sql)
 
-            for result_by_time in response.get('ResultsByTime', []):
-                time_period = result_by_time.get('TimePeriod', {})
-                start = time_period.get('Start')
-                end = time_period.get('End')
+            results_by_time = response.get('ResultsByTime', [])
+            period_bounds, ce_periods_as_dates = _ce_period_bounds(
+                [r.get('TimePeriod', {}) for r in results_by_time]
+            )
+            for result_by_time, (start, end) in zip(results_by_time, period_bounds):
                 estimated = result_by_time.get('Estimated', False)
 
                 # Handle grouped data
@@ -990,8 +1111,11 @@ async def convert_api_response_to_table(
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
             cursor.execute(sql)
 
-            for forecast in response.get('ForecastResultsByTime', []):
-                time_period = forecast.get('TimePeriod', {})
+            forecasts = response.get('ForecastResultsByTime', [])
+            period_bounds, ce_periods_as_dates = _ce_period_bounds(
+                [f.get('TimePeriod', {}) for f in forecasts]
+            )
+            for forecast, (start, end) in zip(forecasts, period_bounds):
                 # Use validated table name
                 validate_table_name(table_name)
                 insert_sql = create_safe_sql_statement(
@@ -1002,8 +1126,8 @@ async def convert_api_response_to_table(
                 cursor.execute(
                     insert_sql,
                     (
-                        time_period.get('Start'),
-                        time_period.get('End'),
+                        start,
+                        end,
                         float(forecast.get('MeanValue', 0)),
                         float(forecast.get('PredictionIntervalLowerBound', 0)),
                         float(forecast.get('PredictionIntervalUpperBound', 0)),
@@ -1199,6 +1323,13 @@ async def convert_api_response_to_table(
 
         await ctx.info(f'Converted {rows_inserted} rows to SQL table: {table_name}')
 
+        # The stored period format, appended to the time-ordered sample query descriptions.
+        time_note = (
+            f'. {_ce_time_format_note(ce_periods_as_dates)}'
+            if ce_periods_as_dates is not None
+            else ''
+        )
+
         # Get sample queries based on table type with enhanced examples
         # Start with a basic query for all tables
         base_query = create_safe_sql_statement('SELECT', table_name, '*') + ' LIMIT 10'
@@ -1239,7 +1370,7 @@ async def convert_api_response_to_table(
             sample_queries.append(
                 {
                     'name': 'Cost trend over time',
-                    'description': 'Shows cost pattern across the time period',
+                    'description': 'Shows cost pattern across the time period' + time_note,
                     'sql': trend_query,
                 }
             )
@@ -1331,7 +1462,8 @@ async def convert_api_response_to_table(
             sample_queries.append(
                 {
                     'name': 'Forecast trend',
-                    'description': 'Shows forecast values with confidence bounds over time',
+                    'description': 'Shows forecast values with confidence bounds over time'
+                    + time_note,
                     'sql': forecast_query,
                 }
             )
@@ -1541,6 +1673,12 @@ async def convert_api_response_to_table(
                 else {}
             ),
             **({'preview_truncated': True} if preview_truncated else {}),
+            # The stored time format, for the tables that hold Cost Explorer periods.
+            **(
+                {'column_formats': _ce_time_period_formats(ce_periods_as_dates)}
+                if ce_periods_as_dates is not None
+                else {}
+            ),
         }
 
     except Exception as e:
@@ -1606,19 +1744,21 @@ async def execute_session_sql(
         # Execute the main query
         await ctx.info(f'Executing SQL query: {query[:100]}...')
 
-        # Get query type (read or write)
-        query_upper = query.strip().upper()
-        is_write_operation = any(
-            query_upper.startswith(cmd)
-            for cmd in ['INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER']
-        )
-
         # Execute the query with validation
         validate_sql_query(query)
         cursor.execute(query)
 
-        # Commit if this is a write operation
-        if is_write_operation:
+        # Commit if the statement opened a transaction.
+        #
+        # We rely on sqlite3's own view of the transaction state rather than a
+        # keyword-prefix check on the query text. A prefix check misses writes
+        # that sqlite3 still runs inside an implicit transaction -- for example
+        # comment-prefixed DML ("/* c */ INSERT ...") and REPLACE statements --
+        # leaving the transaction uncommitted so the write is silently rolled
+        # back when the connection closes. conn.in_transaction reflects the
+        # actual engine state and commits exactly when there is something to
+        # commit.
+        if conn.in_transaction:
             conn.commit()
 
         # Get results

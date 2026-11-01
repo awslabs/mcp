@@ -333,6 +333,64 @@ class TestHandleAwsError:
         assert result['message'] == 'No error message provided'
 
     @pytest.mark.asyncio
+    async def test_data_unavailable_with_empty_message_says_no_data(self):
+        """Cost Explorer's empty-message DataUnavailableException is reported as no data."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            add_retry_guidance,
+        )
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {
+                'Error': {'Code': 'DataUnavailableException', 'Message': ''},
+                'ResponseMetadata': {'HTTPStatusCode': 400},
+            },
+            'GetSavingsPlansUtilization',
+        )
+
+        result = add_retry_guidance(
+            await handle_aws_error(
+                AsyncMock(), error, 'get_savings_plans_utilization', 'Cost Explorer'
+            )
+        )
+
+        assert result['error_type'] == 'DataUnavailableException'
+        assert result['message'] == (
+            'Cost Explorer has no data for this request '
+            '(DataUnavailableException; the service sent no message).'
+        )
+        assert result['retry_strategy'] == 'do_not_retry'
+        assert 'The service has no data for this request' in result['hint']
+
+    @pytest.mark.asyncio
+    async def test_data_unavailable_without_message_key_says_no_data(self):
+        """A DataUnavailableException with no Message key at all is reported the same way."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError({'Error': {'Code': 'DataUnavailableException'}}, 'GetCostForecast')
+
+        result = await handle_aws_error(AsyncMock(), error, 'getCostForecast', 'Cost Explorer')
+
+        assert result['message'] == (
+            'Cost Explorer has no data for this request '
+            '(DataUnavailableException; the service sent no message).'
+        )
+
+    @pytest.mark.asyncio
+    async def test_data_unavailable_keeps_a_service_message(self):
+        """A DataUnavailableException that carries a message passes it through unchanged."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {'Error': {'Code': 'DataUnavailableException', 'Message': 'No data yet.'}},
+            'GetCostAndUsage',
+        )
+
+        result = await handle_aws_error(AsyncMock(), error, 'getCostAndUsage', 'Cost Explorer')
+
+        assert result['message'] == 'No data yet.'
+
+    @pytest.mark.asyncio
     async def test_handle_value_error(self):
         """Test handling ValueError."""
         # Setup
@@ -401,7 +459,9 @@ class TestHandleAwsError:
         assert result['error_type'] == 'aws_connection_error'
         assert result['service'] == 'EC2'
         assert result['operation'] == 'Connect'
-        assert result['message'] == 'AWS service connection error: BotoCoreError'
+        # The base class is not a connection failure, so it is not retryable
+        assert result['message'] == 'AWS SDK error (not a connection failure): BotoCoreError'
+        assert result['retry_strategy'] == 'do_not_retry'
 
     @pytest.mark.asyncio
     async def test_handle_param_validation_error(self):
@@ -518,6 +578,229 @@ class TestHandleAwsError:
         assert result['error_type'] == 'aws_connection_error'
         assert 'retry_strategy' not in result
         assert add_retry_guidance(result)['retry_strategy'] == RETRY_SAME_REQUEST
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'error_factory, hint_start',
+        [
+            # credential_process failed (e.g. an expired SSO or federation session)
+            (
+                lambda e: e.CredentialRetrievalError(provider='custom-process', error_msg=''),
+                'AWS credentials or client configuration',
+            ),
+            (
+                lambda e: e.TokenRetrievalError(provider='sso', error_msg='expired'),
+                'AWS credentials or client configuration',
+            ),
+            (
+                lambda e: e.SSOTokenLoadError(error_msg='token expired'),
+                'AWS credentials or client configuration',
+            ),
+            (
+                lambda e: e.UnauthorizedSSOTokenError(),
+                'AWS credentials or client configuration',
+            ),
+            (
+                lambda e: e.OperationNotPageableError(operation_name='get_cost_forecast'),
+                'The AWS SDK raised a client-side error',
+            ),
+            (
+                lambda e: e.DataNotFoundError(data_path='ce/2017-10-25'),
+                'The AWS SDK raised a client-side error',
+            ),
+            (
+                lambda e: e.WaiterError(name='Done', reason='Max attempts', last_response={}),
+                'The AWS SDK raised a client-side error',
+            ),
+        ],
+        ids=[
+            'CredentialRetrievalError',
+            'TokenRetrievalError',
+            'SSOTokenLoadError',
+            'UnauthorizedSSOTokenError',
+            'OperationNotPageableError',
+            'DataNotFoundError',
+            'WaiterError',
+        ],
+    )
+    async def test_non_connection_botocore_errors_are_do_not_retry(
+        self, error_factory, hint_start
+    ):
+        """A BotoCoreError outside botocore's transient classes is not a connection failure."""
+        import botocore.exceptions as boto_exceptions
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            DO_NOT_RETRY,
+            add_retry_guidance,
+        )
+
+        error = error_factory(boto_exceptions)
+        result = await handle_aws_error(AsyncMock(), error, 'GetCostAndUsage', 'Cost Explorer')
+
+        assert result['error_type'] == 'aws_connection_error'
+        assert result['boto_error_type'] == type(error).__name__
+        assert result['message'].startswith('AWS SDK error (not a connection failure): ')
+        assert result['hint'].startswith(hint_start)
+        assert 'Do not retry' in result['hint']
+        assert add_retry_guidance(result)['retry_strategy'] == DO_NOT_RETRY
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'error_factory',
+        [
+            lambda e: e.UnknownParameterError(
+                name='Foo', operation='GetCostAndUsage', choices='TimePeriod'
+            ),
+            lambda e: e.UnknownKeyError(value='x', param='Filter', choices='And, Or'),
+            lambda e: e.RangeError(value=0, param='MaxResults', min_value=1, max_value=100),
+        ],
+        ids=['UnknownParameterError', 'UnknownKeyError', 'RangeError'],
+    )
+    async def test_botocore_validation_errors_are_modify_request(self, error_factory):
+        """Botocore's ValidationError family means the arguments are wrong, like ParamValidationError."""
+        import botocore.exceptions as boto_exceptions
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            MODIFY_REQUEST,
+            add_retry_guidance,
+        )
+
+        error = error_factory(boto_exceptions)
+        result = await handle_aws_error(AsyncMock(), error, 'GetCostAndUsage', 'Cost Explorer')
+
+        # error_type stays stable for callers that key on it; retry_strategy is explicit
+        assert result['error_type'] == 'aws_connection_error'
+        assert result['boto_error_type'] == type(error).__name__
+        assert result['details'] == str(error)
+        assert 'Correct them' in result['hint']
+        assert add_retry_guidance(result)['retry_strategy'] == MODIFY_REQUEST
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'error_factory',
+        [
+            lambda e: e.IncompleteReadError(actual_bytes=1, expected_bytes=2),
+            lambda e: e.FlexibleChecksumError(error_msg='Expected checksum did not match'),
+        ],
+        ids=['IncompleteReadError', 'FlexibleChecksumError'],
+    )
+    async def test_body_read_failures_are_retryable(self, error_factory):
+        """A response body cut short or corrupted in transit is transient."""
+        import botocore.exceptions as boto_exceptions
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            RETRY_SAME_REQUEST,
+            add_retry_guidance,
+        )
+
+        error = error_factory(boto_exceptions)
+        result = await handle_aws_error(AsyncMock(), error, 'GetObject', 'S3')
+
+        assert 'retry_strategy' not in result
+        assert add_retry_guidance(result)['retry_strategy'] == RETRY_SAME_REQUEST
+
+    @pytest.mark.asyncio
+    async def test_capacity_not_available_stays_retryable(self):
+        """CapacityNotAvailableError (no client-side request capacity) stays retryable."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            RETRY_SAME_REQUEST,
+            add_retry_guidance,
+        )
+        from botocore.exceptions import CapacityNotAvailableError
+
+        result = await handle_aws_error(
+            AsyncMock(), CapacityNotAvailableError(), 'GetCostAndUsage', 'Cost Explorer'
+        )
+
+        assert result['message'] == 'AWS service connection error: CapacityNotAvailableError'
+        assert add_retry_guidance(result)['retry_strategy'] == RETRY_SAME_REQUEST
+
+    @pytest.mark.asyncio
+    async def test_every_botocore_error_class_is_classified(self):
+        """Only botocore's transient classes are retryable; every other BotoCoreError is not.
+
+        Walks the installed botocore, so a class added by a botocore upgrade is covered.
+        """
+        import botocore.exceptions as boto_exceptions
+        import inspect
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            DO_NOT_RETRY,
+            MODIFY_REQUEST,
+            RETRY_SAME_REQUEST,
+            add_retry_guidance,
+        )
+
+        transient = (
+            boto_exceptions.ConnectionError,
+            boto_exceptions.HTTPClientError,
+            boto_exceptions.CapacityNotAvailableError,
+            boto_exceptions.IncompleteReadError,
+            boto_exceptions.ChecksumError,
+            boto_exceptions.FlexibleChecksumError,
+        )
+        # Pinned by name, so the check does not just mirror the implementation's tuple
+        assert {
+            cls.__name__
+            for _, cls in inspect.getmembers(boto_exceptions, inspect.isclass)
+            if issubclass(cls, transient)
+        } >= {
+            'EndpointConnectionError',
+            'ConnectTimeoutError',
+            'ReadTimeoutError',
+            'ConnectionClosedError',
+            'ProxyConnectionError',
+            'SSLError',
+            'ResponseStreamingError',
+            'IncompleteReadError',
+            'ChecksumError',
+            'FlexibleChecksumError',
+            'CapacityNotAvailableError',
+        }
+        # Fixable by the user's AWS profile or credentials, pinned by name
+        CONFIGURATION = tuple(
+            getattr(boto_exceptions, name)
+            for name in (
+                'NoCredentialsError',
+                'PartialCredentialsError',
+                'CredentialRetrievalError',
+                'TokenRetrievalError',
+                'SSOError',
+                'LoginError',
+                'MetadataRetrievalError',
+                'NoAuthTokenError',
+                'RefreshWithMFAUnsupportedError',
+                'UnknownCredentialError',
+                'NoRegionError',
+                'ProfileNotFound',
+                'ConfigNotFound',
+                'ConfigParseError',
+                'InvalidConfigError',
+                'UnknownServiceError',
+            )
+        )
+        classes = [
+            cls
+            for _, cls in inspect.getmembers(boto_exceptions, inspect.isclass)
+            if issubclass(cls, boto_exceptions.BotoCoreError)
+        ]
+        assert len(classes) > 50
+
+        for cls in classes:
+            error = cls.__new__(cls)  # skip __init__: each class needs different kwargs
+            result = add_retry_guidance(await handle_aws_error(AsyncMock(), error, 'Op', 'Svc'))
+            if issubclass(cls, transient):
+                expected = RETRY_SAME_REQUEST
+            elif issubclass(cls, (boto_exceptions.ValidationError, ValueError)) or (
+                cls is boto_exceptions.ParamValidationError
+            ):
+                expected = MODIFY_REQUEST
+            else:
+                expected = DO_NOT_RETRY
+            assert result['retry_strategy'] == expected, cls.__name__
+            if expected == DO_NOT_RETRY:
+                is_config = issubclass(cls, CONFIGURATION)
+                assert result['hint'].startswith(
+                    'AWS credentials or client configuration'
+                    if is_config
+                    else 'The AWS SDK raised a client-side error'
+                ), cls.__name__
 
 
 class TestFormatResponse:
