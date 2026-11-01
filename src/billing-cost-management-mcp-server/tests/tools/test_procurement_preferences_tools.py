@@ -15,6 +15,7 @@
 """Unit tests for the procurement_preferences_operations and _tools modules."""
 
 import pytest
+import re
 from awslabs.billing_cost_management_mcp_server.tools.procurement_preferences_operations import (
     get_procurement_portal_preference,
     list_procurement_portal_preferences,
@@ -48,7 +49,8 @@ def sample_preference():
         'ProcurementPortalPreferenceArn': (
             'arn:aws:invoicing::123456789012:procurement-portal-preference/abc123'
         ),
-        'Status': 'ACTIVE',
+        'EinvoiceDeliveryEnabled': True,
+        'EinvoiceDeliveryPreferenceStatus': 'ACTIVE',
         # Sensitive: must never be propagated to the agent/LLM (dropped by the tool).
         'ProcurementPortalSharedSecret': 'super-secret-shared-value',  # pragma: allowlist secret
         'EinvoiceDeliveryPreference': {
@@ -97,7 +99,7 @@ class TestListProcurementPortalPreferences:
         for pref in prefs:
             assert 'ProcurementPortalSharedSecret' not in pref
         # Non-sensitive fields are preserved.
-        assert prefs[0]['Status'] == 'ACTIVE'
+        assert prefs[0]['EinvoiceDeliveryPreferenceStatus'] == 'ACTIVE'
 
     @pytest.mark.asyncio
     async def test_shared_secret_dropped_on_every_page(self, mock_context, sample_preference):
@@ -310,7 +312,7 @@ class TestGetProcurementPortalPreference:
         assert result['status'] == 'success'
         pref = result['data']['procurement_portal_preference']
         assert 'ProcurementPortalSharedSecret' not in pref
-        assert pref['Status'] == 'ACTIVE'
+        assert pref['EinvoiceDeliveryPreferenceStatus'] == 'ACTIVE'
 
     @pytest.mark.asyncio
     async def test_api_client_error(self, mock_context):
@@ -405,7 +407,10 @@ class TestProcurementPreferencesRouting:
             )
 
         assert result['status'] == 'success'
-        assert result['data']['procurement_portal_preferences'][0]['Status'] == 'ACTIVE'
+        assert (
+            result['data']['procurement_portal_preferences'][0]['EinvoiceDeliveryPreferenceStatus']
+            == 'ACTIVE'
+        )
 
     @pytest.mark.asyncio
     async def test_routes_get(self, mock_context, sample_preference):
@@ -430,7 +435,10 @@ class TestProcurementPreferencesRouting:
             )
 
         assert result['status'] == 'success'
-        assert result['data']['procurement_portal_preference']['Status'] == 'ACTIVE'
+        assert (
+            result['data']['procurement_portal_preference']['EinvoiceDeliveryPreferenceStatus']
+            == 'ACTIVE'
+        )
 
     @pytest.mark.asyncio
     async def test_get_missing_arn_routes_error(self, mock_context):
@@ -455,3 +463,57 @@ class TestProcurementPreferencesRouting:
 
         assert result['status'] == 'error'
         assert 'not_a_real_operation' in result['data']['message']
+
+
+class TestProcurementPreferencesDescription:
+    """The served description matches the API shapes and keeps the secret out of reach."""
+
+    @staticmethod
+    async def _description():
+        from awslabs.billing_cost_management_mcp_server.tools.procurement_preferences_tools import (
+            procurement_preferences_server,
+        )
+
+        tool = await procurement_preferences_server.get_tool('procurement-preferences')
+        assert tool is not None
+        return ' '.join((tool.description or '').split())
+
+    @pytest.mark.asyncio
+    async def test_list_returns_names_only_summary_members(self):
+        """List Returns names ProcurementPortalPreferenceSummary members, not Get-only fields."""
+        import botocore.session
+
+        model = botocore.session.get_session().get_service_model('invoicing')
+        summary = set(model.shape_for('ProcurementPortalPreferenceSummary').members)
+        # In the public API reference; older botocore releases do not model it yet.
+        summary.add('MarketplacePunchOutEnabled')
+
+        desc = await self._description()
+        block = desc.split('1) list_procurement_portal_preferences', 1)[1]
+        block = block.split('2) get_procurement_portal_preference', 1)[0]
+        returns = block.split('Returns:', 1)[1].split('The summary does NOT include', 1)[0]
+        named = set(re.findall(r'\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b', returns))
+
+        assert named, 'expected the list Returns text to name fields'
+        assert named <= summary, named - summary
+        assert 'EinvoiceDeliveryEnabled' in named
+        assert 'PurchaseOrderRetrievalEnabled' in named
+        assert 'each have their own Enabled flag and status' in returns
+        assert 'The summary does NOT include EinvoiceDeliveryPreference' in block
+
+    @pytest.mark.asyncio
+    async def test_get_marks_delivery_preference_optional(self):
+        """Get says EinvoiceDeliveryPreference can be absent."""
+        desc = await self._description()
+        block = desc.split('2) get_procurement_portal_preference', 1)[1].split('NOTE:', 1)[0]
+
+        assert 'EinvoiceDeliveryPreference can be absent' in block
+
+    @pytest.mark.asyncio
+    async def test_secret_is_redacted_with_no_retrieval_path(self):
+        """The description says the secret is redacted and names no other way to get it."""
+        note = (await self._description()).split('NOTE:', 1)[1].split('EXAMPLES', 1)[0]
+
+        assert '`ProcurementPortalSharedSecret` is redacted' in note
+        for banned in ('SDK', 'CLI', 'boto', 'accessible via'):
+            assert banned not in note, banned

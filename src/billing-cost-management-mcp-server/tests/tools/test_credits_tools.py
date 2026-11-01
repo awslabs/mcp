@@ -263,6 +263,76 @@ class TestToolRegistration:
         assert 'time_range' in description
 
     @pytest.mark.asyncio
+    async def test_description_scopes_remaining_balance_to_active_credits(self):
+        """The balance guidance totals only unexpired, started credits.
+
+        GetCredits returns expired credits with their remainingAmount intact and
+        creditStatus still ENABLED, so the old "report remainingAmount" rule led a
+        model to count expired balances as usable.
+        """
+        description = (await _registered_tool()).description or ''
+
+        assert 'For "how much credit do I have left", report remainingAmount,' not in description
+        assert (
+            'total remainingAmount only over credits whose validityStatus is ACTIVE and '
+            'whose creditStatus is not DISABLED, per currencyCode'
+        ) in description
+        assert 'validityStatus (ACTIVE|EXPIRED|NOT_YET_ACTIVE|UNKNOWN)' in description
+        assert 'validity_evaluated_at' in description
+        assert 'not zeroed' in description
+        assert 'not an expiration indicator' in description
+
+    @pytest.mark.asyncio
+    async def test_description_says_credits_without_end_date_do_not_expire(self):
+        """A missing or far-future endDate is described as no expiry, not as a 2099 expiry.
+
+        The API leaves endDate unset for a credit that never expires, and some such
+        credits carry a far-future endDate instead.
+        """
+        description = ' '.join(((await _registered_tool()).description or '').split())
+
+        assert 'a missing date does not count against it' not in description
+        assert (
+            'A credit with no endDate does not expire and is ACTIVE once its startDate is reached'
+        ) in description
+        assert 'no-expiry placeholder' not in description
+        assert (
+            'An endDate in 2099 or later (for example 2099-12-31) means the credit effectively '
+            'does not expire'
+        ) in description
+        assert 'not as expiring in that year' in description
+        assert 'except when it is missing or in 2099 or later' in description
+
+    @pytest.mark.asyncio
+    async def test_description_scopes_future_credits_and_expiry_to_the_service_rules(self):
+        """Future credits are tied to an omitted end_date, and expired is not "unusable".
+
+        The service drops the upper bound of the window only when no end date is sent,
+        and bill computation applies a credit to any billing period it overlaps, so a
+        credit that expired this month can still reduce this month's bill.
+        """
+        description = ' '.join(((await _registered_tool()).description or '').split())
+
+        assert 'whatever window was requested' not in description
+        assert (
+            'It also includes credits that start after today when end_date is omitted, '
+            'because the service then applies no upper bound.'
+        ) in description
+        assert 'omit end_date, then total remainingAmount' in description
+        assert 'API default of today' not in description
+        assert 'neither queries the future' not in description
+        assert 'a future end_date is limited to now' in description
+        assert (
+            'Omit it to send no end date: the service then applies no upper bound, so the '
+            'result also includes credits that start after today.'
+        ) in description
+        assert 'expired and no longer usable' not in description
+        assert (
+            'a credit that expired during the current month can still be applied to that '
+            "month's bill until it is finalized"
+        ) in description
+
+    @pytest.mark.asyncio
     async def test_description_documents_max_items_contract(self):
         """The description documents max_items/next_token and drops the old paging params."""
         description = (await _registered_tool()).description or ''

@@ -89,6 +89,7 @@ class TestReadDocumentationImpl:
                     headers={
                         'User-Agent': DEFAULT_USER_AGENT,
                         'X-MCP-Session-Id': 'test-uuid',
+                        'Accept': 'text/markdown, text/html;q=0.9',
                     },
                     timeout=30,
                 )
@@ -414,6 +415,7 @@ class TestReadDocumentationImpl:
                     headers={
                         'User-Agent': DEFAULT_USER_AGENT,
                         'X-MCP-Session-Id': 'test-uuid',
+                        'Accept': 'text/markdown, text/html;q=0.9',
                     },
                     timeout=30,
                 )
@@ -451,6 +453,43 @@ class TestReadDocumentationImpl:
             # The large table should have been truncated
             assert 'Table truncated' in result
             assert 'search_table' in result
+
+    @pytest.mark.asyncio
+    async def test_markdown_response_skips_html_conversion(self):
+        """A negotiated Markdown response is used as-is and still gets the cleanup pass."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        rows_md = '\n'.join(f'| row{i} | val{i} |' for i in range(30))
+        markdown = (
+            f'# Test\n\nSee [other](other.md).\n\n| Name | Value |\n| --- | --- |\n{rows_md}\n'
+        )
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.url = url
+        mock_response.text = markdown
+        mock_response.headers = {'content-type': 'text/markdown; charset=utf-8'}
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+            ) as mock_extract:
+                result = await read_documentation_impl(ctx, url, 50000, 0, 'test-uuid')
+
+            mock_extract.assert_not_called()
+            mock_client.get.assert_called_once()
+            assert result.startswith(f'AWS Documentation from {url}:\n\n# Test')
+            assert 'Table truncated (showing 5 of 30 rows)' in result
+            assert '| row29 |' not in result
+            assert '[other](https://docs.aws.amazon.com/other.html)' in result
 
 
 def _install_mock_transport(monkeypatch, routes, target_module):

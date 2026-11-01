@@ -23,6 +23,7 @@ import asyncio
 import fastmcp
 import importlib
 import pytest
+import re
 from awslabs.billing_cost_management_mcp_server.tools.bvs_tools import (
     bvs_server,
 )
@@ -384,6 +385,25 @@ class TestListBillingViewsTool:
 
 
 @pytest.mark.asyncio
+async def test_list_billing_views_description_explains_source_account_id_and_name_case():
+    """source_account_id is described as a sourceAccountId match, not a membership search."""
+    from awslabs.billing_cost_management_mcp_server.tools import bvs_tools
+
+    real = importlib.reload(bvs_tools)
+    tools = {t.name: t for t in await real.bvs_server.list_tools()}
+    description = ' '.join(tools['list-billing-views'].description.split())
+    assert 'Filter by source account ID (12-digit AWS account ID)' not in description
+    assert 'Not an account membership search' in description
+    assert "billing group's primary account is this ID" in description
+    assert 'PRIMARY and CUSTOM views are never returned with it' in description
+    assert 'No filter of this tool lists the views that include a given account' in description
+    assert 'list-account-associations' in description
+    assert 'list-billing-groups' in description
+    assert 'without one it matches billing groups from all periods' in description
+    assert 'The prefix match is case-sensitive' in description
+
+
+@pytest.mark.asyncio
 class TestListSourceViewsForBillingViewTool:
     """Tests for the list_source_views_for_billing_view MCP tool wrapper."""
 
@@ -677,3 +697,43 @@ async def test_tool_schemas_follow_the_max_items_contract():
         else:
             assert {'max_items', 'next_token'} <= params, name
             assert 'max_pages' not in tool.description, name
+
+
+@pytest.mark.asyncio
+async def test_get_billing_view_description_counts_types_and_explains_filter():
+    """The type list is not miscounted, and data_filter_expression is explained."""
+    from awslabs.billing_cost_management_mcp_server.tools import bvs_tools
+
+    real = importlib.reload(bvs_tools)
+    tools = {t.name: t for t in await real.bvs_server.list_tools()}
+    description = tools['get-billing-view'].description
+
+    assert 'four types' not in description
+    for view_type in (
+        'PRIMARY',
+        'BILLING_GROUP',
+        'CUSTOM',
+        'BILLING_TRANSFER',
+        'BILLING_TRANSFER_SHOWBACK',
+    ):
+        assert f'- {view_type}:' in description
+    assert 'data_filter_expression' in description
+    assert 'LINKED_ACCOUNT' in description
+    assert 'unfiltered' in description
+    assert 'exact matches' not in description
+    assert 'uncategorized' not in description
+
+
+@pytest.mark.asyncio
+async def test_list_billing_views_description_explains_the_time_range_rules():
+    """The one-month rule and the date-only end gotcha are stated where callers read them."""
+    from awslabs.billing_cost_management_mcp_server.tools import bvs_tools
+
+    real = importlib.reload(bvs_tools)
+    tools = {t.name: t for t in await real.bvs_server.list_tools()}
+    tool = tools['list-billing-views']
+
+    assert 'same UTC calendar month' in tool.description
+    assert 'A date-only active_before_inclusive means 00:00:00' in tool.description
+    # No example may teach a date-only end, which drops most of the last day.
+    assert not re.search(r'"active_before_inclusive": "\d{4}-\d{2}-\d{2}"', tool.description)

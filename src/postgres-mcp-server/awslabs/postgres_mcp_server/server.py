@@ -119,6 +119,12 @@ configured_default_secret_arn: Optional[str] = None
 startup_pg_wire_connection: Optional[PsycopgPoolConnection] = None
 
 
+def _configure_windows_event_loop_policy() -> None:
+    """Use a selector loop on Windows for psycopg's async connections."""
+    if sys.platform == 'win32':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
 class DummyCtx(Context):
     """A dummy context class for error handling in MCP tools."""
 
@@ -1444,6 +1450,10 @@ def main():
     # main() is normally called once, but reset this lifecycle handoff so a
     # failed/test invocation cannot leave a stale connection for a later run.
     startup_pg_wire_connection = None
+
+    # psycopg's async mode does not support ProactorEventLoop. Set the policy
+    # before startup validation or MCP can create an event loop.
+    _configure_windows_event_loop_policy()
 
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for postgres'
