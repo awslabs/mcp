@@ -432,6 +432,51 @@ def truncate_large_tables(
     return '\n'.join(result)
 
 
+# Inline link destinations, up to the closing paren or an optional "title".
+_MARKDOWN_LINK_TARGET = re.compile(r'(\]\()([^)\s]+)')
+
+
+def rewrite_markdown_links(markdown: str, base_url: str) -> str:
+    """Point same-site links at a published .md page to its absolute .html URL.
+
+    Published Markdown links its sibling pages as relative '.md' files, which the read tools
+    reject; the '.html' page at the same path is the one they accept.
+
+    Args:
+        markdown: Markdown content that may contain links
+        base_url: The URL the content was served from, used to resolve relative links
+
+    Returns:
+        Markdown with same-site '.md' links rewritten to absolute '.html' URLs
+    """
+    if not markdown:
+        return markdown
+
+    base_host = httpx.URL(base_url).host
+
+    def _rewrite(match: re.Match) -> str:
+        target = match.group(2)
+        path, sep, fragment = target.partition('#')
+        if not path.casefold().endswith('.md'):
+            return match.group(0)
+        resolved = urljoin(base_url, path)
+        if httpx.URL(resolved).host != base_host:
+            return match.group(0)
+        return f'{match.group(1)}{resolved[: -len(".md")]}.html{sep}{fragment}'
+
+    lines = markdown.split('\n')
+    in_code_block = False
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        # Track fenced code blocks — never rewrite inside them
+        if stripped.startswith('```') or stripped.startswith('~~~'):
+            in_code_block = not in_code_block
+        elif not in_code_block:
+            lines[i] = _MARKDOWN_LINK_TARGET.sub(_rewrite, line)
+
+    return '\n'.join(lines)
+
+
 def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationResult]:
     """Parse recommendation API response into RecommendationResult objects.
 
