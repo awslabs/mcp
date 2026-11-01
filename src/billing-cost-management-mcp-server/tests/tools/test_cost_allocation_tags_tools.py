@@ -200,6 +200,7 @@ class TestListCostAllocationTags:
             TagKeys=['Environment', 'Team'], MaxResults=1000
         )
         assert result['status'] == 'success'
+        assert 'note' not in result['data']
 
     async def test_list_tags_with_all_filters(self, mock_context, mock_ce_client):
         """All filters are sent together; a key lookup always asks for a full page."""
@@ -603,6 +604,401 @@ class TestListCostAllocationTagBackfillHistory:
             mock_context, error, 'ListCostAllocationTagBackfillHistory', 'Cost Explorer'
         )
         assert result['status'] == 'error'
+
+
+def _tags_client(*tag_keys: str) -> MagicMock:
+    """A client whose single page returns UserDefined tags with the given keys."""
+    client = MagicMock()
+    client.list_cost_allocation_tags.return_value = {
+        'CostAllocationTags': [
+            {'TagKey': key, 'Type': 'UserDefined', 'Status': 'Active'} for key in tag_keys
+        ]
+    }
+    return client
+
+
+@pytest.mark.asyncio
+class TestListCostAllocationTagsInputs:
+    """user:-prefixed tag keys and any-case status and tag_type values."""
+
+    async def test_user_prefixed_key_also_sends_stripped_key(self, mock_context):
+        """user:application is sent as given and without the prefix; the note names the match."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client('application')
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(
+                mock_context, tag_keys=json.dumps(['user:application'])
+            )
+
+        client.list_cost_allocation_tags.assert_called_once_with(
+            TagKeys=['user:application', 'application'], MaxResults=1000
+        )
+        assert result['status'] == 'success'
+        assert [t['TagKey'] for t in result['data']['CostAllocationTags']] == ['application']
+        note = result['data']['note']
+        assert "'user:application' matched tag key 'application'" in note
+        assert note.endswith(
+            'Cost allocation report and Cost and Usage Report columns add user: to '
+            'user-defined tag keys; the stored key normally has no prefix.'
+        )
+
+    async def test_key_that_really_starts_with_user_has_no_note(self, mock_context):
+        """A stored key that literally starts with user: matches as given, with no note."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client('user:application')
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(
+                mock_context, tag_keys=json.dumps(['user:application'])
+            )
+
+        client.list_cost_allocation_tags.assert_called_once_with(
+            TagKeys=['user:application', 'application'], MaxResults=1000
+        )
+        assert 'note' not in result['data']
+
+    async def test_expanded_keys_are_deduplicated(self, mock_context):
+        """A stripped key the caller also listed is sent once, and its match gets no note."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client('Team')
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(
+                mock_context, tag_keys=json.dumps(['user:Team', 'Team', 'Team', 'aws:createdBy'])
+            )
+
+        client.list_cost_allocation_tags.assert_called_once_with(
+            TagKeys=['user:Team', 'Team', 'aws:createdBy'], MaxResults=1000
+        )
+        assert 'note' not in result['data']
+
+    async def test_stripped_key_listed_first_is_sent_once_without_note(self, mock_context):
+        """Team before user:Team: Team is the caller's own key, so it gets no note."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client('Team')
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(
+                mock_context, tag_keys=json.dumps(['Team', 'user:Team'])
+            )
+
+        client.list_cost_allocation_tags.assert_called_once_with(
+            TagKeys=['Team', 'user:Team'], MaxResults=1000
+        )
+        assert 'note' not in result['data']
+
+    async def test_only_one_leading_user_prefix_is_stripped(self, mock_context):
+        """user:user:x adds user:x only; a bare user: adds no empty key."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            await mod.list_cost_allocation_tags(
+                mock_context, tag_keys=json.dumps(['user:user:x', 'user:', 'User:Y'])
+            )
+
+        client.list_cost_allocation_tags.assert_called_once_with(
+            TagKeys=['user:user:x', 'user:x', 'user:', 'User:Y'], MaxResults=1000
+        )
+
+    async def test_expansion_up_to_100_keys_is_sent(self, mock_context):
+        """50 user: keys expand to exactly 100 keys, which the API accepts."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+        keys = [f'user:k{i}' for i in range(50)]
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(mock_context, tag_keys=json.dumps(keys))
+
+        assert result['status'] == 'success'
+        assert len(client.list_cost_allocation_tags.call_args.kwargs['TagKeys']) == 100
+        assert 'note' not in result['data']
+
+    async def test_expansion_over_100_keys_falls_back_to_keys_as_given(self, mock_context):
+        """51 user: keys would expand to 102, so the caller's keys are sent unexpanded."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client('user:k3')
+        keys = [f'user:k{i}' for i in range(51)]
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(mock_context, tag_keys=json.dumps(keys))
+
+        client.list_cost_allocation_tags.assert_called_once_with(TagKeys=keys, MaxResults=1000)
+        assert result['status'] == 'success'
+        assert [t['TagKey'] for t in result['data']['CostAllocationTags']] == ['user:k3']
+        assert result['data']['note'] == (
+            'Sent the keys only as given: adding the unprefixed form of 51 user: keys would '
+            "make 102 keys, over the API's limit of 100. To look those up, pass them without "
+            'user:, or split tag_keys across calls.'
+        )
+
+    async def test_fallback_still_sends_repeated_keys_once(self, mock_context):
+        """The fallback sends the caller's distinct keys in order; the API rejects repeats."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+        keys = [f'user:k{i}' for i in range(60)] + ['user:k0', 'Team', 'Team']
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(mock_context, tag_keys=json.dumps(keys))
+
+        client.list_cost_allocation_tags.assert_called_once_with(
+            TagKeys=[f'user:k{i}' for i in range(60)] + ['Team'], MaxResults=1000
+        )
+        assert result['status'] == 'success'
+        assert result['data']['note'].startswith(
+            'Sent the keys only as given: adding the unprefixed form of 60 user: keys would '
+            'make 121 keys'
+        )
+
+    async def test_fallback_note_counts_only_keys_whose_unprefixed_form_was_dropped(
+        self, mock_context
+    ):
+        """user:k0-39 already have k0-39 listed and a bare user: has no unprefixed form."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+        keys = [f'user:k{i}' for i in range(60)] + ['user:'] + [f'k{i}' for i in range(39)]
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(mock_context, tag_keys=json.dumps(keys))
+
+        client.list_cost_allocation_tags.assert_called_once_with(TagKeys=keys, MaxResults=1000)
+        assert result['data']['note'].startswith(
+            'Sent the keys only as given: adding the unprefixed form of 21 user: keys would '
+            'make 121 keys'
+        )
+
+    async def test_fallback_note_singular_for_one_key(self, mock_context):
+        """100 keys where only one unprefixed form is missing: the note says 1 key."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+        keys = [f'k{i}' for i in range(99)] + ['user:x']
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(mock_context, tag_keys=json.dumps(keys))
+
+        client.list_cost_allocation_tags.assert_called_once_with(TagKeys=keys, MaxResults=1000)
+        assert 'of 1 user: key would make 101 keys' in result['data']['note']
+
+    async def test_over_100_distinct_user_keys_is_rejected(self, mock_context):
+        """101 distinct user: keys is rejected locally with the plain over-limit message."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+        keys = [f'user:k{i}' for i in range(101)]
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(mock_context, tag_keys=json.dumps(keys))
+
+        client.list_cost_allocation_tags.assert_not_called()
+        assert result['error_type'] == 'validation_error'
+        assert result['message'].startswith('tag_keys has 101 distinct keys')
+
+    async def test_many_repeats_of_few_keys_are_sent_once_without_note(self, mock_context):
+        """150 entries of one key are one distinct key: sent once, no fallback."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client('Team')
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(
+                mock_context, tag_keys=json.dumps(['Team'] * 150)
+            )
+
+        client.list_cost_allocation_tags.assert_called_once_with(TagKeys=['Team'], MaxResults=1000)
+        assert 'note' not in result['data']
+
+    async def test_over_100_plain_keys_is_rejected_without_expansion_text(self, mock_context):
+        """101 keys without user: get a plain over-limit message."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+        keys = [f'k{i}' for i in range(101)]
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(mock_context, tag_keys=json.dumps(keys))
+
+        client.list_cost_allocation_tags.assert_not_called()
+        assert result['error_type'] == 'validation_error'
+        assert result['message'].startswith(
+            'tag_keys has 101 distinct keys; the API accepts at most 100'
+        )
+        assert 'expands' not in result['message']
+
+    async def test_empty_tag_keys_array_is_rejected(self, mock_context):
+        """An empty array is a validation error rather than a client-side botocore error."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(mock_context, tag_keys='[]')
+
+        client.list_cost_allocation_tags.assert_not_called()
+        assert result['error_type'] == 'validation_error'
+        assert 'at least one key' in result['message']
+
+    async def test_both_forms_returned_keeps_both_and_notes_the_stripped_one(self, mock_context):
+        """When user:a and a are both stored keys, both come back and only a is noted."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client('user:application', 'application')
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(
+                mock_context, tag_keys=json.dumps(['user:application'])
+            )
+
+        assert [t['TagKey'] for t in result['data']['CostAllocationTags']] == [
+            'user:application',
+            'application',
+        ]
+        assert result['data']['note'].startswith(
+            "'user:application' matched tag key 'application'."
+        )
+
+    async def test_expanded_keys_use_the_single_request_lookup(self, mock_context):
+        """Expanded keys go out in one request; max_items trims locally and the note follows."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client('user:x', 'x')
+        tag_keys = json.dumps(['user:x'])
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            capped = await mod.list_cost_allocation_tags(
+                mock_context, tag_keys=tag_keys, max_items=1
+            )
+            full = await mod.list_cost_allocation_tags(mock_context, tag_keys=tag_keys)
+
+        assert [c.kwargs for c in client.list_cost_allocation_tags.call_args_list] == [
+            {'TagKeys': ['user:x', 'x'], 'MaxResults': 1000},
+            {'TagKeys': ['user:x', 'x'], 'MaxResults': 1000},
+        ]
+        assert [t['TagKey'] for t in capped['data']['CostAllocationTags']] == ['user:x']
+        assert capped['data']['complete_dataset'] is False
+        assert 'returned 1 of the 2 tags' in capped['data']['warning']
+        assert 'note' not in capped['data']
+        assert [t['TagKey'] for t in full['data']['CostAllocationTags']] == ['user:x', 'x']
+        assert "'user:x' matched tag key 'x'" in full['data']['note']
+
+    async def test_fallback_keys_use_the_single_request_lookup(self, mock_context):
+        """Fallback keys go out in one request, and a service token is not followed."""
+        mod = _reload_with_identity_decorator()
+        client = MagicMock()
+        client.list_cost_allocation_tags.return_value = {
+            'CostAllocationTags': [{'TagKey': 'user:k3'}],
+            'NextToken': 't1',
+        }
+        keys = [f'user:k{i}' for i in range(51)]
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(mock_context, tag_keys=json.dumps(keys))
+
+        client.list_cost_allocation_tags.assert_called_once_with(TagKeys=keys, MaxResults=1000)
+        assert result['data']['complete_dataset'] is False
+        assert result['data']['pagination']['next_token'] is None
+        assert 'cannot be continued correctly' in result['data']['warning']
+        assert result['data']['note'].startswith('Sent the keys only as given')
+
+    async def test_fallback_keys_with_next_token_are_rejected(self, mock_context):
+        """next_token stays rejected when the keys fall back to the caller's own."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+        keys = [f'user:k{i}' for i in range(51)]
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(
+                mock_context, tag_keys=json.dumps(keys), next_token='t1'
+            )
+
+        client.list_cost_allocation_tags.assert_not_called()
+        assert result['error_type'] == 'validation_error'
+
+    async def test_tag_keys_must_be_an_array_of_strings(self, mock_context):
+        """A JSON value that is not an array of strings is a validation error."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            for bad in ('"Environment"', '[1, 2]', '{"Key": "Team"}'):
+                result = await mod.list_cost_allocation_tags(mock_context, tag_keys=bad)
+                assert result['status'] == 'error', bad
+                assert result['error_type'] == 'validation_error', bad
+                assert 'JSON array of strings' in result['message'], bad
+
+        client.list_cost_allocation_tags.assert_not_called()
+
+    @pytest.mark.parametrize(
+        'given,sent',
+        [
+            ('active', 'Active'),
+            ('ACTIVE', 'Active'),
+            ('Active', 'Active'),
+            ('inactive', 'Inactive'),
+            ('INACTIVE', 'Inactive'),
+        ],
+    )
+    async def test_status_any_case(self, mock_context, given, sent):
+        """Status is matched case-insensitively and sent in the API's casing."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            await mod.list_cost_allocation_tags(mock_context, status=given)
+
+        client.list_cost_allocation_tags.assert_called_once_with(Status=sent, MaxResults=1000)
+
+    @pytest.mark.parametrize(
+        'given,sent',
+        [
+            ('awsgenerated', 'AWSGenerated'),
+            ('AWSGENERATED', 'AWSGenerated'),
+            ('AwsGenerated', 'AWSGenerated'),
+            ('userdefined', 'UserDefined'),
+            ('USERDEFINED', 'UserDefined'),
+            ('UserDefined', 'UserDefined'),
+        ],
+    )
+    async def test_tag_type_any_case(self, mock_context, given, sent):
+        """tag_type is matched case-insensitively and sent in the API's casing."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            await mod.list_cost_allocation_tags(mock_context, tag_type=given)
+
+        client.list_cost_allocation_tags.assert_called_once_with(Type=sent, MaxResults=1000)
+
+    async def test_unknown_enum_values_go_to_the_api_unchanged(self, mock_context):
+        """Values that are not a case variant are left for the API to accept or reject."""
+        mod = _reload_with_identity_decorator()
+        client = _tags_client()
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            await mod.list_cost_allocation_tags(
+                mock_context, status='enabled', tag_type='user_defined'
+            )
+
+        client.list_cost_allocation_tags.assert_called_once_with(
+            Status='enabled', Type='user_defined', MaxResults=1000
+        )
+
+
+@pytest.mark.asyncio
+async def test_list_tags_description_states_key_and_enum_rules():
+    """The served description covers the user: prefix, key case, AWSGenerated and enum case."""
+    tool = await cost_allocation_tags_server.get_tool('list-cost-allocation-tags')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert 'columns add user: to user-defined keys' in description
+    assert 'the stored key normally has no prefix' in description
+    assert 'Repeated keys are sent once' in description
+    assert 'as given and also without the prefix, and adds a note' in description
+    assert (
+        'At most 100 distinct keys. If the unprefixed forms would take the total over 100'
+        in description
+    )
+    assert 'At most 100 keys, counting the unprefixed keys the tool adds' not in description
+    assert 'Team and team are separate tags' in description
+    assert 'AWSGenerated is exactly the keys that start with aws:' in description
+    assert 'Active or Inactive (any case)' in description
+    assert 'AWSGenerated or UserDefined (any case)' in description
+    assert '(max 100, case-sensitive)' not in description
 
 
 class TestBackfillHistoryDescription:
