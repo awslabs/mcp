@@ -60,13 +60,14 @@ IMPORTANT GUIDELINES:
 - Providing less information is better than giving incorrect information
 - Price list APIs can return large data volumes. Use narrower filters to retrieve less data when possible
 - Service codes often differ from AWS console names (e.g., 'AmazonES' for OpenSearch)
+- When get_pricing_from_api returns more than one product, the response lists varying_attributes (the attributes that tell the products apart; on a response offloaded to SQL, found in its first 1000 products) and a hint. Quote the product that matches the case, not the first one or an average
 
 ARGS:
       ctx: The MCP context object
       operation: The pricing operation to perform ('get_service_codes', 'get_service_attributes', 'get_attribute_values', 'get_pricing_from_api')
       service_code: AWS service code (e.g., 'AmazonEC2', 'AmazonS3', 'AmazonES'). Required for get_service_attributes, get_attribute_values, and get_pricing_from_api operations.
       attribute_name: Attribute name (e.g., 'instanceType', 'location', 'storageClass'). Required for get_attribute_values operation.
-      filters: Optional filters for pricing queries. Format: {'instanceType': 't3.medium', 'location': 'US East (N. Virginia)'}
+      filters: Optional filters for pricing queries, one value per attribute. Format: {'instanceType': 'm5.large', 'regionCode': 'us-east-1', 'operatingSystem': 'Linux', 'tenancy': 'Shared', 'preInstalledSw': 'NA', 'capacitystatus': 'Used'} returns one product, Linux m5.large in us-east-1: its terms.OnDemand entry is the on-demand price and terms.Reserved holds its Reserved Instance prices. Each attribute you leave out multiplies the products: instanceType and region alone return about 100 EC2 products (other operating systems, tenancies, pre-installed SQL Server, capacity reservation states), each priced separately, some at $0.00. A comma-separated list is matched as one literal value, not as a list. 'location' takes the Price List location name ('US East (N. Virginia)', 'EU (Ireland)'), not a region code. To filter by a region code such as 'us-east-1', use 'regionCode' when get_service_attributes lists it for the service (most services do). Services that list only 'location' take its values as get_attribute_values returns them (for example AWSBudgets, location 'Any'); AWSDataTransfer lists neither and uses fromRegionCode/toRegionCode. An unknown field or value returns no products, not an error.
       max_items: Total items to return (get_service_codes, get_attribute_values, get_pricing_from_api). If it is omitted, the tool fetches every page for """
     + PAGINATION_LIMIT_TEXT
     + """, then returns a partial result. Pass it, or narrow filters, for queries that can be large: an unfiltered get_pricing_from_api call can return hundreds of thousands of products.
@@ -96,7 +97,7 @@ async def aws_pricing(
         operation: The pricing operation to perform ('get_service_codes', 'get_service_attributes', 'get_attribute_values', 'get_pricing_from_api')
         service_code: AWS service code (e.g., 'AmazonEC2', 'AmazonS3', 'AmazonES'). Required for get_service_attributes, get_attribute_values, and get_pricing_from_api operations.
         attribute_name: Attribute name (e.g., 'instanceType', 'location', 'storageClass'). Required for get_attribute_values operation.
-        filters: Optional filters for pricing queries as a JSON string. Format: '{"instanceType": "t3.medium", "location": "US East (N. Virginia)"}'
+        filters: Optional filters for pricing queries as a JSON string, one value per attribute. Format: '{"instanceType": "m5.large", "regionCode": "us-east-1", "operatingSystem": "Linux", "tenancy": "Shared", "preInstalledSw": "NA", "capacitystatus": "Used"}'
         max_items: Total items to return for the paginated operations. None fetches every page.
         next_token: Continuation token from a previous response of the same operation.
 

@@ -34,7 +34,7 @@ from ..utilities.time_utils import (
 from calendar import monthrange
 from datetime import datetime, timezone
 from fastmcp import Context
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 
 # InvoiceSummary fields that AWS returns as timestamps. We normalize these to
@@ -43,6 +43,10 @@ from typing import Any, Dict, List, Optional
 _TIMESTAMP_FIELDS = ('IssuedDate', 'DueDate')
 
 _SECONDS_PER_DAY = 86400
+
+# Setting Filter.ReceiverRole raises the TimeInterval cap from one month to
+# five years.
+_RECEIVER_ROLE_MAX_YEARS = 5
 
 # Classification for local parameter-validation failures, mirroring the
 # top-level fields handle_aws_error sets on AWS-side errors so callers can
@@ -91,6 +95,42 @@ def _max_time_interval_days(start_epoch: int) -> int:
     """
     start = datetime.fromtimestamp(start_epoch, tz=timezone.utc)
     return monthrange(start.year, start.month)[1]
+
+
+def _receiver_role_span_limit(start_epoch: int) -> int:
+    """First instant a ``TimeInterval`` may NOT reach with a receiver role.
+
+    Setting ``Filter.ReceiverRole`` raises the cap from one month to five
+    years, and the service requires the range to be *less than* five years:
+    verified live, a start of 2021-10-01 with an end of exactly 2026-10-01 is
+    rejected with "TimePeriod must be less than 5 years", while one day short
+    of it is accepted. The bound is therefore exclusive, and is compared on the
+    exact instants rather than on whole days -- the service compares instants
+    too, so flooring to days would admit a range up to five years plus 23:59:59.
+
+    The limit is derived from the start date rather than a fixed day count, so
+    leap years inside the window do not shift it. A 29 February start has no
+    counterpart five years on, and the service resolves it FORWARD to 1 March
+    rather than back to 28 February: verified live, a start of 2024-02-29
+    accepts an end of 2029-02-28T23:59:59 and rejects 2029-03-01, and a start
+    of 2024-02-29T12:00:00 accepts 2029-03-01T11:59:59 and rejects
+    2029-03-01T12:00:00. Clamping to 28 February would refuse a day of ranges
+    the service accepts.
+
+    Args:
+        start_epoch: Range start as epoch seconds (UTC).
+
+    Returns:
+        The exclusive upper bound as epoch seconds: the same calendar instant
+        five years after the start, or the same time of day on 1 March for a
+        29 February start.
+    """
+    start = datetime.fromtimestamp(start_epoch, tz=timezone.utc)
+    try:
+        limit = start.replace(year=start.year + _RECEIVER_ROLE_MAX_YEARS)
+    except ValueError:
+        limit = start.replace(year=start.year + _RECEIVER_ROLE_MAX_YEARS, month=3, day=1)
+    return int(limit.timestamp())
 
 
 def _format_range_bound(moment: datetime) -> str:
@@ -188,6 +228,7 @@ async def list_invoice_summaries(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     invoicing_entity: Optional[str] = None,
+    receiver_role: Optional[Literal['SELLER', 'RESELLER', 'BUYER']] = None,
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -222,12 +263,22 @@ async def list_invoice_summaries(
             example ``"Amazon Web Services, Inc."``). Also applies with
             ``invoice_id``. An empty list for an ``invoice_id`` means the invoice
             was not found, is not accessible, or belongs to another entity.
+        receiver_role: Restrict to invoices where the selected account holds
+            this role. Account queries only -- it cannot be combined with
+            ``invoice_id``. Raises the ``start_date``/``end_date`` cap from one
+            month to less than five years, and is the only way estimated
+            invoices are returned. Not a superset of an unrestricted query:
+            invoices issued to invoice-unit receivers billed from the selected
+            account can be absent, so run the query without a role as well and
+            de-duplicate on ``InvoiceId``.
         max_items: Most invoice summaries to return. None fetches every page.
         next_token: Pagination token from a previous response to resume from.
 
     Returns:
-        Dict containing ``invoice_summaries`` (with ISO 8601 timestamps) and a
-        ``pagination`` metadata block, or a standardized error response.
+        Dict containing ``invoice_summaries`` (with ISO 8601 timestamps), the
+        ``selector`` the request resolved to (its ``type``, its ``value``, and
+        ``auto_detected`` when the account came from the caller's identity),
+        and a ``pagination`` metadata block, or a standardized error response.
     """
     try:
         # --- Selector: ACCOUNT_ID or INVOICE_ID, not both ---
@@ -249,6 +300,23 @@ async def list_invoice_summaries(
                         'period and ignores the time filter. Omit the time filter and read '
                         "the invoice's BillingPeriod and IssuedDate from the result, or list "
                         'by account_id with the time filter instead.'
+                    )
+                },
+            )
+
+        # A receiver role makes the service treat the request as an account
+        # query, which an INVOICE_ID selector cannot satisfy. Verified live:
+        # the role alone is rejected ("BillingPeriod and TimePeriod cannot both
+        # be null when retrieve invoice summary by account ID"), and the role
+        # with a time filter returns 0 rows for an invoice that exists, which
+        # reads as "not found". Refuse the combination here instead.
+        if invoice_id and receiver_role:
+            return _validation_error(
+                {
+                    'message': (
+                        'receiver_role applies to account queries only, and cannot be '
+                        'combined with invoice_id. Drop receiver_role to retrieve this '
+                        'invoice, or select by account_id with a time filter.'
                     )
                 },
             )
@@ -278,8 +346,13 @@ async def list_invoice_summaries(
                     'message': (
                         'A time filter is required when listing invoice summaries for an '
                         'account. Provide billing_period="YYYY-MM" for a single calendar '
-                        'month, or start_date and end_date for a range spanning at most one '
-                        'month. To cover several months, make one call per month.'
+                        'month, or start_date and end_date for a range spanning '
+                        + (
+                            'less than five years, which receiver_role allows in one call.'
+                            if receiver_role
+                            else 'at most one month. To cover several months, make one '
+                            'call per month.'
+                        )
                     )
                 },
             )
@@ -306,12 +379,18 @@ async def list_invoice_summaries(
                 )
 
         # --- Resolve the required Selector ---
+        # Whether the account came from the caller's identity rather than the
+        # request is echoed back: a row's AccountId cannot stand in for it,
+        # because an account query also returns invoices issued to invoice-unit
+        # receivers billed from that account.
+        auto_detected = False
         if invoice_id:
             selector = {'ResourceType': 'INVOICE_ID', 'Value': invoice_id}
         else:
             if not account_id:
                 sts_client = create_aws_client('sts')
                 account_id = sts_client.get_caller_identity()['Account']
+                auto_detected = True
                 await ctx.info(f'Auto-detected account ID: {account_id}')
             selector = {'ResourceType': 'ACCOUNT_ID', 'Value': account_id}
 
@@ -339,27 +418,53 @@ async def list_invoice_summaries(
                 )
 
             # Reject a span the service is guaranteed to refuse, and name the
-            # sub-ranges that together cover the request instead. The service
-            # truncates to whole days, so compare on the same basis.
+            # sub-ranges that together cover the request instead.
             span_days = (end_epoch - start_epoch) // _SECONDS_PER_DAY
-            max_days = _max_time_interval_days(start_epoch)
-            if span_days > max_days:
-                return _validation_error(
-                    {
-                        'message': (
-                            f'start_date to end_date spans {span_days} days. The Invoicing '
-                            'service accepts at most one month per call, measured as the '
-                            f"number of days in the start date's month ({max_days} here). "
-                            'Issue one call per suggested_date_ranges entry instead of '
-                            'widening the range, then combine the results.'
-                        ),
-                        'suggested_date_ranges': _split_range_by_month(start_epoch, end_epoch),
-                    },
-                )
+            if receiver_role:
+                # A receiver role lifts the cap to just under five years, so the
+                # per-month split does not apply; there is nothing useful to
+                # suggest. The bound is exclusive and compared on instants, as
+                # the service compares them.
+                limit_epoch = _receiver_role_span_limit(start_epoch)
+                if end_epoch >= limit_epoch:
+                    return _validation_error(
+                        {
+                            'message': (
+                                f'start_date to end_date spans {span_days} days. With '
+                                'receiver_role set a range must be less than five years, '
+                                'which this tool checks before calling AWS, so end_date '
+                                'must be earlier than '
+                                f'{_format_range_bound(datetime.fromtimestamp(limit_epoch, tz=timezone.utc))}. '
+                                'Narrow the range.'
+                            )
+                        },
+                    )
+            else:
+                # The one-month cap is measured in whole days, so compare on the
+                # same basis.
+                max_days = _max_time_interval_days(start_epoch)
+                if span_days > max_days:
+                    return _validation_error(
+                        {
+                            'message': (
+                                f'start_date to end_date spans {span_days} days. This tool '
+                                'accepts at most one month per call, measured as the number '
+                                f"of days in the start date's month ({max_days} here), and "
+                                'rejects a longer range before calling AWS. '
+                                'Issue one call per suggested_date_ranges entry instead of '
+                                'widening the range, then combine the results. Setting '
+                                'receiver_role raises the cap to less than five years, but '
+                                'returns a different set of invoices.'
+                            ),
+                            'suggested_date_ranges': _split_range_by_month(start_epoch, end_epoch),
+                        },
+                    )
 
             api_filter['TimeInterval'] = {'StartDate': start_epoch, 'EndDate': end_epoch}
         if invoicing_entity:
             api_filter['InvoicingEntity'] = invoicing_entity
+        if receiver_role:
+            api_filter['ReceiverRole'] = receiver_role
         if api_filter:
             request_params['Filter'] = api_filter
 
@@ -380,7 +485,18 @@ async def list_invoice_summaries(
         await ctx.info(f'Successfully listed {len(normalized)} invoice summaries')
 
         return format_response(
-            'success', with_pagination({'invoice_summaries': normalized}, pagination)
+            'success',
+            with_pagination(
+                {
+                    'invoice_summaries': normalized,
+                    'selector': {
+                        'type': selector['ResourceType'],
+                        'value': selector['Value'],
+                        'auto_detected': auto_detected,
+                    },
+                },
+                pagination,
+            ),
         )
 
     except Exception as e:

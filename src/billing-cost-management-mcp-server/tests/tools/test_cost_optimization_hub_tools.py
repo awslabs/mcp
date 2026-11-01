@@ -1851,6 +1851,28 @@ async def test_coh_validation_exception_adds_valid_filter_values(mock_context, o
     assert 'Ec2Instance' in res['valid_filter_values']['resourceTypes']
 
 
+@pytest.mark.asyncio
+async def test_description_warns_that_summing_recommendation_savings_double_counts():
+    """The description names the one de-duplicated total and the filters that change it."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    # Other tests reload the module with an identity decorator, which leaves no tool registered.
+    importlib.reload(coh_mod)
+    tool = await coh_mod.cost_optimization_hub_server.get_tool('cost-optimization')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert 'SAVINGS TOTALS:' in description
+    assert 'estimated_total_deduped_savings' in description
+    assert 'Never add up list_recommendations estimated_monthly_savings' in description
+    for filter_name in ('actionTypes', 'resourceTypes', 'implementationEfforts'):
+        assert filter_name in description.split('SAVINGS TOTALS:')[1].split('CRITICAL')[0]
+    assert 'include_all_recommendations=true' in description
+    assert 'do not include DatabaseSavingsPlans' in description
+
+
 @pytest.mark.parametrize(
     'filters,expected',
     [
@@ -1949,6 +1971,8 @@ def test_resolve_summaries_group_by(group_by, expected):
         ('TagKey:  ', 'needs a tag key'),
         ('Tag:Environment', 'Invalid group_by value'),
         ('resourcetype', 'Invalid group_by value'),
+        # The legacy upper-snake spelling is not a valid dimension.
+        ('RESOURCE_TYPE', 'Invalid group_by value'),
     ],
 )
 def test_resolve_summaries_group_by_rejects(group_by, message):
@@ -2053,3 +2077,24 @@ async def test_description_says_what_an_efficiency_point_covers():
     assert 'Ask only for completed months' in flat
     assert 'a current-month point would be partial' in flat
     assert 'Only completed months are returned' not in flat
+
+
+@pytest.mark.parametrize('filter_name', ['resourceTypes', 'actionTypes', 'implementationEfforts'])
+def test_tool_description_filter_values_match_api_enum(filter_name):
+    """Each enum filter listed in the tool description matches the API's accepted values."""
+    import inspect
+    import re
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    line = next(
+        line
+        for line in inspect.getsource(coh_mod).splitlines()
+        if line.startswith(f'- {filter_name}:')
+    )
+
+    api_values = coh_mod._filter_model()[filter_name]
+
+    assert api_values is not None
+    assert set(re.findall(r"'([A-Za-z0-9]+)'", line)) == set(api_values)

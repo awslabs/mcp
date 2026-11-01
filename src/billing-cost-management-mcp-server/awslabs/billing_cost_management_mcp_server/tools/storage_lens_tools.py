@@ -33,6 +33,7 @@ from ..utilities.constants import (
     STORAGE_LENS_DEFAULT_DATABASE,
     STORAGE_LENS_DEFAULT_TABLE,
 )
+from ..utilities.error_contract import MODIFY_REQUEST, RETRY_SAME_REQUEST
 from datetime import datetime
 from enum import Enum
 from fastmcp import Context, FastMCP
@@ -457,6 +458,10 @@ def table_lock(qualified_table: str) -> asyncio.Lock:
     return lock
 
 
+# Athena's StateChangeReason when a workgroup's per-query scan limit cancels a query
+_BYTES_SCANNED_LIMIT_REASON = 'Bytes scanned limit was exceeded'
+
+
 class AthenaHandler:
     """Handler for Athena operations on S3 Storage Lens data."""
 
@@ -808,7 +813,25 @@ class AthenaHandler:
                         'StateChangeReason', 'no reason given'
                     )
                     await self.ctx.error(f'Query cancelled: {reason}')
-                    raise RuntimeError(f'{label} cancelled: {reason}')
+                    error = RuntimeError(f'{label} cancelled: {reason}')
+                    if _BYTES_SCANNED_LIMIT_REASON in reason:
+                        # The same query would hit the workgroup's limit again
+                        error = RuntimeError(
+                            f'{label} cancelled: {reason}. The Athena workgroup caps the data '
+                            'one query can scan, so the same query is cancelled again. Scan '
+                            "less data, or ask for the workgroup's data scanned limit to be "
+                            'raised.'
+                        )
+                        retry_strategy = MODIFY_REQUEST
+                    else:
+                        # Stopped from outside (e.g. StopQueryExecution): the same query can
+                        # succeed. Athena's other reason, "Query timed out", needs its DML
+                        # timeout (30 min by default), which this wait gives up long before.
+                        retry_strategy = RETRY_SAME_REQUEST
+                    # Still a RuntimeError, so error_type stays unknown_runtimeerror (a public
+                    # contract); query_storage_lens returns this as the retry_strategy
+                    setattr(error, 'retry_strategy', retry_strategy)
+                    raise error
                 elif state == 'SUCCEEDED':
                     await self.ctx.info(f'Query succeeded after {retries} retries')
                     return response['QueryExecution']
@@ -989,7 +1012,12 @@ class StorageLensQueryTool:
 
         except Exception as e:
             # Use shared error handler for consistent error reporting
-            return await handle_aws_error(self.ctx, e, 'query_storage_lens', 'Storage Lens')
+            response = await handle_aws_error(self.ctx, e, 'query_storage_lens', 'Storage Lens')
+            # A cancelled query says whether sending it again can succeed
+            retry_strategy = getattr(e, 'retry_strategy', None)
+            if retry_strategy:
+                response['retry_strategy'] = retry_strategy
+            return response
 
 
 @storage_lens_server.tool(

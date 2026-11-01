@@ -17,6 +17,8 @@
 Updated to use shared utility functions.
 """
 
+import botocore.session
+import functools
 import os
 from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
 from ..utilities.constants import (
@@ -27,6 +29,7 @@ from ..utilities.constants import (
     ACTION_TYPE_STOP,
     DYNAMODB_PAYMENT_OPTION_MAP,
     LOOKBACK_PERIOD_MAP,
+    OFFERING_CLASS_MAP,
     PAYMENT_OPTION_MAP,
     RESOURCE_TYPE_EBS_VOLUME,
     RESOURCE_TYPE_EC2_ASG,
@@ -40,7 +43,7 @@ from ..utilities.constants import (
 )
 from ..utilities.time_utils import format_timestamp_to_utc_iso
 from fastmcp import Context, FastMCP
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, Tuple
 
 
 recommendation_details_server = FastMCP(
@@ -62,12 +65,23 @@ It provides comprehensive analysis with utilization metrics, savings calculation
 
 COMMITMENT PURCHASE DETAILS:
 - For PurchaseReservedInstances, additional_details is the Cost Explorer reservation purchase
-  recommendation for the recommendation's service, term and payment option. It may list several
-  instance types and regions; EstimatedBreakEvenInMonths is per RecommendationDetails row.
+  recommendation for the recommendation's service, term, payment option and, for EC2, offering
+  class; EstimatedBreakEvenInMonths is per RecommendationDetails row.
+- Cost Explorer is asked for the recommendation's account scope (Payer or Linked), filtered to
+  the recommendation's account when Linked. RecommendationDetails and
+  SavingsPlansPurchaseRecommendationDetails then keep only the rows for the recommendation's
+  own account (and, for EC2 RIs, its instance type and region). The summary is not recomputed
+  from the kept rows: it totals every row Cost Explorer returned, which for RIs spans other
+  instance types and regions, so use the kept row(s) for this recommendation. Non-EC2 RI rows are
+  not matched on instance type or region; an EC2 row whose Region name is not a known Region is
+  kept and the note names it. A "note" key in additional_details counts dropped rows; a
+  "warning" key there means Cost Explorer returned rows but none for this recommendation.
 - When the Cost Explorer or Compute Optimizer lookup fails or is skipped,
   the response leads with a warning and additional_details holds only an error;
   base_recommendation is still valid. A lookup that runs but finds nothing
-  returns empty results and no warning.
+  returns empty results and no response-level warning (a commitment lookup whose
+  rows are all for other recommendations still adds its own "warning" inside
+  additional_details).
 - Savings Plans recommendations carry no break-even. They return EstimatedROI (estimated savings /
   Savings Plan cost x 100 over the lookback period), which is not a payback period.
 - DynamoDB reserved capacity: Cost Optimization Hub shows the payment option as PartialUpfront,
@@ -204,15 +218,193 @@ async def get_cost_explorer_data(ctx: Context, recommendation: Dict[str, Any]) -
     try:
         if action_type == ACTION_TYPE_PURCHASE_SAVINGS_PLAN:
             # Handle Savings Plans recommendations
-            return await get_savings_plans_recommendation(ctx, recommendation, ce_client)
+            details = await get_savings_plans_recommendation(ctx, recommendation, ce_client)
+            return scope_savings_plans_details(details, recommendation)
         elif action_type == ACTION_TYPE_PURCHASE_RESERVED_INSTANCE:
             # Handle Reserved Instance recommendations
-            return await get_reserved_instances_recommendation(ctx, recommendation, ce_client)
+            details = await get_reserved_instances_recommendation(ctx, recommendation, ce_client)
+            return scope_reserved_instances_details(details, recommendation)
         else:
             return {'error': 'Unsupported action type for Cost Explorer data'}
     except Exception as e:
         await ctx.error(f'Error getting Cost Explorer data: {str(e)}')
         return {'error': f'Error getting Cost Explorer data: {str(e)}'}
+
+
+def commitment_config(
+    recommendation: Dict[str, Any], key_map: Dict[str, str]
+) -> Tuple[Optional[str], Dict[str, Any]]:
+    """Return the (key, configuration) of the recommendation's commitment details."""
+    recommended_details = recommendation.get('recommendedResourceDetails', {})
+    key = next((k for k in recommended_details if k in key_map), None)
+    if not key:
+        return None, {}
+    return key, recommended_details[key].get('configuration', {})
+
+
+def linked_account(config: Dict[str, Any], recommendation: Dict[str, Any]) -> Optional[str]:
+    """Return the account ID of a Linked recommendation, else None."""
+    if config.get('accountScope') != 'Linked':
+        return None
+    return recommendation.get('accountId') or None
+
+
+def linked_account_filter(
+    config: Dict[str, Any], recommendation: Dict[str, Any]
+) -> Optional[Dict[str, Any]]:
+    """Cost Explorer Filter that narrows a Linked recommendation to its own account."""
+    # Cost Explorer rejects an AccountId other than the caller's own account, so a
+    # management account cannot name a member account there; LINKED_ACCOUNT can.
+    account_id = linked_account(config, recommendation)
+    if not account_id:
+        return None
+    return {'Dimensions': {'Key': 'LINKED_ACCOUNT', 'Values': [account_id]}}
+
+
+@functools.lru_cache(maxsize=None)
+def region_names(region_code: str) -> Optional[FrozenSet[str]]:
+    """Names Cost Explorer may give a Region code in RI rows, or None if it is unknown."""
+    for partition in botocore.session.get_session().get_data('endpoints').get('partitions', []):
+        description = partition.get('regions', {}).get(region_code, {}).get('description')
+        if description:
+            # Cost Explorer names older European Regions 'EU (...)', e.g. 'EU (Paris)'.
+            return frozenset(
+                {region_code, description, description.replace('Europe (', 'EU (', 1)}
+            )
+    return None
+
+
+@functools.lru_cache(maxsize=None)
+def known_region_names() -> FrozenSet[str]:
+    """Every name region_names() gives any Region botocore knows."""
+    codes = {
+        code
+        for partition in botocore.session.get_session().get_data('endpoints').get('partitions', [])
+        for code in partition.get('regions', {})
+    }
+    return frozenset(name for code in codes for name in region_names(code) or ())
+
+
+def keep_matching_rows(
+    rows: List[Dict[str, Any]], matches: Callable[[Dict[str, Any]], bool]
+) -> Tuple[List[Dict[str, Any]], int]:
+    """Return (kept rows, number of rows dropped)."""
+    kept = [row for row in rows if matches(row)]
+    return kept, len(rows) - len(kept)
+
+
+def scope_reserved_instances_details(
+    response: Dict[str, Any], recommendation: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Keep only the RI rows for the recommendation's account, instance type and Region."""
+    if 'Recommendations' not in response:
+        return response
+    ri_key, config = commitment_config(recommendation, SERVICE_MAP)
+    account_id = linked_account(config, recommendation)
+    criteria: Dict[str, str] = {'account': account_id} if account_id else {}
+    instance_type = config.get('instanceType')
+    region = config.get('reservedInstancesRegion')
+    names = region_names(region) if region else None
+    # Only EC2InstanceDetails is checked against the COH instance type and Region.
+    if ri_key == 'ec2ReservedInstances':
+        if instance_type:
+            criteria['instance type'] = instance_type
+        if names and region:
+            criteria['region'] = region
+
+    unknown_regions = set()
+
+    def region_matches(row_region: Any) -> bool:
+        if row_region in (names or ()):
+            return True
+        # A name that is no known Region's (a new spelling) is kept rather than discarded;
+        # a row for another known Region is dropped.
+        if isinstance(row_region, str) and row_region and row_region not in known_region_names():
+            unknown_regions.add(row_region)
+            return True
+        return False
+
+    def matches(row: Dict[str, Any]) -> bool:
+        ec2 = row.get('InstanceDetails', {}).get('EC2InstanceDetails', {})
+        return (
+            (not account_id or row.get('AccountId') == account_id)
+            and ('instance type' not in criteria or ec2.get('InstanceType') == instance_type)
+            and ('region' not in criteria or region_matches(ec2.get('Region')))
+        )
+
+    scoped = [
+        keep_matching_rows(ri.get('RecommendationDetails', []), matches)
+        for ri in response['Recommendations']
+    ]
+    extra = []
+    if unknown_regions:
+        extra.append(
+            f'Rows whose Region name is not a known Region ({", ".join(sorted(unknown_regions))}) '
+            f'were kept, not matched to {region}: check their Region.'
+        )
+    if ri_key != 'ec2ReservedInstances':
+        extra.append(
+            'Rows for this service are not matched on instance type or region, so they can '
+            'include other instance types and regions: use the row whose InstanceDetails '
+            "(DynamoDB: ReservedCapacityDetails) match the recommendation's configuration."
+        )
+
+    dropped = kept = 0
+    for ri, (rows, removed) in zip(response['Recommendations'], scoped):
+        ri['RecommendationDetails'] = rows
+        dropped += removed
+        kept += len(rows)
+    result = add_scope_notes(response, criteria, kept, dropped, 'RecommendationDetails')
+    if kept and extra:
+        result['note'] = ' '.join(([result['note']] if 'note' in result else []) + extra)
+    return result
+
+
+def scope_savings_plans_details(
+    details: Dict[str, Any], recommendation: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Keep only the Savings Plans rows for a Linked recommendation's account."""
+    if 'SavingsPlansPurchaseRecommendationDetails' not in details:
+        return details
+    _, config = commitment_config(recommendation, SAVINGS_PLANS_TYPE_MAP)
+    account_id = linked_account(config, recommendation)
+    criteria: Dict[str, str] = {'account': account_id} if account_id else {}
+    rows, dropped = keep_matching_rows(
+        details['SavingsPlansPurchaseRecommendationDetails'],
+        lambda row: not account_id or row.get('AccountId') == account_id,
+    )
+    details['SavingsPlansPurchaseRecommendationDetails'] = rows
+    return add_scope_notes(
+        details, criteria, len(rows), dropped, 'SavingsPlansPurchaseRecommendationDetails'
+    )
+
+
+def add_scope_notes(
+    result: Dict[str, Any], criteria: Dict[str, str], kept: int, dropped: int, rows_key: str
+) -> Dict[str, Any]:
+    """Say when rows were dropped (the summary still covers them) or none matched."""
+    wanted = ', '.join(f'{name} {value}' for name, value in criteria.items()) or 'its scope'
+    if kept == 0:
+        result['warning'] = (
+            f'Cost Explorer returned no {rows_key} row for this recommendation ({wanted}). '
+            'Cost Explorer may have regenerated its recommendations since Cost Optimization '
+            'Hub produced this one.'
+        )
+        if result.get('NextPageToken'):
+            result['warning'] += (
+                ' Only the first page was read (this tool cannot fetch more); the row may be on '
+                'a later page.'
+            )
+    elif dropped:
+        result['note'] = (
+            f'{rows_key} keeps only the {kept} row(s) for {wanted}; {dropped} other row(s) '
+            "were dropped. Cost Explorer's summary still totals all of them, so use the kept "
+            'row(s) for this recommendation.'
+        )
+    if kept and result.get('NextPageToken'):
+        page_hint = 'Later pages, which this tool cannot fetch, were not read.'
+        result['note'] = f'{result["note"]} {page_hint}' if 'note' in result else page_hint
+    return result
 
 
 def missing_details_error(recommended_details: Dict[str, Any], kind: str) -> Dict[str, Any]:
@@ -289,10 +481,18 @@ async def get_savings_plans_recommendation(
         if lookback_value is not None:
             params['LookbackPeriodInDays'] = lookback_value
 
+    account_filter = linked_account_filter(config, recommendation)
+    if account_filter:
+        params['Filter'] = account_filter
+
     try:
         # Call Cost Explorer API
         response = ce_client.get_savings_plans_purchase_recommendation(**params)
-        return response.get('SavingsPlansPurchaseRecommendation', {})
+        details = response.get('SavingsPlansPurchaseRecommendation', {})
+        # NextPageToken sits beside the recommendation, not inside it.
+        if response.get('NextPageToken'):
+            details['NextPageToken'] = response['NextPageToken']
+        return details
     except Exception as e:
         await ctx.error(f'Error getting Savings Plans recommendation: {str(e)}')
         return {'error': f'Error getting Savings Plans recommendation: {str(e)}'}
@@ -346,6 +546,22 @@ async def get_reserved_instances_recommendation(
         lookback_value = LOOKBACK_PERIOD_MAP.get(lookback_period)
         if lookback_value is not None:
             params['LookbackPeriodInDays'] = lookback_value
+
+    # Map account scope (when omitted, Cost Explorer uses the caller's own: PAYER for a payer)
+    account_scope = config.get('accountScope')
+    if account_scope in ACCOUNT_SCOPE_MAP:
+        params['AccountScope'] = ACCOUNT_SCOPE_MAP[account_scope]
+
+    account_filter = linked_account_filter(config, recommendation)
+    if account_filter:
+        params['Filter'] = account_filter
+
+    # Map EC2 offering class; ServiceSpecification has no member for other services
+    offering_class = config.get('offeringClass')
+    if ri_key == 'ec2ReservedInstances' and offering_class in OFFERING_CLASS_MAP:
+        params['ServiceSpecification'] = {
+            'EC2Specification': {'OfferingClass': OFFERING_CLASS_MAP[offering_class]}
+        }
 
     try:
         # Call Cost Explorer API
