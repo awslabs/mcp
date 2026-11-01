@@ -390,28 +390,20 @@ class TestGetAutoScalingGroupRecommendations:
         filters = '[{"Name":"Finding","Values":["NOT_OPTIMIZED"]}]'
         account_ids = '["123456789012"]'
 
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
-        ) as mock_parse_json:
-            mock_parse_json.side_effect = [
-                [{'Name': 'Finding', 'Values': ['NOT_OPTIMIZED']}],  # filters
-                ['123456789012'],  # account_ids
-            ]
+        await get_auto_scaling_group_recommendations(
+            mock_context,
+            mock_co_client,
+            max_items=10,
+            filters=filters,
+            account_ids=account_ids,
+            next_token='next-page',
+        )
 
-            await get_auto_scaling_group_recommendations(
-                mock_context,
-                mock_co_client,
-                max_items=10,
-                filters=filters,
-                account_ids=account_ids,
-                next_token='next-page',
-            )
-
-            mock_co_client.get_auto_scaling_group_recommendations.assert_called_once()
-            call_kwargs = mock_co_client.get_auto_scaling_group_recommendations.call_args[1]
-            assert 'filters' in call_kwargs
-            assert 'accountIds' in call_kwargs
-            assert call_kwargs['nextToken'] == 'next-page'
+        mock_co_client.get_auto_scaling_group_recommendations.assert_called_once()
+        call_kwargs = mock_co_client.get_auto_scaling_group_recommendations.call_args[1]
+        assert call_kwargs['filters'] == [{'name': 'Finding', 'values': ['NotOptimized']}]
+        assert call_kwargs['accountIds'] == ['123456789012']
+        assert call_kwargs['nextToken'] == 'next-page'
 
 
 @pytest.mark.asyncio
@@ -449,32 +441,24 @@ class TestGetEBSVolumeRecommendations:
         assert option['savings_opportunity']['savings_percentage'] == 40.0
 
     async def test_with_filters(self, mock_context, mock_co_client):
-        """Test get_ebs_volume_recommendations with filters, account IDs, and next token."""
-        filters = '[{"Name":"Finding","Values":["OVERPROVISIONED"]}]'
+        """Filters (values normalized to the API spelling), account IDs and next token are sent."""
+        filters = '[{"Name":"Finding","Values":["not_optimized"]}]'
         account_ids = '["123456789012"]'
 
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
-        ) as mock_parse_json:
-            mock_parse_json.side_effect = [
-                [{'Name': 'Finding', 'Values': ['OVERPROVISIONED']}],  # filters
-                ['123456789012'],  # account_ids
-            ]
+        await get_ebs_volume_recommendations(
+            mock_context,
+            mock_co_client,
+            max_items=10,
+            filters=filters,
+            account_ids=account_ids,
+            next_token='next-page',
+        )
 
-            await get_ebs_volume_recommendations(
-                mock_context,
-                mock_co_client,
-                max_items=10,
-                filters=filters,
-                account_ids=account_ids,
-                next_token='next-page',
-            )
-
-            mock_co_client.get_ebs_volume_recommendations.assert_called_once()
-            call_kwargs = mock_co_client.get_ebs_volume_recommendations.call_args[1]
-            assert 'filters' in call_kwargs
-            assert 'accountIds' in call_kwargs
-            assert call_kwargs['nextToken'] == 'next-page'
+        mock_co_client.get_ebs_volume_recommendations.assert_called_once()
+        call_kwargs = mock_co_client.get_ebs_volume_recommendations.call_args[1]
+        assert call_kwargs['filters'] == [{'name': 'Finding', 'values': ['NotOptimized']}]
+        assert call_kwargs['accountIds'] == ['123456789012']
+        assert call_kwargs['nextToken'] == 'next-page'
 
 
 @pytest.mark.asyncio
@@ -527,39 +511,29 @@ class TestGetLambdaFunctionRecommendations:
         assert option['savings_opportunity']['estimated_monthly_savings']['value'] == 5.20
 
     async def test_with_filters(self, mock_context, mock_co_client):
-        """Test get_lambda_function_recommendations with filters."""
+        """Filters (values normalized to the API spelling) and account IDs are sent."""
         # Setup
-        filters = '[{"Name":"Finding","Values":["OVER_PROVISIONED"]}]'
+        filters = '[{"Name":"Finding","Values":["NOT_OPTIMIZED"]}]'
         account_ids = '["123456789012"]'
 
-        # Use patch to handle the parse_json calls
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
-        ) as mock_parse_json:
-            # Set up mock return values for parse_json calls
-            mock_parse_json.side_effect = [
-                [{'Name': 'Finding', 'Values': ['OVER_PROVISIONED']}],  # filters
-                ['123456789012'],  # account_ids
-            ]
+        # Execute
+        await get_lambda_function_recommendations(
+            mock_context,
+            mock_co_client,
+            max_items=10,
+            filters=filters,
+            account_ids=account_ids,
+            next_token='next-page',
+        )
 
-            # Execute
-            await get_lambda_function_recommendations(
-                mock_context,
-                mock_co_client,
-                max_items=10,
-                filters=filters,
-                account_ids=account_ids,
-                next_token='next-page',
-            )
+        # Assert
+        mock_co_client.get_lambda_function_recommendations.assert_called_once()
+        call_kwargs = mock_co_client.get_lambda_function_recommendations.call_args[1]
 
-            # Assert
-            mock_co_client.get_lambda_function_recommendations.assert_called_once()
-            call_kwargs = mock_co_client.get_lambda_function_recommendations.call_args[1]
-
-            # Verify that the parsed parameters were passed to the client
-            assert 'filters' in call_kwargs
-            assert 'accountIds' in call_kwargs
-            assert call_kwargs['nextToken'] == 'next-page'
+        # Verify that the parsed parameters were passed to the client
+        assert call_kwargs['filters'] == [{'name': 'Finding', 'values': ['NotOptimized']}]
+        assert call_kwargs['accountIds'] == ['123456789012']
+        assert call_kwargs['nextToken'] == 'next-page'
 
     async def test_function_name_derived_from_arn(self, mock_context, mock_co_client):
         """function_name is derived from the ARN, handling version/alias suffixes."""
@@ -647,34 +621,26 @@ class TestGetRDSRecommendations:
         filters = '[{"Name":"InstanceFinding","Values":["Overprovisioned"]}]'
         account_ids = '["123456789012"]'
 
-        # Use patch to handle the parse_json calls
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
-        ) as mock_parse_json:
-            # Set up mock return values for parse_json calls
-            mock_parse_json.side_effect = [
-                [{'Name': 'InstanceFinding', 'Values': ['Overprovisioned']}],  # filters
-                ['123456789012'],  # account_ids
-            ]
+        # Execute
+        await get_rds_recommendations(
+            mock_context,
+            mock_co_client,
+            max_items=10,
+            filters=filters,
+            account_ids=account_ids,
+            next_token='next-page-rds',
+        )
 
-            # Execute
-            await get_rds_recommendations(
-                mock_context,
-                mock_co_client,
-                max_items=10,
-                filters=filters,
-                account_ids=account_ids,
-                next_token='next-page-rds',
-            )
+        # Assert
+        mock_co_client.get_rds_database_recommendations.assert_called_once()
+        call_kwargs = mock_co_client.get_rds_database_recommendations.call_args[1]
 
-            # Assert
-            mock_co_client.get_rds_database_recommendations.assert_called_once()
-            call_kwargs = mock_co_client.get_rds_database_recommendations.call_args[1]
-
-            # Verify that the parsed parameters were passed to the client
-            assert 'filters' in call_kwargs
-            assert 'accountIds' in call_kwargs
-            assert call_kwargs['nextToken'] == 'next-page-rds'
+        # Verify that the parsed parameters were passed to the client
+        assert call_kwargs['filters'] == [
+            {'name': 'InstanceFinding', 'values': ['Overprovisioned']}
+        ]
+        assert call_kwargs['accountIds'] == ['123456789012']
+        assert call_kwargs['nextToken'] == 'next-page-rds'
 
 
 @pytest.mark.asyncio
@@ -994,6 +960,19 @@ def test_compute_optimizer_server_initialization():
     )
 
     assert isinstance(compute_optimizer_server, FastMCP)
+
+
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_compute_optimizer_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import compute_optimizer_tools as module
+
+    importlib.reload(module)
 
 
 def _reload_compute_optimizer_with_identity_decorator() -> Any:
@@ -1933,33 +1912,23 @@ class TestGetECSServiceRecommendations:
             'nextToken': None,
         }
 
-        # Use patch to handle the parse_json calls
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
-        ) as mock_parse_json:
-            # Set up mock return values for parse_json calls
-            mock_parse_json.side_effect = [
-                [{'Name': 'Finding', 'Values': ['Overprovisioned']}],  # filters
-                ['558889323918'],  # account_ids
-            ]
+        # Execute
+        await get_ecs_service_recommendations(
+            mock_context,
+            mock_co_client,
+            max_items=10,
+            filters=filters,
+            account_ids=account_ids,
+            next_token='next-token',
+        )
 
-            # Execute
-            await get_ecs_service_recommendations(
-                mock_context,
-                mock_co_client,
-                max_items=10,
-                filters=filters,
-                account_ids=account_ids,
-                next_token='next-token',
-            )
+        # Assert
+        mock_co_client.get_ecs_service_recommendations.assert_called_once()
+        call_kwargs = mock_co_client.get_ecs_service_recommendations.call_args[1]
 
-            # Assert
-            mock_co_client.get_ecs_service_recommendations.assert_called_once()
-            call_kwargs = mock_co_client.get_ecs_service_recommendations.call_args[1]
-
-            assert 'filters' in call_kwargs
-            assert 'accountIds' in call_kwargs
-            assert call_kwargs['nextToken'] == 'next-token'
+        assert call_kwargs['filters'] == [{'name': 'Finding', 'values': ['Overprovisioned']}]
+        assert call_kwargs['accountIds'] == ['558889323918']
+        assert call_kwargs['nextToken'] == 'next-token'
 
 
 @pytest.mark.asyncio
@@ -3531,3 +3500,187 @@ class TestComputeOptimizerPaginationEdgeCases:
         assert result['data']['complete_dataset'] is False
         assert result['data']['pagination']['next_token'] == 'retry-me'
         assert len(result['data']['recommendations']) == 1
+
+
+def _active_co_client() -> MagicMock:
+    """Return a mock Compute Optimizer client whose enrollment status is ACTIVE."""
+    client = MagicMock()
+    client.get_enrollment_status.return_value = {'status': 'ACTIVE'}
+    return client
+
+
+@pytest.mark.asyncio
+class TestComputeOptimizerAccessDeniedPermission:
+    """The access-denied message names a real IAM action, not the tool operation."""
+
+    @pytest.mark.parametrize(
+        'operation,method,api_name',
+        [
+            (
+                'get_rds_recommendations',
+                'get_rds_database_recommendations',
+                'GetRDSDatabaseRecommendations',
+            ),
+            (
+                'get_ec2_instance_recommendations',
+                'get_ec2_instance_recommendations',
+                'GetEC2InstanceRecommendations',
+            ),
+        ],
+    )
+    async def test_access_denied_names_api_action(self, mock_context, operation, method, api_name):
+        """The permission is derived from the failing API, e.g. GetRDSDatabaseRecommendations."""
+        from botocore.exceptions import ClientError
+
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        client = _active_co_client()
+        getattr(client, method).side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'not authorized'}},
+            api_name,
+        )
+        with (
+            patch.object(co_mod, 'create_aws_client', return_value=client),
+            patch.object(co_mod, 'get_context_logger', return_value=AsyncMock()),
+        ):
+            res = await co_mod.compute_optimizer(
+                mock_context, operation=operation, region='us-west-2'
+            )
+
+        assert res['error_type'] == 'access_denied'
+        assert res['data']['required_permission'] == f'compute-optimizer:{api_name}'
+        assert f'compute-optimizer:{api_name}' in res['message']
+        assert f'compute-optimizer:{operation}' not in res['message']
+        assert res['data']['aws_region'] == 'us-west-2'
+
+    async def test_access_denied_without_operation_name_omits_permission(self, mock_context):
+        """With no API name to name, the message points at aws_error_message instead."""
+        from botocore.exceptions import ClientError
+
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        client = _active_co_client()
+        client.get_ebs_volume_recommendations.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'not authorized'}}, ''
+        )
+        with (
+            patch.object(co_mod, 'create_aws_client', return_value=client),
+            patch.object(co_mod, 'get_context_logger', return_value=AsyncMock()),
+        ):
+            res = await co_mod.compute_optimizer(
+                mock_context, operation='get_ebs_volume_recommendations'
+            )
+
+        assert res['error_type'] == 'access_denied'
+        assert 'required_permission' not in res['data']
+        assert 'compute-optimizer:' not in res['message']
+        assert 'aws_error_message' in res['message']
+
+
+@pytest.mark.asyncio
+class TestComputeOptimizerAppliedRegion:
+    """Responses echo the region that was queried."""
+
+    async def _run(self, co_mod, mock_context, impl_result, **kwargs):
+        with (
+            patch.object(
+                co_mod, 'create_aws_client', return_value=_active_co_client()
+            ) as mock_create,
+            patch.object(co_mod, 'get_context_logger', return_value=AsyncMock()),
+            patch.object(
+                co_mod,
+                'get_rds_recommendations',
+                new_callable=AsyncMock,
+                return_value=impl_result,
+            ),
+        ):
+            res = await co_mod.compute_optimizer(
+                mock_context, operation='get_rds_recommendations', **kwargs
+            )
+        return res, mock_create
+
+    async def test_explicit_region_is_echoed(self, mock_context):
+        """An explicit region is sent to the client and echoed as applied_region."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        res, mock_create = await self._run(
+            co_mod,
+            mock_context,
+            {'status': 'success', 'data': {'recommendations': []}},
+            region='eu-west-1',
+        )
+        mock_create.assert_called_once_with('compute-optimizer', region_name='eu-west-1')
+        assert res['data']['applied_region'] == 'eu-west-1'
+
+    async def test_region_from_arns_is_echoed(self, mock_context):
+        """A region taken from resource_arns is echoed as applied_region."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        arn = 'arn:aws:rds:ap-south-1:123456789012:db:mydb'
+        res, _ = await self._run(
+            co_mod,
+            mock_context,
+            {'status': 'success', 'data': {'recommendations': []}},
+            resource_arns=json.dumps([arn]),
+        )
+        assert res['data']['applied_region'] == 'ap-south-1'
+
+    async def test_omitted_region_uses_aws_region_env(self, mock_context, monkeypatch):
+        """With no region, AWS_REGION is queried and echoed."""
+        monkeypatch.setenv('AWS_REGION', 'us-west-2')
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        res, mock_create = await self._run(
+            co_mod, mock_context, {'status': 'success', 'data': {'recommendations': []}}
+        )
+        mock_create.assert_called_once_with('compute-optimizer', region_name='us-west-2')
+        assert res['data']['applied_region'] == 'us-west-2'
+
+    async def test_omitted_region_without_env_defaults_to_us_east_1(
+        self, mock_context, monkeypatch
+    ):
+        """With no region and no AWS_REGION, us-east-1 is queried and echoed."""
+        monkeypatch.delenv('AWS_REGION', raising=False)
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        res, mock_create = await self._run(
+            co_mod, mock_context, {'status': 'success', 'data': {'recommendations': []}}
+        )
+        mock_create.assert_called_once_with('compute-optimizer', region_name='us-east-1')
+        assert res['data']['applied_region'] == 'us-east-1'
+
+    async def test_result_without_data_dict_is_returned_unchanged(self, mock_context):
+        """A result with no data dict is passed through without adding a region."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        impl_result = {'status': 'error', 'message': 'boom'}
+        res, _ = await self._run(co_mod, mock_context, impl_result, region='eu-west-1')
+        assert res == {'status': 'error', 'message': 'boom'}
+
+    async def test_enrollment_error_reports_resolved_region(self, mock_context, monkeypatch):
+        """The enrollment error reports the region actually queried."""
+        monkeypatch.setenv('AWS_REGION', 'eu-central-1')
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        client = MagicMock()
+        client.get_enrollment_status.return_value = {'status': 'INACTIVE'}
+        with (
+            patch.object(co_mod, 'create_aws_client', return_value=client),
+            patch.object(co_mod, 'get_context_logger', return_value=AsyncMock()),
+        ):
+            res = await co_mod.compute_optimizer(mock_context, operation='get_rds_recommendations')
+        assert res['error_type'] == 'enrollment_error'
+        assert res['data']['aws_region'] == 'eu-central-1'
+
+    async def test_generic_aws_error_reports_region(self, mock_context):
+        """An AWS error left to the generic handler reports the queried region."""
+        from botocore.exceptions import ClientError
+
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        client = _active_co_client()
+        client.get_rds_database_recommendations.side_effect = ClientError(
+            {'Error': {'Code': 'InternalServerException', 'Message': 'oops'}},
+            'GetRDSDatabaseRecommendations',
+        )
+        with (
+            patch.object(co_mod, 'create_aws_client', return_value=client),
+            patch.object(co_mod, 'get_context_logger', return_value=AsyncMock()),
+        ):
+            res = await co_mod.compute_optimizer(
+                mock_context, operation='get_rds_recommendations', region='sa-east-1'
+            )
+        assert res['status'] == 'error'
+        assert res['error_type'] == 'InternalServerException'
+        assert res['aws_region'] == 'sa-east-1'
