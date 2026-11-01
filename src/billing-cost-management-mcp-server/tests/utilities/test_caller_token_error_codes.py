@@ -27,6 +27,7 @@ from awslabs.billing_cost_management_mcp_server.tools import (
     bcm_pricing_calculator_tools,
     billing_conductor_operations,
     billing_preferences_operations,
+    business_support_operations,
     bvs_operations,
     compute_optimizer_automation_operations,
     cost_optimization_hub_helpers,
@@ -187,6 +188,16 @@ SPECS = [
         cost_optimization_hub_helpers.COH_LIST_EFFICIENCY_METRICS,
         VALIDATION,
         id='COH_LIST_EFFICIENCY_METRICS',
+    ),
+    pytest.param(
+        business_support_operations.LIST_ACCOUNT_CHARGES_PAGE_SPEC,
+        VALIDATION,
+        id='LIST_ACCOUNT_CHARGES_PAGE_SPEC',
+    ),
+    pytest.param(
+        business_support_operations.LIST_SUBSCRIPTION_HISTORY_PAGE_SPEC,
+        VALIDATION,
+        id='LIST_SUBSCRIPTION_HISTORY_PAGE_SPEC',
     ),
     pytest.param(
         credits_operations.GET_CREDIT_ALLOCATION_HISTORY_PAGE_SPEC,

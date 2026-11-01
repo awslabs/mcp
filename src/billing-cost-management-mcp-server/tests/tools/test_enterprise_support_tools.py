@@ -138,6 +138,17 @@ class TestToolRegistration:
         assert 'max_results' not in description
         assert 'max_pages' not in description
 
+    @pytest.mark.asyncio
+    async def test_description_explains_an_empty_account_id_result(self):
+        """An empty account_id result is not in the profile for that month, not a $0 charge."""
+        description = ' '.join(((await _registered_tool()).description or '').split())
+
+        assert (
+            'An empty list (with no error) means that account has no entry in the Support '
+            "profile's charge data for that billing month"
+        ) in description
+        assert 'It does not mean the account had a $0 Support charge' in description
+
 
 class TestOperationRouting:
     """Each operation reaches its own handler and no others."""

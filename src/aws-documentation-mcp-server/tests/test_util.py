@@ -27,6 +27,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     has_readable_text,
     is_html_content,
     parse_recommendation_results,
+    rewrite_markdown_links,
     url_matches_allowlist,
 )
 from unittest.mock import MagicMock, patch
@@ -1094,3 +1095,66 @@ class TestWhitespaceOnlyBody:
         """Paragraphs holding only whitespace are not prose either."""
         with pytest.raises(UnreadablePageError):
             extract_content_from_html('<html><body><p> </p><p>  </p></body></html>')
+
+
+class TestRewriteMarkdownLinks:
+    """Tests for rewriting published-Markdown links to readable .html URLs."""
+
+    BASE = 'https://docs.aws.amazon.com/lambda/latest/dg/lambda-invocation.html'
+
+    @pytest.mark.parametrize(
+        'target, expected',
+        [
+            (
+                'testing-functions.md',
+                'https://docs.aws.amazon.com/lambda/latest/dg/testing-functions.html',
+            ),
+            (
+                'invocation-async.md#invocation-async-destinations',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.html'
+                '#invocation-async-destinations',
+            ),
+            (
+                '../api/API_Invoke.md',
+                'https://docs.aws.amazon.com/lambda/latest/api/API_Invoke.html',
+            ),
+            (
+                '/AmazonS3/latest/userguide/Welcome.md',
+                'https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html',
+            ),
+        ],
+    )
+    def test_same_site_md_links_become_absolute_html(self, target, expected):
+        """Relative and root-relative .md links resolve against the page and swap to .html."""
+        result = rewrite_markdown_links(f'See [the page]({target}).', self.BASE)
+        assert result == f'See [the page]({expected}).'
+
+    @pytest.mark.parametrize(
+        'target',
+        [
+            '#lambda-invocation',
+            'https://docs.aws.amazon.com/lambda/latest/api/API_Invoke.html',
+            'https://github.com/awslabs/mcp/blob/main/README.md',
+            'urls-configuration.html',
+        ],
+    )
+    def test_other_links_unchanged(self, target):
+        """Fragments, .html pages and off-site Markdown are left alone."""
+        markdown = f'See [the page]({target}).'
+        assert rewrite_markdown_links(markdown, self.BASE) == markdown
+
+    def test_link_title_is_preserved(self):
+        """A quoted link title after the destination survives the rewrite."""
+        result = rewrite_markdown_links('[a](invocation-sync.md "Sync")', self.BASE)
+        assert result == (
+            '[a](https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html "Sync")'
+        )
+
+    def test_code_blocks_unchanged(self):
+        """Links inside fenced code blocks are not rewritten."""
+        markdown = '```\n[a](invocation-sync.md)\n```\n[b](invocation-sync.md)'
+        result = rewrite_markdown_links(markdown, self.BASE)
+        assert result.split('\n')[1] == '[a](invocation-sync.md)'
+        assert result.split('\n')[3] == (
+            '[b](https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html)'
+        )
