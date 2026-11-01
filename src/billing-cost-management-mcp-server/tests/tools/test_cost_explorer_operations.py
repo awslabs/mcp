@@ -25,7 +25,7 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations i
     get_tags,
     get_usage_forecast,
 )
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -56,10 +56,11 @@ def mock_ce_client():
         ]
     }
 
+    # The API returns DAILY bounds as UTC-midnight timestamps here, unlike get_cost_and_usage.
     mock_client.get_cost_and_usage_with_resources.return_value = {
         'ResultsByTime': [
             {
-                'TimePeriod': {'Start': '2023-01-01', 'End': '2023-01-02'},
+                'TimePeriod': {'Start': '2023-01-01T00:00:00Z', 'End': '2023-01-02T00:00:00Z'},
                 'Groups': [
                     {
                         'Keys': ['i-1234567890abcdef0'],
@@ -315,32 +316,24 @@ class TestGetCostAndUsage:
         group_by_json = '[{"Type": "DIMENSION", "Key": "SERVICE"}]'
         filter_json = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon EC2"]}}'
 
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
-        ) as mock_parse_json:
-            # Set up mock return values for parse_json calls
-            mock_parse_json.side_effect = [
-                ['UnblendedCost', 'UsageQuantity'],  # metrics
-                [{'Type': 'DIMENSION', 'Key': 'SERVICE'}],  # group_by
-                {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}},  # filter
-            ]
+        await get_cost_and_usage(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            granularity='DAILY',
+            metrics=metrics_json,
+            group_by=group_by_json,
+            filter_expr=filter_json,
+        )
 
-            await get_cost_and_usage(
-                mock_context,
-                mock_ce_client,
-                start_date='2023-01-01',
-                end_date='2023-01-31',
-                granularity='DAILY',
-                metrics=metrics_json,
-                group_by=group_by_json,
-                filter_expr=filter_json,
-            )
-
-        # Verify the client was called with parsed parameters
+        # The JSON arguments are parsed and sent as given.
         call_kwargs = mock_ce_client.get_cost_and_usage.call_args[1]
-        assert 'Metrics' in call_kwargs
-        assert 'GroupBy' in call_kwargs
-        assert 'Filter' in call_kwargs
+        assert call_kwargs['Metrics'] == ['UnblendedCost', 'UsageQuantity']
+        assert call_kwargs['GroupBy'] == [{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
+        assert call_kwargs['Filter'] == {
+            'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}
+        }
 
     @pytest.mark.parametrize('metrics, expected', METRICS_CASES)
     async def test_sends_and_stores_parsed_metrics(
@@ -739,14 +732,12 @@ class TestGetCostAndUsageWithResources:
             assert result['status'] == 'success'
             assert result['data'] is not None
 
-    async def test_date_adjustment_for_14_day_limit(self, mock_context, mock_ce_client):
-        """Test date adjustment for the 14-day limit of resource data."""
-        # Setup a date more than 14 days ago
+    async def test_start_date_older_than_14_days_is_sent_unchanged(
+        self, mock_context, mock_ce_client
+    ):
+        """A start date past the 14-day window is not clamped; the service validates it."""
         today = datetime.now()
         old_date = (today - timedelta(days=20)).strftime('%Y-%m-%d')
-
-        # Expected adjusted date (14 days ago)
-        (today - timedelta(days=14)).strftime('%Y-%m-%d')
 
         await get_cost_and_usage_with_resources(
             mock_context,
@@ -756,6 +747,8 @@ class TestGetCostAndUsageWithResources:
         )
 
         mock_ce_client.get_cost_and_usage_with_resources.assert_called_once()
+        call_kwargs = mock_ce_client.get_cost_and_usage_with_resources.call_args[1]
+        assert call_kwargs['TimePeriod']['Start'] == old_date
 
     async def test_with_json_parameters(self, mock_context, mock_ce_client):
         """Test with JSON parameters for metrics, group_by, and filters."""
@@ -763,32 +756,24 @@ class TestGetCostAndUsageWithResources:
         group_by_json = '[{"Type": "RESOURCE", "Key": "RESOURCE_ID"}]'
         filter_json = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon EC2"]}}'
 
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
-        ) as mock_parse_json:
-            # Set up mock return values for parse_json calls
-            mock_parse_json.side_effect = [
-                ['UnblendedCost'],  # metrics
-                [{'Type': 'RESOURCE', 'Key': 'RESOURCE_ID'}],  # group_by
-                {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}},  # filter
-            ]
+        await get_cost_and_usage_with_resources(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-07',
+            granularity='DAILY',
+            metrics=metrics_json,
+            group_by=group_by_json,
+            filter_expr=filter_json,
+        )
 
-            await get_cost_and_usage_with_resources(
-                mock_context,
-                mock_ce_client,
-                start_date='2023-01-01',
-                end_date='2023-01-07',
-                granularity='DAILY',
-                metrics=metrics_json,
-                group_by=group_by_json,
-                filter_expr=filter_json,
-            )
-
-        # Verify the client was called with parsed parameters
+        # The JSON arguments are parsed and sent as given.
         call_kwargs = mock_ce_client.get_cost_and_usage_with_resources.call_args[1]
-        assert 'Metrics' in call_kwargs
-        assert 'GroupBy' in call_kwargs
-        assert 'Filter' in call_kwargs
+        assert call_kwargs['Metrics'] == ['UnblendedCost']
+        assert call_kwargs['GroupBy'] == [{'Type': 'RESOURCE', 'Key': 'RESOURCE_ID'}]
+        assert call_kwargs['Filter'] == {
+            'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}
+        }
 
     @pytest.mark.parametrize('metrics, expected', METRICS_CASES)
     async def test_sends_and_stores_parsed_metrics(
@@ -1235,6 +1220,224 @@ class TestGetUsageForecast:
         assert 'message' in result
 
 
+def _forecast_response(*periods):
+    """Build a forecast response with one MeanValue per (start, end) period."""
+    return {
+        'Total': {'Amount': str(100.0 * len(periods)), 'Unit': 'USD'},
+        'ForecastResultsByTime': [
+            {'TimePeriod': {'Start': start, 'End': end}, 'MeanValue': '100.0'}
+            for start, end in periods
+        ],
+    }
+
+
+def _today_is(day):
+    """Patch the operations module's clock so the UTC date is ``day`` (YYYY-MM-DD)."""
+    fixed = datetime.strptime(day, '%Y-%m-%d').replace(hour=12, tzinfo=timezone.utc)
+
+    class _Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            # A local clock a day behind UTC, so a check that ignores UTC fails.
+            return fixed if tz else fixed.replace(tzinfo=None) - timedelta(days=1)
+
+    return patch(
+        'awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations.datetime',
+        _Clock,
+    )
+
+
+@pytest.mark.asyncio
+class TestForecastPeriodNote:
+    """MONTHLY forecasts widen a partial-month request to whole calendar months."""
+
+    @pytest.mark.parametrize(
+        'operation, api, measure, metric',
+        [
+            (get_cost_forecast, 'get_cost_forecast', 'costs', 'UNBLENDED_COST'),
+            (get_usage_forecast, 'get_usage_forecast', 'usage', 'USAGE_QUANTITY'),
+        ],
+    )
+    async def test_mid_month_start_in_current_month_flags_actuals(
+        self, mock_context, mock_ce_client, operation, api, measure, metric
+    ):
+        """A start moved back to a 1st before today puts month-to-date actuals in the result."""
+        getattr(mock_ce_client, api).return_value = _forecast_response(
+            ('2026-02-01', '2026-03-01'), ('2026-03-01', '2026-04-01')
+        )
+
+        with _today_is('2026-02-19'):
+            result = await operation(
+                mock_context,
+                mock_ce_client,
+                metric=metric,
+                start_date='2026-02-20',
+                end_date='2026-04-01',
+            )
+
+        data = result['data']
+        assert list(data)[0] == 'period_note'
+        note = data['period_note']
+        assert '2026-02-01 to 2026-04-01' in note
+        assert 'not the requested 2026-02-20 to 2026-04-01' in note
+        assert f'include actual {measure} from 2026-02-01 to date' in note
+        assert 'use DAILY granularity' in note
+        # The API's own periods and total are returned unchanged.
+        assert data['ForecastResultsByTime'][0]['TimePeriod']['Start'] == '2026-02-01'
+        assert data['Total']['Amount'] == '200.0'
+
+    @pytest.mark.parametrize(
+        'today, has_actuals',
+        [
+            ('2026-05-02', True),  # first period starts before today
+            ('2026-05-01', False),  # first period starts today: nothing has happened yet
+            ('2026-04-20', False),  # future mid-month start moved back: all forecast
+        ],
+    )
+    async def test_actuals_clause_only_when_first_period_starts_before_today(
+        self, mock_context, mock_ce_client, today, has_actuals
+    ):
+        """The actuals clause depends on the covered start versus today's UTC date."""
+        mock_ce_client.get_cost_forecast.return_value = _forecast_response(
+            ('2026-05-01', '2026-06-01')
+        )
+
+        with _today_is(today):
+            result = await get_cost_forecast(
+                mock_context,
+                mock_ce_client,
+                metric='UNBLENDED_COST',
+                start_date='2026-05-10',
+                end_date='2026-06-01',
+            )
+
+        note = result['data']['period_note']
+        assert ('include actual costs' in note) is has_actuals
+
+    async def test_end_rounded_up_in_future_month_has_no_actuals_clause(
+        self, mock_context, mock_ce_client
+    ):
+        """A widened period that starts after today is all forecast, so no actuals clause."""
+        mock_ce_client.get_cost_forecast.return_value = _forecast_response(
+            ('2099-05-01', '2099-06-01')
+        )
+
+        result = await get_cost_forecast(
+            mock_context,
+            mock_ce_client,
+            metric='UNBLENDED_COST',
+            start_date='2099-05-01',
+            end_date='2099-05-15',
+        )
+
+        note = result['data']['period_note']
+        assert '2099-05-01 to 2099-06-01' in note
+        assert 'not the requested 2099-05-01 to 2099-05-15' in note
+        assert 'actual costs' not in note
+
+    async def test_whole_month_request_has_no_note(self, mock_context, mock_ce_client):
+        """A request on month boundaries comes back as asked, so nothing is added."""
+        mock_ce_client.get_cost_forecast.return_value = _forecast_response(
+            ('2099-05-01', '2099-06-01')
+        )
+
+        result = await get_cost_forecast(
+            mock_context,
+            mock_ce_client,
+            metric='UNBLENDED_COST',
+            start_date='2099-05-01',
+            end_date='2099-06-01',
+        )
+
+        assert 'period_note' not in result['data']
+
+    async def test_daily_request_has_no_note(self, mock_context, mock_ce_client):
+        """DAILY periods match the request, so nothing is added."""
+        mock_ce_client.get_cost_forecast.return_value = _forecast_response(
+            ('2099-05-14', '2099-05-15'), ('2099-05-15', '2099-05-16')
+        )
+
+        result = await get_cost_forecast(
+            mock_context,
+            mock_ce_client,
+            metric='UNBLENDED_COST',
+            start_date='2099-05-14',
+            end_date='2099-05-16',
+            granularity='DAILY',
+        )
+
+        assert 'period_note' not in result['data']
+
+    async def test_daily_mismatch_has_no_note(self, mock_context, mock_ce_client):
+        """Only MONTHLY is widened to months, so a DAILY response that differs gets no note."""
+        mock_ce_client.get_cost_forecast.return_value = _forecast_response(
+            ('2099-05-15', '2099-05-16')
+        )
+
+        result = await get_cost_forecast(
+            mock_context,
+            mock_ce_client,
+            metric='UNBLENDED_COST',
+            start_date='2099-05-14',
+            end_date='2099-05-16',
+            granularity='DAILY',
+        )
+
+        assert 'period_note' not in result['data']
+
+    async def test_period_without_dates_has_no_note(self, mock_context, mock_ce_client):
+        """A period missing its dates is returned as is, not turned into an error."""
+        mock_ce_client.get_cost_forecast.return_value = {
+            'ForecastResultsByTime': [{'MeanValue': '1.0'}]
+        }
+
+        result = await get_cost_forecast(
+            mock_context,
+            mock_ce_client,
+            metric='UNBLENDED_COST',
+            start_date='2099-05-14',
+            end_date='2099-06-01',
+        )
+
+        assert result['status'] == 'success'
+        assert 'period_note' not in result['data']
+
+    async def test_no_periods_has_no_note(self, mock_context, mock_ce_client):
+        """An empty result has no covered period to compare."""
+        mock_ce_client.get_usage_forecast.return_value = {'ForecastResultsByTime': []}
+
+        result = await get_usage_forecast(
+            mock_context,
+            mock_ce_client,
+            metric='USAGE_QUANTITY',
+            start_date='2099-05-14',
+            end_date='2099-06-01',
+        )
+
+        assert 'period_note' not in result['data']
+
+    async def test_note_is_kept_when_offloaded(self, mock_context, mock_ce_client):
+        """The note is passed to the offload so a stored result still carries it."""
+        mock_ce_client.get_cost_forecast.return_value = _forecast_response(
+            ('2023-02-01', '2023-03-01')
+        )
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations.convert_response_if_needed',
+            new_callable=AsyncMock,
+            return_value={'data_stored': True},
+        ) as convert:
+            await get_cost_forecast(
+                mock_context,
+                mock_ce_client,
+                metric='UNBLENDED_COST',
+                start_date='2023-02-20',
+                end_date='2023-03-01',
+            )
+
+        assert '2023-02-01 to 2023-03-01' in convert.call_args.kwargs['period_note']
+
+
 @pytest.mark.asyncio
 class TestGetTags:
     """Tests for get_tags function."""
@@ -1484,6 +1687,48 @@ class TestGetCostCategories:
 @pytest.mark.asyncio
 class TestGetSavingsPlansUtilization:
     """Tests for get_savings_plans_utilization function."""
+
+    async def test_monthly_entries_wider_than_request_get_period_note(self, mock_context):
+        """MONTHLY entries labelled with whole months that the window cuts are flagged."""
+        client = MagicMock()
+        entries = [
+            {'TimePeriod': {'Start': '2026-08-01', 'End': '2026-09-01'}},
+            {'TimePeriod': {'Start': '2026-09-01', 'End': '2026-10-01'}},
+        ]
+        client.get_savings_plans_utilization.return_value = {
+            'SavingsPlansUtilizationsByTime': entries,
+            'Total': {},
+        }
+
+        result = await get_savings_plans_utilization(
+            mock_context, client, '2026-08-17', '2026-09-10', 'MONTHLY'
+        )
+
+        data = result['data']
+        assert data['SavingsPlansUtilizationsByTime'] == entries
+        assert (
+            'first entry, labelled 2026-08-01 to 2026-09-01, covers only 2026-08-17'
+            in (data['period_note'])
+        )
+        assert (
+            'last entry, labelled 2026-09-01 to 2026-10-01, covers only the days before'
+            in (data['period_note'])
+        )
+
+    async def test_whole_month_request_has_no_period_note(self, mock_context):
+        """Labels that match the request need no note."""
+        client = MagicMock()
+        client.get_savings_plans_utilization.return_value = {
+            'SavingsPlansUtilizationsByTime': [
+                {'TimePeriod': {'Start': '2026-08-01', 'End': '2026-09-01'}}
+            ],
+        }
+
+        result = await get_savings_plans_utilization(
+            mock_context, client, '2026-08-01', '2026-09-01', 'MONTHLY'
+        )
+
+        assert 'period_note' not in result['data']
 
     async def test_basic_call(self, mock_context, mock_ce_client):
         """Test basic call to get_savings_plans_utilization."""
