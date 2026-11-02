@@ -32,6 +32,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.constants import (
 )
 from datetime import datetime, timezone
 from fastmcp import Context
+from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -1854,7 +1855,7 @@ async def test_list_recommendation_summaries_single_page_passes_next_token(
         'items': [{'group': 'EC2_INSTANCE', 'recommendationCount': 1}],
         'groupBy': 'ResourceType',
         'currencyCode': 'USD',
-        'metrics': {'savingsPercentage': 12.5},
+        'metrics': {'savingsPercentage': '12%'},
         'nextToken': 'tok-sum',
     }
     result = await list_recommendation_summaries(
@@ -1868,7 +1869,7 @@ async def test_list_recommendation_summaries_single_page_passes_next_token(
     assert result['data']['pagination']['next_token'] == 'tok-sum'
     assert list(result['data'])[:2] == ['complete_dataset', 'warning']
     # The optional top-level ``metrics`` block is surfaced when present.
-    assert result['data']['metrics']['savings_percentage'] == 12.5
+    assert result['data']['metrics']['savings_percentage'] == '12%'
 
 
 @pytest.mark.asyncio
@@ -2556,3 +2557,85 @@ async def test_summaries_failure_after_first_page_returns_partial(mock_context, 
     assert 'ThrottlingException' in data['warning']
     assert data['estimated_total_deduped_savings'] == 5.0
     assert data['pagination']['next_token'] == 'tok-2'
+
+
+@pytest.mark.asyncio
+class TestListRecommendationSummariesSavingsPercentage:
+    """The summaries call requests SavingsPercentage and never returns a placeholder as a metric."""
+
+    async def test_requests_savings_percentage(self, mock_context, mock_coh_client):
+        """Every summaries request asks the API for the SavingsPercentage metric."""
+        mock_coh_client.list_recommendation_summaries.return_value = {'items': []}
+
+        await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
+
+        call_kwargs = mock_coh_client.list_recommendation_summaries.call_args[1]
+        assert call_kwargs['metrics'] == ['SavingsPercentage']
+
+    @pytest.mark.parametrize('value', ['12%', '>=80%', '<=2%', '0%', '12.5%'])
+    async def test_percentage_is_returned(self, mock_context, mock_coh_client, value):
+        """A percentage value, including the clamped forms, is returned as savings_percentage."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': [],
+            'metrics': {'savingsPercentage': value},
+        }
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'Region')
+
+        assert result['data']['metrics'] == {'savings_percentage': value}
+
+    @pytest.mark.parametrize(
+        'reason',
+        [
+            'Percentage not requested.',
+            'Savings percentage is not supported when savings estimation mode preference '
+            'is set to before discounts.',
+            'The current filter configuration is not supported for calculating the percentage.',
+            'Unable to calculate the savings percentage.',
+        ],
+    )
+    async def test_placeholder_is_not_a_metric(self, mock_context, mock_coh_client, reason):
+        """A service explanation is returned as the reason, never as savings_percentage."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': [],
+            'metrics': {'savingsPercentage': reason},
+        }
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'Region')
+
+        assert result['data']['metrics'] == {'savings_percentage_unavailable_reason': reason}
+
+    @pytest.mark.parametrize(
+        'response_metrics',
+        [None, {}, {'savingsPercentage': None}, {'savingsPercentage': 12.5}],
+    )
+    async def test_no_usable_metrics(self, mock_context, mock_coh_client, response_metrics):
+        """No metrics block, or one without a string percentage, gives no metrics key."""
+        response: Dict[str, Any] = {'items': []}
+        if response_metrics is not None:
+            response['metrics'] = response_metrics
+        mock_coh_client.list_recommendation_summaries.return_value = response
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'Region')
+
+        assert 'metrics' not in result['data']
+
+    async def test_every_page_requests_savings_percentage(self, mock_context, mock_coh_client):
+        """A resumed, multi-page fetch asks for SavingsPercentage on every request."""
+        mock_coh_client.list_recommendation_summaries.side_effect = [
+            {
+                'items': [{'group': 'A'}],
+                'metrics': {'savingsPercentage': '12%'},
+                'nextToken': 't2',
+            },
+            {'items': [{'group': 'B'}], 'metrics': {'savingsPercentage': '99%'}},
+        ]
+
+        result = await list_recommendation_summaries(
+            mock_context, mock_coh_client, 'Region', next_token='t1'
+        )
+
+        calls = mock_coh_client.list_recommendation_summaries.call_args_list
+        assert [c.kwargs['metrics'] for c in calls] == [['SavingsPercentage']] * 2
+        assert [c.kwargs['nextToken'] for c in calls] == ['t1', 't2']
+        assert result['data']['metrics'] == {'savings_percentage': '12%'}
