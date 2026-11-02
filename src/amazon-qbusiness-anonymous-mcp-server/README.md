@@ -44,7 +44,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit 
       "mcpServers": {
             "awslabs.amazon-qbusiness-anonymous-mcp-server": {
                   "command": "uvx",
-                  "args": ["awslabs.qbusiness-anonymous-mcp-server"],
+                  "args": ["awslabs.amazon-qbusiness-anonymous-mcp-server@latest"],
                   "env": {
                     "FASTMCP_LOG_LEVEL": "ERROR",
                     "QBUSINESS_APPLICATION_ID": "[Your Amazon Q Business application id]",
@@ -87,7 +87,7 @@ For Windows users, the MCP server configuration format is slightly different:
 }
 ```
 
-or docker after a successful `docker build -t awslabs/amazon-kendra-index-mcp-server.`:
+or docker after a successful `docker build -t awslabs/amazon-qbusiness-anonymous-mcp-server .`:
 
 ```file
 # fictitious `.env` file with AWS temporary credentials
