@@ -1449,6 +1449,38 @@ async def convert_api_response_to_table(
                 }
             )
 
+            # pricing_terms is JSON keyed by offer and rate codes that differ per product, so a
+            # price is read by walking those keys with json_each.
+            on_demand_query = (
+                create_safe_sql_statement(
+                    'SELECT',
+                    table_name,
+                    'sku, product_family, '
+                    "json_extract(pd.value, '$.unit') AS unit, "
+                    "json_extract(pd.value, '$.beginRange') AS begin_range, "
+                    "json_extract(pd.value, '$.endRange') AS end_range, "
+                    "CAST(json_extract(pd.value, '$.pricePerUnit.USD') AS REAL) AS usd, "
+                    "json_extract(pd.value, '$.description') AS description",
+                )
+                + f", json_each({table_name}.pricing_terms, '$.OnDemand') AS term"
+                + ", json_each(term.value, '$.priceDimensions') AS pd"
+                + ' ORDER BY sku, CAST(begin_range AS REAL) LIMIT 20'
+            )
+            sample_queries.append(
+                {
+                    'name': 'On-Demand USD prices',
+                    'description': (
+                        'One row per On-Demand price dimension; a tiered price has one row per '
+                        'tier, from begin_range to end_range. pricing_terms and attributes are '
+                        "JSON text. For Reserved Instance prices use '$.Reserved' and also select "
+                        "json_extract(term.value, '$.termAttributes'), which holds the lease "
+                        'length and purchase option. Use json_extract(attributes, '
+                        "'$.instanceType') (any attribute name) to filter or show attributes"
+                    ),
+                    'sql': on_demand_query,
+                }
+            )
+
         elif converter_type == 'forecast':
             # Cost Explorer forecast queries
 
