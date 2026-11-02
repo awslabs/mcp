@@ -166,8 +166,10 @@ MatchOptions accepted by getCostAndUsage and getCostAndUsageWithResources:
 - Dimensions:     EQUALS, CASE_SENSITIVE
 - Tags:           EQUALS, ABSENT, CASE_SENSITIVE
 - CostCategories: EQUALS, ABSENT, CASE_SENSITIVE
-The default is EQUALS and CASE_SENSITIVE, so MatchOptions can usually be omitted. Not every
-operation supports MatchOptions.
+The default is EQUALS and CASE_SENSITIVE, so MatchOptions can usually be omitted. If you pass
+MatchOptions, include EQUALS (or ABSENT): `["CASE_SENSITIVE"]` alone is rejected. ABSENT takes
+no case option: `["ABSENT", "CASE_SENSITIVE"]` is rejected. Not every operation supports
+MatchOptions.
 
 The MatchOption enum also contains `CASE_INSENSITIVE`, `STARTS_WITH`, `ENDS_WITH`, `CONTAINS`,
 and `GREATER_THAN_OR_EQUAL`. These apply to Cost Category rules and anomaly subscriptions, not
@@ -181,15 +183,21 @@ Values per leaf type:
   where the tag or cost category key is not present, so there is no value to compare against:
   omit `Values` entirely (an empty `Values` list is rejected too).
 
-Tags leaves in getCostAndUsage and getDimensionValues filters:
+Tags leaves in getCostAndUsage, getCostAndUsageWithResources and getDimensionValues filters:
 - `Key` is the tag key as getTagsOrValues lists it, with no `user:` prefix even where billing
-  exports show one: `Environment`, not `user:Environment`. Tags that AWS applies itself keep
+  exports show one: `Environment`, not `user:Environment` (which matches nothing, with no
+  error). The forecasts accept either form. Tags that AWS applies itself keep
   their `aws:` prefix (`aws:createdBy`). Keys and values are case-sensitive, and there is no
   case-insensitive option.
 - A TAG group_by labels each group `<key>$<value>` (e.g. `Environment$Dev`), and `<key>$` for
   costs without the key or with an empty value. The label is not a filter value: filter on
   `Dev`, and use `ABSENT` for the `<key>$` group. `"Values": [""]` matches the same costs as
   `ABSENT` (unlike an empty list, it is accepted).
+- getCostAndUsage only: `{"Tags": {"Key": "", "Values": []}}` (empty key, empty list) matches
+  costs that carry no activated cost allocation tag (user-defined or AWS-generated), as does
+  `{"Tags": {"MatchOptions": ["ABSENT"]}}` with no Key. An empty key with any value, or with
+  Values omitted, is rejected, and getDimensionValues and getCostAndUsageWithResources reject
+  an empty key.
 - A wrong key is not an error. With `Values` it matches nothing ($0); with `ABSENT` it matches
   every cost, since no cost carries that key. Copy the key from getTagsOrValues.
 
@@ -200,6 +208,7 @@ Correct filter examples:
 - `{"And": [{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Elastic Compute Cloud - Compute"]}}, {"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}]}`
 
 Limits by operation (a filter outside them returns ValidationException):
+- Every operation: at most 6,000 values in total, counted across all leaves of the filter.
 - getCostAndUsage, getCostAndUsageWithResources: `And`, `Or` and `Not` nest up to 4 levels
   deep; a 5th is rejected.
 - getDimensionValues (default COST_AND_USAGE context): `And` only; `Or` and `Not` are rejected.
@@ -297,6 +306,8 @@ getDimensionValues dimension.
   LINKED_ACCOUNT: each value is an ID and its attributes carry the account name (`description`)
 - OPERATING_SYSTEM: OS type (e.g., Linux/UNIX, Windows (Amazon VPC))
 - OPERATION: The API operation behind a charge (e.g., RunInstances, PutObject; for Amazon Bedrock, model-invocation operations). The dimension is OPERATION — there is no API_OPERATION dimension.
+- PAYER_ACCOUNT: The 12-digit ID of the management (payer) account whose bill a cost is on.
+  Not available in every account; if it is rejected, use LINKED_ACCOUNT
 - PLATFORM: EC2 operating system (e.g., Linux/UNIX, Windows (Amazon VPC))
 - PURCHASE_TYPE: Purchase option (e.g., On Demand Instances, Standard Reserved Instances, Savings
   Plans)
@@ -412,8 +423,8 @@ def _tag_leaf_hints(key: str, values: List[Any], absent: bool) -> List[str]:
 def _tag_filter_hint(filter: Optional[Union[str, Dict[str, Any]]]) -> Optional[str]:
     """Return a hint for a Tags filter that Cost Explorer accepts but that cannot match.
 
-    getCostAndUsage and getDimensionValues add the `user:` prefix to user-defined tag keys
-    themselves, so a `user:` key matches no tagged cost, and a TAG group_by label
+    getCostAndUsage, getCostAndUsageWithResources and getDimensionValues add the `user:`
+    prefix to user-defined tag keys themselves, so a `user:` key matches no tagged cost, and a TAG group_by label
     (`key$value`) is not a key or value. With no error, Values then match nothing and
     ABSENT matches every cost.
     """
@@ -571,18 +582,21 @@ async def cost_explorer(
             )
 
         elif operation == 'getCostAndUsageWithResources':
-            return await get_cost_and_usage_with_resources(
-                ctx,
-                ce_client,
-                start_date,
-                end_date,
-                granularity,
-                metrics,
-                group_by,
-                filter,
-                next_token,
-                max_items,
-                billing_view_arn,
+            return _with_hint(
+                await get_cost_and_usage_with_resources(
+                    ctx,
+                    ce_client,
+                    start_date,
+                    end_date,
+                    granularity,
+                    metrics,
+                    group_by,
+                    filter,
+                    next_token,
+                    max_items,
+                    billing_view_arn,
+                ),
+                tag_hint,
             )
 
         elif operation == 'getDimensionValues':
