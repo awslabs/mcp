@@ -3690,6 +3690,7 @@ class TestComputeOptimizerAppliedRegion:
 async def test_description_states_rds_idle_and_savings_source():
     """RDS idle is separate from the instance finding; the savings source field is named."""
     tool = await compute_optimizer_server.get_tool('compute-optimizer')
+    assert tool is not None
     description = ' '.join((tool.description or '').split())
     assert '`idle` and `instance_finding` are computed separately' in description
     assert 'can be Optimized and `idle: True`: check both' in description

@@ -743,6 +743,7 @@ async def test_list_billing_views_description_explains_the_time_range_rules():
 async def test_description_says_empty_cost_category_value_is_uncategorized():
     """A cost-category value of "" in a view filter matches uncategorized costs."""
     tool = await bvs_server.get_tool('get-billing-view')
+    assert tool is not None
     description = ' '.join((tool.description or '').split())
     assert (
         'a value of "" matches the costs no rule of that cost category assigns a value to'

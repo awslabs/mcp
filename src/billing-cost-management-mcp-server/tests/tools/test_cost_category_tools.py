@@ -545,6 +545,7 @@ def test_normalize_effective_on_rejects_impossible_dates(value):
 async def test_description_says_split_charges_are_console_only():
     """Split charge rules do not change cost-explorer results grouped by the category."""
     tool = await cost_category_server.get_tool('describe-cost-category-definition')
+    assert tool is not None
     description = ' '.join((tool.description or '').split())
     assert 'SplitChargeRules are applied only on the cost category details page' in description
     assert 'the source value keeps its full cost and the targets get no share' in description
