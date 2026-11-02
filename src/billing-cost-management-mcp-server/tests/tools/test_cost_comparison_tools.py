@@ -1614,3 +1614,6 @@ async def test_description_states_the_enforced_rules():
     assert 'A RESOURCE_ID filter' in description
     assert 'Nesting of 97 or more And/Or/Not levels' in description
     assert 'Keys and values match exactly, including case' in description
+    assert (
+        'A filter holds at most 200 values in total, counted across all its leaves' in description
+    )

@@ -1609,6 +1609,12 @@ CE_DIMENSIONS_BY_CONTEXT = {
 }
 
 
+# DIMENSION REFERENCE keys the service enables per account, so they are in none of the lists
+# here. Live (2026-11-02, two accounts with it enabled), PAYER_ACCOUNT worked as a filter key,
+# a group_by key and a getDimensionValues dimension; the forecast filter's allowed list names it.
+CE_PER_ACCOUNT_KEYS = frozenset({'PAYER_ACCOUNT'})
+
+
 # Keys Cost Explorer accepts, as listed by the service in its ValidationException for an
 # unsupported key (captured 2026-10-30). As above, keys the service enables per account
 # (PAYER_ACCOUNT, PRODUCT_ATTRIBUTE, SUBSCRIPTION_ID) are left out.
@@ -1993,7 +1999,7 @@ class TestCostExplorerDescriptionContract:
         TAG is the note that TAG is no dimension; SCOPE is listed to say it is a RESERVATIONS
         dimension only, so an agent does not filter getCostAndUsage or a forecast on it.
         """
-        keys = set(_dimension_reference_keys(tool.description)) - {'TAG'}
+        keys = set(_dimension_reference_keys(tool.description)) - {'TAG'} - CE_PER_ACCOUNT_KEYS
         context_only = {}
         for key in keys:
             entry = re.search(rf'^- {key}:.*(?:\n  .*)*', tool.description, re.MULTILINE)
@@ -2014,7 +2020,7 @@ class TestCostExplorerDescriptionContract:
 
         The preamble says so; the four keys accepted in fewer places say where instead.
         """
-        keys = set(_dimension_reference_keys(tool.description))
+        keys = set(_dimension_reference_keys(tool.description)) - CE_PER_ACCOUNT_KEYS
         qualified = {'RESOURCE_ID', 'SCOPE', 'TAG', 'USAGE_TYPE_GROUP'}
         for key in keys - qualified:
             assert key in CE_GROUP_BY_DIMENSIONS, key
@@ -2026,6 +2032,17 @@ class TestCostExplorerDescriptionContract:
         for key in ('RESOURCE_ID', 'SCOPE'):
             assert key not in CE_FILTER_DIMENSIONS | CE_GROUP_BY_DIMENSIONS, key
             assert key not in CE_FORECAST_FILTER_DIMENSIONS, key
+
+    def test_per_account_keys_say_they_may_be_unavailable(self, tool):
+        """A per-account key is documented with its fallback, so a rejection is expected."""
+        assert CE_PER_ACCOUNT_KEYS <= set(_dimension_reference_keys(tool.description))
+        for key in CE_PER_ACCOUNT_KEYS:
+            assert key not in CE_DIMENSIONS_BY_CONTEXT['COST_AND_USAGE'], key
+            entry = re.search(rf'^- {key}:.*(?:\n  .*)*', tool.description, re.MULTILINE)
+            assert entry is not None, key
+            text = ' '.join(entry.group(0).split())
+            assert 'Not available in every account' in text, key
+            assert 'use LINKED_ACCOUNT' in text, key
 
     @pytest.mark.parametrize('context', ['RESERVATIONS', 'SAVINGS_PLANS'])
     def test_get_dimension_values_notes_list_each_context(self, tool, context):
@@ -2505,7 +2522,10 @@ def test_description_documents_tags_leaf_format():
 
     description = cost_explorer_tools.COST_EXPLORER_DESCRIPTION
     tags = ' '.join(
-        description.split('Tags leaves in getCostAndUsage and getDimensionValues filters:')[1]
+        description.split(
+            'Tags leaves in getCostAndUsage, getCostAndUsageWithResources and getDimensionValues '
+            'filters:'
+        )[1]
         .split('Correct filter examples:')[0]
         .split()
     )
@@ -2516,7 +2536,23 @@ def test_description_documents_tags_leaf_format():
     assert '`<key>$<value>`' in tags and 'The label is not a filter value' in tags
     assert '`"Values": [""]` matches the same costs as `ABSENT`' in tags
     assert 'With `Values` it matches nothing ($0); with `ABSENT` it matches every cost' in tags
+    assert 'The forecasts accept either form' in tags
+    assert '`{"Tags": {"Key": "", "Values": []}}`' in tags
+    assert 'getCostAndUsage only: `{"Tags": {"Key": "", "Values": []}}`' in tags
+    assert 'no activated cost allocation tag (user-defined or AWS-generated)' in tags
+    assert 'getDimensionValues and getCostAndUsageWithResources reject an empty key' in tags
+    assert 'An empty key with any value, or with Values omitted, is rejected' in tags
     assert 'Copy the key from getTagsOrValues' in tags
+
+
+def test_description_states_match_options_and_value_limits():
+    """A case option alone and more than 6,000 values are both rejected by Cost Explorer."""
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    description = ' '.join(cost_explorer_tools.COST_EXPLORER_DESCRIPTION.split())
+    assert 'include EQUALS (or ABSENT): `["CASE_SENSITIVE"]` alone is rejected' in description
+    assert 'at most 6,000 values in total, counted across all leaves' in description
+    assert '`["ABSENT", "CASE_SENSITIVE"]` is rejected' in description
 
 
 @pytest.mark.parametrize(
@@ -2590,10 +2626,15 @@ def test_tag_filter_hint_ignores_filters_that_can_match(flt):
     [
         ('getCostAndUsage', 'get_cost_and_usage', {}),
         ('getDimensionValues', 'get_dimension_values', {'dimension': 'SERVICE'}),
+        ('getCostAndUsageWithResources', 'get_cost_and_usage_with_resources', {}),
     ],
 )
 async def test_routed_response_carries_tag_filter_hint(mock_context, operation, impl, extra):
-    """The getCostAndUsage and getDimensionValues responses carry the hint on success."""
+    """getCostAndUsage, getDimensionValues and getCostAndUsageWithResources carry the hint.
+
+    A user:-prefixed key returned $0 live in getCostAndUsageWithResources, where the
+    unprefixed key returned the tagged resources' cost.
+    """
     ce_mod = _reload_ce_with_identity_decorator()
     flt = '{"Tags": {"Key": "user:Environment", "MatchOptions": ["ABSENT"]}}'
     with (
@@ -2730,16 +2771,15 @@ def test_tag_filter_hint_is_deduplicated():
 @pytest.mark.parametrize(
     'operation, impl, extra',
     [
-        ('getCostAndUsageWithResources', 'get_cost_and_usage_with_resources', {}),
         ('getCostForecast', 'get_cost_forecast', {'metric': 'UNBLENDED_COST'}),
         ('getUsageForecast', 'get_usage_forecast', {'metric': 'USAGE_QUANTITY'}),
     ],
 )
 async def test_unchecked_operations_carry_no_tag_filter_hint(mock_context, operation, impl, extra):
-    """Only operations whose Tags matching was checked get the hint.
+    """The forecasts get no hint: they accept a user:-prefixed key.
 
-    A forecast filtered on a user:-prefixed key still returned a forecast, so the
-    "matches nothing" hint would be wrong there.
+    A forecast filtered on a user:-prefixed key returned the same forecast as the
+    unprefixed key, so the "matches nothing" hint would be wrong there.
     """
     ce_mod = _reload_ce_with_identity_decorator()
     with (
