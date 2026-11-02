@@ -296,7 +296,7 @@ def get_credentials_from_secret(
         return 'test_user', 'test_password'
 
     username, password = _read_credentials_from_secret(secret_arn, region, require_password=True)
-    if not password:
+    if password is None:  # pragma: no cover - require_password=True guarantees this
         raise ValueError('Secret does not contain password')
     return username, password
 
@@ -328,7 +328,12 @@ def get_username_from_secret(secret_arn: str, region: str, is_test: bool = False
     if is_test:
         return 'test_user'
 
-    username, _ = _read_credentials_from_secret(secret_arn, region, require_password=False)
+    username, password = _read_credentials_from_secret(secret_arn, region, require_password=False)
+    if password:
+        logger.debug(
+            f'Secret {secret_arn} contains a password key, which is ignored '
+            'in IAM authentication mode because auth tokens are generated dynamically.'
+        )
     return username
 
 

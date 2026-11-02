@@ -1534,14 +1534,23 @@ class TestGetUsernameFromSecret:
             mock_client.get_secret_value.assert_called_once_with(SecretId='arn:secret')
 
     def test_ignores_password_when_present(self):
-        """A full RDS-style secret still works; the password is ignored."""
-        with patch('boto3.Session') as mock_session:
+        """A full RDS-style secret still works; the password is ignored with a debug log."""
+        with (
+            patch('boto3.Session') as mock_session,
+            patch(
+                'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.logger.debug'
+            ) as mock_debug,
+        ):
             secret_string = (
                 '{"Username": "app_reader", "password": "unused"}'  # pragma: allowlist secret
             )
             self._mock_secret(mock_session, secret_string)
 
             assert get_username_from_secret('arn:secret', 'us-east-1') == 'app_reader'
+            mock_debug.assert_any_call(
+                'Secret arn:secret contains a password key, which is ignored in IAM authentication '
+                'mode because auth tokens are generated dynamically.'
+            )
 
     def test_missing_username_raises(self):
         """A username is still required."""

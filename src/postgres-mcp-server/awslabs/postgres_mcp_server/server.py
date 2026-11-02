@@ -1407,7 +1407,7 @@ def main():
     parser.add_argument(
         '--connection_method',
         choices=[method.name for method in ConnectionMethod],
-        help='Connection method to the database. It can be RDS_API, PG_WIRE_PROTOCOL OR PG_WIRE_IAM_PROTOCOL)',
+        help='Connection method to the database: RDS_API, PG_WIRE_PROTOCOL, or PG_WIRE_IAM_PROTOCOL',
     )
     parser.add_argument('--db_cluster_arn', help='ARN of the RDS or Aurora Postgres cluster')
     parser.add_argument('--db_type', help='APG for Aurora Postgres or RPG for RDS Postgres')
@@ -1562,10 +1562,10 @@ def main():
     # discovered (and validated) lazily on the first connection attempt.
     # Only password-based methods require a password at startup. IAM uses a
     # generated token, and lazy startup has not selected an auth method yet.
-    secret_requires_password = args.connection_method in (
+    secret_requires_password = args.connection_method in {
         ConnectionMethod.PG_WIRE_PROTOCOL.name,
         ConnectionMethod.RDS_API.name,
-    )
+    }
     for target, arn in configured_secret_arns.items():
         try:
             validate_secret_arn_at_startup(

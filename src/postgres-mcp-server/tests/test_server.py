@@ -1884,7 +1884,14 @@ def test_main_lazy_connect_accepts_username_only_secret(monkeypatch, target_pref
         'argv',
         ['server.py', '--region', 'us-west-2', '--secret_arn', target_prefix + configured_value],
     )
-    with patch('boto3.Session') as session, patch.object(server_module.mcp, 'run') as run:
+    with (
+        patch('boto3.Session') as session,
+        patch.object(server_module, 'get_credentials_from_secret') as fail_credentials,
+        patch.object(server_module.mcp, 'run') as run,
+    ):
+        fail_credentials.side_effect = AssertionError(
+            'get_credentials_from_secret must not be called during lazy startup probe'
+        )
         client = session.return_value.client.return_value
         client.get_secret_value.return_value = {'SecretString': '{"username": "app_reader"}'}
 
@@ -1892,6 +1899,7 @@ def test_main_lazy_connect_accepts_username_only_secret(monkeypatch, target_pref
 
         run.assert_called_once_with()
         client.get_secret_value.assert_called_once_with(SecretId=configured_value)
+        fail_credentials.assert_not_called()
 
 
 def test_main_iam_with_apg_preserves_username_only_authentication(monkeypatch):

@@ -1670,3 +1670,55 @@ class TestIamConnectionWithUsernameOnlySecret:
             server_module.configured_default_secret_arn = prev_default
             server_module.configured_secret_arns.clear()
             server_module.configured_secret_arns.update(prev_map)
+
+    @pytest.mark.asyncio
+    async def test_lazy_startup_username_only_secret_rejected_when_connecting_via_pgwire(self):
+        """Deferred check: pgwire connection fails at connect time if the secret lacks a password."""
+        prev_default = server_module.configured_default_secret_arn
+        prev_map = dict(server_module.configured_secret_arns)
+        server_module.configured_default_secret_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:username-only'  # pragma: allowlist secret
+        server_module.configured_secret_arns.clear()
+        try:
+            with (
+                patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+                patch(
+                    'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+                ) as mock_props,
+                patch(
+                    'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.boto3.Session'
+                ) as mock_session,
+            ):
+                mock_map.get.return_value = None
+                mock_props.return_value = {
+                    'HttpEndpointEnabled': False,
+                    'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test',
+                    'Endpoint': 'test.endpoint.com',
+                    'Port': 5432,
+                }
+                mock_client = MagicMock()
+                mock_session.return_value.client.return_value = mock_client
+                mock_client.get_secret_value.return_value = {
+                    'SecretString': '{"username": "app_reader"}'
+                }
+
+                conn, _ = server_module.internal_create_connection(
+                    region='us-east-1',
+                    database_type=DatabaseType.APG,
+                    connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                    cluster_identifier='test-cluster',
+                    db_endpoint='test.endpoint.com',
+                    port=5432,
+                    database='testdb',
+                )
+                assert isinstance(conn, server_module.PsycopgPoolConnection)
+                assert conn.is_iam_auth is False
+                assert (
+                    conn.secret_arn
+                    == 'arn:aws:secretsmanager:us-east-1:123456789012:secret:username-only'
+                )
+                with pytest.raises(ValueError, match='Secret does not contain password'):
+                    await conn.initialize_pool()
+        finally:
+            server_module.configured_default_secret_arn = prev_default
+            server_module.configured_secret_arns.clear()
+            server_module.configured_secret_arns.update(prev_map)
