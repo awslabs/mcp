@@ -1629,14 +1629,21 @@ def test_normalize_filters(filters, expected):
     assert normalized == expected
 
 
-def test_normalize_filters_non_dict_passes_through():
-    """Filters that are not an object are left for the API to reject."""
+def test_normalize_filters_rejects_non_dict():
+    """No filters passes through; filters that are not an object are a validation error.
+
+    The request builder copies filters with dict(), which fails on a list or a string, so a
+    non-object never reaches the API.
+    """
     from awslabs.billing_cost_management_mcp_server.tools import (
         cost_optimization_hub_tools as coh_mod,
     )
 
     assert coh_mod._normalize_filters('list_recommendations', None) == (None, None)
-    assert coh_mod._normalize_filters('list_recommendations', ['x']) == (['x'], None)
+    filters, error = coh_mod._normalize_filters('list_recommendations', ['x'])
+    assert filters == ['x']
+    assert error is not None and error['error_type'] == 'validation_error'
+    assert 'filters must be a JSON object' in error['message']
 
 
 def test_normalize_filters_empty_list_is_rejected():
@@ -2218,3 +2225,44 @@ async def test_description_states_the_summaries_group_limit():
     assert '1,000 groups across all pages means the same' in flat
     assert 'use list_recommendations with the same filters' not in flat
     assert 'until fewer than 1,000 groups come back' not in flat
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('operation', ['list_recommendations', 'list_recommendation_summaries'])
+@pytest.mark.parametrize(
+    'filters, hint',
+    [
+        (json.dumps(json.dumps({'resourceTypes': ['Ec2Instance']})), 'encoded twice'),
+        ('["Ec2Instance"]', 'must be a JSON object'),
+        ('5', 'must be a JSON object'),
+        ('[]', 'must be a JSON object'),
+        ('false', 'must be a JSON object'),
+        ('"Ec2Instance"', 'must be a JSON object'),
+    ],
+    ids=['double-encoded', 'array', 'number', 'empty-array', 'false', 'quoted-string'],
+)
+async def test_coh_filters_that_are_not_an_object_are_rejected_clearly(
+    mock_context, operation, filters, hint
+):
+    """Filters that decode to a non-object get a clear error, not the dict() failure."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(coh_mod, 'list_recommendations', new_callable=AsyncMock) as mock_list,
+        patch.object(
+            coh_mod, 'list_recommendation_summaries', new_callable=AsyncMock
+        ) as mock_summaries,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context, operation=operation, filters=filters, group_by='ResourceType'
+        )
+
+    assert res['status'] == 'error'
+    assert res['error_type'] == 'validation_error'
+    assert hint in res['message']
+    assert 'dictionary update sequence' not in res['message']
+    assert ('encoded twice' in res['message']) == (hint == 'encoded twice')
+    mock_list.assert_not_awaited()
+    mock_summaries.assert_not_awaited()
