@@ -31,6 +31,7 @@ from ..utilities.aws_service_base import (
     parse_metrics,
     with_pagination,
 )
+from ..utilities.error_contract import MODIFY_REQUEST
 from ..utilities.sql_utils import convert_response_if_needed
 from ..utilities.time_utils import monthly_period_note
 from dataclasses import replace
@@ -450,6 +451,29 @@ def _forecast_period_note(
     return {'period_note': note}
 
 
+# A forecast filter that matches no past costs fails with the same DataUnavailableException
+# as too little history. The shared hint names unmatched filters only as a possible cause and
+# maps to do_not_retry; with a filter sent, fixing the filter is the likely next step.
+_FORECAST_FILTER_NO_DATA_HINT = (
+    'Cost Explorer also returns this error when the filter as a whole matches no past costs '
+    'or usage (a misspelled value, the wrong case, a value from another dimension, or an And '
+    'of values that never occur together), not only when there is too little history. '
+    'Forecast filter values must match exactly, including case: MatchOptions such as '
+    'STARTS_WITH, CONTAINS or CASE_INSENSITIVE are accepted but not applied. Do not resend the '
+    'same request: check the values with getDimensionValues (getTagsOrValues for tags, '
+    'getCostCategories for cost categories) and retry with corrected values. If the values '
+    'exist and can occur together, report that there is too little history to forecast this.'
+)
+
+
+def _with_forecast_filter_hint(result: Dict[str, Any], filters: Any) -> Dict[str, Any]:
+    """Point a filtered forecast's DataUnavailableException at the filter values."""
+    if filters and result.get('error_type') == 'DataUnavailableException':
+        result['retry_strategy'] = MODIFY_REQUEST
+        result['hint'] = _FORECAST_FILTER_NO_DATA_HINT
+    return result
+
+
 async def get_cost_forecast(
     ctx: Context,
     ce_client,
@@ -480,6 +504,7 @@ async def get_cost_forecast(
     """
     await ctx.info(f'Getting cost forecast for metric: {metric}')
 
+    filters = None
     try:
         # Set default dates if not provided (forecast should be future-looking)
 
@@ -536,7 +561,8 @@ async def get_cost_forecast(
 
     except Exception as e:
         # Use shared error handling
-        return await handle_aws_error(ctx, e, 'getCostForecast', 'Cost Explorer')
+        result = await handle_aws_error(ctx, e, 'getCostForecast', 'Cost Explorer')
+        return _with_forecast_filter_hint(result, filters)
 
 
 async def get_usage_forecast(
@@ -569,6 +595,7 @@ async def get_usage_forecast(
     """
     await ctx.info(f'Getting usage forecast for metric: {metric}')
 
+    filters = None
     try:
         # Set default dates if not provided (forecast should be future-looking)
         if not start_date:
@@ -622,7 +649,8 @@ async def get_usage_forecast(
 
     except Exception as e:
         # Use shared error handling
-        return await handle_aws_error(ctx, e, 'getUsageForecast', 'Cost Explorer')
+        result = await handle_aws_error(ctx, e, 'getUsageForecast', 'Cost Explorer')
+        return _with_forecast_filter_hint(result, filters)
 
 
 async def get_tags(
