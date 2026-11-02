@@ -420,13 +420,27 @@ def test_proxy_harness_auth_types_map_to_pgwire_methods_only():
         assert method is not ConnectionMethod.RDS_API
 
 
-def test_proxy_harness_requires_region_and_instance():
-    """Both are required: there is no sensible default target for a BYO-infra run."""
+def test_proxy_harness_requires_region_and_a_target():
+    """A region and at least one target are required; there is no default for either.
+
+    The target is enforced in ``main`` rather than by argparse, because either
+    topology flag satisfies it and argparse cannot express "one of these two" with
+    a message that explains the choice. So argparse rejects a missing region, and
+    ``main`` rejects a missing target.
+    """
     parser = proxy_e2e.build_parser()
     with pytest.raises(SystemExit):
         parser.parse_args([])
-    with pytest.raises(SystemExit):
-        parser.parse_args(['--region', 'us-west-2'])
+
+    # Region alone parses, then main() refuses it for having no target.
+    args = parser.parse_args(['--region', 'us-west-2'])
+    assert args.db_instance_identifier == '' and args.db_cluster_identifier == ''
+    with (
+        mock.patch.object(sys, 'argv', ['proxy_e2e_test.py', '--region', 'us-west-2']),
+        pytest.raises(SystemExit),
+    ):
+        proxy_e2e.main()
+
     args = parser.parse_args(['--region', 'us-west-2', '--db-instance-identifier', 'i'])
     assert args.database == 'postgres'
 
@@ -593,3 +607,69 @@ def test_proxy_harness_derivation_filters_target_health_and_type():
     assert 'TargetHealth' in src, 'derivation must consider target health'
     assert "'AVAILABLE'" in src
     assert "'RDS_INSTANCE'" in src
+
+
+# --- Aurora (APG) harness contracts ------------------------------------------
+
+
+def test_proxy_harness_accepts_either_topology_but_requires_one():
+    """A target is mandatory, and either topology satisfies it.
+
+    Aurora needs its own target flag because a proxy fronts the cluster, not an
+    instance -- passing a member instance identifier would exercise the wrong
+    lookup entirely.
+    """
+    parser = proxy_e2e.build_parser()
+
+    args = parser.parse_args(['--region', 'us-east-1', '--db-cluster-identifier', 'c'])
+    assert args.db_cluster_identifier == 'c'
+    assert args.db_instance_identifier == ''
+
+    args = parser.parse_args(['--region', 'us-east-1', '--db-instance-identifier', 'i'])
+    assert args.db_instance_identifier == 'i'
+    assert args.db_cluster_identifier == ''
+
+    # Both together is allowed: it exercises each topology in one run.
+    args = parser.parse_args(
+        ['--region', 'us-east-1', '--db-instance-identifier', 'i', '--db-cluster-identifier', 'c']
+    )
+    assert args.db_instance_identifier == 'i' and args.db_cluster_identifier == 'c'
+
+
+def test_proxy_harness_cluster_role_defaults_to_both():
+    """Writer and reader exercise different code, so default to running both.
+
+    The writer path uses the proxy's default endpoint; the reader path has to find
+    a READ_ONLY endpoint and prove the session reached a replica. Defaulting to
+    one of them would leave the other unexercised by a plain invocation.
+    """
+    args = proxy_e2e.build_parser().parse_args(
+        ['--region', 'us-east-1', '--db-cluster-identifier', 'c']
+    )
+    assert args.cluster_endpoint_role == 'both'
+
+
+def test_proxy_harness_asserts_role_fidelity_with_pg_is_in_recovery():
+    """The APG suite must check which backend it actually reached.
+
+    Selecting a READ_ONLY proxy endpoint is only half the claim; pg_is_in_recovery()
+    is the only evidence that the proxy then routed to a replica rather than the
+    writer, and it cannot be established by a unit test.
+    """
+    src = inspect.getsource(proxy_e2e.suite_apg_proxy_routing)
+    assert 'pg_is_in_recovery' in src
+    # The expectation has to flip with the requested role, or it would pass for
+    # either backend.
+    assert 'in_recovery == want_read_only' in src
+
+
+def test_proxy_harness_apg_uses_the_cluster_lookup_not_the_instance_one():
+    """Aurora members are not addressable through a proxy.
+
+    Using find_proxy_for_instance here would match a member target and promise
+    routing the proxy does not honor.
+    """
+    src = inspect.getsource(proxy_e2e.suite_apg_proxy_routing)
+    assert 'find_proxy_for_cluster' in src
+    assert 'find_proxy_for_instance' not in src
+    assert 'select_proxy_endpoint' in src

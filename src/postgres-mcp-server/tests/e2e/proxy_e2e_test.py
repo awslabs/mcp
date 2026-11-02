@@ -49,9 +49,18 @@ What it verifies
 
 5. **Transparency to the caller** -- the connection is cached under the endpoint
    the caller supplied, the proxy host never enters the key space, and the connect
-   response reports the instance endpoint with ``proxy_endpoint`` alongside it.
+   response reports that endpoint with ``proxy_endpoint`` alongside it.
    ``run_query`` raises on a cache miss rather than reconnecting, so a key
    mismatch here would mean every query through a proxy fails.
+
+7. **Aurora role fidelity** (``--db-cluster-identifier``) -- a proxy fronts the
+   *cluster*, and its default endpoint is read/write, so a read-only request has
+   to be served by a ``READ_ONLY`` proxy endpoint. ``pg_is_in_recovery()`` reports
+   which backend the proxy actually chose: true on a replica, false on the writer.
+   That is the one claim here no unit test can establish -- selecting a READ_ONLY
+   endpoint is only half of it. The reader endpoint also lives under
+   ``*.endpoint.proxy-<id>...``, the proxy certificate's second SubjectAltName,
+   which the writer endpoint never exercises.
 
 6. **Negative control** -- an instance with *no* proxy falls back to a direct
    connection. Skipped unless ``--no-proxy-instance`` is supplied; without it
@@ -91,6 +100,12 @@ Usage
         --database postgres \
         --auth-type pg_wire_iam
 
+    # Aurora: writer and reader endpoints in turn
+    python tests/e2e/proxy_e2e_test.py \
+        --region us-east-1 \
+        --db-cluster-identifier my-aurora-cluster \
+        --database postgres
+
 See ``tests/e2e/run_proxy_e2e.sh`` for a wrapper that refreshes credentials first.
 """
 
@@ -104,7 +119,11 @@ import shutil
 import socket
 import subprocess
 import sys
-from awslabs.postgres_mcp_server.connection.cp_api_connection import find_proxy_for_instance
+from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+    find_proxy_for_cluster,
+    find_proxy_for_instance,
+    select_proxy_endpoint,
+)
 from awslabs.postgres_mcp_server.connection.db_connection_map import (
     ConnectionMethod,
     DatabaseType,
@@ -324,6 +343,65 @@ def verify_tls(host: str, port: int, ca_bundle: Optional[str]) -> Tuple[bool, st
         if 'Verify return code' in ln or ln.strip().startswith('verify error')
     ]
     return (False, '; '.join(reasons) or f'no verify result; exit={proc.returncode}')
+
+
+def _assert_transparent_routing(
+    rec: 'Recorder',
+    method: ConnectionMethod,
+    cluster_identifier: str,
+    identity_endpoint: str,
+    identity_port: int,
+    proxy_host: str,
+    database: str,
+    llm_response: str,
+) -> None:
+    """Assert the routing stayed invisible to the caller.
+
+    Identical for every topology, which is the point: whatever the proxy lookup
+    decided, the connection must still be reachable by the endpoint the caller
+    supplied, and the proxy host must not have leaked into the key space.
+    run_query rebuilds the map key from its own db_endpoint argument and RAISES on
+    a miss rather than reconnecting, so a mismatch here means every query through
+    a proxy fails.
+    """
+    via_identity = server.db_connection_map.get(
+        method, cluster_identifier, identity_endpoint, database, identity_port
+    )
+    via_proxy = server.db_connection_map.get(
+        method, cluster_identifier, proxy_host, database, identity_port
+    )
+    detail = (
+        f'lookup by caller endpoint -> {"hit" if via_identity else "MISS"}; '
+        f'lookup by proxy endpoint -> {"hit" if via_proxy else "MISS"}; '
+        f'map keys={server.db_connection_map.get_keys_json()}'
+    )
+    rec.check(
+        'connection is cached under the caller-supplied endpoint', via_identity is not None, detail
+    )
+    rec.check(
+        'proxy endpoint does not appear in the connection-map key space',
+        via_proxy is None,
+        detail,
+    )
+
+    payload = json.loads(llm_response)
+    rec.check(
+        'connect response reports the caller endpoint plus proxy_endpoint',
+        payload.get('db_endpoint') == identity_endpoint
+        and payload.get('proxy_endpoint') == proxy_host,
+        f'db_endpoint={payload.get("db_endpoint")!r} '
+        f'proxy_endpoint={payload.get("proxy_endpoint")!r}',
+    )
+
+
+def resolve_cluster(cluster_identifier: str, region: str) -> Dict[str, Any]:
+    """Look up an Aurora cluster and return its describe_db_clusters entry."""
+    rds = boto3.client('rds', region_name=region)
+    resp = rds.describe_db_clusters(DBClusterIdentifier=cluster_identifier)
+    clusters = resp.get('DBClusters', [])
+    if not clusters:
+        raise ValueError(f"cluster '{cluster_identifier}' not found in {region}")
+    return clusters[0]
 
 
 async def suite_proxy_routing(
@@ -563,33 +641,188 @@ async def suite_proxy_routing(
     # the proxy endpoint it was routed to. run_query rebuilds the key from its own
     # db_endpoint argument and RAISES on a miss rather than reconnecting, so a
     # mismatch here means every query through a proxy fails.
-    step = 'connection is cached under the caller-supplied instance endpoint'
-    via_instance = server.db_connection_map.get(method, '', instance_host, database, port)
-    via_proxy = server.db_connection_map.get(method, '', proxy_host, database, port)
-    detail = (
-        f'lookup by instance endpoint -> {"hit" if via_instance else "MISS"}; '
-        f'lookup by proxy endpoint -> {"hit" if via_proxy else "MISS"}; '
-        f'map keys={server.db_connection_map.get_keys_json()}'
-    )
-    rec.check(step, via_instance is not None, detail)
-
-    # A hit on the proxy endpoint would mean the proxy host leaked into the key
-    # space, which is what makes the caller-side lookup miss.
-    rec.check(
-        'proxy endpoint does not appear in the connection-map key space',
-        via_proxy is None,
-        detail,
+    _assert_transparent_routing(
+        rec, method, '', instance_host, port, proxy_host, database, llm_response
     )
 
-    # The reported identity must be the instance, with the proxy alongside it.
-    step = 'connect response reports the instance endpoint plus proxy_endpoint'
-    payload = json.loads(llm_response)
-    rec.check(
-        step,
-        payload.get('db_endpoint') == instance_host
-        and payload.get('proxy_endpoint') == proxy_host,
-        f'db_endpoint={payload.get("db_endpoint")!r} '
-        f'proxy_endpoint={payload.get("proxy_endpoint")!r}',
+    return rec.result
+
+
+async def suite_apg_proxy_routing(
+    cluster_identifier: str,
+    region: str,
+    database: str,
+    method: ConnectionMethod,
+    auth_type: str,
+    want_read_only: bool,
+    expect_proxy_endpoint: str = '',
+) -> TestResult:
+    """Aurora routing, including the one thing unit tests cannot establish.
+
+    Unit tests can show that a READ_ONLY proxy endpoint was *selected*. Only a
+    live connection can show that the session actually landed on a replica, which
+    is what ``pg_is_in_recovery()`` reports. If the role matching were wrong -- or
+    if RDS Proxy does not behave as documented -- selection would still look
+    correct and this check would be the only thing to fail.
+    """
+    role = 'read-only' if want_read_only else 'read/write'
+    rec = Recorder(f'{cluster_identifier} ({role})', auth_type)
+    logger.info(
+        f'\n=== RDS Proxy routing: cluster={cluster_identifier} role={role} auth={auth_type} ==='
+    )
+
+    # --- resolve the cluster --------------------------------------------------
+    try:
+        cluster = resolve_cluster(cluster_identifier, region)
+    except Exception as e:
+        rec.skip('resolve cluster', f'{type(e).__name__}: {e}')
+        return rec.result
+
+    writer = cluster.get('Endpoint', '') or ''
+    reader = cluster.get('ReaderEndpoint', '') or ''
+    port = int(cluster.get('Port') or 5432)
+    cluster_identifier = cluster.get('DBClusterIdentifier', cluster_identifier)
+
+    identity_endpoint = reader if want_read_only else writer
+    if not identity_endpoint:
+        rec.skip(
+            'resolve cluster',
+            f"cluster '{cluster_identifier}' reports no "
+            f'{"reader" if want_read_only else "writer"} endpoint',
+        )
+        return rec.result
+    rec.ok('resolve cluster', f'{cluster_identifier} -> {identity_endpoint}:{port}')
+
+    # --- 1. discovery ---------------------------------------------------------
+    step = 'find_proxy_for_cluster discovers the proxy'
+    try:
+        found_proxy = find_proxy_for_cluster(cluster_identifier, region, want_read_only)
+    except Exception as e:
+        rec.fail(step, f'{type(e).__name__}: {e}')
+        return rec.result
+
+    if found_proxy is None:
+        rec.skip(
+            step,
+            f"no RDS Proxy with a healthy {role} member fronts cluster '{cluster_identifier}'",
+        )
+        return rec.result
+    rec.ok(step, f"proxy '{found_proxy.get('DBProxyName', '')}'")
+
+    # --- 2. endpoint selection ------------------------------------------------
+    # The decision the whole APG design rests on: a read-only request must not be
+    # served by the proxy's default (read/write) endpoint.
+    step = f'proxy endpoint selected for {role}'
+    selected, how = select_proxy_endpoint(found_proxy, region, want_read_only)
+    if not rec.check(step, bool(selected), f'{selected!r} -- {how}'):
+        return rec.result
+    proxy_host = selected or ''
+
+    if expect_proxy_endpoint:
+        rec.check(
+            'selected endpoint matches the declared expectation',
+            proxy_host == expect_proxy_endpoint,
+            f'expected {expect_proxy_endpoint!r}, got {proxy_host!r}',
+        )
+    else:
+        rec.note(
+            'selected endpoint',
+            'no --expect-proxy-endpoint given, so the selection is not checked '
+            'against an independent expectation',
+        )
+
+    # A read-only endpoint lives under *.endpoint.proxy-<id>..., which is the
+    # proxy certificate's SECOND SubjectAltName. The writer endpoint only
+    # exercises the first, so this is new TLS surface.
+    ca_bundle = server.configured_ca_bundle or _bundled_ca_file()
+    if not ca_bundle:
+        rec.skip(
+            'proxy certificate verifies under verify-full',
+            'no CA bundle available (run `python hatch_build.py`, or pass --ca-bundle)',
+        )
+    else:
+        log_tls_diagnostics(proxy_host, port, ca_bundle, server.configured_sslmode, 'apg-proxy')
+        ok, detail = verify_tls(proxy_host, port, ca_bundle)
+        rec.check('proxy certificate verifies under verify-full', ok, detail)
+
+    # --- 3. connect through the proxy ----------------------------------------
+    step = 'the connection host is the selected proxy endpoint'
+    try:
+        conn, llm_response = internal_create_connection(
+            region=region,
+            database_type=DatabaseType.APG,
+            connection_method=method,
+            cluster_identifier=cluster_identifier,
+            db_endpoint=identity_endpoint,
+            port=port,
+            database=database,
+        )
+        actual_host = getattr(conn, 'host', None)
+        rec.check(
+            step,
+            actual_host == proxy_host,
+            f'connection host={actual_host!r} (proxy={proxy_host!r}, '
+            f'cluster endpoint={identity_endpoint!r})',
+        )
+    except Exception as e:
+        rec.fail(step, f'{type(e).__name__}: {e}')
+        return rec.result
+
+    ctx = CapturingCtx()
+    step = 'run_query(SELECT version()) over the proxy connection'
+    try:
+        rows = await run_query(
+            sql='SELECT version()',
+            ctx=ctx,
+            connection_method=method,
+            cluster_identifier=cluster_identifier,
+            db_endpoint=identity_endpoint,
+            database=database,
+        )
+        ok = bool(rows) and 'error' not in rows[0]
+        rec.check(step, ok, str(rows[0]) if rows else f'no rows; ctx errors={ctx.errors}')
+    except Exception as e:
+        rec.fail(step, f'{type(e).__name__}: {e}')
+        return rec.result
+
+    # --- 4. role fidelity: did we actually reach the role we asked for? -------
+    # pg_is_in_recovery() is true on an Aurora replica and false on the writer.
+    # This is the assertion that cannot be mocked: it reports which backend the
+    # proxy actually chose, not which endpoint we selected.
+    step = f'session is on the expected backend for {role} (pg_is_in_recovery)'
+    try:
+        rows = await run_query(
+            sql='SELECT pg_is_in_recovery() AS in_recovery',
+            ctx=ctx,
+            connection_method=method,
+            cluster_identifier=cluster_identifier,
+            db_endpoint=identity_endpoint,
+            database=database,
+        )
+        if not rows or 'error' in rows[0]:
+            rec.fail(step, f'could not determine: {rows}')
+        else:
+            raw = rows[0].get('in_recovery')
+            in_recovery = str(raw).strip().lower() in ('true', 't', '1')
+            rec.check(
+                step,
+                in_recovery == want_read_only,
+                f'pg_is_in_recovery()={raw!r}; expected '
+                f'{"a replica (true)" if want_read_only else "the writer (false)"}',
+            )
+    except Exception as e:
+        rec.fail(step, f'{type(e).__name__}: {e}')
+
+    # --- 5. transparency -----------------------------------------------------
+    _assert_transparent_routing(
+        rec,
+        method,
+        cluster_identifier,
+        identity_endpoint,
+        port,
+        proxy_host,
+        database,
+        llm_response,
     )
 
     return rec.result
@@ -688,7 +921,7 @@ async def main_async(args) -> int:
     # all report "no proxy" and fail for the wrong reason.
     server.configured_rds_proxy_mode = server.RDS_PROXY_AUTO
 
-    if args.secret_arn:
+    if args.secret_arn and args.db_instance_identifier:
         # Pin per-target, keyed on the AWS-resolved instance endpoint -- which is
         # exactly the ordering assertion in suite 4.
         instance = resolve_instance(args.db_instance_identifier, args.region)
@@ -703,16 +936,45 @@ async def main_async(args) -> int:
         f'readonly={server.readonly_query}'
     )
 
-    results: List[TestResult] = [
-        await suite_proxy_routing(
-            instance_id=args.db_instance_identifier,
-            region=args.region,
-            database=args.database,
-            method=method,
-            auth_type=args.auth_type,
-            expect_proxy_endpoint=args.expect_proxy_endpoint,
+    results: List[TestResult] = []
+
+    if args.db_cluster_identifier:
+        # 'both' is the default because the two roles exercise different code:
+        # the writer path uses the proxy's default endpoint, the reader path has
+        # to find a READ_ONLY endpoint and prove it reached a replica.
+        roles = (
+            [False, True]
+            if args.cluster_endpoint_role == 'both'
+            else [args.cluster_endpoint_role == 'reader']
         )
-    ]
+        for want_read_only in roles:
+            results.append(
+                await suite_apg_proxy_routing(
+                    cluster_identifier=args.db_cluster_identifier,
+                    region=args.region,
+                    database=args.database,
+                    method=method,
+                    auth_type=args.auth_type,
+                    want_read_only=want_read_only,
+                    # The declared expectation names one endpoint, so it only
+                    # applies to the role it was given for.
+                    expect_proxy_endpoint=(
+                        args.expect_proxy_endpoint if args.cluster_endpoint_role != 'both' else ''
+                    ),
+                )
+            )
+
+    if args.db_instance_identifier:
+        results.append(
+            await suite_proxy_routing(
+                instance_id=args.db_instance_identifier,
+                region=args.region,
+                database=args.database,
+                method=method,
+                auth_type=args.auth_type,
+                expect_proxy_endpoint=args.expect_proxy_endpoint,
+            )
+        )
 
     if args.no_proxy_instance:
         results.append(
@@ -752,7 +1014,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument('--region', required=True, help='AWS region of the instance and proxy')
     p.add_argument(
         '--db-instance-identifier',
-        required=True,
+        default='',
         help='Standalone RPG instance that IS fronted by an RDS Proxy. The DB instance '
         'identifier (its name) or its ARN; an ARN is canonicalized to the identifier.',
     )
@@ -772,6 +1034,21 @@ def build_parser() -> argparse.ArgumentParser:
         default='pg_wire_secret',
         help='Auth method (default: pg_wire_secret). pg_wire_iam needs an rds-db:connect '
         'policy on the prx-* resource.',
+    )
+    p.add_argument(
+        '--db-cluster-identifier',
+        default='',
+        help='Aurora PostgreSQL cluster fronted by an RDS Proxy. Use instead of '
+        '--db-instance-identifier to exercise the APG path.',
+    )
+    p.add_argument(
+        '--cluster-endpoint-role',
+        choices=['writer', 'reader', 'both'],
+        default='both',
+        help="Which cluster endpoint to connect through: 'writer', 'reader', or "
+        "'both' (default) to run each in turn. 'reader' requires the proxy to have "
+        'a READ_ONLY endpoint, and asserts via pg_is_in_recovery() that the session '
+        'really landed on a replica.',
     )
     p.add_argument(
         '--expect-proxy-endpoint',
@@ -812,7 +1089,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     """Entry point."""
-    args = build_parser().parse_args()
+    parser = build_parser()
+    args = parser.parse_args()
+    if not args.db_instance_identifier and not args.db_cluster_identifier:
+        parser.error(
+            'supply --db-instance-identifier (standalone RDS) or '
+            '--db-cluster-identifier (Aurora), or both to exercise each topology'
+        )
     sys.exit(asyncio.run(main_async(args)))
 
 

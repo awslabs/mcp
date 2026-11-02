@@ -6,8 +6,9 @@
 # account. Unlike run_e2e.sh, this provisions nothing and deletes nothing, and
 # every query it issues is a SELECT.
 #
-# What it needs from you:
+# What it needs from you (at least one target):
 #   --db-instance-identifier  a standalone RPG instance that IS fronted by a proxy
+#   --db-cluster-identifier   an Aurora cluster that IS fronted by a proxy
 #   --no-proxy-instance       an instance with NO proxy (the control; recommended)
 #
 # Instances are named by DB instance IDENTIFIER (or ARN), and --database is the
@@ -43,6 +44,8 @@
 #   tests/e2e/run_proxy_e2e.sh \
 #       --region us-east-1 \
 #       --db-instance-identifier my-proxied-instance \
+#       [--db-cluster-identifier my-aurora-cluster] \
+#       [--cluster-endpoint-role writer|reader|both] \
 #       [--no-proxy-instance my-bare-instance] \
 #       [--database postgres] \
 #       [--profile my-aws-profile] \
@@ -76,6 +79,8 @@ need_arg() {
 # --- defaults -------------------------------------------------------------
 REGION=""
 DB_INSTANCE=""
+DB_CLUSTER=""
+CLUSTER_ROLE=""
 NO_PROXY_INSTANCE=""
 DATABASE=""
 PROFILE=""
@@ -94,6 +99,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --region)                  need_arg "$1" "$#"; REGION="$2"; shift 2 ;;
     --db-instance-identifier)  need_arg "$1" "$#"; DB_INSTANCE="$2"; shift 2 ;;
+    --db-cluster-identifier)   need_arg "$1" "$#"; DB_CLUSTER="$2"; shift 2 ;;
+    --cluster-endpoint-role)   need_arg "$1" "$#"; CLUSTER_ROLE="$2"; shift 2 ;;
     --no-proxy-instance)       need_arg "$1" "$#"; NO_PROXY_INSTANCE="$2"; shift 2 ;;
     --database)                need_arg "$1" "$#"; DATABASE="$2"; shift 2 ;;
     --profile)                 need_arg "$1" "$#"; PROFILE="$2"; shift 2 ;;
@@ -114,13 +121,14 @@ done
 # --- validate -------------------------------------------------------------
 missing=()
 [[ -z "$REGION" ]] && missing+=("--region")
-[[ -z "$DB_INSTANCE" ]] && missing+=("--db-instance-identifier")
+[[ -z "$DB_INSTANCE" && -z "$DB_CLUSTER" ]] && \
+  missing+=("--db-instance-identifier or --db-cluster-identifier")
 if [[ ${#missing[@]} -gt 0 ]]; then
   echo "ERROR: missing required argument(s): ${missing[*]}" >&2
   usage 1
 fi
 
-if [[ -z "$NO_PROXY_INSTANCE" ]]; then
+if [[ -z "$NO_PROXY_INSTANCE" && -n "$DB_INSTANCE" ]]; then
   echo ">> WARNING: no --no-proxy-instance given; the direct-connection fallback"
   echo ">>          will not be exercised."
 fi
@@ -160,8 +168,10 @@ fi
 # --- build harness command ------------------------------------------------
 cmd=(uv run --frozen python tests/e2e/proxy_e2e_test.py
      --region "$REGION"
-     --db-instance-identifier "$DB_INSTANCE"
      --log-level "$LOG_LEVEL")
+[[ -n "$DB_INSTANCE" ]] && cmd+=(--db-instance-identifier "$DB_INSTANCE")
+[[ -n "$DB_CLUSTER" ]] && cmd+=(--db-cluster-identifier "$DB_CLUSTER")
+[[ -n "$CLUSTER_ROLE" ]] && cmd+=(--cluster-endpoint-role "$CLUSTER_ROLE")
 [[ -n "$NO_PROXY_INSTANCE" ]] && cmd+=(--no-proxy-instance "$NO_PROXY_INSTANCE")
 [[ -n "$DATABASE" ]] && cmd+=(--database "$DATABASE")
 [[ -n "$SECRET_ARN" ]] && cmd+=(--secret-arn "$SECRET_ARN")
@@ -174,7 +184,7 @@ if [[ ${#PASSTHROUGH[@]} -gt 0 ]]; then
   cmd+=("${PASSTHROUGH[@]}")
 fi
 
-echo ">> proxied-instance=$DB_INSTANCE control=${NO_PROXY_INSTANCE:-<none>}"
+echo ">> proxied-instance=${DB_INSTANCE:-<none>} proxied-cluster=${DB_CLUSTER:-<none>} control=${NO_PROXY_INSTANCE:-<none>}"
 echo ">> Running: ${cmd[*]}"
 echo ">> Logging to: $LOG_FILE"
 
