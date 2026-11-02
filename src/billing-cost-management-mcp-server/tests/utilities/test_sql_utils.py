@@ -24,6 +24,7 @@ This module contains unit tests for the sql_utils.py module, including:
 - API response conversion to database tables
 """
 
+import json
 import os
 import pytest
 import sqlite3
@@ -2489,3 +2490,165 @@ def test_coerce_for_column_real_branch():
     assert _coerce_for_column(object(), 'REAL') is None
     # Non-REAL column passes the value through unchanged.
     assert _coerce_for_column('kept', 'TEXT') == 'kept'
+
+
+@pytest.mark.asyncio
+async def test_pricing_products_sample_queries_run_and_read_the_on_demand_price(
+    mock_context, tmp_path
+):
+    """Every pricing sample query runs on the stored rows, and one reads the On-Demand USD price.
+
+    pricing_terms is JSON text keyed by offer and rate codes that differ per product, so a price
+    is reachable only by walking the keys (json_each), not by a fixed json_extract path.
+    """
+    db_path = str(tmp_path / 'session.db')
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        'CREATE TABLE IF NOT EXISTS schema_info '
+        '(table_name TEXT PRIMARY KEY, created_at TEXT, operation TEXT, '
+        'query TEXT, row_count INTEGER)'
+    )
+    product = {
+        'product': {
+            'productFamily': 'Compute Instance',
+            'sku': 'SKU123',
+            'attributes': {'instanceType': 'm5.large', 'operatingSystem': 'Linux'},
+        },
+        'terms': {
+            'OnDemand': {
+                'SKU123.JRTCKXETXF': {
+                    'priceDimensions': {
+                        'SKU123.JRTCKXETXF.6YS6EN2CT7': {
+                            'unit': 'Hrs',
+                            'description': '$0.096 per On Demand Linux m5.large Instance Hour',
+                            'pricePerUnit': {'USD': '0.0960000000'},
+                        }
+                    }
+                }
+            },
+            'Reserved': {
+                'SKU123.4NA7Y494T4': {
+                    'priceDimensions': {
+                        'SKU123.4NA7Y494T4.6YS6EN2CT7': {
+                            'unit': 'Hrs',
+                            'pricePerUnit': {'USD': '0.0600000000'},
+                        }
+                    }
+                }
+            },
+        },
+    }
+    tiered = {
+        'product': {'productFamily': 'Storage', 'sku': 'SKU456', 'attributes': {}},
+        'terms': {
+            'OnDemand': {
+                'SKU456.JRTCKXETXF': {
+                    'priceDimensions': {
+                        'SKU456.JRTCKXETXF.PGHJ3S3EYE': {
+                            'unit': 'GB-Mo',
+                            'beginRange': '0',
+                            'endRange': '51200',
+                            'description': 'first 50 TB',
+                            'pricePerUnit': {'USD': '0.0230000000'},
+                        },
+                        'SKU456.JRTCKXETXF.D42MF2PVJS': {
+                            'unit': 'GB-Mo',
+                            'beginRange': '51200',
+                            'endRange': 'Inf',
+                            'description': 'over 50 TB',
+                            'pricePerUnit': {'USD': '0.0220000000'},
+                        },
+                    }
+                }
+            }
+        },
+    }
+    reserved_only = {
+        'product': {'productFamily': 'Compute Instance', 'sku': 'SKU789', 'attributes': {}},
+        'terms': {'Reserved': product['terms']['Reserved']},
+    }
+    response = {'PriceList': [json.dumps(product), json.dumps(tiered), json.dumps(reserved_only)]}
+    # Other tests in this file re-import sql_utils; patch and call the module now loaded.
+    sql_utils = sys.modules['awslabs.billing_cost_management_mcp_server.utilities.sql_utils']
+
+    with (
+        patch.object(sql_utils, 'should_convert_to_sql', return_value=True),
+        patch.object(sql_utils, 'get_db_connection', return_value=(conn, conn.cursor())),
+    ):
+        result = await sql_utils.convert_response_if_needed(
+            mock_context, response, 'aws_pricing_get_products', service_code='AmazonEC2'
+        )
+
+    assert result['data_stored'] is True
+    # The conversion closes its connection; query the stored rows as session-sql would.
+    conn = sqlite3.connect(db_path)
+    priced = []
+    for sample in result['sample_queries']:
+        cursor = conn.execute(sample['sql'])
+        columns = [d[0] for d in cursor.description]
+        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        if 'usd' in columns:
+            priced.append(rows)
+    # One row per On-Demand dimension: tiers keep their ranges, the price is a number, and a
+    # product with only Reserved terms has no On-Demand row.
+    # Rows come out by sku, then tier.
+    assert len(priced) == 1
+    assert priced[0] == [
+        {
+            'sku': 'SKU123',
+            'product_family': 'Compute Instance',
+            'unit': 'Hrs',
+            'begin_range': None,
+            'end_range': None,
+            'usd': 0.096,
+            'description': '$0.096 per On Demand Linux m5.large Instance Hour',
+        },
+        {
+            'sku': 'SKU456',
+            'product_family': 'Storage',
+            'unit': 'GB-Mo',
+            'begin_range': '0',
+            'end_range': '51200',
+            'usd': 0.023,
+            'description': 'first 50 TB',
+        },
+        {
+            'sku': 'SKU456',
+            'product_family': 'Storage',
+            'unit': 'GB-Mo',
+            'begin_range': '51200',
+            'end_range': 'Inf',
+            'usd': 0.022,
+            'description': 'over 50 TB',
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_records_tables_get_only_their_own_sample_queries(mock_context, tmp_path):
+    """The pricing price query is offered only for pricing tables; a records table's samples all run."""
+    db_path = str(tmp_path / 'session.db')
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        'CREATE TABLE IF NOT EXISTS schema_info '
+        '(table_name TEXT PRIMARY KEY, created_at TEXT, operation TEXT, '
+        'query TEXT, row_count INTEGER)'
+    )
+    response = {'Actions': [{'ActionId': 'a1', 'Status': 'STANDBY'}], 'count': 1}
+    sql_utils = sys.modules['awslabs.billing_cost_management_mcp_server.utilities.sql_utils']
+
+    with (
+        patch.object(sql_utils, 'should_convert_to_sql', return_value=True),
+        patch.object(sql_utils, 'get_db_connection', return_value=(conn, conn.cursor())),
+    ):
+        result = await sql_utils.convert_response_if_needed(
+            mock_context, response, 'budget_actions'
+        )
+
+    assert result['data_stored'] is True
+    names = [sample['name'] for sample in result['sample_queries']]
+    assert 'On-Demand USD prices' not in names
+    conn = sqlite3.connect(db_path)
+    for sample in result['sample_queries']:
+        assert 'pricing_terms' not in sample['sql']
+        conn.execute(sample['sql']).fetchall()
