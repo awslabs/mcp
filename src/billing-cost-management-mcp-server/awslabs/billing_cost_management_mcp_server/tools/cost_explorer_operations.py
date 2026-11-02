@@ -348,8 +348,10 @@ async def get_dimension_values(
             If not provided, defaults to the account's primary billing view.
         context: The context for the call, which can be COST_AND_USAGE, RESERVATIONS, or
             SAVINGS_PLANS. The default is COST_AND_USAGE. The context scopes which values come back.
-        dimension_key: The product attribute key to list values for (sent as DimensionKey),
-            only with dimension PRODUCT_ATTRIBUTE. Omitted or empty, the response lists the keys.
+        dimension_key: Only used when dimension is PRODUCT_ATTRIBUTE. Without it (or empty),
+            the call lists the product attribute names, such as `model`. With one of those names,
+            it lists that attribute's values instead, such as the model names. Sent to Cost
+            Explorer as DimensionKey.
 
     Returns:
         Dimension values response

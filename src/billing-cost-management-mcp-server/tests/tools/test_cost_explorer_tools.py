@@ -2609,7 +2609,8 @@ def test_description_documents_product_attributes():
     )
     assert 'the forecasts reject them' in section
     assert '`provider`, `model`, `inferenceType` and `feature`' in section
-    assert 'Data starts 2026-09-01' in section and 'DataUnavailableException' in section
+    assert 'only from 2026-09-01, in every account' in section
+    assert 'DataUnavailableException' in section
     assert 'Keys and values are case-sensitive' in section
     assert 'With `Values` it matches nothing ($0)' in section
     assert '`"Values": [""]`' in section and 'every Bedrock cost' in section
@@ -2621,11 +2622,12 @@ def test_description_documents_product_attributes():
     assert 'A SERVICE leaf under `Not` never counts' in section
     assert 'pair it with one in an `And`' in section
     assert 'omit SERVICE to include all of them' in section
+    assert 'which differ by account' in section and '(Amazon Bedrock Edition)' in section
     assert 'a period that starts earlier returns DataUnavailableException' in section
     assert 'search_string does match case-insensitively and partially' in section
     assert 'PRODUCT_ATTRIBUTE: Product attributes of supported services' in flat
     assert 'dimension_key with any other dimension is rejected' in flat
-    assert 'a wrong key returns only `""`, not an error' in flat
+    assert 'a wrong name returns only `""`, not an error' in flat
     examples = [json.loads(e) for e in _rendered_examples(description)]
     assert any(call.get('dimension_key') == 'model' for call in examples)
 

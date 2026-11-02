@@ -204,8 +204,9 @@ Tags leaves in getCostAndUsage, getCostAndUsageWithResources and getDimensionVal
 
 ProductAttributes leaves (getCostAndUsage, getCostAndUsageWithResources and getDimensionValues
 filters; the forecasts reject them):
-- They filter by product attributes. Amazon Bedrock is the only supported service; its keys are
-  `provider`, `model`, `inferenceType` and `feature`. Data starts 2026-09-01: a period that
+- They filter by product attributes. Amazon Bedrock is the only supported service; its
+  attribute names (the leaf's `Key`) are `provider`, `model`, `inferenceType` and `feature`.
+  Cost Explorer returns this data only from 2026-09-01, in every account: a period that
   starts earlier returns DataUnavailableException, even if most of it is later.
 - Keys and values are case-sensitive, with no case-insensitive or partial match. List the keys
   with getDimensionValues dimension=PRODUCT_ATTRIBUTE, and a key's values by adding dimension_key
@@ -225,9 +226,11 @@ filters; the forecasts reject them):
   `{"Or": [<ProductAttributes leaf>, <SERVICE leaf>]}` is rejected. A SERVICE leaf under `Not`
   never counts. getDimensionValues rejects a ProductAttributes filter with no SERVICE filter:
   pair it with one in an `And`. Bedrock costs
-  appear under several SERVICE names (e.g. `Amazon Bedrock Service`, `Amazon Bedrock`; list
-  them with getDimensionValues dimension=SERVICE, search_string=Bedrock). Elsewhere, omit
-  SERVICE to include all of them.
+  appear under several SERVICE names, which differ by account (e.g. `Amazon Bedrock`,
+  `Amazon Bedrock Service`, and Marketplace names such as `Claude Opus 5.5 (Amazon Bedrock
+  Edition)`), so one name can return $0 while the others carry the cost. List them with
+  getDimensionValues dimension=SERVICE, search_string=Bedrock. Elsewhere, omit SERVICE to
+  include all of them.
 
 Correct filter examples:
 - `{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Relational Database Service"]}}`
@@ -341,9 +344,9 @@ getDimensionValues dimension.
 - PRODUCT_ATTRIBUTE: Product attributes of supported services (Amazon Bedrock). Not a
   `Dimensions` key: filter with a `ProductAttributes` leaf and group with Type
   PRODUCT_ATTRIBUTE (see FILTER EXPRESSION GRAMMAR). As a getDimensionValues dimension
-  (COST_AND_USAGE context only) it lists the keys, or with dimension_key that key's values
-  (`""` stands for costs with no value; a wrong key returns only `""`, not an error).
-  dimension_key with any other dimension is rejected
+  (COST_AND_USAGE context only) it lists the attribute names, or with dimension_key that
+  attribute's values (`""` stands for costs with no value; a wrong name returns only `""`,
+  not an error). dimension_key with any other dimension is rejected
 - PLATFORM: EC2 operating system (e.g., Linux/UNIX, Windows (Amazon VPC))
 - PURCHASE_TYPE: Purchase option (e.g., On Demand Instances, Standard Reserved Instances, Savings
   Plans)
@@ -549,9 +552,10 @@ async def cost_explorer(
             apply the view
         context: The context for (getDimensionValues), which can be COST_AND_USAGE (the default),
             RESERVATIONS, or SAVINGS_PLANS. SAVINGS_PLANS scopes values to the plans an account owns.
-        dimension_key: Product attribute key to list values for, such as `model`
-            (getDimensionValues with dimension PRODUCT_ATTRIBUTE only). Keys are case-sensitive.
-            Omit it to list the keys.
+        dimension_key: Only for getDimensionValues with dimension PRODUCT_ATTRIBUTE. Without
+            it, the call lists the product attribute names (`provider`, `model`, ...). With one
+            of those names, such as `model`, it lists that attribute's values (the model names).
+            Names are case-sensitive.
 
     Returns:
         Response from the operation handler
