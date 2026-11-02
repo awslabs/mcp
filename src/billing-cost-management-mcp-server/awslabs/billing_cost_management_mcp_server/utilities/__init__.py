@@ -25,7 +25,9 @@ from .aws_service_base import (
     get_date_range,
     validate_date_format,
     handle_aws_error,
-    paginate_aws_response,
+    PageSpec,
+    paginate_aws_items,
+    with_pagination,
     format_response,
 )
 

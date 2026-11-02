@@ -15,9 +15,11 @@
 """Unit tests for the billing_conductor_operations module."""
 
 import boto3
+import inspect
 import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operations import (
+    MARGIN_NOTE,
     _format_billing_group_cost_report_results,
     _format_billing_group_cost_reports,
     _format_billing_groups,
@@ -26,6 +28,7 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operatio
     _format_linked_accounts,
     _format_pricing_plans,
     _format_pricing_rules,
+    _plain_decimal,
     get_billing_group_cost_report,
     get_billing_transfer_preference,
     list_account_associations,
@@ -41,6 +44,7 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operatio
 )
 from botocore.exceptions import ClientError
 from botocore.stub import Stubber
+from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -240,12 +244,12 @@ class TestListBillingGroups:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_billing_groups(mock_ctx, None, None, 10, None)
+        result = await list_billing_groups(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert len(result['data']['billing_groups']) == 2
-        assert 'next_token' not in result['data']
+        assert result['data']['pagination']['next_token'] is None
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_billing_groups_with_billing_period(
@@ -258,7 +262,7 @@ class TestListBillingGroups:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_billing_groups(mock_ctx, BILLING_PERIOD, None, 10, None)
+        result = await list_billing_groups(mock_ctx, BILLING_PERIOD, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
         assert result['data']['billing_period'] == BILLING_PERIOD
@@ -278,10 +282,10 @@ class TestListBillingGroups:
         mock_create_client.return_value = mock_client
 
         filters_json = json.dumps({'Statuses': ['ACTIVE'], 'BillingGroupTypes': ['STANDARD']})
-        result = await list_billing_groups(mock_ctx, None, filters_json, 10, None)
+        result = await list_billing_groups(mock_ctx, None, filters_json, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
 
         call_kwargs = mock_client.list_billing_groups.call_args[1]
         assert call_kwargs['Filters'] == {
@@ -306,18 +310,18 @@ class TestListBillingGroups:
         ]
         mock_create_client.return_value = mock_client
 
-        result = await list_billing_groups(mock_ctx, None, None, 10, None)
+        result = await list_billing_groups(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert mock_client.list_billing_groups.call_count == 2
-        assert 'next_token' not in result['data']
+        assert result['data']['pagination']['next_token'] is None
 
     @patch(PATCH_BC_CLIENT)
-    async def test_list_billing_groups_max_pages_stops_pagination(
+    async def test_list_billing_groups_max_items_stops_pagination(
         self, mock_create_client, mock_ctx, sample_billing_groups
     ):
-        """Test that max_pages limits the number of API calls and returns next_token."""
+        """Test that max_items stops paging and returns the service next_token."""
         mock_client = MagicMock()
         mock_client.list_billing_groups.return_value = {
             'BillingGroups': [sample_billing_groups[0]],
@@ -328,9 +332,9 @@ class TestListBillingGroups:
         result = await list_billing_groups(mock_ctx, None, None, 1, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
         assert mock_client.list_billing_groups.call_count == 1
-        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+        assert result['data']['pagination']['next_token'] == NEXT_TOKEN_MORE
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_billing_groups_with_next_token(
@@ -343,11 +347,11 @@ class TestListBillingGroups:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_billing_groups(mock_ctx, None, None, 10, NEXT_TOKEN_CONTINUE)
+        result = await list_billing_groups(mock_ctx, None, None, None, NEXT_TOKEN_CONTINUE)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 1
-        assert 'next_token' not in result['data']
+        assert result['data']['pagination']['items_returned'] == 1
+        assert result['data']['pagination']['next_token'] is None
 
         call_kwargs = mock_client.list_billing_groups.call_args[1]
         assert call_kwargs['NextToken'] == NEXT_TOKEN_CONTINUE
@@ -361,16 +365,16 @@ class TestListBillingGroups:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_billing_groups(mock_ctx, None, None, 10, None)
+        result = await list_billing_groups(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 0
+        assert result['data']['pagination']['items_returned'] == 0
         assert result['data']['billing_groups'] == []
-        assert 'next_token' not in result['data']
+        assert result['data']['pagination']['next_token'] is None
 
     async def test_list_billing_groups_invalid_filters(self, mock_ctx):
         """Test listing billing groups with invalid filter JSON."""
-        result = await list_billing_groups(mock_ctx, None, 'not-valid-json', 10, None)
+        result = await list_billing_groups(mock_ctx, None, 'not-valid-json', None, None)
 
         assert result['status'] == STATUS_ERROR
 
@@ -384,7 +388,7 @@ class TestListBillingGroups:
         )
         mock_create_client.return_value = mock_client
 
-        result = await list_billing_groups(mock_ctx, None, None, 10, None)
+        result = await list_billing_groups(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_ERROR
         assert result['error_type'] == ERROR_ACCESS_DENIED
@@ -540,10 +544,10 @@ class TestListCustomLineItems:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_custom_line_items(mock_ctx, None, None, 10, None)
+        result = await list_custom_line_items(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert len(result['data']['custom_line_items']) == 2
 
     @patch(PATCH_BC_CLIENT)
@@ -557,7 +561,7 @@ class TestListCustomLineItems:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_custom_line_items(mock_ctx, BILLING_PERIOD, None, 10, None)
+        result = await list_custom_line_items(mock_ctx, BILLING_PERIOD, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
         call_kwargs = mock_client.list_custom_line_items.call_args[1]
@@ -575,10 +579,10 @@ class TestListCustomLineItems:
         mock_create_client.return_value = mock_client
 
         filters_json = json.dumps({'Names': ['SupportFee']})
-        result = await list_custom_line_items(mock_ctx, None, filters_json, 10, None)
+        result = await list_custom_line_items(mock_ctx, None, filters_json, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_custom_line_items_empty(self, mock_create_client, mock_ctx):
@@ -587,22 +591,22 @@ class TestListCustomLineItems:
         mock_client.list_custom_line_items.return_value = {'CustomLineItems': []}
         mock_create_client.return_value = mock_client
 
-        result = await list_custom_line_items(mock_ctx, None, None, 10, None)
+        result = await list_custom_line_items(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 0
+        assert result['data']['pagination']['items_returned'] == 0
 
     @patch(PATCH_BC_CLIENT)
-    async def test_list_custom_line_items_max_pages_next_token(self, mock_create_client, mock_ctx):
-        """Test that next_token is returned when max_pages reached."""
+    async def test_list_custom_line_items_max_items_next_token(self, mock_create_client, mock_ctx):
+        """Test that next_token is returned when max_items is reached."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
         mock_client.list_custom_line_items.return_value = {
             'CustomLineItems': [{'Arn': 'a1'}],
             'NextToken': NEXT_TOKEN_MORE,
         }
-        result = await list_custom_line_items(mock_ctx, max_pages=1)
-        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+        result = await list_custom_line_items(mock_ctx, max_items=1)
+        assert result['data']['pagination']['next_token'] == NEXT_TOKEN_MORE
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_custom_line_items_aws_error(self, mock_create_client, mock_ctx):
@@ -613,7 +617,7 @@ class TestListCustomLineItems:
         )
         mock_create_client.return_value = mock_client
 
-        result = await list_custom_line_items(mock_ctx, None, None, 10, None)
+        result = await list_custom_line_items(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_ERROR
         assert result['error_type'] == ERROR_ACCESS_DENIED
@@ -643,16 +647,16 @@ class TestListCustomLineItemVersions:
         mock_create_client.return_value = mock_client
 
         result = await list_custom_line_item_versions(
-            mock_ctx, CUSTOM_LINE_ITEM_ARN_1, None, 10, None
+            mock_ctx, CUSTOM_LINE_ITEM_ARN_1, None, None, None
         )
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
         assert result['data']['arn'] == CUSTOM_LINE_ITEM_ARN_1
 
     @patch(PATCH_BC_CLIENT)
-    async def test_max_pages_next_token(self, mock_create_client, mock_ctx):
-        """Test next_token returned when max_pages reached."""
+    async def test_max_items_next_token(self, mock_create_client, mock_ctx):
+        """Test next_token returned when max_items is reached."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
         mock_client.list_custom_line_item_versions.return_value = {
@@ -670,7 +674,7 @@ class TestListCustomLineItemVersions:
         result = await list_custom_line_item_versions(
             mock_ctx, CUSTOM_LINE_ITEM_ARN_1, None, 1, None
         )
-        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+        assert result['data']['pagination']['next_token'] == NEXT_TOKEN_MORE
         assert result['data']['custom_line_item_versions'][0]['charge_details']['type'] == 'FEE'
 
     @patch(PATCH_BC_CLIENT)
@@ -681,7 +685,7 @@ class TestListCustomLineItemVersions:
         mock_client.list_custom_line_item_versions.return_value = {'CustomLineItemVersions': []}
         filters_str = '{"BillingPeriodRange": {"StartBillingPeriod": "2025-01"}}'
         result = await list_custom_line_item_versions(
-            mock_ctx, CUSTOM_LINE_ITEM_ARN_1, filters_str, 10, None
+            mock_ctx, CUSTOM_LINE_ITEM_ARN_1, filters_str, None, None
         )
         assert result['status'] == STATUS_SUCCESS
         call_kwargs = mock_client.list_custom_line_item_versions.call_args[1]
@@ -697,7 +701,7 @@ class TestListCustomLineItemVersions:
         mock_create_client.return_value = mock_client
 
         result = await list_custom_line_item_versions(
-            mock_ctx, CUSTOM_LINE_ITEM_ARN_1, None, 10, None
+            mock_ctx, CUSTOM_LINE_ITEM_ARN_1, None, None, None
         )
 
         assert result['status'] == STATUS_ERROR
@@ -730,7 +734,7 @@ class TestListResourcesAssociatedToCustomLineItem:
         )
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
         assert result['data']['arn'] == CUSTOM_LINE_ITEM_ARN_1
 
     @patch(PATCH_BC_CLIENT)
@@ -751,8 +755,8 @@ class TestListResourcesAssociatedToCustomLineItem:
         assert call_kwargs['BillingPeriod'] == BILLING_PERIOD
 
     @patch(PATCH_BC_CLIENT)
-    async def test_max_pages_next_token(self, mock_create_client, mock_ctx):
-        """Test next_token returned when max_pages reached."""
+    async def test_max_items_next_token(self, mock_create_client, mock_ctx):
+        """Test next_token returned when max_items is reached."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
         mock_client.list_resources_associated_to_custom_line_item.return_value = {
@@ -760,9 +764,9 @@ class TestListResourcesAssociatedToCustomLineItem:
             'NextToken': NEXT_TOKEN_MORE,
         }
         result = await list_resources_associated_to_custom_line_item(
-            mock_ctx, CUSTOM_LINE_ITEM_ARN_1, max_pages=1
+            mock_ctx, CUSTOM_LINE_ITEM_ARN_1, max_items=1
         )
-        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+        assert result['data']['pagination']['next_token'] == NEXT_TOKEN_MORE
 
     @patch(PATCH_BC_CLIENT)
     async def test_with_filters(self, mock_create_client, mock_ctx):
@@ -946,10 +950,10 @@ class TestListPricingRules:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_pricing_rules(mock_ctx, None, None, 10, None)
+        result = await list_pricing_rules(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert len(result['data']['pricing_rules']) == 2
 
     @patch(PATCH_BC_CLIENT)
@@ -963,7 +967,7 @@ class TestListPricingRules:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_pricing_rules(mock_ctx, BILLING_PERIOD, None, 10, None)
+        result = await list_pricing_rules(mock_ctx, BILLING_PERIOD, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
         call_kwargs = mock_client.list_pricing_rules.call_args[1]
@@ -976,22 +980,22 @@ class TestListPricingRules:
         mock_client.list_pricing_rules.return_value = {'PricingRules': []}
         mock_create_client.return_value = mock_client
 
-        result = await list_pricing_rules(mock_ctx, None, None, 10, None)
+        result = await list_pricing_rules(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 0
+        assert result['data']['pagination']['items_returned'] == 0
 
     @patch(PATCH_BC_CLIENT)
-    async def test_list_pricing_rules_max_pages_next_token(self, mock_create_client, mock_ctx):
-        """Test next_token returned when max_pages reached."""
+    async def test_list_pricing_rules_max_items_next_token(self, mock_create_client, mock_ctx):
+        """Test next_token returned when max_items is reached."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
         mock_client.list_pricing_rules.return_value = {
             'PricingRules': [{'Arn': 'a1'}],
             'NextToken': NEXT_TOKEN_MORE,
         }
-        result = await list_pricing_rules(mock_ctx, max_pages=1)
-        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+        result = await list_pricing_rules(mock_ctx, max_items=1)
+        assert result['data']['pagination']['next_token'] == NEXT_TOKEN_MORE
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_pricing_rules_aws_error(self, mock_create_client, mock_ctx):
@@ -1002,7 +1006,7 @@ class TestListPricingRules:
         )
         mock_create_client.return_value = mock_client
 
-        result = await list_pricing_rules(mock_ctx, None, None, 10, None)
+        result = await list_pricing_rules(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_ERROR
         assert result['error_type'] == ERROR_ACCESS_DENIED
@@ -1026,10 +1030,10 @@ class TestListPricingPlans:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_pricing_plans(mock_ctx, None, None, 10, None)
+        result = await list_pricing_plans(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert len(result['data']['pricing_plans']) == 2
 
     @patch(PATCH_BC_CLIENT)
@@ -1043,23 +1047,23 @@ class TestListPricingPlans:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_pricing_plans(mock_ctx, BILLING_PERIOD, None, 10, None)
+        result = await list_pricing_plans(mock_ctx, BILLING_PERIOD, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
         call_kwargs = mock_client.list_pricing_plans.call_args[1]
         assert call_kwargs['BillingPeriod'] == BILLING_PERIOD
 
     @patch(PATCH_BC_CLIENT)
-    async def test_list_pricing_plans_max_pages_next_token(self, mock_create_client, mock_ctx):
-        """Test next_token returned when max_pages reached."""
+    async def test_list_pricing_plans_max_items_next_token(self, mock_create_client, mock_ctx):
+        """Test next_token returned when max_items is reached."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
         mock_client.list_pricing_plans.return_value = {
             'PricingPlans': [{'Arn': 'a1'}],
             'NextToken': NEXT_TOKEN_MORE,
         }
-        result = await list_pricing_plans(mock_ctx, max_pages=1)
-        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+        result = await list_pricing_plans(mock_ctx, max_items=1)
+        assert result['data']['pagination']['next_token'] == NEXT_TOKEN_MORE
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_pricing_plans_aws_error(self, mock_create_client, mock_ctx):
@@ -1070,7 +1074,7 @@ class TestListPricingPlans:
         )
         mock_create_client.return_value = mock_client
 
-        result = await list_pricing_plans(mock_ctx, None, None, 10, None)
+        result = await list_pricing_plans(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_ERROR
         assert result['error_type'] == ERROR_ACCESS_DENIED
@@ -1097,7 +1101,7 @@ class TestListPricingRulesAssociatedToPricingPlan:
         result = await list_pricing_rules_associated_to_pricing_plan(mock_ctx, PRICING_PLAN_ARN_1)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert PRICING_RULE_ARN_1 in result['data']['pricing_rule_arns']
 
     @patch(PATCH_BC_CLIENT)
@@ -1120,8 +1124,8 @@ class TestListPricingRulesAssociatedToPricingPlan:
         assert call_kwargs['BillingPeriod'] == BILLING_PERIOD
 
     @patch(PATCH_BC_CLIENT)
-    async def test_max_pages_next_token(self, mock_create_client, mock_ctx):
-        """Test next_token returned when max_pages reached."""
+    async def test_max_items_next_token(self, mock_create_client, mock_ctx):
+        """Test next_token returned when max_items is reached."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
         mock_client.list_pricing_rules_associated_to_pricing_plan.return_value = {
@@ -1129,9 +1133,9 @@ class TestListPricingRulesAssociatedToPricingPlan:
             'NextToken': NEXT_TOKEN_MORE,
         }
         result = await list_pricing_rules_associated_to_pricing_plan(
-            mock_ctx, PRICING_PLAN_ARN_1, max_pages=1
+            mock_ctx, PRICING_PLAN_ARN_1, max_items=1
         )
-        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+        assert result['data']['pagination']['next_token'] == NEXT_TOKEN_MORE
 
     @patch(PATCH_BC_CLIENT)
     async def test_aws_error(self, mock_create_client, mock_ctx):
@@ -1170,12 +1174,12 @@ class TestListPricingPlansAssociatedWithPricingRule:
         )
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert PRICING_PLAN_ARN_1 in result['data']['pricing_plan_arns']
 
     @patch(PATCH_BC_CLIENT)
-    async def test_max_pages_next_token(self, mock_create_client, mock_ctx):
-        """Test next_token returned when max_pages reached."""
+    async def test_max_items_next_token(self, mock_create_client, mock_ctx):
+        """Test next_token returned when max_items is reached."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
         mock_client.list_pricing_plans_associated_with_pricing_rule.return_value = {
@@ -1183,9 +1187,9 @@ class TestListPricingPlansAssociatedWithPricingRule:
             'NextToken': NEXT_TOKEN_MORE,
         }
         result = await list_pricing_plans_associated_with_pricing_rule(
-            mock_ctx, PRICING_RULE_ARN_1, max_pages=1
+            mock_ctx, PRICING_RULE_ARN_1, max_items=1
         )
-        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+        assert result['data']['pagination']['next_token'] == NEXT_TOKEN_MORE
 
     @patch(PATCH_BC_CLIENT)
     async def test_aws_error(self, mock_create_client, mock_ctx):
@@ -1214,16 +1218,16 @@ def sample_cost_reports():
             'Arn': BILLING_GROUP_ARN_1,
             'AWSCost': '1000.00',
             'ProformaCost': '900.00',
-            'Margin': '100.00',
-            'MarginPercentage': '10.0',
+            'Margin': '-100.00',
+            'MarginPercentage': '-0.1',
             'Currency': 'USD',
         },
         {
             'Arn': BILLING_GROUP_ARN_2,
             'AWSCost': '500.00',
             'ProformaCost': '475.00',
-            'Margin': '25.00',
-            'MarginPercentage': '5.0',
+            'Margin': '-25.00',
+            'MarginPercentage': '-0.05',
             'Currency': 'USD',
         },
     ]
@@ -1237,8 +1241,8 @@ def sample_cost_report_results():
             'Arn': BILLING_GROUP_ARN_1,
             'AWSCost': '200.00',
             'ProformaCost': '180.00',
-            'Margin': '20.00',
-            'MarginPercentage': '10.0',
+            'Margin': '-20.00',
+            'MarginPercentage': '-0.1',
             'Currency': 'USD',
             'Attributes': [
                 {'Key': 'PRODUCT_NAME', 'Value': 'Amazon S3'},
@@ -1248,8 +1252,8 @@ def sample_cost_report_results():
             'Arn': BILLING_GROUP_ARN_1,
             'AWSCost': '800.00',
             'ProformaCost': '720.00',
-            'Margin': '80.00',
-            'MarginPercentage': '10.0',
+            'Margin': '-80.00',
+            'MarginPercentage': '-0.1',
             'Currency': 'USD',
             'Attributes': [
                 {'Key': 'PRODUCT_NAME', 'Value': 'Amazon EC2'},
@@ -1277,9 +1281,68 @@ class TestFormatBillingGroupCostReports:
         assert result[0]['arn'] == BILLING_GROUP_ARN_1
         assert result[0]['aws_cost'] == '1000.00'
         assert result[0]['proforma_cost'] == '900.00'
-        assert result[0]['margin'] == '100.00'
-        assert result[0]['margin_percentage'] == '10.0'
+        assert result[0]['margin'] == '-100.00'
+        assert result[0]['margin_percentage'] == '-0.1'
         assert result[0]['currency'] == 'USD'
+
+
+class TestPlainDecimalAmounts:
+    """Tests for _plain_decimal and the decimal_values field on cost report rows."""
+
+    @pytest.mark.parametrize(
+        'value,expected',
+        [
+            ('5.0E-7', '0.00000050'),
+            ('-1.2345678E7', '-12345678'),
+            ('1.0E-6', '0.0000010'),
+            ('-12.340000000000003', '-12.340000000000003'),
+            ('0.0', '0.0'),
+            ('-0.0', '-0.0'),
+            ('100', '100'),
+            (None, None),
+            ('', None),
+            (0.0, None),
+            ('not-a-number', None),
+            ('NaN', None),
+            ('Infinity', None),
+        ],
+    )
+    def test_plain_decimal_keeps_every_digit_and_never_exponent(self, value, expected):
+        """Exponent strings become exact plain decimals; digits are never rounded."""
+        assert _plain_decimal(value) == expected
+
+    def test_cost_report_row_adds_decimal_values_and_keeps_raw_strings(self):
+        """The raw service strings are unchanged; decimal_values adds the plain-notation copies."""
+        row = {
+            'Arn': BILLING_GROUP_ARN_1,
+            'AWSCost': '5.0E-7',
+            'ProformaCost': '4.0E-7',
+            'Margin': '-1.0000000000000002E-7',
+            'MarginPercentage': '-0.20000000000000004',
+            'Currency': 'USD',
+        }
+        for formatted in (
+            _format_billing_group_cost_reports([row])[0],
+            _format_billing_group_cost_report_results([row])[0],
+        ):
+            assert formatted['aws_cost'] == '5.0E-7'
+            assert formatted['margin'] == '-1.0000000000000002E-7'
+            assert formatted['decimal_values'] == {
+                'aws_cost': '0.00000050',
+                'proforma_cost': '0.00000040',
+                'margin': '-0.00000010000000000000002',
+                'margin_percentage': '-0.20000000000000004',
+            }
+
+    def test_cost_report_row_decimal_values_none_for_missing_amounts(self):
+        """A missing amount stays None in decimal_values instead of failing the row."""
+        formatted = _format_billing_group_cost_reports([{'Arn': BILLING_GROUP_ARN_1}])[0]
+        assert formatted['decimal_values'] == {
+            'aws_cost': None,
+            'proforma_cost': None,
+            'margin': None,
+            'margin_percentage': None,
+        }
 
 
 class TestFormatBillingGroupCostReportResults:
@@ -1308,8 +1371,8 @@ class TestFormatBillingGroupCostReportResults:
                 'Arn': BILLING_GROUP_ARN_1,
                 'AWSCost': '100.00',
                 'ProformaCost': '90.00',
-                'Margin': '10.00',
-                'MarginPercentage': '10.0',
+                'Margin': '-10.00',
+                'MarginPercentage': '-0.1',
                 'Currency': 'USD',
             }
         ]
@@ -1317,6 +1380,14 @@ class TestFormatBillingGroupCostReportResults:
 
         assert len(result) == 1
         assert 'attributes' not in result[0]
+
+
+def test_margin_note_states_sign_and_unit():
+    """The response note gives the margin formula and says margin_percentage is a fraction."""
+    assert 'margin = proforma_cost - aws_cost' in MARGIN_NOTE
+    assert 'margin_percentage = margin / aws_cost as a fraction, not a percent' in MARGIN_NOTE
+    assert '-0.25 means -25%' in MARGIN_NOTE
+    assert 'it is 0.0 when aws_cost is 0' in MARGIN_NOTE
 
 
 # --- List Billing Group Cost Reports Operation Tests ---
@@ -1337,11 +1408,12 @@ class TestListBillingGroupCostReports:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_billing_group_cost_reports(mock_ctx, None, None, 10, None)
+        result = await list_billing_group_cost_reports(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert len(result['data']['billing_group_cost_reports']) == 2
+        assert result['data']['margin_note'] == MARGIN_NOTE
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_cost_reports_with_billing_period(
@@ -1354,7 +1426,7 @@ class TestListBillingGroupCostReports:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_billing_group_cost_reports(mock_ctx, BILLING_PERIOD, None, 10, None)
+        result = await list_billing_group_cost_reports(mock_ctx, BILLING_PERIOD, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
         assert result['data']['billing_period'] == BILLING_PERIOD
@@ -1374,10 +1446,10 @@ class TestListBillingGroupCostReports:
         mock_create_client.return_value = mock_client
 
         filters_json = json.dumps({'BillingGroupArns': [BILLING_GROUP_ARN_1]})
-        result = await list_billing_group_cost_reports(mock_ctx, None, filters_json, 10, None)
+        result = await list_billing_group_cost_reports(mock_ctx, None, filters_json, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_cost_reports_pagination(
@@ -1396,10 +1468,10 @@ class TestListBillingGroupCostReports:
         ]
         mock_create_client.return_value = mock_client
 
-        result = await list_billing_group_cost_reports(mock_ctx, None, None, 10, None)
+        result = await list_billing_group_cost_reports(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert mock_client.list_billing_group_cost_reports.call_count == 2
 
     @patch(PATCH_BC_CLIENT)
@@ -1411,10 +1483,11 @@ class TestListBillingGroupCostReports:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_billing_group_cost_reports(mock_ctx, None, None, 10, None)
+        result = await list_billing_group_cost_reports(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 0
+        assert result['data']['pagination']['items_returned'] == 0
+        assert 'margin_note' not in result['data']
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_cost_reports_aws_error(self, mock_create_client, mock_ctx):
@@ -1426,7 +1499,7 @@ class TestListBillingGroupCostReports:
         )
         mock_create_client.return_value = mock_client
 
-        result = await list_billing_group_cost_reports(mock_ctx, None, None, 10, None)
+        result = await list_billing_group_cost_reports(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_ERROR
         assert result['error_type'] == ERROR_ACCESS_DENIED
@@ -1453,8 +1526,25 @@ class TestGetBillingGroupCostReport:
         result = await get_billing_group_cost_report(mock_ctx, BILLING_GROUP_ARN_1)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert result['data']['arn'] == BILLING_GROUP_ARN_1
+        assert result['data']['margin_note'] == MARGIN_NOTE
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_get_cost_report_empty_result_has_no_margin_note(
+        self, mock_create_client, mock_ctx
+    ):
+        """No rows means no margin to read, so the note is left out."""
+        mock_client = MagicMock()
+        mock_client.get_billing_group_cost_report.return_value = {
+            'BillingGroupCostReportResults': [],
+        }
+        mock_create_client.return_value = mock_client
+
+        result = await get_billing_group_cost_report(mock_ctx, BILLING_GROUP_ARN_1)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert 'margin_note' not in result['data']
 
     @patch(PATCH_BC_CLIENT)
     async def test_get_cost_report_with_group_by(
@@ -1521,7 +1611,7 @@ class TestGetBillingGroupCostReport:
         result = await get_billing_group_cost_report(mock_ctx, BILLING_GROUP_ARN_1)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert mock_client.get_billing_group_cost_report.call_count == 2
 
     @patch(PATCH_BC_CLIENT)
@@ -1637,12 +1727,12 @@ class TestListAccountAssociations:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_account_associations(mock_ctx, None, None, 10, None)
+        result = await list_account_associations(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 3
+        assert result['data']['pagination']['items_returned'] == 3
         assert len(result['data']['linked_accounts']) == 3
-        assert 'next_token' not in result['data']
+        assert result['data']['pagination']['next_token'] is None
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_account_associations_with_billing_period(
@@ -1655,7 +1745,7 @@ class TestListAccountAssociations:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_account_associations(mock_ctx, BILLING_PERIOD, None, 10, None)
+        result = await list_account_associations(mock_ctx, BILLING_PERIOD, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
         assert result['data']['billing_period'] == BILLING_PERIOD
@@ -1675,10 +1765,10 @@ class TestListAccountAssociations:
         mock_create_client.return_value = mock_client
 
         filters_json = json.dumps({'Association': 'MONITORED'})
-        result = await list_account_associations(mock_ctx, None, filters_json, 10, None)
+        result = await list_account_associations(mock_ctx, None, filters_json, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
 
         call_kwargs = mock_client.list_account_associations.call_args[1]
         assert call_kwargs['Filters'] == {'Association': 'MONITORED'}
@@ -1695,10 +1785,10 @@ class TestListAccountAssociations:
         mock_create_client.return_value = mock_client
 
         filters_json = json.dumps({'AccountIds': [ACCOUNT_ID_LINKED_1]})
-        result = await list_account_associations(mock_ctx, None, filters_json, 10, None)
+        result = await list_account_associations(mock_ctx, None, filters_json, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
 
         call_kwargs = mock_client.list_account_associations.call_args[1]
         assert call_kwargs['Filters'] == {'AccountIds': [ACCOUNT_ID_LINKED_1]}
@@ -1720,18 +1810,18 @@ class TestListAccountAssociations:
         ]
         mock_create_client.return_value = mock_client
 
-        result = await list_account_associations(mock_ctx, None, None, 10, None)
+        result = await list_account_associations(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert mock_client.list_account_associations.call_count == 2
-        assert 'next_token' not in result['data']
+        assert result['data']['pagination']['next_token'] is None
 
     @patch(PATCH_BC_CLIENT)
-    async def test_list_account_associations_max_pages_stops_pagination(
+    async def test_list_account_associations_max_items_stops_pagination(
         self, mock_create_client, mock_ctx, sample_linked_accounts
     ):
-        """Test that max_pages limits the number of API calls and returns next_token."""
+        """Test that max_items stops paging and returns the service next_token."""
         mock_client = MagicMock()
         mock_client.list_account_associations.return_value = {
             'LinkedAccounts': [sample_linked_accounts[0]],
@@ -1742,9 +1832,9 @@ class TestListAccountAssociations:
         result = await list_account_associations(mock_ctx, None, None, 1, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
         assert mock_client.list_account_associations.call_count == 1
-        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+        assert result['data']['pagination']['next_token'] == NEXT_TOKEN_MORE
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_account_associations_with_next_token(
@@ -1757,11 +1847,11 @@ class TestListAccountAssociations:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_account_associations(mock_ctx, None, None, 10, NEXT_TOKEN_CONTINUE)
+        result = await list_account_associations(mock_ctx, None, None, None, NEXT_TOKEN_CONTINUE)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 1
-        assert 'next_token' not in result['data']
+        assert result['data']['pagination']['items_returned'] == 1
+        assert result['data']['pagination']['next_token'] is None
 
         call_kwargs = mock_client.list_account_associations.call_args[1]
         assert call_kwargs['NextToken'] == NEXT_TOKEN_CONTINUE
@@ -1775,16 +1865,16 @@ class TestListAccountAssociations:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_account_associations(mock_ctx, None, None, 10, None)
+        result = await list_account_associations(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 0
+        assert result['data']['pagination']['items_returned'] == 0
         assert result['data']['linked_accounts'] == []
-        assert 'next_token' not in result['data']
+        assert result['data']['pagination']['next_token'] is None
 
     async def test_list_account_associations_invalid_filters(self, mock_ctx):
         """Test listing account associations with invalid filter JSON."""
-        result = await list_account_associations(mock_ctx, None, 'not-valid-json', 10, None)
+        result = await list_account_associations(mock_ctx, None, 'not-valid-json', None, None)
 
         assert result['status'] == STATUS_ERROR
 
@@ -1798,7 +1888,7 @@ class TestListAccountAssociations:
         )
         mock_create_client.return_value = mock_client
 
-        result = await list_account_associations(mock_ctx, None, None, 10, None)
+        result = await list_account_associations(mock_ctx, None, None, None, None)
 
         assert result['status'] == STATUS_ERROR
         assert result['error_type'] == ERROR_ACCESS_DENIED
@@ -1942,3 +2032,527 @@ class TestGetBillingTransferPreference:
 
         assert result['status'] == STATUS_ERROR
         assert result['error_type'] == ERROR_ACCESS_DENIED
+
+
+# --- Pagination contract: max_items / next_token ---
+
+# (operation, required kwargs, client method, response result key, data key, page size sent
+# when max_items is omitted, or None when the API has no page-size parameter)
+_LIST_OPS = [
+    (list_billing_groups, {}, 'list_billing_groups', 'BillingGroups', 'billing_groups', 100),
+    (
+        list_account_associations,
+        {},
+        'list_account_associations',
+        'LinkedAccounts',
+        'linked_accounts',
+        None,
+    ),
+    (
+        list_billing_group_cost_reports,
+        {},
+        'list_billing_group_cost_reports',
+        'BillingGroupCostReports',
+        'billing_group_cost_reports',
+        100,
+    ),
+    (
+        get_billing_group_cost_report,
+        {'arn': BILLING_GROUP_ARN_1},
+        'get_billing_group_cost_report',
+        'BillingGroupCostReportResults',
+        'billing_group_cost_report_results',
+        300,
+    ),
+    (
+        list_custom_line_items,
+        {},
+        'list_custom_line_items',
+        'CustomLineItems',
+        'custom_line_items',
+        100,
+    ),
+    (
+        list_custom_line_item_versions,
+        {'arn': CUSTOM_LINE_ITEM_ARN_1},
+        'list_custom_line_item_versions',
+        'CustomLineItemVersions',
+        'custom_line_item_versions',
+        100,
+    ),
+    (
+        list_resources_associated_to_custom_line_item,
+        {'arn': CUSTOM_LINE_ITEM_ARN_1},
+        'list_resources_associated_to_custom_line_item',
+        'AssociatedResources',
+        'associated_resources',
+        100,
+    ),
+    (list_pricing_rules, {}, 'list_pricing_rules', 'PricingRules', 'pricing_rules', 100),
+    (list_pricing_plans, {}, 'list_pricing_plans', 'PricingPlans', 'pricing_plans', 100),
+    (
+        list_pricing_rules_associated_to_pricing_plan,
+        {'pricing_plan_arn': PRICING_PLAN_ARN_1},
+        'list_pricing_rules_associated_to_pricing_plan',
+        'PricingRuleArns',
+        'pricing_rule_arns',
+        100,
+    ),
+    (
+        list_pricing_plans_associated_with_pricing_rule,
+        {'pricing_rule_arn': PRICING_RULE_ARN_1},
+        'list_pricing_plans_associated_with_pricing_rule',
+        'PricingPlanArns',
+        'pricing_plan_arns',
+        100,
+    ),
+]
+
+_LIST_OP_IDS = [op[2] for op in _LIST_OPS]
+
+
+def _page(result_key, count, token=None, start=0):
+    """Build one API page holding ``count`` items of the shape the result key carries."""
+    if result_key.endswith('Arns'):
+        items = [f'{ARN_PREFIX}:item/{i}' for i in range(start, start + count)]
+    else:
+        items = [{'Arn': f'{ARN_PREFIX}:item/{i}'} for i in range(start, start + count)]
+    page: dict = {result_key: items}
+    if token:
+        page['NextToken'] = token
+    return page
+
+
+class TestConductorPaginationContract:
+    """Each Billing Conductor list op follows the shared max_items / next_token contract."""
+
+    @pytest.mark.parametrize(
+        'operation,kwargs,method,result_key,data_key,page_size', _LIST_OPS, ids=_LIST_OP_IDS
+    )
+    @patch(PATCH_BC_CLIENT)
+    async def test_no_max_items_fetches_every_page(
+        self,
+        mock_create_client,
+        mock_ctx,
+        operation,
+        kwargs,
+        method,
+        result_key,
+        data_key,
+        page_size,
+    ):
+        """Without max_items every page is fetched at the largest page size."""
+        mock_client = MagicMock()
+        getattr(mock_client, method).side_effect = [
+            _page(result_key, 2, token='t2'),
+            _page(result_key, 0, token='t3'),  # an empty page with a token keeps going
+            _page(result_key, 1, start=2),
+        ]
+        mock_create_client.return_value = mock_client
+
+        result = await operation(mock_ctx, **kwargs)
+
+        assert result['status'] == STATUS_SUCCESS
+        data = result['data']
+        assert len(data[data_key]) == 3
+        assert data['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 3,
+        }
+        assert 'complete_dataset' not in data
+        assert 'warning' not in data
+        calls = getattr(mock_client, method).call_args_list
+        assert len(calls) == 3
+        for call in calls:
+            assert call.kwargs.get('MaxResults') == page_size
+
+    @pytest.mark.parametrize(
+        'operation,kwargs,method,result_key,data_key,page_size', _LIST_OPS, ids=_LIST_OP_IDS
+    )
+    @patch(PATCH_BC_CLIENT)
+    async def test_max_items_stops_and_returns_service_token(
+        self,
+        mock_create_client,
+        mock_ctx,
+        operation,
+        kwargs,
+        method,
+        result_key,
+        data_key,
+        page_size,
+    ):
+        """With max_items the call stops once it is reached and returns the service token."""
+        mock_client = MagicMock()
+        getattr(mock_client, method).side_effect = [_page(result_key, 3, token='svc-token')]
+        mock_create_client.return_value = mock_client
+
+        result = await operation(mock_ctx, **kwargs, max_items=3)
+
+        data = result['data']
+        assert getattr(mock_client, method).call_count == 1
+        # The page size asks for exactly the remainder, except where the service sets it or
+        # needs at least 200 (the cost report).
+        expected_size = None if page_size is None else (200 if page_size == 300 else 3)
+        assert getattr(mock_client, method).call_args.kwargs.get('MaxResults') == expected_size
+        assert len(data[data_key]) == 3
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['complete_dataset'] is False
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'svc-token',
+            'items_returned': 3,
+        }
+
+    @pytest.mark.parametrize(
+        'operation,kwargs,method,result_key,data_key,page_size', _LIST_OPS, ids=_LIST_OP_IDS
+    )
+    @patch(PATCH_BC_CLIENT)
+    async def test_continuation_sends_caller_token_and_identical_params(
+        self,
+        mock_create_client,
+        mock_ctx,
+        operation,
+        kwargs,
+        method,
+        result_key,
+        data_key,
+        page_size,
+    ):
+        """A continuation sends the caller's token first and otherwise identical params."""
+        mock_client = MagicMock()
+        getattr(mock_client, method).side_effect = [
+            _page(result_key, 1, token='svc-2'),
+            _page(result_key, 1, start=1),
+        ]
+        mock_create_client.return_value = mock_client
+
+        call_kwargs = dict(kwargs)
+        if 'billing_period' in inspect.signature(operation).parameters:
+            call_kwargs['billing_period'] = BILLING_PERIOD
+        result = await operation(mock_ctx, **call_kwargs, next_token='caller-token')
+
+        assert result['data']['pagination']['items_returned'] == 2
+        first, second = (c.kwargs for c in getattr(mock_client, method).call_args_list)
+        assert first['NextToken'] == 'caller-token'
+        assert second['NextToken'] == 'svc-2'
+        strip = {'NextToken', 'MaxResults'}
+        assert {k: v for k, v in first.items() if k not in strip} == {
+            k: v for k, v in second.items() if k not in strip
+        }
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_account_associations_stop_before_a_server_sized_page(
+        self, mock_create_client, mock_ctx
+    ):
+        """ListAccountAssociations pages hold up to 100, so 150 stops after one full page."""
+        mock_client = MagicMock()
+        mock_client.list_account_associations.side_effect = [
+            _page('LinkedAccounts', 100, token='svc-2'),
+        ]
+        mock_create_client.return_value = mock_client
+
+        result = await list_account_associations(mock_ctx, max_items=150)
+
+        assert mock_client.list_account_associations.call_count == 1
+        assert result['data']['pagination']['next_token'] == 'svc-2'
+        assert result['data']['pagination']['items_returned'] == 100
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_page_size_shrinks_to_the_remaining_items(self, mock_create_client, mock_ctx):
+        """With a page-size parameter the last page asks for exactly the remainder."""
+        mock_client = MagicMock()
+        mock_client.list_billing_groups.side_effect = [
+            _page('BillingGroups', 100, token='svc-2'),
+            _page('BillingGroups', 50, token='svc-3', start=100),
+        ]
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_groups(mock_ctx, max_items=150)
+
+        sizes = [c.kwargs['MaxResults'] for c in mock_client.list_billing_groups.call_args_list]
+        assert sizes == [100, 50]
+        assert result['data']['pagination']['items_returned'] == 150
+        assert result['data']['pagination']['next_token'] == 'svc-3'
+
+    @pytest.mark.parametrize(
+        'max_items,pages,sizes,items_returned',
+        [
+            # 300, then 150 remain: the 200 minimum could pass 450, so the call stops.
+            (450, [300], [300], 300),
+            # 300, then exactly the 200 minimum fits.
+            (500, [300, 200], [300, 200], 500),
+            # Below the minimum one page of 200 is requested and returned whole.
+            (10, [200], [200], 200),
+        ],
+    )
+    @patch(PATCH_BC_CLIENT)
+    async def test_cost_report_pages_between_200_and_300(
+        self, mock_create_client, mock_ctx, max_items, pages, sizes, items_returned
+    ):
+        """GetBillingGroupCostReport asks for 200-300 per page, sized from max_items."""
+        mock_client = MagicMock()
+        mock_client.get_billing_group_cost_report.side_effect = [
+            _page('BillingGroupCostReportResults', count, token=f'svc-{n + 2}', start=n * 300)
+            for n, count in enumerate(pages)
+        ]
+        mock_create_client.return_value = mock_client
+
+        result = await get_billing_group_cost_report(
+            mock_ctx, BILLING_GROUP_ARN_1, max_items=max_items, next_token='caller-token'
+        )
+
+        calls = [c.kwargs for c in mock_client.get_billing_group_cost_report.call_args_list]
+        assert [call['MaxResults'] for call in calls] == sizes
+        assert calls[0]['NextToken'] == 'caller-token'
+        pagination = result['data']['pagination']
+        assert pagination['items_returned'] == items_returned
+        assert pagination['next_token'] == f'svc-{len(pages) + 1}'
+
+    @pytest.mark.parametrize('code', ['ValidationException', 'InternalServerException'])
+    @patch(PATCH_BC_CLIENT)
+    async def test_cost_report_rejected_token_maps_to_invalid_next_token(
+        self, mock_create_client, mock_ctx, code
+    ):
+        """An expired or mismatched cost report token is reported as invalid_next_token."""
+        mock_client = MagicMock()
+        mock_client.get_billing_group_cost_report.side_effect = ClientError(
+            _make_client_error_response(code=code, http_status=400), 'GetBillingGroupCostReport'
+        )
+        mock_create_client.return_value = mock_client
+
+        result = await get_billing_group_cost_report(
+            mock_ctx, BILLING_GROUP_ARN_1, next_token='stale-token'
+        )
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'invalid_next_token'
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_cost_report_server_error_without_token_is_not_a_token_error(
+        self, mock_create_client, mock_ctx
+    ):
+        """InternalServerException means a stale token only when the call carried one."""
+        mock_client = MagicMock()
+        mock_client.get_billing_group_cost_report.side_effect = ClientError(
+            _make_client_error_response(code='InternalServerException', http_status=500),
+            'GetBillingGroupCostReport',
+        )
+        mock_create_client.return_value = mock_client
+
+        result = await get_billing_group_cost_report(mock_ctx, BILLING_GROUP_ARN_1)
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] != 'invalid_next_token'
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_rules_for_plan_reads_response_fields_from_first_page(
+        self, mock_create_client, mock_ctx
+    ):
+        """BillingPeriod and PricingPlanArn come from the first page of the call."""
+        mock_client = MagicMock()
+        first = _page('PricingRuleArns', 1, token='svc-2')
+        first.update({'BillingPeriod': '2025-02', 'PricingPlanArn': PRICING_PLAN_ARN_2})
+        mock_client.list_pricing_rules_associated_to_pricing_plan.side_effect = [
+            first,
+            _page('PricingRuleArns', 1, start=1),
+        ]
+        mock_create_client.return_value = mock_client
+
+        result = await list_pricing_rules_associated_to_pricing_plan(mock_ctx, PRICING_PLAN_ARN_1)
+
+        assert result['data']['billing_period'] == '2025-02'
+        assert result['data']['pricing_plan_arn'] == PRICING_PLAN_ARN_2
+        assert len(result['data']['pricing_rule_arns']) == 2
+
+
+# --- Future billing periods ---
+
+PATCH_BC_TODAY = (
+    'awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operations._utc_today'
+)
+# Pinned "today" for the future-period tests: the current billing period is 2026-10.
+TODAY = date(2026, 10, 28)
+
+# (operation, AWS method, result key, positional args before billing_period)
+CONFIG_LISTS = [
+    (list_billing_groups, 'list_billing_groups', 'BillingGroups', ()),
+    (list_account_associations, 'list_account_associations', 'LinkedAccounts', ()),
+    (list_custom_line_items, 'list_custom_line_items', 'CustomLineItems', ()),
+    (
+        list_resources_associated_to_custom_line_item,
+        'list_resources_associated_to_custom_line_item',
+        'AssociatedResources',
+        (CUSTOM_LINE_ITEM_ARN_1,),
+    ),
+    (list_pricing_rules, 'list_pricing_rules', 'PricingRules', ()),
+    (list_pricing_plans, 'list_pricing_plans', 'PricingPlans', ()),
+    (
+        list_pricing_rules_associated_to_pricing_plan,
+        'list_pricing_rules_associated_to_pricing_plan',
+        'PricingRuleArns',
+        (PRICING_PLAN_ARN_1,),
+    ),
+    (
+        list_pricing_plans_associated_with_pricing_rule,
+        'list_pricing_plans_associated_with_pricing_rule',
+        'PricingPlanArns',
+        (PRICING_RULE_ARN_1,),
+    ),
+]
+
+
+@pytest.mark.asyncio
+@patch(PATCH_BC_TODAY, return_value=TODAY)
+class TestFutureBillingPeriod:
+    """A billing period after the current UTC month is rejected or flagged."""
+
+    @pytest.mark.parametrize('period', ['2026-11', '2026-12', '2027-1', '2030-01'])
+    @patch(PATCH_BC_CLIENT)
+    async def test_cost_reports_reject_future_month(
+        self, mock_create_client, _today, mock_ctx, period
+    ):
+        """The service returns $0 rows for a future month, so it is refused before any call."""
+        result = await list_billing_group_cost_reports(mock_ctx, period)
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'validation_error'
+        assert f'billing_period {period} is after the current month (2026-10' in result['message']
+        mock_create_client.assert_not_called()
+
+    @pytest.mark.parametrize(
+        'period',
+        [None, '', '2026-10', '2026-9', '2024-01', '2026-13', 'bad', ' 2026-12', '2027-01\n'],
+    )
+    @patch(PATCH_BC_CLIENT)
+    async def test_cost_reports_current_past_or_malformed_reach_aws(
+        self, mock_create_client, _today, mock_ctx, period
+    ):
+        """Current and past months are sent; a malformed one is left to the service to reject."""
+        mock_client = MagicMock()
+        mock_client.list_billing_group_cost_reports.return_value = {'BillingGroupCostReports': []}
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_group_cost_reports(mock_ctx, period)
+
+        assert result['status'] == STATUS_SUCCESS
+        mock_client.list_billing_group_cost_reports.assert_called_once()
+
+    @pytest.mark.parametrize('start,end', [('2026-11', '2026-12'), ('2027-01', '2027-03')])
+    @patch(PATCH_BC_CLIENT)
+    async def test_cost_report_range_starting_in_future_rejected(
+        self, mock_create_client, _today, mock_ctx, start, end
+    ):
+        """A range that starts after the current month returns nothing, so it is refused."""
+        rng = json.dumps({'InclusiveStartBillingPeriod': start, 'ExclusiveEndBillingPeriod': end})
+
+        result = await get_billing_group_cost_report(mock_ctx, BILLING_GROUP_ARN_1, rng)
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'validation_error'
+        assert (
+            f'InclusiveStartBillingPeriod {start} is after the current month'
+            in (result['message'])
+        )
+        mock_create_client.assert_not_called()
+
+    @pytest.mark.parametrize(
+        'rng',
+        [
+            None,
+            {'InclusiveStartBillingPeriod': '2026-10', 'ExclusiveEndBillingPeriod': '2026-11'},
+            {'InclusiveStartBillingPeriod': '2026-09', 'ExclusiveEndBillingPeriod': '2027-01'},
+            {'ExclusiveEndBillingPeriod': '2027-01'},
+            ['2027-01'],
+        ],
+    )
+    @patch(PATCH_BC_CLIENT)
+    async def test_cost_report_range_starting_now_or_earlier_reaches_aws(
+        self, mock_create_client, _today, mock_ctx, rng
+    ):
+        """A range that starts in the current month or earlier is sent unchanged."""
+        mock_client = MagicMock()
+        mock_client.get_billing_group_cost_report.return_value = {
+            'BillingGroupCostReportResults': []
+        }
+        mock_create_client.return_value = mock_client
+
+        result = await get_billing_group_cost_report(
+            mock_ctx, BILLING_GROUP_ARN_1, json.dumps(rng) if rng else None
+        )
+
+        assert result['status'] == STATUS_SUCCESS
+        call_kwargs = mock_client.get_billing_group_cost_report.call_args[1]
+        assert call_kwargs.get('BillingPeriodRange') == rng
+
+    @pytest.mark.parametrize('op,method,key,args', CONFIG_LISTS)
+    @patch(PATCH_BC_CLIENT)
+    async def test_config_lists_flag_future_month(
+        self, mock_create_client, _today, mock_ctx, op, method, key, args
+    ):
+        """A future month is sent, and the result is marked as a projection."""
+        mock_client = MagicMock()
+        getattr(mock_client, method).return_value = {key: []}
+        mock_create_client.return_value = mock_client
+
+        result = await op(mock_ctx, *args, '2026-12')
+
+        assert result['status'] == STATUS_SUCCESS
+        assert getattr(mock_client, method).call_args[1]['BillingPeriod'] == '2026-12'
+        assert result['data']['billing_period_is_future'] is True
+        assert 'is a projection, not a record' in result['data']['billing_period_note']
+
+    @pytest.mark.parametrize('period', [None, '2026-10', '2024-01'])
+    @pytest.mark.parametrize('op,method,key,args', CONFIG_LISTS)
+    @patch(PATCH_BC_CLIENT)
+    async def test_config_lists_current_or_past_not_flagged(
+        self, mock_create_client, _today, mock_ctx, op, method, key, args, period
+    ):
+        """The current month, a past month, or no month carries no future flag."""
+        mock_client = MagicMock()
+        getattr(mock_client, method).return_value = {key: []}
+        mock_create_client.return_value = mock_client
+
+        result = await op(mock_ctx, *args, period)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert 'billing_period_is_future' not in result['data']
+        assert 'billing_period_note' not in result['data']
+
+
+@pytest.mark.parametrize(
+    'today,period,future',
+    [
+        (date(2026, 12, 31), '2027-01', True),
+        (date(2027, 1, 1), '2027-01', False),
+        (date(2027, 1, 1), '2026-12', False),
+        (date(2026, 10, 28), '2026-10', False),
+        (date(2026, 10, 28), '2026-11', True),
+        (date(2026, 10, 28), '2026-13', False),
+        (date(2026, 10, 28), '2026-00', False),
+        (date(2026, 10, 28), None, False),
+    ],
+)
+def test_is_future_billing_period_year_boundary(today, period, future):
+    """The comparison uses year then month; malformed or missing periods are never future."""
+    from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operations import (
+        _is_future_billing_period,
+    )
+
+    with patch(PATCH_BC_TODAY, return_value=today):
+        assert _is_future_billing_period(period) is future
+
+
+def test_utc_today_reads_the_utc_date():
+    """Today is the UTC date: 23:30 UTC on Oct 31 is still October wherever the host is."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        billing_conductor_operations as bco,
+    )
+
+    utc_now = datetime(2026, 10, 31, 23, 30, tzinfo=timezone.utc)
+    with patch.object(bco, 'datetime') as mock_datetime:
+        mock_datetime.now.side_effect = lambda tz=None: utc_now.astimezone(tz)
+        assert bco._current_billing_period() == '2026-10'
+        mock_datetime.now.assert_called_with(timezone.utc)

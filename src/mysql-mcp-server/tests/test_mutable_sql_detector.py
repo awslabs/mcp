@@ -1772,3 +1772,72 @@ class TestHashStripIsStringLiteralAware:
         assert check_sql_injection_risk('#x DROP TABLE t') == []
         # real statement on the next line -> blocked
         assert 'DROP' in detect_mutating_keywords('#x\nDROP TABLE t')
+
+
+# ---------------------------------------------------------------------------
+# Whitespace variant of the multi-word mutating keyword bypass
+#
+# The keyword pattern builder used re.escape over the whole phrase, so
+# re.escape('LOAD DATA') baked in a single literal space and matched only
+# ``LOAD DATA`` with exactly one space. Any other MySQL-legal separator
+# (two spaces, tab, newline) between the words slipped past the read-only
+# gate — the whitespace variant of CVE-2026-85788 (whose earlier fix only
+# normalised comments). The builder now joins words with ``\s+``.
+#
+# The gate blocks a query in read-only mode when detect_mutating_keywords
+# OR check_sql_injection_risk returns anything; _blocked mirrors that
+# exactly, so these assert on blocking, not on the canonical keyword
+# spelling (the returned token preserves the original separator).
+# ---------------------------------------------------------------------------
+
+
+def _blocked(sql: str) -> bool:
+    return bool(detect_mutating_keywords(sql)) or bool(check_sql_injection_risk(sql))
+
+
+class TestWhitespaceSeparatorBypass:
+    """Multi-word mutating keywords must block under any inter-word whitespace."""
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            "LOAD DATA INFILE 'x' INTO TABLE t",
+            "LOAD/**/DATA INFILE 'x' INTO TABLE t",
+            "LOAD  DATA INFILE 'x' INTO TABLE t",
+            "LOAD\tDATA INFILE 'x' INTO TABLE t",
+            "LOAD\nDATA INFILE 'x' INTO TABLE t",
+            "LOAD  XML INFILE 'x' INTO TABLE t",
+            'REPLACE  INTO t VALUES (1)',
+            "LOAD -- c\nDATA INFILE 'x' INTO TABLE t",
+            "LOAD #c\nDATA INFILE 'x' INTO TABLE t",
+            'LOAD  INDEX INTO CACHE t',
+        ],
+        ids=[
+            'load_data_one_space',
+            'load_data_comment',
+            'load_data_two_spaces',
+            'load_data_tab',
+            'load_data_newline',
+            'load_xml_two_spaces',
+            'replace_into_two_spaces',
+            'load_data_line_comment',
+            'load_data_hash_comment',
+            'load_index_two_spaces',
+        ],
+    )
+    def test_multiword_keyword_blocks_under_any_whitespace(self, sql):
+        """Each separator between the keyword words must still block the query."""
+        assert _blocked(sql), f'Expected blocked: {sql!r}'
+
+    def test_words_as_separate_identifiers_are_not_blocked(self):
+        r"""``LOAD`` and ``DATA`` as separate identifiers in a read must pass.
+
+        The two-word keyword's words appearing non-adjacently in a
+        legitimate read must stay allowed; the ``\s+`` widening only
+        spans whitespace between adjacent words.
+        """
+        assert not _blocked('SELECT load, data FROM t')
+
+    def test_keyword_only_in_comment_text_is_not_blocked(self):
+        """A read whose comment merely mentions ``LOAD DATA`` must pass."""
+        assert not _blocked('SELECT id FROM users /* LOAD DATA */')

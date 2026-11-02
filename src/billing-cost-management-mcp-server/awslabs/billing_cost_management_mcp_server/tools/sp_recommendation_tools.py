@@ -15,13 +15,16 @@
 """AWS Savings Plans purchase recommendation tools for the AWS Billing and Cost Management MCP server."""
 
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
+    parse_filter,
+    with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.logging_utils import get_context_logger
-from datetime import datetime
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
 
@@ -77,7 +80,19 @@ older recommendation in place with a timestamp that does not say so.
 IMPORTANT: get_savings_plans_purchase_recommendation requires savings_plans_type, term_in_years,
 payment_option, and lookback_period_in_days. None of them has a default — each changes the
 recommended commitment, so the caller must choose. Recommendations are precomputed and may be
-stale; the response carries the generation timestamp.""",
+stale; the response carries the generation timestamp. DATABASE_SP is sold only as ONE_YEAR with
+NO_UPFRONT. An empty recommendation (an unsold combination, or no eligible usage) comes with a
+message and does not mean potential savings are zero.
+
+PAGINATION (get_savings_plans_purchase_recommendation, where the items are the recommendation
+details, and list_savings_plans_purchase_recommendation_generation; the other operations take
+neither parameter):
+- max_items is the total number of items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it,
+  or narrow the filter, for queries that can be large.
+- If the response has complete_dataset: false, call again with a larger max_items, continue with
+  next_token, or state in the answer that the result is partial.""",
 )
 async def sp_recommendation(
     ctx: Context,
@@ -91,9 +106,8 @@ async def sp_recommendation(
     recommendation_detail_id: Optional[str] = None,
     generation_status: Optional[str] = None,
     recommendation_ids: Optional[List[str]] = None,
-    next_page_token: Optional[str] = None,
-    page_size: Optional[int] = None,
-    max_pages: Optional[int] = None,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Tool that retrieves AWS Savings Plans purchase recommendations.
 
@@ -101,25 +115,29 @@ async def sp_recommendation(
         ctx: The MCP context object
         operation: The operation to perform: 'get_savings_plans_purchase_recommendation', 'get_savings_plan_purchase_recommendation_details', 'start_savings_plans_purchase_recommendation_generation', or 'list_savings_plans_purchase_recommendation_generation'
         savings_plans_type: COMPUTE_SP, EC2_INSTANCE_SP, SAGEMAKER_SP, or DATABASE_SP. Required for get_savings_plans_purchase_recommendation.
+            DATABASE_SP is sold only as ONE_YEAR with NO_UPFRONT; any other term or payment option
+            returns no recommendation, which does not mean there is nothing to buy.
         term_in_years: ONE_YEAR or THREE_YEARS. Required for get_savings_plans_purchase_recommendation.
         payment_option: NO_UPFRONT, PARTIAL_UPFRONT, or ALL_UPFRONT. Required for get_savings_plans_purchase_recommendation. The API shape also accepts three
             LIGHT/MEDIUM/HEAVY_UTILIZATION values, which are Reserved Instance utilization levels and do not apply to Savings Plans.
         lookback_period_in_days: SEVEN_DAYS, THIRTY_DAYS, or SIXTY_DAYS. Required for get_savings_plans_purchase_recommendation.
         account_scope: PAYER or LINKED.
-        filter: Filter recommendations by Account ID. Includes Dimensions only,
-            with Key as LINKED_ACCOUNT and Value one or more Account IDs. AND and OR operators are
-            not supported. Applies to get_savings_plans_purchase_recommendation only.
+        filter: Filter recommendations by Account ID: a Dimensions expression with Key
+            LINKED_ACCOUNT and Values one or more Account IDs, optionally wrapped in a single Not to
+            exclude those accounts, for example
+            {"Not": {"Dimensions": {"Key": "LINKED_ACCOUNT", "Values": ["111122223333"]}}}.
+            MatchOptions, if given, must be EQUALS. And, Or, and a Not inside another Not are not
+            supported. Applies to get_savings_plans_purchase_recommendation only.
         recommendation_detail_id: Required for get_savings_plan_purchase_recommendation_details. Comes from the RecommendationDetailId field of a recommendation.
         generation_status: SUCCEEDED, PROCESSING, or FAILED. Filters list_savings_plans_purchase_recommendation_generation.
         recommendation_ids: Recommendation IDs to filter to.
-        next_page_token: The token to retrieve the next set of results. Paging is handled for you,
-            so this is only needed to resume from a token a previous call returned. A token belongs
-            to the request that produced it and to the recommendation it was generated against, so
-            it stops working once the parameters change or the recommendation is regenerated; read
-            from the first page again when that happens.
-        page_size: The number of results to return per page. Paging is handled for you, so this
-            changes how many round trips it takes rather than how much comes back.
-        max_pages: The maximum number of pages to fetch. Omitting it fetches every page.
+        max_items: Total number of items (recommendation details, or generations) to return
+            across all pages. Omit it to fetch every page. Paginated operations only.
+        next_token: The pagination.next_token from a previous response; continue with otherwise
+            identical parameters. A token belongs to the request that produced it and to the
+            recommendation it was generated against, so it stops working once the parameters
+            change or the recommendation is regenerated; read from the first page again when that
+            happens. Paginated operations only.
 
     Returns:
         Dict containing the savings plans purchase recommendation information
@@ -140,9 +158,8 @@ async def sp_recommendation(
                 lookback_period_in_days,
                 account_scope,
                 filter,
-                next_page_token,
-                page_size,
-                max_pages,
+                max_items,
+                next_token,
             )
         elif operation == 'get_savings_plan_purchase_recommendation_details':
             return await get_savings_plan_purchase_recommendation_details(
@@ -156,9 +173,8 @@ async def sp_recommendation(
                 ce_client,
                 generation_status,
                 recommendation_ids,
-                next_page_token,
-                page_size,
-                max_pages,
+                max_items,
+                next_token,
             )
         else:
             return format_response(
@@ -176,6 +192,17 @@ async def sp_recommendation(
         return await handle_aws_error(ctx, e, 'sp_recommendation', 'Cost Explorer')
 
 
+# The details list sits inside SavingsPlansPurchaseRecommendation, alongside the term, payment
+# option, and summary that give the details their meaning.
+CE_GET_SAVINGS_PLANS_PURCHASE_RECOMMENDATION = PageSpec(
+    result_key=('SavingsPlansPurchaseRecommendation', 'SavingsPlansPurchaseRecommendationDetails'),
+    token_param='NextPageToken',
+    token_key_in_response='NextPageToken',
+    page_max=6000,
+    page_size_param='PageSize',
+)
+
+
 async def get_savings_plans_purchase_recommendation(
     ctx: Context,
     ce_client: Any,
@@ -185,17 +212,13 @@ async def get_savings_plans_purchase_recommendation(
     lookback_period_in_days: Optional[str],
     account_scope: Optional[str],
     filter_expr: Optional[Dict[str, Any]],
-    next_page_token: Optional[str],
-    page_size: Optional[int],
-    max_pages: Optional[int],
+    max_items: Optional[int],
+    next_token: Optional[str],
 ) -> Dict[str, Any]:
     """Retrieves the Savings Plans recommendations for your account.
 
-    The recommendation details are paged, so this walks the pages and merges them. The shared
-    paginate_aws_response helper does not fit here: it reads a top-level key and returns that list
-    on its own, while the list this operation pages over sits inside
-    SavingsPlansPurchaseRecommendation, alongside the term, payment option, and summary that give
-    the details their meaning.
+    The recommendation details are paged, so this walks the pages and merges them into the first
+    page's recommendation.
 
     Args:
         ctx: The MCP context
@@ -209,12 +232,10 @@ async def get_savings_plans_purchase_recommendation(
             recommendations including the management account and member accounts if the value is
             set to PAYER. If the value is LINKED, recommendations are calculated for individual
             member accounts only.
-        filter_expr: Filter by Account ID with the LINKED_ACCOUNT dimension.
-        next_page_token: The token to retrieve the next set of results. AWS provides the token when
-            the response from a previous call has more results than the maximum page size.
-        page_size: The number of recommendations that you want returned in a single response
-            object.
-        max_pages: The maximum number of pages to fetch. None fetches every page.
+        filter_expr: Filter by Account ID with the LINKED_ACCOUNT dimension, optionally wrapped in a
+            single Not to exclude those accounts.
+        max_items: Total number of recommendation details to return. None fetches every page.
+        next_token: The token from a previous response.
 
     Returns:
         Dict containing the recommendation with every page of details merged
@@ -239,77 +260,49 @@ async def get_savings_plans_purchase_recommendation(
         # Add optional parameters if provided
         if account_scope:
             request_params['AccountScope'] = account_scope
-        if filter_expr:
-            request_params['Filter'] = filter_expr
-        if next_page_token:
-            request_params['NextPageToken'] = next_page_token
-        if page_size:
-            request_params['PageSize'] = page_size
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
-        # For performance timing
-        start_time = datetime.now()
-
-        all_details: list = []
-        first_page: dict = {}
-        current_token = None
-        pages_fetched = 0
-
-        while True:
-            # Only the token changes from one page to the next. The service ties a token to the
-            # rest of the request, so a page fetched with different parameters is rejected rather
-            # than answered, which is why the same request_params is reused throughout.
-            if current_token:
-                request_params['NextPageToken'] = current_token
-
-            page_info = (
-                f'Fetching GetSavingsPlansPurchaseRecommendation page {pages_fetched + 1}'
-                f'{" using next_token" if current_token else ""}'
-            )
-            await ctx_logger.info(page_info)
-
-            response = ce_client.get_savings_plans_purchase_recommendation(**request_params)
-            pages_fetched += 1
-
-            # Keep the first page whole. Every field outside the details list repeats unchanged,
-            # because a token pins the recommendation version it was generated against.
-            if pages_fetched == 1:
-                first_page = response
-
-            recommendation = response.get('SavingsPlansPurchaseRecommendation') or {}
-            # A response can carry a token while leaving the details out entirely.
-            details = recommendation.get('SavingsPlansPurchaseRecommendationDetails') or []
-            all_details.extend(details)
-            await ctx_logger.info(f'Received {len(details)} details (total: {len(all_details)})')
-
-            current_token = response.get('NextPageToken')
-
-            if not current_token:
-                await ctx_logger.info('No more pages available')
-                break
-
-            if max_pages and pages_fetched >= max_pages:
-                await ctx_logger.info(f'Reached maximum pages limit ({max_pages})')
-                break
-
-        duration_ms = (datetime.now() - start_time).total_seconds() * 1000
+        details, pages, pagination = await paginate_aws_items(
+            ctx,
+            'GetSavingsPlansPurchaseRecommendation',
+            ce_client.get_savings_plans_purchase_recommendation,
+            request_params,
+            CE_GET_SAVINGS_PLANS_PURCHASE_RECOMMENDATION,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
         # Rebuild the response the API shapes, with the merged details in place of one page of
-        # them. The top-level token is dropped because pagination reports it instead.
+        # them. Every field outside the details list (Metadata, the summary, the term and payment
+        # option) is taken from the first page fetched: it repeats unchanged on later pages
+        # because a token pins the recommendation version it was generated against. The
+        # top-level token is dropped because pagination reports it instead, and botocore's
+        # ResponseMetadata envelope is dropped because it is not part of the API's result.
+        first_page = pages[0] if pages else {}
         merged_recommendation = dict(first_page.get('SavingsPlansPurchaseRecommendation') or {})
-        merged_recommendation['SavingsPlansPurchaseRecommendationDetails'] = all_details
+        merged_recommendation['SavingsPlansPurchaseRecommendationDetails'] = details
 
-        data = {k: v for k, v in first_page.items() if k != 'NextPageToken'}
-        data['SavingsPlansPurchaseRecommendation'] = merged_recommendation
-        data['pagination'] = {
-            'complete_dataset': not current_token,
-            'pages_fetched': pages_fetched,
-            'total_results': len(all_details),
-            'has_more': bool(current_token),
-            'next_token': current_token or None,
-            'duration_ms': int(duration_ms),
+        data = {
+            k: v for k, v in first_page.items() if k not in ('NextPageToken', 'ResponseMetadata')
         }
+        data['SavingsPlansPurchaseRecommendation'] = merged_recommendation
 
-        return format_response('success', data)
+        # The API answers an unsold combination (such as DATABASE_SP with THREE_YEARS or
+        # ALL_UPFRONT) and a combination with no eligible usage alike, with an empty
+        # recommendation. Say so, so an empty list is not read as "no savings available".
+        message = None
+        if not details:
+            message = (
+                f'No Savings Plans purchase recommendation was returned for '
+                f'{savings_plans_type}, {term_in_years}, {payment_option}. Either this '
+                'combination is not sold (DATABASE_SP is sold only as ONE_YEAR with NO_UPFRONT), '
+                'or no eligible usage was found in the lookback period. This does not mean '
+                'potential savings are zero; try a supported combination or a different '
+                'lookback period before concluding there is nothing to buy.'
+            )
+
+        return format_response('success', with_pagination(data, pagination), message)
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
@@ -390,14 +383,22 @@ async def start_savings_plans_purchase_recommendation_generation(
         )
 
 
+CE_LIST_SAVINGS_PLANS_PURCHASE_RECOMMENDATION_GENERATION = PageSpec(
+    result_key='GenerationSummaryList',
+    token_param='NextPageToken',
+    token_key_in_response='NextPageToken',
+    page_max=6000,
+    page_size_param='PageSize',
+)
+
+
 async def list_savings_plans_purchase_recommendation_generation(
     ctx: Context,
     ce_client: Any,
     generation_status: Optional[str],
     recommendation_ids: Optional[List[str]],
-    next_page_token: Optional[str],
-    page_size: Optional[int],
-    max_pages: Optional[int],
+    max_items: Optional[int],
+    next_token: Optional[str],
 ) -> Dict[str, Any]:
     """Retrieves a list of your historical recommendation generations within the past 30 days.
 
@@ -406,10 +407,8 @@ async def list_savings_plans_purchase_recommendation_generation(
         ce_client: Cost Explorer client
         generation_status: The status of the recommendation generation.
         recommendation_ids: The IDs for each specific recommendation.
-        next_page_token: The token to retrieve the next set of results.
-        page_size: The number of recommendations that you want returned in a single response
-            object.
-        max_pages: The maximum number of pages to fetch. None fetches every page.
+        max_items: Total number of generations to return. None fetches every page.
+        next_token: The token from a previous response.
 
     Returns:
         Dict containing the generation history
@@ -428,25 +427,19 @@ async def list_savings_plans_purchase_recommendation_generation(
             request_params['GenerationStatus'] = generation_status
         if recommendation_ids:
             request_params['RecommendationIds'] = recommendation_ids
-        if next_page_token:
-            request_params['NextPageToken'] = next_page_token
-        if page_size:
-            request_params['PageSize'] = page_size
 
-        all_generations, pagination_metadata = await paginate_aws_response(
-            ctx=ctx,
-            operation_name='ListSavingsPlansPurchaseRecommendationGeneration',
-            api_function=ce_client.list_savings_plans_purchase_recommendation_generation,
-            request_params=request_params,
-            result_key='GenerationSummaryList',
-            token_param='NextPageToken',
-            token_key='NextPageToken',
-            max_pages=max_pages,
+        all_generations, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListSavingsPlansPurchaseRecommendationGeneration',
+            ce_client.list_savings_plans_purchase_recommendation_generation,
+            request_params,
+            CE_LIST_SAVINGS_PLANS_PURCHASE_RECOMMENDATION_GENERATION,
+            max_items=max_items,
+            next_token=next_token,
         )
 
         return format_response(
-            'success',
-            {'GenerationSummaryList': all_generations, 'pagination': pagination_metadata},
+            'success', with_pagination({'GenerationSummaryList': all_generations}, pagination)
         )
 
     except Exception as e:

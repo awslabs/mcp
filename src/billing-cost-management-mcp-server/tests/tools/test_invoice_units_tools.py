@@ -14,6 +14,7 @@
 
 """Unit tests for the invoice_units_operations and invoice_units_tools modules."""
 
+import inspect
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.invoice_units_operations import (
     batch_get_invoice_profile,
@@ -131,11 +132,12 @@ class TestListInvoiceUnits:
         assert unit['LastModified'] == '2026-05-01T00:00:00'
 
     @pytest.mark.asyncio
-    async def test_pagination_across_pages(self, mock_context, sample_unit):
-        """Multiple pages are aggregated and pagination metadata is accurate."""
+    async def test_no_max_items_fetches_every_page(self, mock_context, sample_unit):
+        """Without max_items every page is fetched at the largest page size."""
         mock_client = MagicMock()
         mock_client.list_invoice_units.side_effect = [
             {'InvoiceUnits': [sample_unit], 'NextToken': 'page-2'},
+            {'InvoiceUnits': [sample_unit], 'NextToken': 'page-3'},
             {'InvoiceUnits': [sample_unit]},
         ]
 
@@ -144,30 +146,88 @@ class TestListInvoiceUnits:
             result = await list_invoice_units(mock_context)
 
         assert result['status'] == 'success'
-        assert mock_client.list_invoice_units.call_count == 2
-        assert result['data']['pagination']['total_results'] == 2
-        assert result['data']['pagination']['has_more'] is False
+        calls = mock_client.list_invoice_units.call_args_list
+        assert len(calls) == 3
+        assert all(call.kwargs['MaxResults'] == 500 for call in calls)
+        assert [call.kwargs.get('NextToken') for call in calls] == [None, 'page-2', 'page-3']
+        assert len(result['data']['invoice_units']) == 3
+        assert result['data']['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 3,
+        }
+        assert 'warning' not in result['data']
 
     @pytest.mark.asyncio
-    async def test_max_results_and_next_token_forwarded(self, mock_context, sample_unit):
-        """max_results and next_token are forwarded to the request."""
+    async def test_max_items_stops_before_exceeding(self, mock_context, sample_unit):
+        """max_items sizes the page and stops once reached, returning the service token."""
         mock_client = MagicMock()
-        mock_client.list_invoice_units.return_value = {'InvoiceUnits': [sample_unit]}
+        mock_client.list_invoice_units.return_value = {
+            'InvoiceUnits': [sample_unit, sample_unit],
+            'NextToken': 'always-more',
+        }
 
         with patch(CREATE_CLIENT_PATH) as mock_create:
             mock_create.return_value = mock_client
+            result = await list_invoice_units(mock_context, max_items=2)
+
+        assert mock_client.list_invoice_units.call_count == 1
+        assert mock_client.list_invoice_units.call_args.kwargs['MaxResults'] == 2
+        data = result['data']
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['complete_dataset'] is False
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'always-more',
+            'items_returned': 2,
+        }
+
+    @pytest.mark.asyncio
+    async def test_continuation_sends_token_and_identical_params(self, mock_context, sample_unit):
+        """A continuation sends the caller's token and otherwise the same request."""
+        first = MagicMock()
+        first.list_invoice_units.return_value = {
+            'InvoiceUnits': [sample_unit],
+            'NextToken': 'page-2',
+        }
+        resumed = MagicMock()
+        resumed.list_invoice_units.return_value = {'InvoiceUnits': [sample_unit]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = first
+            await list_invoice_units(mock_context, max_items=1, invoice_receivers=['123456789012'])
+            mock_create.return_value = resumed
             result = await list_invoice_units(
-                mock_context, max_results=10, next_token='resume-here'
+                mock_context, max_items=1, invoice_receivers=['123456789012'], next_token='page-2'
             )
 
-        assert result['status'] == 'success'
-        call = mock_client.list_invoice_units.call_args.kwargs
-        assert call['MaxResults'] == 10
-        assert call['NextToken'] == 'resume-here'
+        first_call = first.list_invoice_units.call_args.kwargs
+        resumed_call = resumed.list_invoice_units.call_args.kwargs
+        assert resumed_call['NextToken'] == 'page-2'
+        assert 'NextToken' not in first_call
+        assert {k: v for k, v in resumed_call.items() if k != 'NextToken'} == first_call
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    @pytest.mark.asyncio
+    async def test_rejected_token_is_invalid_next_token(self, mock_context):
+        """A token the service rejects maps to invalid_next_token."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_units.side_effect = ClientError(
+            {'Error': {'Code': 'InvalidNextTokenException', 'Message': 'bad'}}, 'ListInvoiceUnits'
+        )
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await list_invoice_units(mock_context, next_token='stale')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'invalid_next_token'
 
     @pytest.mark.asyncio
     async def test_empty_results(self, mock_context):
-        """An empty result set returns success with zero total_results."""
+        """An empty result set returns success with zero items_returned."""
         mock_client = MagicMock()
         mock_client.list_invoice_units.return_value = {'InvoiceUnits': []}
 
@@ -177,7 +237,8 @@ class TestListInvoiceUnits:
 
         assert result['status'] == 'success'
         assert result['data']['invoice_units'] == []
-        assert result['data']['pagination']['total_results'] == 0
+        assert result['data']['pagination']['items_returned'] == 0
+        assert result['data']['pagination']['complete_dataset'] is True
 
     @pytest.mark.asyncio
     async def test_api_client_error(self, mock_context):
@@ -431,3 +492,92 @@ class TestInvoiceUnitsRouting:
 
         assert result['status'] == 'error'
         assert 'not_a_real_operation' in result['data']['message']
+
+
+async def _published_description():
+    """The `invoice_units` tool description as an MCP client receives it."""
+    import fastmcp
+    from awslabs.billing_cost_management_mcp_server.tools.invoice_units_tools import (
+        invoice_units_server,
+    )
+
+    async with fastmcp.Client(invoice_units_server) as client:
+        published = {t.name: t for t in await client.list_tools()}
+        assert 'invoice-units' in published, (
+            f'the invoice-units tool is no longer published; found {sorted(published)}'
+        )
+        return published['invoice-units'].description or ''
+
+
+class TestAccountsFilterDoesNotOverclaim:
+    """The `accounts` filter's scope is stated without claiming what is unproven.
+
+    The filter was described as a global search across the receiver, linked
+    and bill-source positions. AWS's Filters reference says an `Accounts`
+    value is "matched with either the receiver or the linked accounts in the
+    rules", which does not cover bill sources -- so a model reading the old
+    text treats an empty result as proof and answers "that account is in no
+    invoice unit" for an account that is a bill source of one.
+
+    The fix states what an empty result does NOT establish, and stops there.
+    It deliberately does not assert that `accounts` fails to match a bill
+    source, because that has not been shown: telling the two apart needs an
+    invoice unit where an account is a bill source while being neither the
+    receiver nor a linked account, and no such unit was available to test.
+    The two errors are not symmetric. Over-promising sends a model looking
+    in one more place than it needs. Denying a match that can happen makes a
+    model explain away a correct hit, which is worse, so the denial stays out
+    until it is demonstrated.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_global_search_claim_is_gone(self):
+        """The old wording is what invited reading an empty result as proof."""
+        description = await _published_description()
+
+        assert 'global search' not in description
+        assert 'OR a bill-source account' not in description
+
+    @pytest.mark.asyncio
+    async def test_an_empty_result_is_not_claimed_to_be_proof(self):
+        """This is the inference the old wording invited, now refused."""
+        description = await _published_description()
+
+        assert 'NOT proof that the account belongs to no invoice unit' in description
+        assert 'BILL SOURCE' in description
+
+    @pytest.mark.asyncio
+    async def test_it_names_where_to_look_instead(self):
+        """A warning with no alternative leaves a model no legal next step."""
+        description = await _published_description()
+
+        assert '`bill_source_accounts` filters on' in description
+        assert '`Rule.BillSourceAccounts` names' in description
+
+    @pytest.mark.asyncio
+    async def test_no_unproven_denial_is_reinstated(self):
+        """The guard that matters: nobody may re-add the undemonstrated claim.
+
+        If a later change shows live that `accounts` cannot match a bill
+        source, this test is the one to delete, in the same commit as the
+        evidence.
+        """
+        description = await _published_description()
+
+        for denial in (
+            'does NOT match bill-source',
+            'does not match bill-source',
+            'not against bill-source accounts',
+            "receiver and the rule's linked accounts only",
+        ):
+            assert denial not in description, f'reinstated an unproven claim: {denial!r}'
+
+    @pytest.mark.asyncio
+    async def test_the_parameter_docstrings_agree_with_the_description(self):
+        """A router docstring that still over-promises is read by humans."""
+        from awslabs.billing_cost_management_mcp_server.tools import invoice_units_tools
+
+        source = inspect.getsource(invoice_units_tools)
+
+        assert 'Global-search filter across receiver, linked, and bill-source' not in source
+        assert source.count('does not establish that the account belongs to no invoice') >= 2

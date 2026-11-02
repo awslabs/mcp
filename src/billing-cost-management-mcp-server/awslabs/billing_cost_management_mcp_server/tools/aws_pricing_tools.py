@@ -18,6 +18,7 @@ Updated to use shared utility functions.
 """
 
 from ..utilities.aws_service_base import format_response, handle_aws_error
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 
 # Import operation handlers from local module
 from .aws_pricing_operations import (
@@ -59,13 +60,24 @@ IMPORTANT GUIDELINES:
 - Providing less information is better than giving incorrect information
 - Price list APIs can return large data volumes. Use narrower filters to retrieve less data when possible
 - Service codes often differ from AWS console names (e.g., 'AmazonES' for OpenSearch)
+- Prices are public list rates (On-Demand, and Reserved Instance terms where the service has them). They do not reflect Savings Plans or Reserved Instance coverage, Enterprise Discount Program (EDP) or other private pricing, or credits, so they are not what an account pays; use cost-explorer for actual cost
+- When get_pricing_from_api returns more than one product, the response lists varying_attributes (the attributes that tell the products apart; on a response offloaded to SQL, found in its first 1000 products) and a hint. Quote the product that matches the case, not the first one or an average
 
 ARGS:
       ctx: The MCP context object
       operation: The pricing operation to perform ('get_service_codes', 'get_service_attributes', 'get_attribute_values', 'get_pricing_from_api')
       service_code: AWS service code (e.g., 'AmazonEC2', 'AmazonS3', 'AmazonES'). Required for get_service_attributes, get_attribute_values, and get_pricing_from_api operations.
       attribute_name: Attribute name (e.g., 'instanceType', 'location', 'storageClass'). Required for get_attribute_values operation.
-      filters: Optional filters for pricing queries. Format: {'instanceType': 't3.medium', 'location': 'US East (N. Virginia)'}
+      filters: Optional filters for pricing queries, as a JSON object or list. Object format: {'instanceType': 'm5.large', 'regionCode': 'us-east-1', 'operatingSystem': 'Linux', 'tenancy': 'Shared', 'preInstalledSw': 'NA', 'capacitystatus': 'Used'} returns one product, Linux m5.large in us-east-1: its terms.OnDemand entry is the on-demand price and terms.Reserved holds its Reserved Instance prices. Each attribute you leave out multiplies the products: instanceType and region alone return about 100 EC2 products (other operating systems, tenancies, pre-installed SQL Server, capacity reservation states), each priced separately, some at $0.00. In the object format, a string or number must equal the whole attribute value, ignoring case (TERM_MATCH), so a comma-separated string usually matches nothing. A list such as {'instanceType': ['m5.large', 'm5.xlarge']} matches any of its values (ANY_OF). For the other match types, use the API's list format: [{'Field': 'instanceType', 'Type': 'NONE_OF', 'Value': 'm5.large,m5.xlarge'}]. Type is TERM_MATCH or EQUALS (whole value, case-insensitive), CONTAINS (substring), ANY_OF or NONE_OF (Value is a comma-separated string or a list). NONE_OF also returns products that do not have the field (for example EBS volumes for instanceType), so pair it with productFamily or another filter. ANY_OF and NONE_OF split on commas, so a value that contains a comma needs TERM_MATCH, EQUALS or CONTAINS. 'location' takes the Price List location name ('US East (N. Virginia)', 'EU (Ireland)'), not a region code. To filter by a region code such as 'us-east-1', use 'regionCode' when get_service_attributes lists it for the service (most services do). Services that list only 'location' take its values as get_attribute_values returns them (for example AWSBudgets, location 'Any'); AWSDataTransfer lists neither and uses fromRegionCode/toRegionCode. An unknown field or value returns no products, not an error.
+      max_items: Total items to return (get_service_codes, get_attribute_values, get_pricing_from_api). If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow filters, for queries that can be large: an unfiltered get_pricing_from_api call can return hundreds of thousands of products.
+      next_token: The pagination.next_token from a previous response of the same operation, to continue where it stopped. Send every other parameter unchanged.
+
+PAGINATION:
+- A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token, or state in the answer that the result is partial.
+- total_products_found counts only the products in that response, not earlier or later pages. get_service_codes and get_attribute_values return values in the order the service returns them, which is consistent across pages.
+- get_service_attributes is not paginated and ignores max_items and next_token.
 
 RETURNS:
         Dict containing the pricing information""",
@@ -76,7 +88,8 @@ async def aws_pricing(
     service_code: Optional[str] = None,
     attribute_name: Optional[str] = None,
     filters: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """AWS pricing analysis tool.
 
@@ -85,8 +98,9 @@ async def aws_pricing(
         operation: The pricing operation to perform ('get_service_codes', 'get_service_attributes', 'get_attribute_values', 'get_pricing_from_api')
         service_code: AWS service code (e.g., 'AmazonEC2', 'AmazonS3', 'AmazonES'). Required for get_service_attributes, get_attribute_values, and get_pricing_from_api operations.
         attribute_name: Attribute name (e.g., 'instanceType', 'location', 'storageClass'). Required for get_attribute_values operation.
-        filters: Optional filters for pricing queries as a JSON string. Format: '{"instanceType": "t3.medium", "location": "US East (N. Virginia)"}'
-        max_results: Maximum number of results to return (optional)
+        filters: Optional filters for pricing queries as a JSON string: an object of whole-value, case-insensitive matches, where a list value matches any of its values ('{"instanceType": ["m5.large", "m5.xlarge"], "regionCode": "us-east-1"}'), or the API's list of {"Field", "Type", "Value"} filters.
+        max_items: Total items to return for the paginated operations. None fetches every page.
+        next_token: Continuation token from a previous response of the same operation.
 
     Returns:
         Dict containing the pricing information
@@ -95,7 +109,7 @@ async def aws_pricing(
         await ctx.info(f'AWS Pricing operation: {operation}')
 
         if operation == 'get_service_codes':
-            return await get_service_codes(ctx, max_results=max_results)
+            return await get_service_codes(ctx, max_items=max_items, next_token=next_token)
 
         elif operation == 'get_service_attributes':
             if not service_code:
@@ -120,7 +134,7 @@ async def aws_pricing(
                     service=AWS_PRICING_SERVICE_NAME,
                 )
             return await get_attribute_values(
-                ctx, service_code, attribute_name, max_results=max_results
+                ctx, service_code, attribute_name, max_items=max_items, next_token=next_token
             )
 
         elif operation == 'get_pricing_from_api':
@@ -132,7 +146,9 @@ async def aws_pricing(
                     operation=operation,
                     service=AWS_PRICING_SERVICE_NAME,
                 )
-            return await get_pricing_from_api(ctx, service_code, filters, max_results=max_results)
+            return await get_pricing_from_api(
+                ctx, service_code, filters, max_items=max_items, next_token=next_token
+            )
 
         else:
             return format_response(

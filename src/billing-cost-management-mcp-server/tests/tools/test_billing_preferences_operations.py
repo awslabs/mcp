@@ -127,7 +127,7 @@ class TestRequestParameters:
                 mock_context,
                 features='CREDIT_PREFERENCE_OPTIONS',
                 filters='[{"name": "PREFERENCE_KEY", "value": ["credit/4242"]}]',
-                max_results=25,
+                max_items=25,
                 next_token='resume-here',
             )
 
@@ -135,20 +135,15 @@ class TestRequestParameters:
         assert result['status'] == 'success'
 
     @pytest.mark.asyncio
-    async def test_omitted_max_results_sends_no_page_size(self, mock_context):
-        """Passing None omits maxResults so the service applies its own default."""
-        client = _client()
-        stubber = Stubber(client)
-        stubber.activate()
-        stubber.add_response(
-            'get_billing_preferences',
-            {'billingPreferences': list(ORG_ROWS)},
-            {'features': ['RI_SHARING']},
+    async def test_small_max_items_requests_only_that_many(self, mock_context):
+        """A max_items below the page maximum asks the service for exactly that many rows."""
+        client, stubber = _stub(
+            {'billingPreferences': list(ORG_ROWS)}, {'features': ['RI_SHARING'], 'maxResults': 10}
         )
 
         with patch(CREATE_CLIENT_PATH, return_value=client):
             result = await get_billing_preferences(
-                mock_context, features='RI_SHARING', max_results=None
+                mock_context, features='RI_SHARING', max_items=10
             )
 
         stubber.assert_no_pending_responses()
@@ -252,51 +247,85 @@ class TestPagination:
         assert len(result['data']['billing_preferences']) == 2
 
     @pytest.mark.asyncio
-    async def test_max_pages_stops_early_and_reports_more(self, mock_context):
-        """Stopping at the page limit is reported rather than looking complete."""
+    async def test_max_items_stops_early_and_reports_more(self, mock_context):
+        """Stopping at max_items is reported rather than looking complete."""
         client, stubber = _stub(
             {'billingPreferences': [ORG_ROWS[0]], 'nextToken': 'page-2'},
-            {'features': ['RI_SHARING']},
+            {'features': ['RI_SHARING'], 'maxResults': 1},
         )
 
         with patch(CREATE_CLIENT_PATH, return_value=client):
             result = await get_billing_preferences(
-                mock_context, features='RI_SHARING', max_pages=1
+                mock_context, features='RI_SHARING', max_items=1
             )
 
         stubber.assert_no_pending_responses()
-        assert result['data']['pagination']['has_more'] is True
+        data = result['data']
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'page-2',
+            'items_returned': 1,
+        }
 
     @pytest.mark.asyncio
-    async def test_default_page_cap_bounds_an_unbounded_organization(self, mock_context):
-        """A very large result set stops at the default cap and says so.
-
-        The cap keeps one call from filling the agent's context, and the
-        pagination block carries has_more plus the resume token so the truncation
-        cannot be mistaken for the whole list.
-        """
+    async def test_continuation_sends_caller_token_and_identical_params(self, mock_context):
+        """A continuation starts from the caller's token and repeats every other parameter."""
+        filters = [{'name': 'PREFERENCE_KEY', 'value': ['credit/4242']}]
+        base = {'features': ['CREDIT_PREFERENCE_OPTIONS'], 'filters': filters, 'maxResults': 50}
         client = _client()
         stubber = Stubber(client)
         stubber.activate()
-        # Every page offers another, so only the cap can end the loop.
-        for page in range(5):
+        stubber.add_response(
+            'get_billing_preferences',
+            {'billingPreferences': [ORG_ROWS[0]], 'nextToken': 'page-3'},
+            {**base, 'nextToken': 'caller-token'},
+        )
+        stubber.add_response(
+            'get_billing_preferences',
+            {'billingPreferences': [ORG_ROWS[1]]},
+            {**base, 'nextToken': 'page-3'},
+        )
+
+        with patch(CREATE_CLIENT_PATH, return_value=client):
+            result = await get_billing_preferences(
+                mock_context,
+                features='CREDIT_PREFERENCE_OPTIONS',
+                filters='[{"name": "PREFERENCE_KEY", "value": ["credit/4242"]}]',
+                next_token='caller-token',
+            )
+
+        stubber.assert_no_pending_responses()
+        assert result['data']['pagination']['items_returned'] == 2
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    @pytest.mark.asyncio
+    async def test_no_max_items_fetches_every_page(self, mock_context):
+        """Without max_items every page is fetched, however many there are."""
+        client = _client()
+        stubber = Stubber(client)
+        stubber.activate()
+        for page in range(6):
             params = {'features': ['RI_SHARING'], 'maxResults': 50}
             if page:
                 params['nextToken'] = f'page-{page}'
-            stubber.add_response(
-                'get_billing_preferences',
-                {'billingPreferences': [ORG_ROWS[0]], 'nextToken': f'page-{page + 1}'},
-                params,
-            )
+            response: dict = {'billingPreferences': [ORG_ROWS[0]]}
+            if page < 5:
+                response['nextToken'] = f'page-{page + 1}'
+            stubber.add_response('get_billing_preferences', response, params)
 
         with patch(CREATE_CLIENT_PATH, return_value=client):
             result = await get_billing_preferences(mock_context, features='RI_SHARING')
 
         stubber.assert_no_pending_responses()
-        pagination = result['data']['pagination']
-        assert pagination['pages_fetched'] == 5
-        assert pagination['has_more'] is True
-        assert pagination['next_token'] == 'page-5'
+        assert 'warning' not in result['data']
+        assert result['data']['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 6,
+        }
 
 
 class TestErrorHandling:

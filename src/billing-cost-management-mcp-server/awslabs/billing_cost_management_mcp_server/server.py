@@ -40,6 +40,9 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_preferences_tools 
     billing_preferences_server,
 )
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import budget_server
+from awslabs.billing_cost_management_mcp_server.tools.business_support_tools import (
+    business_support_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.bvs_tools import bvs_server
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automation_tools import (
     compute_optimizer_automation_server,
@@ -164,62 +167,29 @@ mcp = FastMCP(
     name='billing-cost-management-mcp',
     instructions="""AWS Billing and Cost Management MCP Server - Provides AWS cost optimization tools and prompts through MCP.
 
-When using these tools, always:
-1. Use UnblendedCost metric by default
-2. Exclude Credits and Refunds by default
+Unless the user or the host's instructions specify otherwise:
+1. Use the UnblendedCost metric. If `metrics` is omitted, the tool returns UnblendedCost
+2. Report net cost, with credits and refunds included
 3. Be concise and focus on essential information first
-4. For optimization queries, focus on top 2-3 highest impact recommendations
-
-Available components:
-
-TOOLS:
-- cost-explorer: Historical cost and usage data with flexible filtering
-- compute-optimizer: Performance optimization recommendations to identify under provisioned AWS compute resources like EC2, Lambda, ASG, RDS, ECS
-- compute-optimizer-automation: Compute Optimizer Automation rules, events, recommended actions, and rule previews (implementing Compute Optimizer recommendations automatically via rules or on demand)
-- cost-optimization: Cost optimization recommendations across AWS services
-- storage-lens: Query S3 Storage Lens metrics data using Athena SQL
-- athena-cur: Query Cost and Usage Report data through Athena
-- pricing: Access AWS service pricing information
-- bcm-pricing-calc: Work with workload estimates from AWS Billing and Cost Management Pricing Calculator
-- budget: Retrieve AWS budget information
-- cost-anomaly: Identify cost anomalies in AWS accounts
-- cost-comparison: Compare costs between time periods
-- free-tier-usage: Monitor AWS Free Tier usage
-- rec-details: Get enhanced cost optimization recommendations
-- ri-performance: Analyze Reserved Instance coverage and utilization
-- sp-performance: Analyze Savings Plans coverage and utilization
-- sp-explorer: Describe the Savings Plans an account owns, including queued, returned, and payment-failed plans that Cost Explorer does not report, plus rates on owned plans and the offerings available to purchase
-- sp-recommendation: Get Savings Plans purchase recommendations, the hourly data-points behind one, and the recommendation generation history
-- sp-purchase-analyzer: Run Savings Plans Purchase Analyzer what-if analyses (max savings, custom commitment, target average coverage) and retrieve their results
-- session-sql: Execute SQL queries on the session database
-- billing-conductor: AWS Billing Conductor tools for AWS Proforma billing (billing groups and associated accounts and cost reports, pricing rules/plans, custom line items, billing transfer preferences)
-- billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy, list-billing-view-segments)
-- cost-allocation-tags: List cost allocation tags and backfill history (list-cost-allocation-tags, list-cost-allocation-tag-backfill-history)
-- cost-category: Describe and list cost category definitions (describe-cost-category-definition, list-cost-category-definitions)
-- invoicing: AWS Invoicing data — invoice summaries with amounts, tax, discounts/fees, currency/FX, due dates, PO numbers, and credit memos (operation: list_invoice_summaries)
-- credits: AWS Billing credits — credit balance, expiration, product applicability, sharing configuration, and the per-service allocation ledger (operations: get_credits, get_credit_allocation_history)
-- enterprise-support: AWS Enterprise Support charge data for a closed billing period — the Support charge and the Support-eligible spend it was calculated from, the contract terms that govern how the charge is allocated, and the per-linked-account breakdown (operations: get_charge_summary, get_contract_details, list_linked_account_charges)
-
-PROMPTS:
-- savings_plans: Analyzes AWS usage and identifies opportunities for Savings Plans purchases
-- graviton_migration: Analyzes EC2 instances and identifies opportunities to migrate to AWS Graviton processors
+4. For optimization queries, lead with the highest-impact recommendations; when truncating, state how many were omitted and their combined savings
 
 For financial analysis:
-1. Start with a high-level view of costs using cost-explorer with SERVICE dimension
-2. Look for cost optimization opportunities with compute-optimizer or cost-optimization
+1. Start with a high-level view of costs using cost-explorer with the SERVICE dimension
+2. Look for cost optimization opportunities with cost-optimization or compute-optimizer
 3. For S3-specific optimizations, use storage-lens
-4. For budget monitoring, use the budget tool
-5. For anomaly detection, use the cost-anomaly tool
+4. For budget monitoring, use budgets
+5. For anomaly detection, use cost-anomaly; use cost-anomaly-monitors to find monitor ARNs and see who is alerted
 
 For optimization recommendations:
-1. Use cost-optimization to get recommendations for cost optimization across services. This includes including Idle resources, Rightsizing for savings, RI/SP.
-2. Use rec-details for enhanced recommendation analysis for specific cost optimization recommendations.
-3. Use compute-optimizer to get performance optimization recommendations for compute resources such as EC2, ECS, EBS, Lambda, RDS, ASG.
-4. Use ri-performance and sp-performance to analyze purchase programs
+1. Use cost-optimization for cost savings recommendations across services, including idle resources, rightsizing, Graviton migration, and Savings Plans / Reserved Instances purchases.
+2. Use cost-optimization `get_recommendation` for one Cost Optimization Hub recommendation; use rec-details only when Compute Optimizer and Cost Explorer enrichment is wanted.
+3. Use compute-optimizer for performance-based recommendations for compute resources such as EC2, ECS, EBS, Lambda, RDS, and Auto Scaling groups.
+4. Use ri-performance and sp-performance to analyze existing Reserved Instances and Savings Plans.
 
 For multi-account environments:
-- Include the LINKED_ACCOUNT dimension in cost_explorer queries
-- Specify accountIds parameter for compute-optimizer and cost-optimization tools
+- Include the LINKED_ACCOUNT dimension in cost-explorer queries
+- compute-optimizer takes `account_ids` as a JSON array with one account ID per call; make one call per account
+- cost-optimization takes accounts in `filters`, e.g. '{"accountIds": ["123456789012"]}'; its top-level `account_id` applies only to `list_enrollment_statuses`
 """,
 )
 
@@ -268,62 +238,11 @@ def setup():
     mcp.mount(credits_server)
     mcp.mount(billing_preferences_server)
     mcp.mount(enterprise_support_server)
+    mcp.mount(business_support_server)
 
     register_prompts()
 
     logger.info('AWS Billing and Cost Management MCP Server initialized successfully')
-
-    logger.info('Available tools:')
-    tools = [
-        'cost-explorer',
-        'compute-optimizer',
-        'compute-optimizer-automation',
-        'cost-optimization',
-        'storage-lens',
-        'pricing',
-        'bcm-pricing-calc',
-        'budget',
-        'cost-anomaly',
-        'cost-comparison',
-        'free-tier-usage',
-        'rec-details',
-        'ri-performance',
-        'sp-performance',
-        'sp-explorer',
-        'sp-recommendation',
-        'sp-purchase-analyzer',
-        'session-sql',
-        'list-billing-groups',
-        'list-billing-group-cost-reports',
-        'get-billing-group-cost-report',
-        'list-account-associations',
-        'list-pricing-plans',
-        'list-pricing-rules',
-        'list-pricing-rules-for-plan',
-        'list-pricing-plans-for-rule',
-        'list-custom-line-items',
-        'list-custom-line-item-versions',
-        'list-resources-associated-to-custom-line-item',
-        'get-billing-transfer-preference',
-        'get-billing-view',
-        'list-billing-views',
-        'list-source-views-for-billing-view',
-        'get-resource-policy',
-        'list-cost-allocation-tags',
-        'list-cost-allocation-tag-backfill-history',
-        'describe-cost-category-definition',
-        'list-cost-category-definitions',
-        'invoicing',
-        'get-billing-preferences',
-        'list-billing-view-segments',
-    ]
-    for tool in tools:
-        logger.info(f'- {tool}')
-
-    logger.info('Available prompts:')
-    prompts = ['savings_plans_analysis', 'graviton_analysis']
-    for prompt in prompts:
-        logger.info(f'- {prompt}')
 
 
 def main():

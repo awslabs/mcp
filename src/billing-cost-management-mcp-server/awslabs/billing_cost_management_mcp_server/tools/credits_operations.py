@@ -21,12 +21,16 @@ and returns a standardized response envelope.
 """
 
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
+    paginate_aws_items,
+    with_pagination,
 )
 from ..utilities.sql_utils import convert_response_if_needed
 from ..utilities.time_utils import (
+    format_timestamp_to_utc_iso,
     timestamp_to_utc_iso_string,
     utc_datetime_string_to_epoch_seconds,
 )
@@ -34,7 +38,7 @@ from botocore.exceptions import ClientError
 from calendar import monthrange
 from datetime import datetime, timezone
 from fastmcp import Context
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 
 # CreditData fields that AWS returns as timestamps. We normalize these to
@@ -51,6 +55,19 @@ MAX_ALLOCATION_HISTORY_SECONDS = 63072000
 # limit than the allocation ledger's. 365 days is used rather than a calendar
 # year because it is never wider than the limit, including across a leap day.
 MAX_CREDITS_LOOKBACK_SECONDS = 31536000
+
+# GetCreditAllocationHistory accepts maxResults up to 1,000 but clamps a page to 500 ledger rows,
+# and it only ends a page at a bill boundary, so a page can hold more rows than maxResults. The
+# helper keeps such an oversized page.
+GET_CREDIT_ALLOCATION_HISTORY_PAGE_SPEC = PageSpec(
+    result_key='creditAllocationHistoryList',
+    token_param='nextToken',
+    token_key_in_response='nextToken',
+    page_max=500,
+    page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
+)
 
 # IAM action required by each operation, used to build an actionable message
 # when the caller's policy is missing it.
@@ -69,24 +86,90 @@ def _create_billing_client() -> Any:
     return create_aws_client('billing')
 
 
-def _normalize_credit_data(credit: Dict[str, Any]) -> Dict[str, Any]:
+def _utc_now() -> datetime:
+    """Return the current UTC time, truncated to whole seconds.
+
+    Returns:
+        Timezone-aware current UTC time.
+    """
+    return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def _read_credit_date(value: Any) -> Tuple[bool, Optional[datetime]]:
+    """Read a CreditData timestamp of any wire form.
+
+    Parsing is delegated to ``format_timestamp_to_utc_iso``, which accepts
+    datetimes (naive taken as UTC), epoch seconds or milliseconds, and their
+    string forms, so the date shown and the date classified always agree.
+
+    Args:
+        value: The raw timestamp value.
+
+    Returns:
+        Tuple of (present, moment). ``present`` is False for None or a blank
+        string. ``moment`` is the UTC datetime, or None when the value is absent
+        or present but unreadable.
+    """
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return False, None
+    iso = format_timestamp_to_utc_iso(value)
+    return True, (datetime.fromisoformat(iso).replace(tzinfo=timezone.utc) if iso else None)
+
+
+def _credit_validity_status(
+    dates: Dict[str, Tuple[bool, Optional[datetime]]], now: datetime
+) -> str:
+    """Classify a credit as active, expired or not yet active at ``now``.
+
+    GetCredits can return credits that have already expired, which keep their
+    ``remainingAmount`` and a ``creditStatus`` of ``ENABLED``, and credits whose
+    ``startDate`` is still ahead, so neither field says whether the balance can be
+    used now. ``endDate`` is the expiration date, so a credit is treated as expired
+    once it is reached. A readable date that settles the
+    status wins; otherwise a date that is present but unreadable gives ``UNKNOWN``
+    rather than a guess, so it is never counted as usable by default. A credit
+    with no ``endDate`` is treated as not expiring.
+
+    Args:
+        dates: ``_read_credit_date`` results keyed by field name.
+        now: The evaluation time.
+
+    Returns:
+        ``EXPIRED``, ``NOT_YET_ACTIVE``, ``UNKNOWN`` or ``ACTIVE``.
+    """
+    end_present, end = dates['endDate']
+    start_present, start = dates['startDate']
+    if end is not None and end <= now:
+        return 'EXPIRED'
+    if start is not None and start > now:
+        return 'NOT_YET_ACTIVE'
+    if (end_present and end is None) or (start_present and start is None):
+        return 'UNKNOWN'
+    return 'ACTIVE'
+
+
+def _normalize_credit_data(credit: Dict[str, Any], now: datetime) -> Dict[str, Any]:
     """Normalize a raw CreditData item for agent consumption.
 
-    Converts the epoch timestamp fields (``startDate``, ``endDate`` and
-    ``exhaustDate``) into human-readable strings. All other fields are returned
-    exactly as provided by the AWS API to preserve fidelity, so monetary
-    amounts remain decimal strings.
+    Adds the derived ``validityStatus`` (see ``_credit_validity_status``) and
+    converts the timestamp fields (``startDate``, ``endDate`` and ``exhaustDate``)
+    into UTC ISO 8601 strings. A date that cannot be read is left as returned
+    rather than dropped. All other fields are returned exactly as provided by the
+    AWS API to preserve fidelity, so monetary amounts remain decimal strings.
 
     Args:
         credit: A single ``CreditData`` object from the Billing API.
+        now: The time ``validityStatus`` is evaluated at.
 
     Returns:
-        The credit with its timestamp fields converted to ISO 8601 strings.
+        The credit with ``validityStatus`` added and its readable timestamp
+        fields converted to ISO 8601 strings.
     """
-    for field in _CREDIT_TIMESTAMP_FIELDS:
-        value = credit.get(field)
-        if value is not None and not isinstance(value, str):
-            credit[field] = timestamp_to_utc_iso_string(value)
+    dates = {field: _read_credit_date(credit.get(field)) for field in _CREDIT_TIMESTAMP_FIELDS}
+    credit['validityStatus'] = _credit_validity_status(dates, now)
+    for field, (_, moment) in dates.items():
+        if moment is not None:
+            credit[field] = timestamp_to_utc_iso_string(moment)
     return credit
 
 
@@ -203,7 +286,7 @@ def _build_get_credit_allocation_history_time_range(
 ) -> Dict[str, Any]:
     """Describe the window actually queried alongside the one requested.
 
-    Reporting both makes a narrowed window visible to the agent so a clamped
+    Reporting both makes a limited window visible to the agent so a limited
     result is never mistaken for a complete one.
 
     Args:
@@ -218,7 +301,7 @@ def _build_get_credit_allocation_history_time_range(
     return {
         'start_date': timestamp_to_utc_iso_string(start_epoch),
         'end_date': timestamp_to_utc_iso_string(end_epoch),
-        'narrowed_from_request': (start_epoch != requested_start or end_epoch != requested_end),
+        'limited_from_request': (start_epoch != requested_start or end_epoch != requested_end),
         'requested_start_date': timestamp_to_utc_iso_string(requested_start),
         'requested_end_date': timestamp_to_utc_iso_string(requested_end),
         'max_range_months': 24,
@@ -314,69 +397,44 @@ async def _paginate_get_credit_allocation_history(
     ctx: Context,
     client: Any,
     request_params: Dict[str, Any],
-    max_results: Optional[int],
+    max_items: Optional[int],
     next_token: Optional[str],
-    max_pages: Optional[int],
 ) -> tuple:
-    """Page the allocation ledger with the SDK paginator, keeping completeness flags.
+    """Page the allocation ledger, keeping the service's completeness flags.
 
-    The SDK declares ``partialResults`` and ``failedMonths`` as non-aggregate keys, so
-    they appear on each page rather than being summed. Both are combined across pages
-    here, because a total computed over an incomplete ledger would otherwise read as
-    authoritative.
-
-    The resume point is read from the page the caller stopped on rather than from the
-    iterator, because the SDK only populates its own resume token when it applies its
-    internal item limit, never when a consumer breaks out of the loop.
+    Each page carries its own ``partialResults`` and ``failedMonths``. Both are
+    combined across the pages kept, because a total computed over an incomplete
+    ledger would otherwise read as authoritative.
 
     Args:
         ctx: The MCP context object.
         client: The billing client.
         request_params: Operation parameters, without paging controls.
-        max_results: Items per page, or None for the service default.
+        max_items: Most rows to return, or None for every page.
         next_token: Continuation token to resume from, or None.
-        max_pages: Maximum pages to fetch, or None for all.
 
     Returns:
-        Tuple of (rows, pagination_metadata, completeness).
+        Tuple of (rows, pagination, completeness).
     """
-    started = datetime.now(timezone.utc)
-    paging: Dict[str, Any] = {}
-    if max_results is not None:
-        paging['PageSize'] = max_results
-    if next_token:
-        paging['StartingToken'] = next_token
+    rows, pages, pagination = await paginate_aws_items(
+        ctx,
+        'GetCreditAllocationHistory',
+        client.get_credit_allocation_history,
+        request_params,
+        GET_CREDIT_ALLOCATION_HISTORY_PAGE_SPEC,
+        max_items=max_items,
+        next_token=next_token,
+    )
 
-    paginator = client.get_paginator('get_credit_allocation_history')
-    pages = paginator.paginate(**request_params, PaginationConfig=paging)
-
-    rows: list = []
     failed_months: list = []
     partial_results = False
-    pages_fetched = 0
-    resume_token = None
-
     for page in pages:
-        rows.extend(page.get('creditAllocationHistoryList') or [])
         partial_results = partial_results or bool(page.get('partialResults'))
         for month in page.get('failedMonths') or []:
             if month not in failed_months:
                 failed_months.append(month)
-        pages_fetched += 1
-        resume_token = page.get('nextToken')
-        if max_pages is not None and pages_fetched >= max_pages:
-            break
-    duration_ms = (datetime.now(timezone.utc) - started).total_seconds() * 1000
-    await ctx.info(f'Fetched {pages_fetched} page(s), {len(rows)} allocation records')
+    await ctx.info(f'Fetched {len(pages)} page(s), {len(rows)} allocation records')
 
-    pagination = {
-        'complete_dataset': not resume_token,
-        'pages_fetched': pages_fetched,
-        'total_results': len(rows),
-        'has_more': bool(resume_token),
-        'next_token': resume_token or None,
-        'duration_ms': int(duration_ms),
-    }
     completeness = {'partial_results': partial_results, 'failed_months': failed_months}
     return rows, pagination, completeness
 
@@ -436,8 +494,9 @@ def _build_get_credit_allocation_history_request(
 def _clamp_get_credits_range(start_epoch: int, end_epoch: Optional[int]) -> tuple:
     """Narrow a range to the enforced one-year lookback ending no later than now.
 
-    An omitted end date is left as None because the API defaults it to the
-    current date, so supplying one would only restate the default.
+    An omitted end date is left as None, so no end date is sent and the service
+    applies no upper bound; clamping it to now would drop credits that start
+    later.
 
     Args:
         start_epoch: Requested range start in epoch seconds.
@@ -494,9 +553,9 @@ def _build_get_credits_time_range(
 ) -> Dict[str, Any]:
     """Describe the window actually queried alongside the one requested.
 
-    Reporting both makes a narrowed window visible to the agent so a clamped
-    result is never mistaken for a complete one. A null end date means the API
-    default of the current date applies.
+    Reporting both makes a limited window visible to the agent so a limited
+    result is never mistaken for a complete one. A null end date means no end
+    date was sent, so the service applied no upper bound.
 
     Args:
         start_epoch: Effective range start after clamping.
@@ -510,7 +569,7 @@ def _build_get_credits_time_range(
     return {
         'start_date': timestamp_to_utc_iso_string(start_epoch),
         'end_date': (timestamp_to_utc_iso_string(end_epoch) if end_epoch is not None else None),
-        'narrowed_from_request': (start_epoch != requested_start or end_epoch != requested_end),
+        'limited_from_request': (start_epoch != requested_start or end_epoch != requested_end),
         'requested_start_date': timestamp_to_utc_iso_string(requested_start),
         'requested_end_date': (
             timestamp_to_utc_iso_string(requested_end) if requested_end is not None else None
@@ -537,8 +596,8 @@ async def _resolve_get_credits_window(
     time_range = _build_get_credits_time_range(
         start_epoch, end_epoch, requested_start, requested_end
     )
-    if time_range['narrowed_from_request']:
-        await ctx.info('Requested range narrowed to the enforced one-year lookback ending now')
+    if time_range['limited_from_request']:
+        await ctx.info('Requested range limited to the enforced one-year lookback ending now')
     return start_epoch, end_epoch, time_range
 
 
@@ -659,8 +718,8 @@ async def _resolve_get_credit_allocation_history_window(
     time_range = _build_get_credit_allocation_history_time_range(
         start_epoch, end_epoch, requested_start, requested_end
     )
-    if time_range['narrowed_from_request']:
-        await ctx.info('Requested range narrowed to the enforced 24-month window ending now')
+    if time_range['limited_from_request']:
+        await ctx.info('Requested range limited to the enforced 24-month window ending now')
     return start_epoch, end_epoch, time_range
 
 
@@ -669,9 +728,8 @@ async def _fetch_get_credit_allocation_history(
     client: Any,
     request_params: Dict[str, Any],
     time_range: Dict[str, Any],
-    max_results: Optional[int],
+    max_items: Optional[int],
     next_token: Optional[str],
-    max_pages: Optional[int],
 ) -> Dict[str, Any]:
     """Page the allocation ledger and assemble the response body.
 
@@ -680,23 +738,24 @@ async def _fetch_get_credit_allocation_history(
         client: The billing client.
         request_params: Operation parameters, without paging controls.
         time_range: Description of the window queried.
-        max_results: Items per page, or None for the service default.
+        max_items: Most rows to return, or None for every page.
         next_token: Continuation token to resume from, or None.
-        max_pages: Maximum pages to fetch, or None for all.
 
     Returns:
-        The assembled response body.
+        The assembled response body, with the ``pagination`` block attached.
     """
     allocations, pagination, completeness = await _paginate_get_credit_allocation_history(
-        ctx, client, request_params, max_results, next_token, max_pages
+        ctx, client, request_params, max_items, next_token
     )
     await ctx.info(f'Successfully retrieved {len(allocations)} credit allocation records')
-    return {
-        'credit_allocation_history': allocations,
-        'time_range': time_range,
-        'completeness': completeness,
-        'pagination': pagination,
-    }
+    return with_pagination(
+        {
+            'credit_allocation_history': allocations,
+            'time_range': time_range,
+            'completeness': completeness,
+        },
+        pagination,
+    )
 
 
 async def get_credits(
@@ -710,7 +769,9 @@ async def get_credits(
 
     Returns every credit object visible to the account within the requested window,
     including initial and remaining amounts, expiration and exhaustion dates,
-    applicable products, and credit-sharing configuration.
+    applicable products, and credit-sharing configuration. The window can include
+    expired credits and credits that have not started yet, so each credit carries a
+    derived ``validityStatus``.
 
     A payer-level query can return a large credit portfolio, so the shared size
     threshold decides whether to offload to session SQL via convert_response_if_needed.
@@ -726,8 +787,9 @@ async def get_credits(
             than for the individual account.
 
     Returns:
-        Dict containing ``credits`` with timestamps, or a standardized error
-        response.
+        Dict containing ``credits`` with timestamps and ``validityStatus``, the
+        ``time_range`` queried and ``validity_evaluated_at``, or a standardized
+        error response.
     """
     try:
         start_epoch, end_epoch, error = _parse_epoch_range(start_date, end_date, False)
@@ -753,13 +815,18 @@ async def get_credits(
 
         api_response = client.get_credits(**request_params)
 
-        credits = [_normalize_credit_data(credit) for credit in api_response.get('credits', [])]
+        now = _utc_now()
+        credits = [
+            _normalize_credit_data(credit, now) for credit in api_response.get('credits', [])
+        ]
 
         await ctx.info(f'Successfully retrieved {len(credits)} credits')
 
+        validity_evaluated_at = timestamp_to_utc_iso_string(now)
         response = {
             'credits': credits,
             'time_range': time_range,
+            'validity_evaluated_at': validity_evaluated_at,
         }
 
         return await _finalize_response(
@@ -770,6 +837,7 @@ async def get_credits(
             start_date=start_date,
             end_date=end_date,
             time_range=time_range,
+            validity_evaluated_at=validity_evaluated_at,
         )
 
     except Exception as e:
@@ -783,17 +851,16 @@ async def get_credit_allocation_history(
     billing_period: Optional[str] = None,
     account_id: Optional[str] = None,
     credit_id: Optional[Any] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Get credits ledger to show how credits were applied per service per billing period.
 
     Returns the credit-level allocation ledger.
 
-    The API rejects ranges longer than 24 months. A longer request is narrowed to
+    The API rejects ranges longer than 24 months. A longer request is limited to
     the most recent 24 months rather than failing, and the response reports the
-    window actually queried so a narrowed result is never mistaken for a
+    window actually queried so a limited result is never mistaken for a
     complete one.
 
     Multi-month allocation windows can exceed the inline size threshold,
@@ -813,10 +880,8 @@ async def get_credit_allocation_history(
         credit_id: Restrict the ledger to a single credit. The API declares this
             as a long, while ``GetCredits`` returns ``creditId`` as a string, so
             a string value is converted to an integer here.
-        max_results: Maximum number of results per page.
+        max_items: Most ledger rows to return. None fetches every page.
         next_token: Pagination token from a previous response to resume from.
-        max_pages: Maximum number of pages to auto-paginate through. Defaults to
-            all pages.
 
     Returns:
         Dict containing ``credit_allocation_history``, the ``time_range``
@@ -844,18 +909,16 @@ async def get_credit_allocation_history(
         client = _create_billing_client()
 
         response = await _fetch_get_credit_allocation_history(
-            ctx, client, request_params, time_range, max_results, next_token, max_pages
+            ctx, client, request_params, time_range, max_items, next_token
         )
 
         return await _finalize_response(
             ctx,
             response,
             'credits_get_credit_allocation_history',
-            pagination_token_key='nextToken',
             account_id=resolved_account_id,
             time_range=response['time_range'],
             completeness=response['completeness'],
-            pagination=response['pagination'],
         )
 
     except Exception as e:
