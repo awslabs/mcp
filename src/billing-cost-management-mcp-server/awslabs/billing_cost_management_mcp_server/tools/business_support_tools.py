@@ -23,6 +23,7 @@ about every request parameter and response field.
 """
 
 from ..utilities.aws_service_base import format_response
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .business_support_operations import list_account_charges as _list_account_charges
 from .business_support_operations import list_subscription_history as _list_subscription_history
 from fastmcp import Context, FastMCP
@@ -113,7 +114,9 @@ async def _business_support(
    billing_month is a single calendar month "YYYY-MM" (e.g. "2026-06") and it selects the billing period the answer covers. It cannot be earlier than 2024-01, the oldest month with Business Support data. You can request the current month, in which case the charges will be estimated (isEstimated=true in the response). Future months (after the current month) are rejected. Both bounds are rejected locally without spending a call.
    Optional:
      - account_id: a 12-digit AWS account number that filters to ONE account inside the payer's Support profile. Omit it to get every account, which is what "break down my Business Support charge by account" asks for. Omitting it sends no account filter at all and the tool never infers one from the caller credentials, so never report that a filter was applied when you left it out. An account id that appears in an error message is the caller's payer account, not a filter that was used.
-     - max_items: total rows to return across pages. Omit it to fetch every page (no limit). next_token: resume from a previous response.
+     - max_items: total rows to return across pages. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. next_token: resume from a previous response.
    Paginated: the tool follows nextToken for you.
    Returns: `data.account_charges`, a list where each item contains:
      - accountId: the 12-digit AWS account number this charge row belongs to.
@@ -147,7 +150,7 @@ async def _business_support(
 - THE SPEND BREAKDOWN DECOMPOSES THE BASIS, it does not add to it. supportEligibleSpendByService sums to totalUsageBasis for that account; totalSupportEligibleSpend is the profile-wide equivalent.
 - TIER CHARGES ARE INCREMENTAL, not a flat rate on total spend. Report each tier charge as returned rather than multiplying a single rate across the whole eligible spend.
 - THIS TOOL NEVER RESOLVES AN ACCOUNT ID FROM CREDENTIALS, unlike some other billing tools. When account_id is omitted no account filter is sent and the results cover every account in the Support profile. NEVER state that the tool auto-detected, inferred or looked up the caller's account. An account id inside an error message is the payer the credentials belong to, reported by AWS, not a filter this tool applied.
-- CHECK `data.pagination` BEFORE TOTALLING ROWS. When `has_more` is true the walk stopped early, usually because max_items was reached, so any sum over the returned rows is partial. Report the total AND say it covers `items_returned` rows with more available. `complete_dataset` true means every row was fetched.
+- CHECK `data.pagination` BEFORE TOTALLING ROWS. When `has_more` is true the walk stopped early (max_items or the time limit), so any sum over the returned rows is partial. Report the total AND say it covers `items_returned` rows with more available. `complete_dataset` true means every row was fetched.
 - ONE BILLING PERIOD PER list_account_charges CALL. There is no date range on it. Answering "how did my Business Support charge change since March" means one call per billing period, then comparing the results. Only list_subscription_history takes a start_date/end_date window, and that window describes contract terms, not charges.
 - An access_denied error means the caller's IAM policy is missing the named permission, or the caller is not the payer account authorized for the Support profile. It does NOT mean the account has no Business Support charges, and a linked account cannot read these operations at all.
 

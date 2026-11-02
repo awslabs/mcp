@@ -180,7 +180,7 @@ PAGINATION (applies only when group_by is set; an item is one group of the queri
   Top-N: sort_by + max_items=N.
 - get_reservation_utilization takes max_pages (pages of 500 groups) instead of max_items, because
   its next_token only works with the same page size. Continue with next_token; if max_pages is
-  omitted, the tool fetches every page, with the same 300-second limit.
+  omitted, the tool fetches every page, with the same time limit.
 - If the response has complete_dataset: false, call again with a larger max_items or max_pages,
   continue with next_token, or state in the answer that the result is partial.
 - With group_by, the API's period `total` sums only the groups on its own page, so `total` is
@@ -215,11 +215,11 @@ async def ri_performance(
         filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE defaults to EC2 when omitted; valid coverage SERVICE values are "Amazon Elastic Compute Cloud - Compute", "Amazon Relational Database Service", "Amazon ElastiCache", "Amazon MemoryDB", "Amazon Redshift", "Amazon OpenSearch Service", and "Amazon Elasticsearch Service" (use the full display name, not "EC2"/"RDS"); coverage takes one SERVICE value per call and rejects more. SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
         sort_by: Optional sort as a JSON string: '{"Key": "<key>", "SortOrder": "DESCENDING"}'. SortOrder is required: ASCENDING or DESCENDING, upper case only. Valid keys differ per operation (see SORTING in the tool description). get_reservation_utilization ignores sort_by without group_by (the response then carries a sort_by_note).
         max_items: Total number of groups to return across all pages. Omit it to fetch every
-            page. Applies only to get_reservation_coverage with group_by set.
+            page within the time limit. Applies only to get_reservation_coverage with group_by set.
         next_token: The pagination.next_token from a previous response; continue with otherwise
             identical parameters. Applies only when group_by is set.
-        max_pages: Number of pages of 500 groups to return. Omit it to fetch every page.
-            Applies only to get_reservation_utilization with group_by set.
+        max_pages: Number of pages of 500 groups to return. Omit it to fetch every page
+            within the time limit. Applies only to get_reservation_utilization with group_by set.
 
     Returns:
         Dict containing the reservation coverage/utilization information
