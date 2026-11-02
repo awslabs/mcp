@@ -1750,13 +1750,15 @@ class TestGetPricingFromApiFilterGuidance:
         message = result['message']
         assert 'did not return any pricing data' not in message
         assert 'check the exact service code' not in message.lower()
-        assert '"location": "us-east-1"' in message
+        assert '{"Field": "location", "Type": "TERM_MATCH", "Value": "us-east-1"}' in message
         assert 'get_attribute_values' in message
         assert 'regionCode' in message
         assert 'If get_service_attributes lists "regionCode"' in message
         assert 'US East (N. Virginia)' in message
         assert result['data']['message'] == message
-        assert result['data']['filters'] == {'location': 'us-east-1'}
+        assert result['data']['filters'] == [
+            {'Field': 'location', 'Type': 'TERM_MATCH', 'Value': 'us-east-1'}
+        ]
         assert 'examples' not in result['data']
         probe = mock_client.get_products.call_args_list[1].kwargs
         assert probe == {'ServiceCode': 'AmazonEC2', 'MaxResults': 1}
@@ -1842,7 +1844,7 @@ class TestGetPricingFromApiFilterGuidance:
         message = result['message']
         assert 'The service code is valid.' in message
         assert 'no product has this combination of values' in message
-        assert 'matched as one literal value, not as a list' in message
+        assert 'matches that whole string, not each part' in message
         assert '"location" takes' not in message
 
     async def test_all_none_filters_skip_the_check(self, mock_create_client, mock_context):
@@ -2086,6 +2088,328 @@ def test_many_products_guidance_on_a_sample_says_so():
     assert 'The first 2 have the same attributes; query the rest.' in sampled_same['hint']
     partial = _many_products_guidance(_decode_products([_product('A')]), total=3)
     assert 'same attributes' not in partial['hint']
+
+
+@patch('awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client')
+class TestGetPricingFromApiFilterTypes:
+    """filters reaches every GetProducts filter type, and a bad filter is a validation error."""
+
+    async def _sent_filters(self, mock_create_client, mock_context, filters):
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {'PriceList': [_product('SKU1')]}
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2', filters=filters)
+        assert result['status'] == 'success', result
+        return mock_client.get_products.call_args.kwargs['Filters']
+
+    async def test_a_string_value_stays_term_match(self, mock_create_client, mock_context):
+        """The object form with string values is sent unchanged, as TERM_MATCH."""
+        sent = await self._sent_filters(
+            mock_create_client, mock_context, '{"instanceType": "m5.large,m5.xlarge"}'
+        )
+        assert sent == [
+            {'Field': 'instanceType', 'Type': 'TERM_MATCH', 'Value': 'm5.large,m5.xlarge'}
+        ]
+
+    async def test_a_list_value_becomes_any_of(self, mock_create_client, mock_context):
+        """A list value matches any of its values: ANY_OF with the values comma-joined."""
+        sent = await self._sent_filters(
+            mock_create_client,
+            mock_context,
+            '{"instanceType": ["m5.large", "m5.xlarge"], "regionCode": "us-east-1"}',
+        )
+        assert sent == [
+            {'Field': 'instanceType', 'Type': 'ANY_OF', 'Value': 'm5.large,m5.xlarge'},
+            {'Field': 'regionCode', 'Type': 'TERM_MATCH', 'Value': 'us-east-1'},
+        ]
+
+    async def test_a_number_is_sent_as_text(self, mock_create_client, mock_context):
+        """Price List values are strings; a JSON number is sent as its text."""
+        sent = await self._sent_filters(
+            mock_create_client,
+            mock_context,
+            '{"vcpu": 2, "memoryGiB": 0.5, "x": [4, "8"], "gpu": 2.0}',
+        )
+        assert sent == [
+            {'Field': 'vcpu', 'Type': 'TERM_MATCH', 'Value': '2'},
+            {'Field': 'memoryGiB', 'Type': 'TERM_MATCH', 'Value': '0.5'},
+            {'Field': 'x', 'Type': 'ANY_OF', 'Value': '4,8'},
+            # Price List values are '2', so an integral float is sent without '.0'.
+            {'Field': 'gpu', 'Type': 'TERM_MATCH', 'Value': '2'},
+        ]
+
+    @pytest.mark.parametrize('filters', ['', '{}', '[]', '{"instanceType": null}'])
+    async def test_empty_filters_send_no_filter(self, mock_create_client, mock_context, filters):
+        """An empty string, object or list, or all-null values, send no filter, as before."""
+        sent = await self._sent_filters(mock_create_client, mock_context, filters)
+        assert sent == []
+
+    @pytest.mark.parametrize(
+        'filter_type', ['TERM_MATCH', 'EQUALS', 'CONTAINS', 'ANY_OF', 'NONE_OF']
+    )
+    async def test_the_api_list_form_reaches_every_type(
+        self, mock_create_client, mock_context, filter_type
+    ):
+        """A JSON list of {Field, Type, Value} is sent as given, for each of the five types."""
+        native = [{'Field': 'instanceType', 'Type': filter_type, 'Value': 'm5.large'}]
+        sent = await self._sent_filters(mock_create_client, mock_context, json.dumps(native))
+        assert sent == native
+
+    async def test_the_list_form_takes_a_list_value_for_any_of_and_none_of(
+        self, mock_create_client, mock_context
+    ):
+        """In the list form, ANY_OF and NONE_OF take a list or a comma-separated string."""
+        native = [
+            {'Field': 'instanceType', 'Type': 'NONE_OF', 'Value': ['m5.large', 'm5.xlarge']},
+            {'Field': 'operatingSystem', 'Type': 'ANY_OF', 'Value': 'Linux,RHEL'},
+            {'Field': 'vcpu', 'Type': 'EQUALS', 'Value': 2},
+        ]
+        sent = await self._sent_filters(mock_create_client, mock_context, json.dumps(native))
+        assert sent == [
+            {'Field': 'instanceType', 'Type': 'NONE_OF', 'Value': 'm5.large,m5.xlarge'},
+            {'Field': 'operatingSystem', 'Type': 'ANY_OF', 'Value': 'Linux,RHEL'},
+            {'Field': 'vcpu', 'Type': 'EQUALS', 'Value': '2'},
+        ]
+
+    @pytest.mark.parametrize(
+        'filters, expected',
+        [
+            ('[{"Field": "instanceType", "Type": "BEGINS_WITH", "Value": "m5"}]', 'BEGINS_WITH'),
+            ('[{"Field": "instanceType", "Type": "term_match", "Value": "m5"}]', 'term_match'),
+            ('[{"Field": "instanceType", "Value": "m5.large"}]', 'Field, Type and Value'),
+            (
+                '[{"field": "instanceType", "type": "ANY_OF", "value": "m5"}]',
+                'Field, Type and Value',
+            ),
+            ('["instanceType"]', 'Field, Type and Value'),
+            ('[{"Field": "", "Type": "EQUALS", "Value": "m5.large"}]', 'Field'),
+            ('{"instanceType": ["m5.large", "a,b"]}', 'comma'),
+            ('{"instanceType": []}', 'empty'),
+            ('{"instanceType": true}', 'true'),
+            ('{"instanceType": {"Type": "ANY_OF"}}', 'string, a number or a list'),
+            ('{"instanceType": [["m5.large"]]}', 'string or a number'),
+            (
+                '[{"Field": "instanceType", "Type": "EQUALS", "Value": ["a", "b"]}]',
+                'ANY_OF or NONE_OF',
+            ),
+            ('"m5.large"', 'JSON object'),
+            ('7', 'JSON object'),
+            ('0', 'JSON object'),
+            ('false', 'JSON object'),
+            ('""', 'JSON object'),
+            ('{"instanceType": ["m5.large", " "]}', 'blank'),
+            ('{"instanceType": ""}', 'blank'),
+            ('{"instanceType": "   "}', 'blank'),
+            ('[{"Field": "instanceType", "Type": "ANY_OF", "Value": " , "}]', 'at least one'),
+            ('{"": "m5.large"}', 'attribute names'),
+            ('{" ": "m5.large"}', 'attribute names'),
+            ('{"vcpu": NaN}', 'not a value the API can match'),
+        ],
+    )
+    async def test_a_bad_filter_is_a_validation_error_before_any_call(
+        self, mock_create_client, mock_context, filters, expected
+    ):
+        """A filter the API cannot take is refused with a message naming the problem."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2', filters=filters)
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert expected in result['message']
+        mock_client.get_products.assert_not_called()
+
+    @pytest.mark.parametrize(
+        'filters',
+        [
+            '{"Field": "instanceType", "Type": "ANY_OF", "Value": "m5.large,m5.xlarge"}',
+            '{"field": "instanceType", "type": "ANY_OF", "value": "m5.large,m5.xlarge"}',
+        ],
+    )
+    async def test_one_api_filter_without_a_list_is_refused(
+        self, mock_create_client, mock_context, filters
+    ):
+        """A lone {Field, Type, Value} object, in any key case, is not read as three attributes."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2', filters=filters)
+
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == 'filters'
+        assert 'inside a list' in result['message']
+        # The suggested list uses the key names the list form accepts.
+        assert '[{"Field": "instanceType", "Type": "ANY_OF", "Value":' in result['message']
+        mock_client.get_products.assert_not_called()
+
+    @pytest.mark.parametrize('filters', ['{"instanceType": true}', '{not json'])
+    async def test_a_local_filter_error_does_not_claim_an_api_request(
+        self, mock_create_client, mock_context, filters
+    ):
+        """A filter refused before any call says so in data too, not 'Pricing API request failed'."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2', filters=filters)
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'get_pricing_from_api'
+        assert result['data']['invalid_parameter'] == 'filters'
+        assert result['data']['message'] == result['message']
+        assert 'Pricing API request failed' not in json.dumps(result)
+        assert 'note' not in result['data']
+        mock_client.get_products.assert_not_called()
+
+    async def test_an_invalid_type_names_the_valid_ones(self, mock_create_client, mock_context):
+        """The Type error lists the five values the API accepts."""
+        mock_create_client.return_value = MagicMock()
+        result = await get_pricing_from_api(
+            mock_context, 'AmazonEC2', filters='[{"Field": "a", "Type": "LIKE", "Value": "b"}]'
+        )
+        for name in ('TERM_MATCH', 'EQUALS', 'CONTAINS', 'ANY_OF', 'NONE_OF'):
+            assert name in result['message']
+
+    async def test_filters_matching_nothing_echo_each_filter_with_its_type(
+        self, mock_create_client, mock_context
+    ):
+        """The no-match message lists every filter sent, with its type, even two on one field."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.side_effect = [
+            {'PriceList': []},
+            {'PriceList': [_product('ANY')]},
+        ]
+        native = [
+            {'Field': 'instanceType', 'Type': 'CONTAINS', 'Value': 'm5'},
+            {'Field': 'instanceType', 'Type': 'NONE_OF', 'Value': 'm5.large'},
+        ]
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2', filters=json.dumps(native))
+
+        assert result['error_type'] == 'no_results'
+        assert result['data']['filters'] == native
+        assert json.dumps(native) in result['message']
+
+    async def test_a_comma_in_an_exact_match_gets_the_list_hint(
+        self, mock_create_client, mock_context
+    ):
+        """A comma in a TERM_MATCH value that matched nothing points at the list form."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.side_effect = [
+            {'PriceList': []},
+            {'PriceList': [_product('ANY')]},
+            {'PriceList': []},
+            {'PriceList': [_product('ANY')]},
+        ]
+
+        with_comma = await get_pricing_from_api(
+            mock_context, 'AmazonEC2', filters='{"instanceType": "m5.large,m5.xlarge"}'
+        )
+        without = await get_pricing_from_api(
+            mock_context, 'AmazonEC2', filters='{"instanceType": "m5.huge"}'
+        )
+
+        assert 'matches that whole string' in with_comma['message']
+        assert '["m5.large", "m5.xlarge"]' in with_comma['message']
+        assert 'matches that whole string' not in without['message']
+
+
+async def test_aws_pricing_description_documents_the_filter_types():
+    """The served description tells callers how to reach each filter type and its gotchas."""
+    tool = await aws_pricing_server.get_tool('aws-pricing')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert 'one value per attribute' not in description
+    assert 'matched as one literal value, not as a list' not in description
+    assert 'must match exactly' not in description
+    assert '(exact match)' not in description
+    for text in (
+        'must equal the whole attribute value, ignoring case (TERM_MATCH)',
+        'TERM_MATCH or EQUALS (whole value, case-insensitive)',
+        'ANY_OF',
+        'NONE_OF',
+        'CONTAINS',
+        'EQUALS',
+        'TERM_MATCH',
+        "{'instanceType': ['m5.large', 'm5.xlarge']}",
+        "'Field'",
+        "'Type'",
+        "'Value'",
+        'contains a comma',
+        'NONE_OF also returns products that do not have the field',
+    ):
+        assert text in description, text
+
+
+async def test_aws_pricing_description_says_prices_are_public_list_rates():
+    """The description says what the prices are not, and where the account's cost lives."""
+    tool = await aws_pricing_server.get_tool('aws-pricing')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert 'public list' in description
+    for text in ('Savings Plans', 'Reserved Instance', 'private pricing', 'cost-explorer'):
+        assert text in description, text
+
+
+@patch('awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client')
+class TestGetAttributeValuesEmpty:
+    """Zero values on a complete result hint that the attribute may not exist."""
+
+    async def test_zero_values_point_at_get_service_attributes(
+        self, mock_create_client, mock_context
+    ):
+        """An attribute the service does not have returns no values, not an error."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_attribute_values.return_value = {'AttributeValues': []}
+
+        result = await get_attribute_values(mock_context, 'AmazonEC2', 'fooBar')
+
+        assert result['status'] == 'success'
+        assert result['data']['values'] == []
+        hint = result['data']['hint']
+        assert 'fooBar' in hint
+        assert 'AmazonEC2' in hint
+        assert 'get_service_attributes' in hint
+
+    async def test_values_or_a_continuation_get_no_hint(self, mock_create_client, mock_context):
+        """Values found, or an empty last page of a continuation, carry no hint."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_attribute_values.side_effect = [
+            {'AttributeValues': [{'Value': 'm5.large'}]},
+            {'AttributeValues': []},
+        ]
+
+        found = await get_attribute_values(mock_context, 'AmazonEC2', 'instanceType')
+        continued = await get_attribute_values(
+            mock_context, 'AmazonEC2', 'instanceType', next_token='tok'
+        )
+
+        assert 'hint' not in found['data']
+        assert 'hint' not in continued['data']
+
+    async def test_a_partial_empty_result_gets_no_hint(self, mock_create_client, mock_context):
+        """An empty first page whose next page failed is partial, not evidence of a bad name."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_attribute_values.side_effect = [
+            {'AttributeValues': [], 'NextToken': 'more'},
+            ClientError(
+                {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
+                'GetAttributeValues',
+            ),
+        ]
+
+        result = await get_attribute_values(mock_context, 'AmazonEC2', 'instanceType')
+
+        assert result['data']['pagination']['complete_dataset'] is False
+        assert 'hint' not in result['data']
 
 
 def test_many_products_guidance_skips_products_whose_attributes_are_not_a_dict():
