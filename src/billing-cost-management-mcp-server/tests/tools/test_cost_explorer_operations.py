@@ -225,6 +225,33 @@ class TestBillingViewArnSupport:
         call_kwargs = mock_ce_client.get_dimension_values.call_args[1]
         assert 'Context' not in call_kwargs
 
+    async def test_get_dimension_values_sends_dimension_key(self, mock_context, mock_ce_client):
+        """dimension_key is sent as DimensionKey, which lists that product attribute's values."""
+        result = await get_dimension_values(
+            mock_context,
+            mock_ce_client,
+            dimension='PRODUCT_ATTRIBUTE',
+            dimension_key='model',
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_dimension_values.call_args[1]
+        assert call_kwargs['Dimension'] == 'PRODUCT_ATTRIBUTE'
+        assert call_kwargs['DimensionKey'] == 'model'
+
+    @pytest.mark.parametrize('dimension_key', [None, ''])
+    async def test_get_dimension_values_omits_empty_dimension_key(
+        self, mock_context, mock_ce_client, dimension_key
+    ):
+        """No or an empty dimension_key sends no DimensionKey, so the service lists the keys."""
+        result = await get_dimension_values(
+            mock_context,
+            mock_ce_client,
+            dimension='PRODUCT_ATTRIBUTE',
+            dimension_key=dimension_key,
+        )
+        assert result['status'] == 'success'
+        assert 'DimensionKey' not in mock_ce_client.get_dimension_values.call_args[1]
+
     async def test_get_cost_forecast_with_billing_view_arn(
         self, mock_context, mock_ce_client, sample_billing_view_arn
     ):

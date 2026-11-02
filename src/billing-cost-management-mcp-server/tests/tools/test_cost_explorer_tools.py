@@ -201,6 +201,29 @@ async def test_cost_explorer_get_dimension_values(
 
 
 @pytest.mark.asyncio
+async def test_cost_explorer_get_dimension_values_forwards_dimension_key(
+    mock_context, mock_ce_client, real_cost_explorer
+):
+    """The tool passes dimension_key through, so a product attribute's values can be listed."""
+    with patch.object(real_cost_explorer, 'create_aws_client', return_value=mock_ce_client):
+        result = await real_cost_explorer.cost_explorer(  # type: ignore[reportCallIssue]
+            mock_context,
+            operation='getDimensionValues',
+            dimension='PRODUCT_ATTRIBUTE',
+            dimension_key='model',
+            start_date='2026-10-01',
+            end_date='2026-11-01',
+        )
+
+    mock_ce_client.get_dimension_values.assert_called_once_with(
+        TimePeriod={'Start': '2026-10-01', 'End': '2026-11-01'},
+        Dimension='PRODUCT_ATTRIBUTE',
+        DimensionKey='model',
+    )
+    assert result['status'] == 'success'
+
+
+@pytest.mark.asyncio
 async def test_cost_explorer_get_cost_forecast(mock_context, mock_ce_client, real_cost_explorer):
     """The getCostForecast operation sends metric, window, granularity and the default 80% interval."""
     with patch.object(real_cost_explorer, 'create_aws_client', return_value=mock_ce_client):
@@ -766,6 +789,7 @@ async def test_ce_real_get_dimension_values_passes_args_reload_identity_decorato
             2,
             None,
             None,
+            dimension_key=None,
         )
 
 
@@ -1215,6 +1239,7 @@ async def test_ce_real_get_dimension_values_with_billing_view_arn(
             None,
             sample_billing_view_arn,
             None,
+            dimension_key=None,
         )
 
 
@@ -1998,8 +2023,13 @@ class TestCostExplorerDescriptionContract:
 
         TAG is the note that TAG is no dimension; SCOPE is listed to say it is a RESERVATIONS
         dimension only, so an agent does not filter getCostAndUsage or a forecast on it.
+        PRODUCT_ATTRIBUTE is enabled per account, so it is left out of CE_DIMENSIONS_BY_CONTEXT.
         """
-        keys = set(_dimension_reference_keys(tool.description)) - {'TAG'} - CE_PER_ACCOUNT_KEYS
+        keys = (
+            set(_dimension_reference_keys(tool.description))
+            - {'TAG', 'PRODUCT_ATTRIBUTE'}
+            - CE_PER_ACCOUNT_KEYS
+        )
         context_only = {}
         for key in keys:
             entry = re.search(rf'^- {key}:.*(?:\n  .*)*', tool.description, re.MULTILINE)
@@ -2018,10 +2048,10 @@ class TestCostExplorerDescriptionContract:
     def test_dimension_reference_preamble_holds_for_every_unqualified_key(self, tool):
         """Keys with no "where accepted" note are filter, group_by and forecast filter keys.
 
-        The preamble says so; the four keys accepted in fewer places say where instead.
+        The preamble says so; the five keys accepted in fewer places say where instead.
         """
         keys = set(_dimension_reference_keys(tool.description)) - CE_PER_ACCOUNT_KEYS
-        qualified = {'RESOURCE_ID', 'SCOPE', 'TAG', 'USAGE_TYPE_GROUP'}
+        qualified = {'PRODUCT_ATTRIBUTE', 'RESOURCE_ID', 'SCOPE', 'TAG', 'USAGE_TYPE_GROUP'}
         for key in keys - qualified:
             assert key in CE_GROUP_BY_DIMENSIONS, key
             assert key in CE_FILTER_DIMENSIONS, key
@@ -2558,6 +2588,46 @@ def test_description_documents_tags_leaf_format():
     assert 'getDimensionValues and getCostAndUsageWithResources reject an empty key' in tags
     assert 'An empty key with any value, or with Values omitted, is rejected' in tags
     assert 'Copy the key from getTagsOrValues' in tags
+
+
+def test_description_documents_product_attributes():
+    """ProductAttributes is a documented leaf, with its silent-mismatch and scope gotchas.
+
+    A wrong key or value returns $0 (ABSENT: every Bedrock cost), Not and a PRODUCT_ATTRIBUTE
+    group_by cover only supported services, and getDimensionValues needs a SERVICE filter.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    description = cost_explorer_tools.COST_EXPLORER_DESCRIPTION
+    flat = ' '.join(description.split())
+    assert '- Leaf keys: `Dimensions`, `Tags`, `CostCategories`, `ProductAttributes`' in flat
+    assert '- ProductAttributes: EQUALS, ABSENT, CASE_SENSITIVE' in flat
+    section = ' '.join(
+        description.split('ProductAttributes leaves')[1]
+        .split('Correct filter examples:')[0]
+        .split()
+    )
+    assert 'the forecasts reject them' in section
+    assert '`provider`, `model`, `inferenceType` and `feature`' in section
+    assert 'Data starts 2026-09-01' in section and 'DataUnavailableException' in section
+    assert 'Keys and values are case-sensitive' in section
+    assert 'With `Values` it matches nothing ($0)' in section
+    assert '`"Values": [""]`' in section and 'every Bedrock cost' in section
+    assert 'even under `Not`' in section
+    assert 'do not add up to the account total' in section
+    assert '`<key>$<value>`' in section and 'Filter on the value, not the label' in section
+    assert 'If the filter has a SERVICE leaf anywhere' in section
+    assert 'Under `Or`, every branch must be scoped that way' in section
+    assert 'A SERVICE leaf under `Not` never counts' in section
+    assert 'pair it with one in an `And`' in section
+    assert 'omit SERVICE to include all of them' in section
+    assert 'a period that starts earlier returns DataUnavailableException' in section
+    assert 'search_string does match case-insensitively and partially' in section
+    assert 'PRODUCT_ATTRIBUTE: Product attributes of supported services' in flat
+    assert 'dimension_key with any other dimension is rejected' in flat
+    assert 'a wrong key returns only `""`, not an error' in flat
+    examples = [json.loads(e) for e in _rendered_examples(description)]
+    assert any(call.get('dimension_key') == 'model' for call in examples)
 
 
 def test_description_states_match_options_and_value_limits():
