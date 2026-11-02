@@ -311,6 +311,8 @@ AWS Pricing:
 
 AWS Free Tier:
 - freetier:GetFreeTierUsage
+- freetier:GetAccountPlanState
+- freetier:ListAccountActivities
 
 AWS Billing and Cost Management Pricing Calculator:
 - bcm-pricing-calculator:GetPreferences
@@ -475,6 +477,8 @@ The server currently supports the following AWS services
 
 3. **AWS Free Tier**
    - get_free_tier_usage
+   - get_account_plan_state
+   - list_account_activities
 
 4. **AWS Pricing**
    - get_service_codes
