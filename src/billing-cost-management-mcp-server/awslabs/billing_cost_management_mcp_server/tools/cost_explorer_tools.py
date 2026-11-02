@@ -18,7 +18,12 @@ Updated to use shared utility functions.
 """
 
 import json
-from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
+from ..utilities.aws_service_base import (
+    create_aws_client,
+    format_response,
+    handle_aws_error,
+    parse_json,
+)
 from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .cost_explorer_operations import (
     get_cost_and_usage,
@@ -184,7 +189,8 @@ Values per leaf type:
   `ABSENT` matches costs where the key is not present, so there is no value to compare
   against: omit `Values` entirely (an empty `Values` list is rejected too).
 
-Tags leaves in getCostAndUsage, getCostAndUsageWithResources and getDimensionValues filters:
+Tags leaves in getCostAndUsage, getCostAndUsageWithResources, getDimensionValues,
+getTagsOrValues and getCostCategories filters:
 - `Key` is the tag key as getTagsOrValues lists it, with no `user:` prefix even where billing
   exports show one: `Environment`, not `user:Environment` (which matches nothing, with no
   error). The forecasts accept either form. Tags that AWS applies itself keep
@@ -197,10 +203,11 @@ Tags leaves in getCostAndUsage, getCostAndUsageWithResources and getDimensionVal
 - getCostAndUsage only: `{"Tags": {"Key": "", "Values": []}}` (empty key, empty list) matches
   costs that carry no activated cost allocation tag (user-defined or AWS-generated), as does
   `{"Tags": {"MatchOptions": ["ABSENT"]}}` with no Key. An empty key with any value, or with
-  Values omitted, is rejected, and getDimensionValues and getCostAndUsageWithResources reject
-  an empty key.
-- A wrong key is not an error. With `Values` it matches nothing ($0); with `ABSENT` it matches
-  every cost, since no cost carries that key. Copy the key from getTagsOrValues.
+  Values omitted, is rejected, and getCostAndUsageWithResources, getDimensionValues,
+  getTagsOrValues and getCostCategories reject an empty key.
+- A wrong key is not an error. With `Values` it matches nothing ($0, or an empty list); with
+  `ABSENT` it matches every cost, since no cost carries that key. Copy the key from
+  getTagsOrValues.
 
 ProductAttributes leaves (getCostAndUsage, getCostAndUsageWithResources and getDimensionValues
 filters; the forecasts reject them):
@@ -243,7 +250,8 @@ Limits by operation (a filter outside them returns ValidationException):
 - Every operation: at most 6,000 values in total, counted across all leaves of the filter.
 - getCostAndUsage, getCostAndUsageWithResources: `And`, `Or` and `Not` nest up to 4 levels
   deep; a 5th is rejected.
-- getDimensionValues (default COST_AND_USAGE context): `And` only; `Or` and `Not` are rejected.
+- getDimensionValues (default COST_AND_USAGE context), getTagsOrValues and getCostCategories:
+  `And` of leaves only (an `And` inside it is rejected); `Or` and `Not` are rejected.
 - getSavingsPlansUtilization: `And` and `Not` only; `Or` is rejected.
 
 ## OPERATIONS
@@ -293,19 +301,19 @@ Limits by operation (a filter outside them returns ValidationException):
 
 6. getTagsOrValues - Available cost allocation tags or values
    Required: operation="getTagsOrValues"
-   Optional: start_date, end_date, tag_key, search_string, max_items, next_token, billing_view_arn
+   Optional: start_date, end_date, tag_key, search_string, filter, max_items, next_token, billing_view_arn
    Defaults: If start_date is omitted, the tool uses 30 days before today; if end_date is omitted, it uses today (exclusive, so today is not included).
    Example 1: {"operation": "getTagsOrValues"}
    Example 2: {"operation": "getTagsOrValues", "tag_key": "Environment"}
-   Returns: List of available cost allocation tags (see PAGINATION). If tag values for a particular key are needed, pass the tag key as a parameter. The tag key list holds at most 5,000 keys in total.
+   Returns: List of available cost allocation tags (see PAGINATION). If tag values for a particular key are needed, pass the tag key as a parameter. The tag key list holds at most 5,000 keys in total. A filter keeps only the keys (or values) found on costs that match it, e.g. the tags used in one Region.
 
 7. getCostCategories - Available cost categories or values inside a category
    Required: operation="getCostCategories"
-   Optional: start_date, end_date, cost_category_name, search_string, max_items, next_token, billing_view_arn
+   Optional: start_date, end_date, cost_category_name, search_string, filter, max_items, next_token, billing_view_arn
    Defaults: If start_date is omitted, the tool uses 30 days before today; if end_date is omitted, it uses today (exclusive, so today is not included).
    Example 1 (list category names): {"operation": "getCostCategories", "start_date": "__SIX_MONTHS_AGO_START__", "end_date": "__MONTH_START__"}
    Example 2 (list values inside a category): {"operation": "getCostCategories", "cost_category_name": "CostCenters", "start_date": "__SIX_MONTHS_AGO_START__", "end_date": "__MONTH_START__"}
-   Notes: Without cost_category_name the response contains CostCategoryNames. With cost_category_name set the response contains CostCategoryValues for that category. The category name list holds at most 5,000 names in total. See PAGINATION.
+   Notes: Without cost_category_name the response contains CostCategoryNames. With cost_category_name set the response contains CostCategoryValues for that category. The category name list holds at most 5,000 names in total. A filter keeps only the names (or values) found on costs that match it. See PAGINATION.
 
 8. getSavingsPlansUtilization - Savings Plans utilization data
    Required: operation="getSavingsPlansUtilization"
@@ -462,10 +470,10 @@ def _tag_leaf_hints(key: str, values: List[Any], absent: bool) -> List[str]:
 def _tag_filter_hint(filter: Optional[Union[str, Dict[str, Any]]]) -> Optional[str]:
     """Return a hint for a Tags filter that Cost Explorer accepts but that cannot match.
 
-    getCostAndUsage, getCostAndUsageWithResources and getDimensionValues add the `user:`
-    prefix to user-defined tag keys themselves, so a `user:` key matches no tagged cost, and a TAG group_by label
-    (`key$value`) is not a key or value. With no error, Values then match nothing and
-    ABSENT matches every cost.
+    getCostAndUsage, getCostAndUsageWithResources, getDimensionValues, getTagsOrValues and
+    getCostCategories add the `user:` prefix to user-defined tag keys themselves, so a
+    `user:` key matches no tagged cost, and a TAG group_by label (`key$value`) is not a key
+    or value. With no error, Values then match nothing and ABSENT matches every cost.
     """
     try:
         if isinstance(filter, str):
@@ -484,6 +492,19 @@ def _tag_filter_hint(filter: Optional[Union[str, Dict[str, Any]]]) -> Optional[s
         # A filter that does not parse is the API call's to reject, not the hint's.
         return None
     return ' '.join(hints) or None
+
+
+def _asks_for_grouping(group_by: Any) -> bool:
+    """Return whether group_by asks for grouping.
+
+    An empty or falsy JSON value ('[]', 'null', '{}') does not, as getCostAndUsage reads
+    it. A group_by that is not JSON still does, so it gets the not-supported error rather
+    than a JSON one.
+    """
+    try:
+        return bool(parse_json(group_by, 'group_by'))
+    except ValueError:
+        return True
 
 
 def _with_hint(result: Dict[str, Any], hint: Optional[str]) -> Dict[str, Any]:
@@ -587,7 +608,7 @@ async def cost_explorer(
         tag_hint = _tag_filter_hint(filter)
         await ctx.info(f'Routing to operation: {operation}')
 
-        if group_by and operation in OPERATIONS_WITHOUT_GROUP_BY:
+        if operation in OPERATIONS_WITHOUT_GROUP_BY and _asks_for_grouping(group_by):
             return format_response(
                 'error',
                 {
@@ -767,32 +788,40 @@ async def cost_explorer(
             )
 
         elif operation == 'getTagsOrValues':
-            return await get_tags(
-                ctx,
-                ce_client,
-                start_date,
-                end_date,
-                search_string,
-                tag_key,
-                next_token,
-                max_items,
-                billing_view_arn,
+            return _with_hint(
+                await get_tags(
+                    ctx,
+                    ce_client,
+                    start_date,
+                    end_date,
+                    search_string,
+                    tag_key,
+                    filter,
+                    next_token,
+                    max_items,
+                    billing_view_arn,
+                ),
+                tag_hint,
             )
 
         elif operation == 'getCostCategories':
             # When `cost_category_name` is provided, the same AWS API
             # (GetCostCategories) returns the values inside that category
             # instead of the list of category names.
-            return await get_cost_categories(
-                ctx,
-                ce_client,
-                start_date,
-                end_date,
-                search_string,
-                cost_category_name,
-                next_token,
-                max_items,
-                billing_view_arn,
+            return _with_hint(
+                await get_cost_categories(
+                    ctx,
+                    ce_client,
+                    start_date,
+                    end_date,
+                    search_string,
+                    cost_category_name,
+                    filter,
+                    next_token,
+                    max_items,
+                    billing_view_arn,
+                ),
+                tag_hint,
             )
 
         elif operation == 'getSavingsPlansUtilization':

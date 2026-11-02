@@ -1528,6 +1528,19 @@ class TestCostComparisonFilterValidation:
         )
         _assert_local_validation_error(result, dispatch_ce_client, 'Invalid JSON format')
 
+    @pytest.mark.parametrize('flt', ['   ', '{}', '""'], ids=repr)
+    async def test_empty_filter_is_called_empty(self, mock_context, dispatch_ce_client, flt):
+        """A blank or empty filter gets the "filter is empty" error, not a JSON error."""
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            'getCostAndUsageComparisons',
+            month(2),
+            month(1),
+            filter=flt,
+        )
+        _assert_local_validation_error(result, dispatch_ce_client, 'filter is empty')
+
 
 class TestValidateComparisonRequest:
     """Boundaries of the rules, at a fixed date."""
