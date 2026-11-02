@@ -270,6 +270,13 @@ async def get_recommendation(
                 'recommendedResourceDetails'
             )
 
+        # An EBS volume's attachmentState ("Attached"/"Unattached") tells an idle volume from an
+        # unattached one under action type Delete, so surface it at the top level.
+        current_details = recommendation.get('currentResourceDetails') or {}
+        ebs_config = (current_details.get('ebsVolume') or {}).get('configuration') or {}
+        if ebs_config.get('attachmentState') is not None:
+            formatted_response['attachment_state'] = ebs_config['attachmentState']
+
         if 'tags' in recommendation:
             formatted_response['tags'] = recommendation.get('tags')
 
