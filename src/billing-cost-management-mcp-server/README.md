@@ -97,7 +97,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
-2. Install Python 3.10 or newer using uv python install 3.10 (or a more recent version)
+2. Install Python 3.11 or newer using uv python install 3.11 (or a more recent version)
 3. Set up AWS credentials with access to AWS services
    - You need an AWS account with appropriate permissions
    - Configure AWS credentials with `aws configure` or environment variables

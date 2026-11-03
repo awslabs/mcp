@@ -359,7 +359,7 @@ class TestReadSections:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.url = url
-        mock_response.text = '<html><body><h1>This is a page<h1/><h2>Best practices</h2><p>Content here.</p></body></html>'
+        mock_response.text = '<html><body><h1>This is a page</h1><h2>Best practices</h2><p>Content here.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
@@ -371,8 +371,8 @@ class TestReadSections:
             assert 'Content here' in result
 
     @pytest.mark.asyncio
-    async def test_read_sections_non_html_content(self):
-        """Test read_sections with non-HTML content."""
+    async def test_read_sections_markdown_content(self):
+        """Test read_sections extracts sections from a negotiated Markdown response."""
         url = 'https://docs.aws.amazon.com/test.html'
         section_titles = ['Introduction']
         ctx = MockContext()
@@ -380,22 +380,19 @@ class TestReadSections:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.url = url
-        mock_response.text = 'Plain text content without HTML'
-        mock_response.headers = {'content-type': 'text/plain'}
+        mock_response.text = '# Page\n\n## Introduction\n\nIntro.\n\n## Other\n\nOther.\n'
+        mock_response.headers = {'content-type': 'text/markdown'}
 
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_response
             with patch(
-                'awslabs.aws_documentation_mcp_server.server_utils.is_html_content'
-            ) as mock_is_html:
-                mock_is_html.return_value = False
+                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+            ) as mock_extract:
+                result = await read_sections(ctx, url=url, section_titles=section_titles)
 
-                with pytest.raises(
-                    ValueError, match='Cannot extract sections from non-HTML content'
-                ) as excinfo:
-                    await read_sections(ctx, url=url, section_titles=section_titles)
-                assert 'read_documentation tool instead' in str(excinfo.value)
-                mock_get.assert_called_once()
+            mock_extract.assert_not_called()
+            mock_get.assert_called_once()
+            assert result == f'AWS Documentation from {url}:\n\n## Introduction\n\nIntro.'
 
     @pytest.mark.asyncio
     async def test_read_sections_non_404_error(self):

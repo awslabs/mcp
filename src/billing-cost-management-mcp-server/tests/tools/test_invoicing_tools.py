@@ -970,6 +970,80 @@ class TestListInvoiceSummariesResponse:
         assert summary['DueDate'] == '2025-06-02T00:00:00'
 
     @staticmethod
+    def _estimate(issued, invoice_id='Estimate-123'):
+        return {
+            'AccountId': '123456789012',
+            'InvoiceId': invoice_id,
+            'InvoiceType': 'INVOICE',
+            'IssuedDate': issued,
+            'DueDate': datetime(2026, 7, 29, 8, 35, tzinfo=timezone.utc),
+            'BillingPeriod': {'Month': 6, 'Year': 2026},
+        }
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'issued',
+        [
+            datetime(1970, 1, 1, tzinfo=timezone.utc),
+            0,
+            0.0,
+        ],
+        ids=['datetime', 'int', 'float'],
+    )
+    async def test_estimate_epoch_issued_date_is_null(self, mock_context, issued):
+        """An estimate's unset IssuedDate (the epoch) is returned as null, not 1970-01-01."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {
+            'InvoiceSummaries': [self._estimate(issued)]
+        }
+
+        result = await self._list(mock_client, mock_context, receiver_role='BUYER')
+
+        summary = result['data']['invoice_summaries'][0]
+        assert summary['IssuedDate'] is None
+        assert summary['DueDate'] == '2026-07-29T08:35:00'
+        assert summary['is_estimate'] is True
+
+    @pytest.mark.asyncio
+    async def test_epoch_issued_date_in_local_timezone_is_null(self, mock_context):
+        """The epoch as an aware datetime in a non-UTC zone is still the unset marker."""
+        from datetime import timedelta
+
+        tz = timezone(timedelta(hours=-7))
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {
+            'InvoiceSummaries': [self._estimate(datetime(1969, 12, 31, 17, tzinfo=tz))]
+        }
+
+        result = await self._list(mock_client, mock_context, receiver_role='BUYER')
+
+        assert result['data']['invoice_summaries'][0]['IssuedDate'] is None
+
+    @pytest.mark.asyncio
+    async def test_issued_invoice_is_not_estimate(self, mock_context, sample_summary):
+        """An issued invoice keeps its IssuedDate and has is_estimate false."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        result = await self._list(mock_client, mock_context)
+
+        summary = result['data']['invoice_summaries'][0]
+        assert summary['IssuedDate'] == '2026-05-01T00:00:00'
+        assert summary['is_estimate'] is False
+
+    @pytest.mark.asyncio
+    async def test_estimate_prefix_only_at_start(self, mock_context, sample_summary):
+        """Only an InvoiceId that starts with Estimate- marks an estimate."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {
+            'InvoiceSummaries': [dict(sample_summary, InvoiceId='INV-Estimate-1')]
+        }
+
+        result = await self._list(mock_client, mock_context)
+
+        assert result['data']['invoice_summaries'][0]['is_estimate'] is False
+
+    @staticmethod
     async def _list(mock_client, mock_context, **kwargs):
         """Call list_invoice_summaries for one account and billing period."""
         with patch(CREATE_CLIENT_PATH) as mock_create:
@@ -1247,6 +1321,16 @@ class TestInvoicingDescriptionContract:
     the API is a defect in every answer built on it.
     """
 
+    def test_estimates_documented_by_is_estimate_and_null_issued_date(self):
+        """Estimates are named by is_estimate and a null IssuedDate, not by a 1970 date."""
+        description = ' '.join(_served_description().split())
+
+        assert '1970' not in description
+        assert 'an estimate has `is_estimate: true`' in description
+        assert 'IssuedDate null, since it has not been issued' in description
+        assert 'excluding rows with `is_estimate: true`' in description
+        assert 'is_estimate: true for an estimated invoice' in description
+
     def test_receiver_role_documented_as_not_a_superset(self):
         """The surprising parts of receiver_role are all stated."""
         description = _served_description()
@@ -1279,7 +1363,7 @@ class TestInvoicingDescriptionContract:
         assert 'IGNORED for invoice_id' not in description
 
     def test_estimates_documented_as_indistinguishable_by_type(self):
-        """The prefix is the only marker, and estimates outlive the open month.
+        """Only the InvoiceId prefix (is_estimate) marks an estimate; estimates outlive the open month.
 
         Both claims are live-verified, and both break the rule that only
         InvoiceType INVOICE is money owed: estimates report that type, and a
@@ -1287,10 +1371,10 @@ class TestInvoicingDescriptionContract:
         """
         description = _served_description()
 
-        assert 'THE PREFIX IS THE ONLY MARKER' in description
+        assert 'Nothing else marks it' in description
         assert 'NOT limited to billing periods that are still open' in description
         assert 'NEVER add an estimate to the issued invoices of the same month' in description
-        assert 'excluding rows whose InvoiceId starts with "Estimate-"' in description
+        assert 'excluding rows with `is_estimate: true`' in description
 
     def test_invoicing_entity_documented_as_exact(self):
         """A misspelled entity errors; a valid one with no invoices returns empty."""
