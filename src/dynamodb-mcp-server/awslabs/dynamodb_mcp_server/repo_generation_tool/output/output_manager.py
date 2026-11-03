@@ -15,9 +15,13 @@
 """Output management for generated code files."""
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -63,7 +67,7 @@ class OutputManager:
             generation_result.access_pattern_mapping, generation_result.generator_type
         )
 
-        self._print_summary(generation_result)
+        self._log_summary(generation_result)
 
     def _write_mapping_file(
         self, access_pattern_mapping: dict[str, Any], generator_type: str
@@ -114,11 +118,11 @@ class OutputManager:
             with open(source_file) as src, open(dest_file, 'w') as dst:
                 dst.write(src.read())
         else:
-            print(f'Warning: Support file not found: {source_file}')
+            logger.warning(f'Support file not found: {source_file}')
 
-    def _print_summary(self, generation_result: GenerationResult) -> None:
-        """Print generation summary with flexible file listing."""
-        print(f'Generated code in {self.output_path}')
+    def _log_summary(self, generation_result: GenerationResult) -> None:
+        """Log the generation summary with flexible file listing."""
+        logger.info(f'Generated code in {self.output_path}')
 
         # Group files by category for organized output
         by_category = {}
@@ -133,13 +137,13 @@ class OutputManager:
                 files = by_category[category]
                 if len(files) == 1 and files[0].count > 0:
                     # Single file with count: "- entities.py: 5 entities"
-                    print(f'- {files[0].path}: {files[0].description}')
+                    logger.info(f'- {files[0].path}: {files[0].description}')
                 else:
                     # Multiple files or no count: list each file
                     for file in files:
-                        print(f'- {file.path}: {file.description}')
+                        logger.info(f'- {file.path}: {file.description}')
 
         # Always show access pattern mapping
-        print(
+        logger.info(
             f'- access_pattern_mapping.json: {len(generation_result.access_pattern_mapping)} access patterns'
         )

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import re
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.key_template_parser import (
     KeyTemplateParser,
@@ -40,6 +41,9 @@ from awslabs.dynamodb_mcp_server.repo_generation_tool.output.output_manager impo
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 from typing import Any
+
+
+logger = logging.getLogger(__name__)
 
 
 class Jinja2Generator(BaseGenerator):
@@ -211,20 +215,20 @@ class Jinja2Generator(BaseGenerator):
         try:
             self.entities_header_template = self.env.get_template('entities_header.j2')
         except Exception as e:
-            print(f'Warning: Could not load entities header template: {e}')
+            logger.warning(f'Could not load entities header template: {e}')
             self.entities_header_template = None
 
         try:
             self.repositories_header_template = self.env.get_template('repositories_header.j2')
         except Exception as e:
-            print(f'Warning: Could not load repositories header template: {e}')
+            logger.warning(f'Could not load repositories header template: {e}')
             self.repositories_header_template = None
 
         # Load usage example template if it exists
         try:
             self.usage_examples_template = self.env.get_template('usage_examples_template.j2')
         except Exception as e:
-            print(f'Warning: Could not load usage examples template: {e}')
+            logger.warning(f'Could not load usage examples template: {e}')
             self.usage_examples_template = None
 
         # Load transaction service template if it exists
@@ -233,7 +237,7 @@ class Jinja2Generator(BaseGenerator):
                 'transaction_service_template.j2'
             )
         except Exception as e:
-            print(f'Warning: Could not load transaction service template: {e}')
+            logger.warning(f'Could not load transaction service template: {e}')
             self.transaction_service_template = None
 
     def _is_pure_field_reference(self, template: str) -> bool:
