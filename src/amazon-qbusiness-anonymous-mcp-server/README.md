@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [AWS MCP Server](https://github.com/aws/agent-toolkit-for-aws), part of the Agent Toolkit for AWS, which makes the same Amazon Q Business `ChatSync` call through its `run_script` tool (sandboxed Python that calls AWS APIs with your own IAM credentials) and returns the full response, including the source citations this server dropped. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-qbusiness-anonymous.md) for the tool mapping.
+
 # AWS Labs Amazon Q Business anonymous mode MCP Server
 
 An AWS Labs Model Context Protocol (MCP) server for Amazon Q Business anonymous mode application. This is a simple MCP server for Amazon Q Business, and it supports Amazon Q Business application created using [anonymous mode access](https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/create-anonymous-application.html). Use this MCP server to query the Amazon Q Business application created using anonymous mode to get responses based on the content you have ingested in it.
@@ -42,7 +44,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit 
       "mcpServers": {
             "awslabs.amazon-qbusiness-anonymous-mcp-server": {
                   "command": "uvx",
-                  "args": ["awslabs.qbusiness-anonymous-mcp-server"],
+                  "args": ["awslabs.amazon-qbusiness-anonymous-mcp-server@latest"],
                   "env": {
                     "FASTMCP_LOG_LEVEL": "ERROR",
                     "QBUSINESS_APPLICATION_ID": "[Your Amazon Q Business application id]",
@@ -85,7 +87,7 @@ For Windows users, the MCP server configuration format is slightly different:
 }
 ```
 
-or docker after a successful `docker build -t awslabs/amazon-kendra-index-mcp-server.`:
+or docker after a successful `docker build -t awslabs/amazon-qbusiness-anonymous-mcp-server .`:
 
 ```file
 # fictitious `.env` file with AWS temporary credentials

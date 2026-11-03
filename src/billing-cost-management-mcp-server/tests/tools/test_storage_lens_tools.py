@@ -2815,3 +2815,13 @@ async def test_failed_create_is_not_taken_for_a_lost_race(mock_context, athena_h
             'db',
             's3://o/',
         )
+
+
+@pytest.mark.asyncio
+async def test_description_states_report_date_is_a_string():
+    """report_date is a string in both export formats, so date comparisons need a string or a CAST."""
+    tool = await storage_lens_server.get_tool('storage-lens')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert 'report_date is a string in CSV and Parquet exports' in description
+    assert 'CAST(report_date AS DATE)' in description

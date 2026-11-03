@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+- **Output path layout for runs**: `StartAHORun` accepts an optional `output_uri_prefix_mode` (`SERVICE_DEFINED` or `NONE_WITH_OVERWRITE`). `SERVICE_DEFINED`, the HealthOmics default, writes outputs under `<output_uri>/<runId>/out/`; `NONE_WITH_OVERWRITE` writes them directly under `output_uri`, with logs still under `logs/<runId>/`, and overwrites same-named files from earlier runs without warning. The value is checked locally and sent only when provided, and `GetAHORun` now returns `outputUriPrefixMode`. Requires boto3/botocore >= 1.43.123
 - **Session policies for runs**: `StartAHORun` and `StartAHORunBatch` accept an optional `session_policy` (inline IAM policy as a JSON string or object, max 2048 characters) that scopes down the run role; its shape and length are checked locally and it is sent minified, and `GetAHORun` now returns `sessionPolicy`. Requires boto3/botocore >= 1.43.90
 - **StartAHORun tags**: `StartAHORun` now accepts an optional `tags` map that is applied to the run at start
 - **ListAHORuns date filters**: `created_after` and `created_before` values without a UTC offset, such as `2024-01-01` or `2024-01-01T10:00`, are now treated as UTC instead of failing with "can't compare offset-naive and offset-aware datetimes"

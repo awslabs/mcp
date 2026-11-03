@@ -337,6 +337,8 @@ AWS call:
 - ABSENT together with Values: the comparison APIs drop the Values
 - A RESOURCE_ID filter
 - Nesting of 97 or more And/Or/Not levels, which fails in Cost Explorer
+A filter holds at most 200 values in total, counted across all its leaves (Cost Explorer
+returns ValidationException beyond that; getCostAndUsage allows 6,000).
 In group_by, Cost Explorer itself rejects RESOURCE_ID and USAGE_TYPE_GROUP.
 
 Pagination (both operations):
@@ -374,7 +376,7 @@ async def cost_comparison(
         comparison_end_date: Comparison period end date in YYYY-MM-DD format (must be first day of next month)
         metric_for_comparison: The metric to compare, exact case. getCostAndUsageComparisons: AmortizedCost, BlendedCost, NetAmortizedCost, NetUnblendedCost, NormalizedUsageAmount, UnblendedCost, UsageQuantity. getCostComparisonDrivers: the five *Cost metrics only
         group_by: Optional grouping of results as a JSON string (e.g., '[{"Type": "DIMENSION", "Key": "SERVICE"}]')
-        filter: Optional Cost Explorer Expression as a JSON string. Keys and values match exactly, including case; MatchOptions only EQUALS/CASE_SENSITIVE (plus ABSENT, without Values, for Tags and CostCategories); no RESOURCE_ID
+        filter: Optional Cost Explorer Expression as a JSON string. Keys and values match exactly, including case; MatchOptions only EQUALS/CASE_SENSITIVE (plus ABSENT, without Values, for Tags and CostCategories); no RESOURCE_ID; at most 200 values in total
         max_items: Total comparisons or drivers to return. None fetches every page.
         next_token: Pagination token from a previous response
         billing_view_arn: Optional ARN of a specific billing view
@@ -403,7 +405,7 @@ async def cost_comparison(
             metric_for_comparison,
             today,
         )
-        validate_comparison_filter(parse_json(filter, 'filter'))
+        validate_comparison_filter(parse_filter(filter))
 
         # Initialize Cost Explorer client using shared utility
         ce_client = create_aws_client('ce', region_name='us-east-1')
