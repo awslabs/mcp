@@ -242,17 +242,18 @@ WINDOW LIMITS:
 
 FILTER EXPRESSION GRAMMAR (the `filter` argument is an object or a JSON string with double quotes; omit it for no filter, as an empty one is rejected):
 The top-level object has exactly ONE of these keys:
-- Leaf keys: `Dimensions`, `Tags`, `CostCategories`
+- Leaf keys: `Dimensions`, `Tags`, `CostCategories`, `ProductAttributes`
 - Logical keys: `And` and `Or` (each takes an array of at least 2 expressions), `Not` (takes
   one expression)
 
 Leaf shape:
-`{"<Dimensions|Tags|CostCategories>": {"Key": "...", "Values": [...], "MatchOptions": [...]}}`
+`{"<Dimensions|Tags|CostCategories|ProductAttributes>": {"Key": "...", "Values": [...], "MatchOptions": [...]}}`
 
 MatchOptions accepted by getCostAndUsage and getCostAndUsageWithResources:
 - Dimensions:     EQUALS, CASE_SENSITIVE
 - Tags:           EQUALS, ABSENT, CASE_SENSITIVE
 - CostCategories: EQUALS, ABSENT, CASE_SENSITIVE
+- ProductAttributes: EQUALS, ABSENT, CASE_SENSITIVE
 The default is EQUALS and CASE_SENSITIVE, so MatchOptions can usually be omitted. If you pass
 MatchOptions, include EQUALS (or ABSENT): `["CASE_SENSITIVE"]` alone is rejected. ABSENT takes
 no case option: `["ABSENT", "CASE_SENSITIVE"]` is rejected. Not every operation supports
@@ -266,9 +267,9 @@ Values per leaf type:
 - Dimensions: `Values` is required and must not be empty. `[""]` (one empty string) is not
   empty: in getCostAndUsage it matches costs with no value for the dimension (see
   REPORTING $0).
-- Tags / CostCategories: `Values` is required, except with `ABSENT`. `ABSENT` matches costs
-  where the tag or cost category key is not present, so there is no value to compare against:
-  omit `Values` entirely (an empty `Values` list is rejected too).
+- Tags / CostCategories / ProductAttributes: `Values` is required, except with `ABSENT`.
+  `ABSENT` matches costs where the key is not present, so there is no value to compare
+  against: omit `Values` entirely (an empty `Values` list is rejected too).
 
 Tags leaves in getCostAndUsage, getCostAndUsageWithResources, getDimensionValues,
 getTagsOrValues and getCostCategories filters:
@@ -290,10 +291,41 @@ getTagsOrValues and getCostCategories filters:
   `ABSENT` it matches every cost, since no cost carries that key. Copy the key from
   getTagsOrValues.
 
+ProductAttributes leaves (getCostAndUsage, getCostAndUsageWithResources and getDimensionValues
+filters; the forecasts reject them):
+- They filter by product attributes. Amazon Bedrock is the only supported service; its
+  attribute names (the leaf's `Key`) are `provider`, `model`, `inferenceType` and `feature`.
+  Cost Explorer returns this data only from 2026-09-01, in every account: a period that
+  starts earlier returns DataUnavailableException, even if most of it is later.
+- Keys and values are case-sensitive, with no case-insensitive or partial match. List the keys
+  with getDimensionValues dimension=PRODUCT_ATTRIBUTE, and a key's values by adding dimension_key
+  (its search_string does match case-insensitively and partially).
+- A wrong key or value is not an error. With `Values` it matches nothing ($0). `ABSENT` (or
+  `"Values": [""]`) matches the supported services' costs with no value for the key, so with a
+  wrong key it matches every Bedrock cost.
+- Costs of other services never match a ProductAttributes leaf, even under `Not`:
+  `{"Not": <ProductAttributes leaf>}` returns only the Bedrock costs the leaf does not match.
+- A PRODUCT_ATTRIBUTE group_by (`[{"Type": "PRODUCT_ATTRIBUTE", "Key": "model"}]`) covers only
+  the supported services' costs, so its groups do not add up to the account total. Each group is
+  labelled `<key>$<value>` (e.g. `model$Claude Sonnet 5`), and `<key>$` for costs with no value.
+  Filter on the value, not the label.
+- If the filter has a SERVICE leaf anywhere, it must keep the result to Bedrock services, or
+  the request is rejected (ValidationException). Under `And`, one SERVICE leaf naming only
+  Bedrock services is enough. Under `Or`, every branch must be scoped that way, so
+  `{"Or": [<ProductAttributes leaf>, <SERVICE leaf>]}` is rejected. A SERVICE leaf under `Not`
+  never counts. getDimensionValues rejects a ProductAttributes filter with no SERVICE filter:
+  pair it with one in an `And`. Bedrock costs
+  appear under several SERVICE names, which differ by account (e.g. `Amazon Bedrock`,
+  `Amazon Bedrock Service`, and Marketplace names such as `Claude Opus 5.5 (Amazon Bedrock
+  Edition)`), so one name can return $0 while the others carry the cost. List them with
+  getDimensionValues dimension=SERVICE, search_string=Bedrock. Elsewhere, omit SERVICE to
+  include all of them.
+
 Correct filter examples:
 - `{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Relational Database Service"]}}`
 - `{"Tags": {"Key": "env", "Values": ["prod"]}}`
 - `{"Tags": {"Key": "team", "MatchOptions": ["ABSENT"]}}`
+- `{"ProductAttributes": {"Key": "model", "Values": ["Claude Sonnet 5"]}}`
 - `{"And": [{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Elastic Compute Cloud - Compute"]}}, {"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}]}`
 
 Limits by operation (a filter outside them returns ValidationException):
@@ -323,9 +355,10 @@ Limits by operation (a filter outside them returns ValidationException):
 
 3. getDimensionValues - List of available values for specified dimension
    Required: operation="getDimensionValues", dimension
-   Optional: start_date, end_date, context, search_string, filter, max_items, next_token, billing_view_arn
+   Optional: start_date, end_date, context, search_string, filter, max_items, next_token, billing_view_arn, dimension_key
    Defaults: If start_date is omitted, the tool uses 30 days before today; if end_date is omitted, it uses today (exclusive, so today is not included).
    Example: {"operation": "getDimensionValues", "dimension": "SERVICE", "start_date": "__PREV_MONTH_START__", "end_date": "__MONTH_START__"}
+   Example (values of a product attribute key): {"operation": "getDimensionValues", "dimension": "PRODUCT_ATTRIBUTE", "dimension_key": "model", "start_date": "__PREV_MONTH_START__", "end_date": "__MONTH_START__"}
    Returns: List of values for specified dimension (see PAGINATION)
    Notes: Each context accepts its own dimensions. COST_AND_USAGE (the default) takes the DIMENSION REFERENCE keys below except SCOPE and TAG; RESOURCE_ID needs a window within the last 14 days. RESERVATIONS takes only AZ, INSTANCE_TYPE, INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PLATFORM, REGION, SCOPE, SERVICE, TENANCY. SAVINGS_PLANS takes only INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PAYMENT_OPTION, REGION, SAVINGS_PLAN_ARN, SAVINGS_PLANS_TYPE. TAG is not a dimension in any context: to list a cost-allocation tag key's values use operation=getTagsOrValues (with tag_key); passing dimension=TAG is rejected.
 
@@ -398,6 +431,12 @@ getDimensionValues dimension.
 - OPERATION: The API operation behind a charge (e.g., RunInstances, PutObject; for Amazon Bedrock, model-invocation operations). The dimension is OPERATION — there is no API_OPERATION dimension.
 - PAYER_ACCOUNT: The 12-digit ID of the management (payer) account whose bill a cost is on.
   Not available in every account; if it is rejected, use LINKED_ACCOUNT
+- PRODUCT_ATTRIBUTE: Product attributes of supported services (Amazon Bedrock). Not a
+  `Dimensions` key: filter with a `ProductAttributes` leaf and group with Type
+  PRODUCT_ATTRIBUTE (see FILTER EXPRESSION GRAMMAR). As a getDimensionValues dimension
+  (COST_AND_USAGE context only) it lists the attribute names, or with dimension_key that
+  attribute's values (`""` stands for costs with no value; a wrong name returns only `""`,
+  not an error). dimension_key with any other dimension is rejected
 - PLATFORM: EC2 operating system (e.g., Linux/UNIX, Windows (Amazon VPC))
 - PURCHASE_TYPE: Purchase option (e.g., On Demand Instances, Standard Reserved Instances, Savings
   Plans)
@@ -615,6 +654,7 @@ async def cost_explorer(
     cost_category_name: Optional[str] = None,
     billing_view_arn: Optional[str] = None,
     context: Optional[str] = None,
+    dimension_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Main entry point for Cost Explorer operations.
 
@@ -647,6 +687,10 @@ async def cost_explorer(
             apply the view
         context: The context for (getDimensionValues), which can be COST_AND_USAGE (the default),
             RESERVATIONS, or SAVINGS_PLANS. SAVINGS_PLANS scopes values to the plans an account owns.
+        dimension_key: Only for getDimensionValues with dimension PRODUCT_ATTRIBUTE. Without
+            it, the call lists the product attribute names (`provider`, `model`, ...). With one
+            of those names, such as `model`, it lists that attribute's values (the model names).
+            Names are case-sensitive.
 
     Returns:
         Response from the operation handler
@@ -798,6 +842,7 @@ async def cost_explorer(
                     max_items,
                     billing_view_arn,
                     context,
+                    dimension_key=dimension_key,
                 ),
                 tag_hint,
             )

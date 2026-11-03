@@ -603,7 +603,10 @@ rejected value returns the accepted values in valid_filter_values.
 
 Cost Optimization Hub provides recommendations across multiple AWS services, including:
 - EC2 instances (right-sizing, Graviton migration)
-- EBS volumes (unused volumes, IOPS optimization)
+- EBS volumes (Delete covers both idle attached volumes and unattached ones: a
+  recommended_resource_summary starting "Detach volume from instance" marks an attached
+  volume, and get_recommendation returns attachment_state "Attached" or "Unattached" as of
+  last_refresh_timestamp), IOPS/type optimization
 - RDS instances (right-sizing, engine optimization)
 - Lambda functions (memory size optimization)
 - SP/RI

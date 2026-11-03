@@ -364,6 +364,63 @@ class TestGetRecommendation:
         rec = result['data']
         assert rec['current_resource_details'] == current_details
         assert rec['recommended_resource_details'] == recommended_details
+        # Not an EBS volume, so there is no attachment state to surface.
+        assert 'attachment_state' not in rec
+
+    @pytest.mark.parametrize(
+        'action_type, state',
+        [('Delete', 'Unattached'), ('Rightsize', 'Attached'), ('Upgrade', 'Attached')],
+    )
+    async def test_surfaces_ebs_attachment_state(
+        self, mock_context, mock_coh_client, action_type, state
+    ):
+        """Test get_recommendation surfaces an EBS volume's attachmentState on any action type."""
+        current_details = {
+            'ebsVolume': {
+                'configuration': {
+                    'storage': {'type': 'gp3', 'sizeInGb': 100.0},
+                    'attachmentState': state,
+                }
+            }
+        }
+        mock_coh_client.get_recommendation.return_value = {
+            'recommendationId': 'rec-ebs',
+            'resourceId': 'vol-0123456789abcdef0',
+            'currentResourceType': 'EbsVolume',
+            'actionType': action_type,
+            'currentResourceDetails': current_details,
+        }
+
+        result = await get_recommendation(mock_context, mock_coh_client, 'rec-ebs')
+
+        rec = result['data']
+        assert rec['attachment_state'] == state
+        # The nested details are passed through unchanged.
+        assert rec['current_resource_details'] == current_details
+
+    @pytest.mark.parametrize(
+        'current_details',
+        [
+            {'ebsVolume': {'configuration': {'storage': {'type': 'gp2'}}}},
+            {'ebsVolume': {}},
+            {'ebsVolume': {'configuration': None}},
+            {'ebsVolume': None},
+        ],
+    )
+    async def test_no_attachment_state_when_absent(
+        self, mock_context, mock_coh_client, current_details
+    ):
+        """Test get_recommendation omits attachment_state when the API returns none."""
+        mock_coh_client.get_recommendation.return_value = {
+            'recommendationId': 'rec-ebs',
+            'currentResourceType': 'EbsVolume',
+            'currentResourceDetails': current_details,
+        }
+
+        result = await get_recommendation(mock_context, mock_coh_client, 'rec-ebs')
+
+        assert result['status'] == 'success'
+        assert 'attachment_state' not in result['data']
 
 
 def _account_groups(count):
