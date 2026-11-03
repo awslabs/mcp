@@ -32,6 +32,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.constants import (
 )
 from datetime import datetime, timezone
 from fastmcp import Context
+from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -363,6 +364,71 @@ class TestGetRecommendation:
         rec = result['data']
         assert rec['current_resource_details'] == current_details
         assert rec['recommended_resource_details'] == recommended_details
+        # Not an EBS volume, so there is no attachment state to surface.
+        assert 'attachment_state' not in rec
+
+    @pytest.mark.parametrize(
+        'action_type, state',
+        [('Delete', 'Unattached'), ('Rightsize', 'Attached'), ('Upgrade', 'Attached')],
+    )
+    async def test_surfaces_ebs_attachment_state(
+        self, mock_context, mock_coh_client, action_type, state
+    ):
+        """Test get_recommendation surfaces an EBS volume's attachmentState on any action type."""
+        current_details = {
+            'ebsVolume': {
+                'configuration': {
+                    'storage': {'type': 'gp3', 'sizeInGb': 100.0},
+                    'attachmentState': state,
+                }
+            }
+        }
+        mock_coh_client.get_recommendation.return_value = {
+            'recommendationId': 'rec-ebs',
+            'resourceId': 'vol-0123456789abcdef0',
+            'currentResourceType': 'EbsVolume',
+            'actionType': action_type,
+            'currentResourceDetails': current_details,
+        }
+
+        result = await get_recommendation(mock_context, mock_coh_client, 'rec-ebs')
+
+        rec = result['data']
+        assert rec['attachment_state'] == state
+        # The nested details are passed through unchanged.
+        assert rec['current_resource_details'] == current_details
+
+    @pytest.mark.parametrize(
+        'current_details',
+        [
+            {'ebsVolume': {'configuration': {'storage': {'type': 'gp2'}}}},
+            {'ebsVolume': {}},
+            {'ebsVolume': {'configuration': None}},
+            {'ebsVolume': None},
+        ],
+    )
+    async def test_no_attachment_state_when_absent(
+        self, mock_context, mock_coh_client, current_details
+    ):
+        """Test get_recommendation omits attachment_state when the API returns none."""
+        mock_coh_client.get_recommendation.return_value = {
+            'recommendationId': 'rec-ebs',
+            'currentResourceType': 'EbsVolume',
+            'currentResourceDetails': current_details,
+        }
+
+        result = await get_recommendation(mock_context, mock_coh_client, 'rec-ebs')
+
+        assert result['status'] == 'success'
+        assert 'attachment_state' not in result['data']
+
+
+def _account_groups(count):
+    """Return ``count`` AccountId summary groups of one recommendation each."""
+    return [
+        {'group': f'{index:012d}', 'recommendationCount': 1, 'estimatedMonthlySavings': 1.0}
+        for index in range(count)
+    ]
 
 
 @pytest.mark.asyncio
@@ -442,6 +508,124 @@ class TestListRecommendationSummaries:
 
         assert 'total_recommendation_count' not in result['data']
 
+    async def test_result_at_the_group_limit_is_partial(self, mock_context, mock_coh_client):
+        """The service drops groups past 1,000 with no token, so 1,000 groups may be cut."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': _account_groups(1000),
+            'groupBy': 'AccountId',
+            'estimatedTotalDedupedSavings': 1000.0,
+        }
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'AccountId')
+
+        data = result['data']
+        assert data['complete_dataset'] is False
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 1000,
+        }
+        assert 'returns at most 1,000 groups' in data['warning']
+        assert 'group by a dimension with fewer values' in data['warning']
+        assert 'list_recommendations' not in data['warning']
+        assert 'narrow filters' not in data['warning']
+        assert 'NoTagKey' not in data['warning']
+        assert 'total_recommendation_count' not in data
+        assert len(data['summaries']) == 1000
+
+    async def test_group_limit_counts_groups_across_pages(self, mock_context, mock_coh_client):
+        """The limit is on the whole result, not one page."""
+        mock_coh_client.list_recommendation_summaries.side_effect = [
+            {'items': _account_groups(600), 'nextToken': 'p2'},
+            {'items': _account_groups(400)},
+        ]
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'AccountId')
+
+        assert result['data']['complete_dataset'] is False
+        assert 'returns at most 1,000 groups' in result['data']['warning']
+        assert 'total_recommendation_count' not in result['data']
+
+    async def test_group_limit_applies_when_max_items_asks_for_1000(
+        self, mock_context, mock_coh_client
+    ):
+        """max_items=1000 cannot tell a cut result from a complete one."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': _account_groups(1000)
+        }
+
+        result = await list_recommendation_summaries(
+            mock_context, mock_coh_client, 'AccountId', max_items=1000
+        )
+
+        assert result['data']['complete_dataset'] is False
+        assert result['data']['pagination']['next_token'] is None
+
+    async def test_group_limit_on_tag_groups_flags_no_tag_key(self, mock_context, mock_coh_client):
+        """Recommendations of dropped tag values are counted under NoTagKey."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': _account_groups(1000)
+        }
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'TagKey:Team')
+
+        assert result['data']['complete_dataset'] is False
+        assert 'NoTagKey may be missing, or may also count' in result['data']['warning']
+
+    async def test_continuation_is_not_flagged(self, mock_context, mock_coh_client):
+        """A continuation cannot count earlier pages, so its last page is not flagged."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': _account_groups(400)
+        }
+
+        result = await list_recommendation_summaries(
+            mock_context, mock_coh_client, 'AccountId', next_token='p2'
+        )
+
+        assert result['data']['pagination']['complete_dataset'] is True
+        assert 'warning' not in result['data']
+
+    async def test_partial_with_a_token_keeps_its_own_warning(self, mock_context, mock_coh_client):
+        """A max_items partial can continue, so it gets the partial warning, not the limit one."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': _account_groups(500),
+            'nextToken': 'more',
+        }
+
+        result = await list_recommendation_summaries(
+            mock_context, mock_coh_client, 'AccountId', max_items=500
+        )
+
+        data = result['data']
+        assert data['complete_dataset'] is False
+        assert data['pagination']['next_token'] == 'more'
+        assert 'at most 1,000 groups' not in data['warning']
+
+    async def test_tag_groups_below_the_limit_are_complete(self, mock_context, mock_coh_client):
+        """999 tag values and NoTagKey make 1,000 groups only with NoTagKey; 999 is complete."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': _account_groups(999)
+        }
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'TagKey:Team')
+
+        assert 'warning' not in result['data']
+        assert result['data']['total_recommendation_count'] == 999
+
+    async def test_result_below_the_group_limit_is_complete(self, mock_context, mock_coh_client):
+        """999 groups is under the limit, so every group was returned."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': _account_groups(999)
+        }
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'AccountId')
+
+        data = result['data']
+        assert 'warning' not in data
+        assert data['pagination']['complete_dataset'] is True
+        assert data['total_recommendation_count'] == 999
+
     async def test_basic_call(self, mock_context, mock_coh_client):
         """Test basic call to list_recommendation_summaries."""
         # Setup mock response
@@ -454,20 +638,20 @@ class TestListRecommendationSummaries:
                 },
                 {'group': 'EBS_VOLUME', 'estimatedMonthlySavings': 50.0, 'recommendationCount': 3},
             ],
-            'groupBy': 'RESOURCE_TYPE',
+            'groupBy': 'ResourceType',
             'currencyCode': 'USD',
         }
 
         result = await list_recommendation_summaries(
             mock_context,
             mock_coh_client,
-            group_by='RESOURCE_TYPE',
+            group_by='ResourceType',
         )
 
         # Verify the client was called correctly
         mock_coh_client.list_recommendation_summaries.assert_called_once()
         call_kwargs = mock_coh_client.list_recommendation_summaries.call_args[1]
-        assert call_kwargs['groupBy'] == 'RESOURCE_TYPE'
+        assert call_kwargs['groupBy'] == 'ResourceType'
 
         # Verify the context was informed
         mock_context.info.assert_called()
@@ -476,7 +660,7 @@ class TestListRecommendationSummaries:
         assert result['status'] == 'success'
         assert 'summaries' in result['data']
         assert 'group_by' in result['data']
-        assert result['data']['group_by'] == 'RESOURCE_TYPE'
+        assert result['data']['group_by'] == 'ResourceType'
 
         # Verify summaries data
         summaries = result['data']['summaries']
@@ -823,9 +1007,7 @@ class TestListRecommendationSummariesErrorHandling:
         """Test list_recommendation_summaries with empty response."""
         mock_coh_client.list_recommendation_summaries.return_value = {'items': []}
 
-        result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE'
-        )
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
 
         assert result['status'] == 'success'
         assert result['data']['summaries'] == []
@@ -850,7 +1032,7 @@ class TestListRecommendationSummariesErrorHandling:
                     }
                     for i in range(3)
                 ],
-                'groupBy': 'RESOURCE_TYPE',
+                'groupBy': 'ResourceType',
                 'currencyCode': 'USD',
                 # First response: this is what the helper should read.
                 'estimatedTotalDedupedSavings': 600.0,
@@ -865,7 +1047,7 @@ class TestListRecommendationSummariesErrorHandling:
                     }
                     for i in range(3, 6)
                 ],
-                'groupBy': 'RESOURCE_TYPE',
+                'groupBy': 'ResourceType',
                 'currencyCode': 'USD',
                 # Second response: different value so a last-response read
                 # would be visibly wrong.
@@ -875,7 +1057,7 @@ class TestListRecommendationSummariesErrorHandling:
         ]
 
         result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE', max_items=6
+            mock_context, mock_coh_client, 'ResourceType', max_items=6
         )
 
         assert result['status'] == 'success'
@@ -903,7 +1085,7 @@ class TestListRecommendationSummariesErrorHandling:
                     'estimatedMonthlySavings': 10.0,
                 }
             ],
-            'groupBy': 'RESOURCE_TYPE',
+            'groupBy': 'ResourceType',
             'currencyCode': 'USD',
             'estimatedTotalDedupedSavings': 10.0,
             'nextToken': None,
@@ -912,7 +1094,7 @@ class TestListRecommendationSummariesErrorHandling:
         await list_recommendation_summaries(
             mock_context,
             mock_coh_client,
-            'RESOURCE_TYPE',
+            'ResourceType',
             next_token='resume-from-here',
         )
 
@@ -951,9 +1133,7 @@ class TestListRecommendationSummariesErrorHandling:
             operation_name='ListRecommendationSummaries',
         )
 
-        result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE'
-        )
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
 
         assert result['status'] == 'error'
         assert result['operation'] == 'list_recommendation_summaries'
@@ -969,9 +1149,7 @@ class TestListRecommendationSummariesErrorHandling:
             operation_name='ListRecommendationSummaries',
         )
 
-        result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE'
-        )
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
 
         assert result['status'] == 'error'
         assert result['operation'] == 'list_recommendation_summaries'
@@ -989,9 +1167,7 @@ class TestListRecommendationSummariesErrorHandling:
             operation_name='ListRecommendationSummaries',
         )
 
-        result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE'
-        )
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
 
         assert result['status'] == 'error'
         assert result['operation'] == 'list_recommendation_summaries'
@@ -1010,9 +1186,7 @@ class TestListRecommendationSummariesErrorHandling:
             operation_name='ListRecommendationSummaries',
         )
 
-        result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE'
-        )
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
 
         assert result['status'] == 'error'
         assert result['operation'] == 'list_recommendation_summaries'
@@ -1025,9 +1199,7 @@ class TestListRecommendationSummariesErrorHandling:
             'Some unexpected error'
         )
 
-        result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE'
-        )
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
 
         assert result['status'] == 'error'
         assert result['service'] == 'Cost Optimization Hub'
@@ -1142,9 +1314,7 @@ class TestPaginationEdgeCases:
             # No nextToken
         }
 
-        result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE'
-        )
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
 
         assert result['status'] == 'success'
         assert len(result['data']['summaries']) == 1
@@ -1866,15 +2036,15 @@ async def test_list_recommendation_summaries_single_page_passes_next_token(
     """A max_items stop on summaries surfaces nextToken and flags the partial result."""
     mock_coh_client.list_recommendation_summaries.return_value = {
         'items': [{'group': 'EC2_INSTANCE', 'recommendationCount': 1}],
-        'groupBy': 'RESOURCE_TYPE',
+        'groupBy': 'ResourceType',
         'currencyCode': 'USD',
-        'metrics': {'savingsPercentage': 12.5},
+        'metrics': {'savingsPercentage': '12%'},
         'nextToken': 'tok-sum',
     }
     result = await list_recommendation_summaries(
         mock_context,
         mock_coh_client,
-        group_by='RESOURCE_TYPE',
+        group_by='ResourceType',
         max_items=1,
     )
     assert result['status'] == 'success'
@@ -1882,7 +2052,7 @@ async def test_list_recommendation_summaries_single_page_passes_next_token(
     assert result['data']['pagination']['next_token'] == 'tok-sum'
     assert list(result['data'])[:2] == ['complete_dataset', 'warning']
     # The optional top-level ``metrics`` block is surfaced when present.
-    assert result['data']['metrics']['savings_percentage'] == 12.5
+    assert result['data']['metrics']['savings_percentage'] == '12%'
 
 
 @pytest.mark.asyncio
@@ -2570,3 +2740,85 @@ async def test_summaries_failure_after_first_page_returns_partial(mock_context, 
     assert 'ThrottlingException' in data['warning']
     assert data['estimated_total_deduped_savings'] == 5.0
     assert data['pagination']['next_token'] == 'tok-2'
+
+
+@pytest.mark.asyncio
+class TestListRecommendationSummariesSavingsPercentage:
+    """The summaries call requests SavingsPercentage and never returns a placeholder as a metric."""
+
+    async def test_requests_savings_percentage(self, mock_context, mock_coh_client):
+        """Every summaries request asks the API for the SavingsPercentage metric."""
+        mock_coh_client.list_recommendation_summaries.return_value = {'items': []}
+
+        await list_recommendation_summaries(mock_context, mock_coh_client, 'ResourceType')
+
+        call_kwargs = mock_coh_client.list_recommendation_summaries.call_args[1]
+        assert call_kwargs['metrics'] == ['SavingsPercentage']
+
+    @pytest.mark.parametrize('value', ['12%', '>=80%', '<=2%', '0%', '12.5%'])
+    async def test_percentage_is_returned(self, mock_context, mock_coh_client, value):
+        """A percentage value, including the clamped forms, is returned as savings_percentage."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': [],
+            'metrics': {'savingsPercentage': value},
+        }
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'Region')
+
+        assert result['data']['metrics'] == {'savings_percentage': value}
+
+    @pytest.mark.parametrize(
+        'reason',
+        [
+            'Percentage not requested.',
+            'Savings percentage is not supported when savings estimation mode preference '
+            'is set to before discounts.',
+            'The current filter configuration is not supported for calculating the percentage.',
+            'Unable to calculate the savings percentage.',
+        ],
+    )
+    async def test_placeholder_is_not_a_metric(self, mock_context, mock_coh_client, reason):
+        """A service explanation is returned as the reason, never as savings_percentage."""
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': [],
+            'metrics': {'savingsPercentage': reason},
+        }
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'Region')
+
+        assert result['data']['metrics'] == {'savings_percentage_unavailable_reason': reason}
+
+    @pytest.mark.parametrize(
+        'response_metrics',
+        [None, {}, {'savingsPercentage': None}, {'savingsPercentage': 12.5}],
+    )
+    async def test_no_usable_metrics(self, mock_context, mock_coh_client, response_metrics):
+        """No metrics block, or one without a string percentage, gives no metrics key."""
+        response: Dict[str, Any] = {'items': []}
+        if response_metrics is not None:
+            response['metrics'] = response_metrics
+        mock_coh_client.list_recommendation_summaries.return_value = response
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'Region')
+
+        assert 'metrics' not in result['data']
+
+    async def test_every_page_requests_savings_percentage(self, mock_context, mock_coh_client):
+        """A resumed, multi-page fetch asks for SavingsPercentage on every request."""
+        mock_coh_client.list_recommendation_summaries.side_effect = [
+            {
+                'items': [{'group': 'A'}],
+                'metrics': {'savingsPercentage': '12%'},
+                'nextToken': 't2',
+            },
+            {'items': [{'group': 'B'}], 'metrics': {'savingsPercentage': '99%'}},
+        ]
+
+        result = await list_recommendation_summaries(
+            mock_context, mock_coh_client, 'Region', next_token='t1'
+        )
+
+        calls = mock_coh_client.list_recommendation_summaries.call_args_list
+        assert [c.kwargs['metrics'] for c in calls] == [['SavingsPercentage']] * 2
+        assert [c.kwargs['nextToken'] for c in calls] == ['t1', 't2']
+        assert result['data']['metrics'] == {'savings_percentage': '12%'}

@@ -1048,8 +1048,28 @@ def _rule_preview_request(
         request_params['organizationScope'] = parsed_scope
     parsed_criteria = parse_json(criteria, 'criteria')
     if parsed_criteria:
-        request_params['criteria'] = parsed_criteria
+        request_params['criteria'] = _fold_restart_needed_values(parsed_criteria)
     return request_params
+
+
+def _fold_restart_needed_values(criteria: Any) -> Any:
+    """Lowercase the string values of the restartNeeded criteria conditions.
+
+    AWS compares restartNeeded against the strings "true" and "false", so a StringEquals
+    "True" silently matches nothing. Any shape other than a list of condition objects
+    with a values list is returned unchanged for AWS to validate.
+    """
+    if not isinstance(criteria, dict) or not isinstance(criteria.get('restartNeeded'), list):
+        return criteria
+    conditions = []
+    for condition in criteria['restartNeeded']:
+        if isinstance(condition, dict) and isinstance(condition.get('values'), list):
+            condition = {
+                **condition,
+                'values': [v.lower() if isinstance(v, str) else v for v in condition['values']],
+            }
+        conditions.append(condition)
+    return {**criteria, 'restartNeeded': conditions}
 
 
 async def _collect_automation_rule_preview(

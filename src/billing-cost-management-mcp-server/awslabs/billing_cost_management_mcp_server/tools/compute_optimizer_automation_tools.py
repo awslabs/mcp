@@ -453,6 +453,13 @@ collapsed. Account-global operations (get_automation_rule, get_enrollment_config
 list_accounts, list_automation_rules, list_tags_for_resource) accept at most one region —
 rules are global resources, so fanning them out would repeat identical data.
 
+**Account scope:** Called from an organization's management account or a delegated
+administrator, list_recommended_actions, list_recommended_action_summaries,
+list_automation_events and list_automation_event_summaries also return data for the
+associated member accounts (see list_accounts), not just the calling account. Actions and
+events have an account_id; summary rows do not, so their counts and savings can cover several
+accounts. To report on one account, filter on AccountId.
+
 Supported operations (pass via the `operation` parameter):
 
 1. get_enrollment_configuration: Current Automation enrollment status for the account.
@@ -512,6 +519,14 @@ Filter values:
   than intended (io matches every volume, not only io1). Use a full value such as gp2 or io1.
   ResourceTagsKey and ResourceTagsValue each search keys and values, so a key filter also
   matches tag values and the reverse. EBS volume types are lowercased for you.
+
+Rule criteria (`criteria`, preview operations) is a JSON object string of the form
+{"<field>": [{"comparison": "<operator>", "values": [...]}]}. Text fields: `region`,
+`resourceArn`, `ebsVolumeType`, `restartNeeded`; they take String* operators (StringEquals,
+StringLike, StringEqualsIgnoreCase, ...). Number fields: `ebsVolumeSizeInGib`,
+`lookBackPeriodInDays`, `estimatedMonthlySavings`; they take Numeric* operators
+(NumericEquals, NumericGreaterThan, ...). `resourceTag` also takes a "key" and String*
+operators. An OrganizationRule needs organization_scope; the tool rejects one without it.
 
 PAGINATION (list_* operations only; the get_* operations and list_tags_for_resource take
 neither max_items nor next_token):
@@ -576,7 +591,10 @@ async def compute_optimizer_automation(
         rule_type: Rule type for the preview operations ('OrganizationRule'/'AccountRule').
         recommended_action_types: JSON string array of action types for the preview operations.
         organization_scope: Optional JSON string {accountIds: [...]} for the preview operations.
-        criteria: Optional JSON string of rule criteria conditions for the preview operations.
+            Required when rule_type is OrganizationRule.
+        criteria: Optional JSON object string of rule criteria for the preview operations:
+            {"<field>": [{"comparison": "<operator>", "values": [...]}]}. See the tool
+            description for the fields and operators.
         max_items: Total number of items to return across all pages (per region when
             regions is set). Omit it to fetch every page. List operations only.
         next_token: The pagination.next_token from a previous response; continue with
