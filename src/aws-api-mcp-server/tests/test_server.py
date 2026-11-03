@@ -1354,14 +1354,20 @@ def test_get_server_auth_streamable_http_no_auth():
 
 
 @pytest.mark.parametrize(
-    ('auth_type', 'auth_issuer', 'auth_jwks_uri', 'expected_call_aws'),
+    ('auth_type', 'auth_issuer', 'auth_jwks_uri', 'auth_audience', 'expected_call_aws'),
     [
-        ('no-auth', None, None, False),
-        ('oauth', 'https://issuer.example.com', 'https://example.com/jwks', True),
+        ('no-auth', None, None, None, False),
+        (
+            'oauth',
+            'https://issuer.example.com',
+            'https://example.com/jwks',
+            'my-mcp-server',
+            True,
+        ),
     ],
 )
 async def test_call_aws_registration_requires_http_auth(
-    auth_type, auth_issuer, auth_jwks_uri, expected_call_aws
+    auth_type, auth_issuer, auth_jwks_uri, auth_audience, expected_call_aws
 ):
     """Hide AWS credential-using tools when the HTTP server has no client auth."""
     import importlib
@@ -1372,6 +1378,8 @@ async def test_call_aws_registration_requires_http_auth(
             patch.object(config_module, 'AUTH_TYPE', auth_type),
             patch.object(config_module, 'AUTH_ISSUER', auth_issuer),
             patch.object(config_module, 'AUTH_JWKS_URI', auth_jwks_uri),
+            patch.object(config_module, 'AUTH_AUDIENCE', auth_audience),
+            patch.object(config_module, 'AUTH_CLIENT_ID', None),
         ):
             importlib.reload(server_module)
 
