@@ -633,6 +633,110 @@ class TestListBillingViews:
         result = await list_billing_views(mock_ctx, active_before_inclusive='2024-01-31')
         assert result['status'] == STATUS_ERROR
 
+    @pytest.mark.parametrize(
+        'after, before',
+        [
+            # Crosses a month boundary.
+            ('2026-09-15', '2026-10-10'),
+            # A month end written as the next month's first second is in the next month.
+            ('2026-02-01', '2026-03-01T00:00:00'),
+            # Same month number, different year.
+            ('2025-01-15', '2026-01-10'),
+            # December into January.
+            ('2026-12-15', '2027-01-05'),
+        ],
+    )
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_rejects_range_outside_one_month(
+        self, mock_create_client, mock_ctx, after, before
+    ):
+        """A range that leaves one UTC calendar month fails locally and names the rule."""
+        result = await list_billing_views(
+            mock_ctx, active_after_inclusive=after, active_before_inclusive=before
+        )
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'validation_error'
+        message = result['message']
+        assert 'same UTC calendar month' in message
+        assert 'T23:59:59' in message
+        mock_create_client.return_value.list_billing_views.assert_not_called()
+
+    @pytest.mark.parametrize(
+        'after, before, first, last',
+        [
+            ('2026-02-01', '2026-03-01T00:00:00', '2026-02-01T00:00:00', '2026-02-28T23:59:59'),
+            ('2024-02-10', '2024-03-05', '2024-02-01T00:00:00', '2024-02-29T23:59:59'),
+            ('2026-12-15', '2027-01-05', '2026-12-01T00:00:00', '2026-12-31T23:59:59'),
+        ],
+    )
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_out_of_month_error_suggests_that_month(
+        self, mock_create_client, mock_ctx, after, before, first, last
+    ):
+        """The suggested range is the whole month the start falls in."""
+        result = await list_billing_views(
+            mock_ctx, active_after_inclusive=after, active_before_inclusive=before
+        )
+
+        assert f'use {first} to {last}.' in result['message']
+
+    @pytest.mark.parametrize(
+        'after, before',
+        [
+            ('2026-10-10', '2026-10-10'),
+            ('2026-10-10T12:00:00', '2026-10-01'),
+        ],
+    )
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_rejects_end_not_after_start(
+        self, mock_create_client, mock_ctx, after, before
+    ):
+        """The service needs the end strictly after the start; check it locally."""
+        result = await list_billing_views(
+            mock_ctx, active_after_inclusive=after, active_before_inclusive=before
+        )
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'validation_error'
+        assert 'later than active_after_inclusive' in result['message']
+        assert 'T23:59:59' in result['message']
+        mock_create_client.return_value.list_billing_views.assert_not_called()
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_accepts_one_second_range(self, mock_create_client, mock_ctx):
+        """The end only has to be later than the start, so one second is enough."""
+        mock_create_client.return_value.list_billing_views.return_value = {'billingViews': []}
+
+        result = await list_billing_views(
+            mock_ctx,
+            active_after_inclusive='2026-10-10T00:00:00',
+            active_before_inclusive='2026-10-10T00:00:01',
+        )
+
+        assert result['status'] == STATUS_SUCCESS
+        mock_create_client.return_value.list_billing_views.assert_called_once()
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_accepts_whole_month_to_last_second(
+        self, mock_create_client, mock_ctx
+    ):
+        """First day 00:00:00 through last day 23:59:59 is the widest accepted range."""
+        mock_create_client.return_value.list_billing_views.return_value = {'billingViews': []}
+
+        result = await list_billing_views(
+            mock_ctx,
+            active_after_inclusive='2024-02-01',
+            active_before_inclusive='2024-02-29T23:59:59',
+        )
+
+        assert result['status'] == STATUS_SUCCESS
+        call_kwargs = mock_create_client.return_value.list_billing_views.call_args[1]
+        assert call_kwargs['activeTimeRange'] == {
+            'activeAfterInclusive': 1706745600,
+            'activeBeforeInclusive': 1709251199,
+        }
+
     async def test_list_billing_views_invalid_date_format(self, mock_ctx):
         """Test listing billing views with invalid date format."""
         result = await list_billing_views(
@@ -733,14 +837,17 @@ class TestListBillingViews:
         assert call_kwargs['names'] == [{'searchOption': 'STARTS_WITH', 'searchValue': 'Custom'}]
 
     @patch(PATCH_BVS_CLIENT)
-    async def test_list_billing_views_with_source_account_id(
-        self, mock_create_client, mock_ctx, sample_billing_view_list_elements
-    ):
+    async def test_list_billing_views_with_source_account_id(self, mock_create_client, mock_ctx):
         """Test listing billing views with source account ID filter."""
-        mock_client = MagicMock()
-        mock_client.list_billing_views.return_value = {
-            'billingViews': [sample_billing_view_list_elements[1]],
+        billing_group_view = {
+            'arn': BILLING_VIEW_ARN_BILLING_GROUP,
+            'name': 'Billing Group View',
+            'billingViewType': 'BILLING_GROUP',
+            'ownerAccountId': ACCOUNT_ID_PRIMARY,
+            'sourceAccountId': ACCOUNT_ID_PRIMARY_2,
         }
+        mock_client = MagicMock()
+        mock_client.list_billing_views.return_value = {'billingViews': [billing_group_view]}
         mock_create_client.return_value = mock_client
 
         result = await list_billing_views(mock_ctx, source_account_id=ACCOUNT_ID_PRIMARY_2)
@@ -748,6 +855,102 @@ class TestListBillingViews:
         assert result['status'] == STATUS_SUCCESS
         call_kwargs = mock_client.list_billing_views.call_args[1]
         assert call_kwargs['sourceAccountId'] == ACCOUNT_ID_PRIMARY_2
+        assert result['data']['billing_views'][0]['source_account_id'] == ACCOUNT_ID_PRIMARY_2
+        assert 'hint' not in result
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_source_account_id_empty_result_has_hint(
+        self, mock_create_client, mock_ctx
+    ):
+        """A complete empty source_account_id result says it is not a membership answer."""
+        mock_client = MagicMock()
+        mock_client.list_billing_views.return_value = {'billingViews': []}
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_views(
+            mock_ctx, source_account_id=ACCOUNT_ID_PRIMARY, billing_view_types='["PRIMARY"]'
+        )
+
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['billing_views'] == []
+        hint = result['hint']
+        assert 'together with the other filters' in hint
+        assert 'does not mean no view includes the account' in hint
+        assert 'never PRIMARY or CUSTOM views' in hint
+        assert "with a time range, only that period's billing groups count" in hint
+        assert 'from the payer account' in hint
+        assert 'list-account-associations, then list-billing-groups' in hint
+        assert 'without source_account_id' in hint
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_source_account_id_empty_continuation_has_no_hint(
+        self, mock_create_client, mock_ctx
+    ):
+        """An empty continuation page says nothing about the whole query."""
+        mock_client = MagicMock()
+        mock_client.list_billing_views.return_value = {'billingViews': []}
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_views(
+            mock_ctx, source_account_id=ACCOUNT_ID_PRIMARY, next_token=NEXT_TOKEN_MORE
+        )
+
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['billing_views'] == []
+        assert 'hint' not in result
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_source_account_id_empty_partial_result_has_no_hint(
+        self, mock_create_client, mock_ctx
+    ):
+        """An empty first page whose next page fails is partial, so it gets no hint."""
+        mock_client = MagicMock()
+        mock_client.list_billing_views.side_effect = [
+            {'billingViews': [], 'nextToken': NEXT_TOKEN_MORE},
+            ClientError(
+                {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
+                'ListBillingViews',
+            ),
+        ]
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_views(mock_ctx, source_account_id=ACCOUNT_ID_PRIMARY)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['pagination']['complete_dataset'] is False
+        assert 'hint' not in result
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_source_account_id_error_has_no_hint(
+        self, mock_create_client, mock_ctx
+    ):
+        """A service error with source_account_id carries no source_account_id hint."""
+        mock_client = MagicMock()
+        mock_client.list_billing_views.side_effect = ClientError(
+            {'Error': {'Code': 'ValidationException', 'Message': 'bad sourceAccountId'}},
+            'ListBillingViews',
+        )
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_views(mock_ctx, source_account_id='12345')
+
+        assert result['status'] == 'error'
+        assert 'does not mean no view includes the account' not in result.get('hint', '')
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_billing_views_empty_result_without_source_account_id_has_no_hint(
+        self, mock_create_client, mock_ctx
+    ):
+        """The hint is only for source_account_id; other empty results have none."""
+        mock_client = MagicMock()
+        mock_client.list_billing_views.return_value = {'billingViews': []}
+        mock_create_client.return_value = mock_client
+
+        names_json = json.dumps([{'searchOption': 'STARTS_WITH', 'searchValue': 'none'}])
+        result = await list_billing_views(mock_ctx, names=names_json)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert 'hint' not in result
 
     @patch(PATCH_BVS_CLIENT)
     async def test_list_billing_views_with_max_items(

@@ -266,6 +266,21 @@ async def test_get_recommendation_success(mock_context):
     assert result['data']['recommendation_id'] == 'rec-1'
 
 
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_coh_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as module,
+    )
+
+    importlib.reload(module)
+
+
 def _reload_coh_with_identity_decorator():
     """Reload cost_optimization_hub_tools with FastMCP.tool patched to return the original function unchanged (identity decorator).
 
@@ -376,6 +391,118 @@ async def test_coh_real_list_recommendations_reload_identity_decorator(mock_cont
             next_token=None,
             order_by=None,
         )
+
+
+async def _coh_tool_as_served():
+    """Return the cost-optimization tool as served (reloaded with the real decorator).
+
+    The identity-decorator reload above leaves a server with no tools, so reload it here
+    with the real one.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    coh_mod = importlib.reload(coh_mod)
+    tool = await coh_mod.cost_optimization_hub_server.get_tool('cost-optimization')
+    assert tool is not None
+    return tool
+
+
+@pytest.mark.asyncio
+async def test_description_says_default_hides_alternative_recommendations():
+    """The default deduplicated view hides alternatives; the text says so and how to see them."""
+    tool = await _coh_tool_as_served()
+    flat = ' '.join((tool.description or '').split())
+    assert 'Set include_all_recommendations=true to compare purchase options' in flat
+    assert 'do not add their estimated savings together' in flat
+    assert 'list_recommendation_summaries always deduplicates' in flat
+    assert 'need not match list_recommendations' in flat
+    assert "closest to the account's commitment preference" in flat
+    arg_doc = ' '.join(
+        (
+            tool.parameters['properties']['include_all_recommendations'].get('description') or ''
+        ).split()
+    )
+    assert arg_doc != 'Whether to include all recommendations'
+    assert 'list_recommendations only' in arg_doc
+    assert 'hides the alternatives' in arg_doc
+
+
+@pytest.mark.asyncio
+async def test_summaries_do_not_take_include_all_recommendations(mock_context):
+    """list_recommendation_summaries is always deduplicated: the arg is not forwarded."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(
+            coh_mod, 'list_recommendation_summaries', new_callable=AsyncMock
+        ) as mock_summaries,
+    ):
+        mock_summaries.return_value = {'status': 'success', 'data': {'summaries': []}}
+        await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendation_summaries',
+            group_by='ResourceType',
+            include_all_recommendations=True,
+        )
+
+    mock_summaries.assert_awaited_once_with(
+        mock_context,
+        mock_create_client.return_value,
+        group_by='ResourceType',
+        max_items=None,
+        filters=None,
+        next_token=None,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'include_all, expected_phrase',
+    [
+        (None, "chosen first by the account's commitment preference"),
+        (False, "chosen first by the account's commitment preference"),
+        (True, 'do not add their estimated savings together'),
+    ],
+)
+async def test_list_recommendations_response_carries_deduplication_note(
+    mock_context, include_all, expected_phrase
+):
+    """A successful list_recommendations result says which view it is and what that means."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(coh_mod, 'list_recommendations', new_callable=AsyncMock) as mock_list_recs,
+    ):
+        mock_list_recs.return_value = {'status': 'success', 'data': {'recommendations': []}}
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendations',
+            include_all_recommendations=include_all,
+        )
+
+    assert expected_phrase in res['data']['deduplication_note']
+
+
+@pytest.mark.asyncio
+async def test_list_recommendations_error_has_no_deduplication_note(mock_context):
+    """A failed list_recommendations result is returned without the note."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(coh_mod, 'list_recommendations', new_callable=AsyncMock) as mock_list_recs,
+    ):
+        mock_list_recs.return_value = {'status': 'error', 'data': {'error_type': 'x'}}
+        res = await real_fn(mock_context, operation='list_recommendations')  # type: ignore
+
+    assert 'deduplication_note' not in res['data']
 
 
 @pytest.mark.asyncio
@@ -1467,15 +1594,26 @@ async def test_coh_local_validation_errors_carry_telemetry_fields(
         ({'resource_types': ['Ec2Instance']}, {'resourceTypes': ['Ec2Instance']}),
         # A bare value is wrapped in a list.
         ({'resourceTypes': 'ebsvolume'}, {'resourceTypes': ['EbsVolume']}),
+        # Values the botocore model lacks but the API accepts fold too.
+        (
+            {'resourceTypes': ['database_savings_plans']},
+            {'resourceTypes': ['DatabaseSavingsPlans']},
+        ),
         ({'regions': 'us-east-1'}, {'regions': ['us-east-1']}),
         # Unknown values, non-enum lists, non-string items, booleans, and unknown keys pass through.
         ({'resourceTypes': ['NotAType', 5]}, {'resourceTypes': ['NotAType', 5]}),
         ({'accountIds': ['123456789012']}, {'accountIds': ['123456789012']}),
         ({'tags': [{'key': 'env', 'value': 'prod'}]}, {'tags': [{'key': 'env', 'value': 'prod'}]}),
         ({'restartNeeded': False}, {'restartNeeded': False}),
-        # Boolean filter keys fold too; their values are left as given.
+        # Boolean filter keys fold too.
         ({'RestartNeeded': True}, {'restartNeeded': True}),
         ({'rollback_possible': False}, {'rollbackPossible': False}),
+        # 'true'/'false' strings become booleans, case-insensitively; other values pass through.
+        ({'restartNeeded': 'true'}, {'restartNeeded': True}),
+        ({'rollbackPossible': 'False'}, {'rollbackPossible': False}),
+        ({'restart_needed': ' TRUE '}, {'restartNeeded': True}),
+        ({'restartNeeded': 'yes'}, {'restartNeeded': 'yes'}),
+        ({'restartNeeded': 1}, {'restartNeeded': 1}),
         ({'unknownKey': ['x'], 1: 'y'}, {'unknownKey': ['x'], 1: 'y'}),
     ],
 )
@@ -1540,6 +1678,25 @@ def test_filter_model_unavailable_skips_normalization():
         coh_mod._filter_members.cache_clear()
 
 
+def test_filter_model_adds_supplemental_resource_types():
+    """Values the botocore enum lacks are merged in, once, and the botocore values stay."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    resource_types = coh_mod._filter_model()['resourceTypes']
+
+    assert resource_types is not None
+    assert 'Ec2Instance' in resource_types
+    assert resource_types.count('DatabaseSavingsPlans') == 1
+
+    # A botocore model that already lists the value does not duplicate it.
+    shape = MagicMock(type_name='list')
+    shape.member.enum = ['Ec2Instance', 'DatabaseSavingsPlans']
+    with patch.object(coh_mod, '_filter_members', return_value={'resourceTypes': shape}):
+        assert coh_mod._filter_model()['resourceTypes'] == ['Ec2Instance', 'DatabaseSavingsPlans']
+
+
 def test_add_valid_filter_values():
     """A ValidationException gets the accepted values of the enum filters that were sent."""
     from awslabs.billing_cost_management_mcp_server.tools import (
@@ -1595,6 +1752,72 @@ async def test_coh_empty_filter_rejected_before_api_call(mock_context, operation
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'filters',
+    [
+        '{"recommendationIds": ["r-1"]}',
+        '{"resource_ids": ["i-1"]}',
+        '{"resourceArns": ["arn:aws:ec2:us-east-1:111111111111:instance/i-1"]}',
+    ],
+)
+async def test_coh_summaries_reject_id_filters_before_api_call(mock_context, filters):
+    """The service rejects ID filters on summaries, so they fail locally with a hint."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(
+            coh_mod, 'list_recommendation_summaries', new_callable=AsyncMock
+        ) as mock_summaries,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendation_summaries',
+            group_by='ActionType',
+            filters=filters,
+        )
+
+    assert res['error_type'] == 'validation_error'
+    assert res['operation'] == 'list_recommendation_summaries'
+    assert len(res['data']['unsupported_filters']) == 1
+    assert res['data']['unsupported_filters'][0] in coh_mod.SUMMARIES_UNSUPPORTED_FILTERS
+    assert 'is not supported by list_recommendation_summaries' in res['message']
+    supported = res['data']['supported_filters']
+    assert 'resourceTypes' in supported and 'tags' in supported
+    assert not set(supported) & coh_mod.SUMMARIES_UNSUPPORTED_FILTERS
+    mock_summaries.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_coh_id_filters_still_reach_list_recommendations(mock_context):
+    """list_recommendations accepts the ID filters, so they pass through."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(
+            coh_mod,
+            'list_recommendations',
+            new_callable=AsyncMock,
+            return_value={'status': 'success', 'data': {}},
+        ) as mock_list,
+    ):
+        await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendations',
+            filters='{"recommendationIds": ["r-1"]}',
+        )
+
+    mock_list.assert_awaited_once()
+    assert {'recommendationIds': ['r-1']} in [
+        *mock_list.call_args.args,
+        *mock_list.call_args.kwargs.values(),
+    ]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('operation', ['list_recommendations', 'list_recommendation_summaries'])
 async def test_coh_validation_exception_adds_valid_filter_values(mock_context, operation):
     """A ValidationException from the API carries the accepted filter values."""
@@ -1632,6 +1855,28 @@ async def test_coh_validation_exception_adds_valid_filter_values(mock_context, o
     assert sent_filters == {'resourceTypes': ['Ec2Instance', 'NotAType']}
     assert res['error_type'] == 'ValidationException'
     assert 'Ec2Instance' in res['valid_filter_values']['resourceTypes']
+
+
+@pytest.mark.asyncio
+async def test_description_warns_that_summing_recommendation_savings_double_counts():
+    """The description names the one de-duplicated total and the filters that change it."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    # Other tests reload the module with an identity decorator, which leaves no tool registered.
+    importlib.reload(coh_mod)
+    tool = await coh_mod.cost_optimization_hub_server.get_tool('cost-optimization')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert 'SAVINGS TOTALS:' in description
+    assert 'estimated_total_deduped_savings' in description
+    assert 'Never add up list_recommendations estimated_monthly_savings' in description
+    for filter_name in ('actionTypes', 'resourceTypes', 'implementationEfforts'):
+        assert filter_name in description.split('SAVINGS TOTALS:')[1].split('CRITICAL')[0]
+    assert 'include_all_recommendations=true' in description
+    assert 'do not include DatabaseSavingsPlans' in description
 
 
 @pytest.mark.parametrize(
@@ -1685,6 +1930,27 @@ def test_filter_item_fields_unavailable():
     assert coh_mod._filter_item_fields() == {'tags': ['key', 'value']}
 
 
+@pytest.mark.asyncio
+async def test_description_documents_region_and_database_savings_plans_behavior():
+    """The description says how regions and DatabaseSavingsPlans differ between list and summaries."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    # Other tests reload the module with an identity decorator, which leaves no tool registered.
+    importlib.reload(coh_mod)
+    tool = await coh_mod.cost_optimization_hub_server.get_tool('cost-optimization')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert 'regions=["Global"] returns them' in description
+    assert '"Global" returns $0' in description
+    assert (
+        'DatabaseSavingsPlans: list_recommendations returns these recommendations' in description
+    )
+    assert "'DatabaseSavingsPlans']" in description
+
+
 @pytest.mark.parametrize(
     'group_by,expected',
     [
@@ -1693,6 +1959,10 @@ def test_filter_item_fields_unavailable():
         # The prefix folds; the tag key keeps its case.
         ('tagkey:Environment', 'TagKey:Environment'),
         ('TAGKEY:cost center', 'TagKey:cost center'),
+        # Fixed dimensions fold case onto the API's spelling.
+        ('resourcetype', 'ResourceType'),
+        ('ACCOUNTID', 'AccountId'),
+        ('implementationeffort', 'ImplementationEffort'),
     ],
 )
 def test_resolve_summaries_group_by(group_by, expected):
@@ -1710,7 +1980,11 @@ def test_resolve_summaries_group_by(group_by, expected):
         ('TagKey:', 'needs a tag key'),
         ('TagKey:  ', 'needs a tag key'),
         ('Tag:Environment', 'Invalid group_by value'),
-        ('resourcetype', 'Invalid group_by value'),
+        ('Service', 'Invalid group_by value'),
+        (5, 'Invalid group_by value'),
+        # Underscores are not ignored: the legacy upper-snake spelling is not a valid dimension.
+        ('RESOURCE_TYPE', 'Invalid group_by value'),
+        ('resource_type', 'Invalid group_by value'),
     ],
 )
 def test_resolve_summaries_group_by_rejects(group_by, message):
@@ -1727,6 +2001,101 @@ def test_resolve_summaries_group_by_rejects(group_by, message):
     assert error['operation'] == 'list_recommendation_summaries'
     assert message in error['message']
     assert 'TagKey:<tag key>' in error['data']['valid_group_by_values']
+
+
+@pytest.mark.asyncio
+async def test_coh_summaries_group_by_folds_case(mock_context):
+    """A lower-case group_by reaches the summaries API in the API's spelling."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(
+            coh_mod,
+            'list_recommendation_summaries',
+            new_callable=AsyncMock,
+            return_value={'status': 'success', 'data': {}},
+        ) as mock_summaries,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context, operation='list_recommendation_summaries', group_by='resourcetype'
+        )
+
+    assert res['status'] == 'success'
+    sent = mock_summaries.await_args
+    assert sent is not None
+    assert sent.kwargs['group_by'] == 'ResourceType'
+    assert res['data']['operation_parameters']['group_by'] == 'ResourceType'
+
+
+@pytest.mark.asyncio
+async def test_coh_missing_group_by_lists_tag_key(mock_context):
+    """The missing-group_by error lists the same valid values as the invalid-group_by error."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with patch.object(coh_mod, 'create_aws_client'):
+        missing = await real_fn(mock_context, operation='list_recommendation_summaries')  # type: ignore
+        invalid = await real_fn(  # type: ignore
+            mock_context, operation='list_recommendation_summaries', group_by='Nope'
+        )
+
+    assert missing['data']['valid_group_by_values'] == invalid['data']['valid_group_by_values']
+    assert 'TagKey:<tag key>' in missing['data']['valid_group_by_values']
+
+
+@pytest.mark.asyncio
+async def test_coh_list_recommendations_string_boolean_filter(mock_context):
+    """A 'true' string boolean filter reaches the API as a boolean."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(
+            coh_mod,
+            'list_recommendations',
+            new_callable=AsyncMock,
+            return_value={'status': 'success', 'data': {}},
+        ) as mock_list,
+    ):
+        await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendations',
+            filters='{"restartNeeded": "true", "rollbackPossible": "false"}',
+        )
+
+    sent = mock_list.await_args
+    assert sent is not None
+    assert sent.args[3] == {'restartNeeded': True, 'rollbackPossible': False}
+
+
+@pytest.mark.asyncio
+async def test_tool_description_documents_filters_and_metrics():
+    """The description documents the ID filters, DatabaseSavingsPlans and savings_percentage."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    # Earlier tests reload the module with an identity decorator; reload it as served.
+    importlib.reload(coh_mod)
+    tool = await coh_mod.cost_optimization_hub_server.get_tool('cost-optimization')
+    assert tool is not None
+    description = tool.description or ''
+    for text in (
+        'resourceIds',
+        'resourceArns',
+        'recommendationIds',
+        "'DatabaseSavingsPlans'",
+        'savings_percentage',
+        'savings_percentage_unavailable_reason',
+        'AfterDiscounts',
+    ):
+        assert text in description, text
+    flat = ' '.join(description.split())
+    assert "last 30 days' net amortized cost, excluding credits and refunds" in flat
+    assert 'restartNeeded: boolean' not in description
 
 
 @pytest.mark.asyncio
@@ -1777,3 +2146,75 @@ async def test_coh_summaries_group_by_tag_key_without_key(mock_context):
 
     assert res['error_type'] == 'validation_error'
     mock_summaries.assert_not_awaited()
+
+
+async def _coh_served_description() -> str:
+    """Return the cost-optimization description as served (reloaded with the real decorator).
+
+    Other tests reload the module with an identity decorator, which leaves a server
+    with no tools, so reload it here with the real one.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    coh_mod = importlib.reload(coh_mod)
+    tool = await coh_mod.cost_optimization_hub_server.get_tool('cost-optimization')
+    assert tool is not None
+    return ' '.join((tool.description or '').split())
+
+
+@pytest.mark.asyncio
+async def test_description_does_not_route_trends_to_monthly_efficiency():
+    """A Monthly efficiency point is one day's snapshot, so trend questions go to Daily."""
+    flat = await _coh_served_description()
+    assert 'month-over-month change' not in flat
+    assert 'its trend over time' not in flat
+    assert 'not a monthly average or total' in flat
+    assert 'last day of the month that has data' in flat
+    assert "For a trend or a change over time, use 'Daily'" in flat
+
+
+@pytest.mark.asyncio
+async def test_description_says_what_an_efficiency_point_covers():
+    """Each point is a snapshot over trailing-30-day spend; ask Monthly only for completed months."""
+    flat = await _coh_served_description()
+    assert 'one-day snapshot, not a period total' in flat
+    assert 'the trailing 30 days of spend' in flat
+    assert 'Ask only for completed months' in flat
+    assert 'a current-month point would be partial' in flat
+    assert 'Only completed months are returned' not in flat
+
+
+@pytest.mark.parametrize('filter_name', ['resourceTypes', 'actionTypes', 'implementationEfforts'])
+def test_tool_description_filter_values_match_api_enum(filter_name):
+    """Each enum filter listed in the tool description matches the API's accepted values."""
+    import inspect
+    import re
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    line = next(
+        line
+        for line in inspect.getsource(coh_mod).splitlines()
+        if line.startswith(f'- {filter_name}:')
+    )
+
+    api_values = coh_mod._filter_model()[filter_name]
+
+    assert api_values is not None
+    assert set(re.findall(r"'([A-Za-z0-9]+)'", line)) == set(api_values)
+
+
+@pytest.mark.asyncio
+async def test_description_states_the_summaries_group_limit():
+    """Summaries stop at 1,000 groups with no token, so the description says what to do."""
+    flat = await _coh_served_description()
+    assert 'returns at most 1,000 groups, those with the highest estimated savings' in flat
+    assert 'A result of 1,000 groups is marked complete_dataset: false' in flat
+    assert 'group by a dimension with fewer values (such as Region)' in flat
+    assert 'its last page is not marked' in flat
+    assert '1,000 groups across all pages means the same' in flat
+    assert 'use list_recommendations with the same filters' not in flat
+    assert 'until fewer than 1,000 groups come back' not in flat

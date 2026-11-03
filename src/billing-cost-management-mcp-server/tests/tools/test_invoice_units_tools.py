@@ -14,6 +14,7 @@
 
 """Unit tests for the invoice_units_operations and invoice_units_tools modules."""
 
+import inspect
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.invoice_units_operations import (
     batch_get_invoice_profile,
@@ -491,3 +492,92 @@ class TestInvoiceUnitsRouting:
 
         assert result['status'] == 'error'
         assert 'not_a_real_operation' in result['data']['message']
+
+
+async def _published_description():
+    """The `invoice_units` tool description as an MCP client receives it."""
+    import fastmcp
+    from awslabs.billing_cost_management_mcp_server.tools.invoice_units_tools import (
+        invoice_units_server,
+    )
+
+    async with fastmcp.Client(invoice_units_server) as client:
+        published = {t.name: t for t in await client.list_tools()}
+        assert 'invoice-units' in published, (
+            f'the invoice-units tool is no longer published; found {sorted(published)}'
+        )
+        return published['invoice-units'].description or ''
+
+
+class TestAccountsFilterDoesNotOverclaim:
+    """The `accounts` filter's scope is stated without claiming what is unproven.
+
+    The filter was described as a global search across the receiver, linked
+    and bill-source positions. AWS's Filters reference says an `Accounts`
+    value is "matched with either the receiver or the linked accounts in the
+    rules", which does not cover bill sources -- so a model reading the old
+    text treats an empty result as proof and answers "that account is in no
+    invoice unit" for an account that is a bill source of one.
+
+    The fix states what an empty result does NOT establish, and stops there.
+    It deliberately does not assert that `accounts` fails to match a bill
+    source, because that has not been shown: telling the two apart needs an
+    invoice unit where an account is a bill source while being neither the
+    receiver nor a linked account, and no such unit was available to test.
+    The two errors are not symmetric. Over-promising sends a model looking
+    in one more place than it needs. Denying a match that can happen makes a
+    model explain away a correct hit, which is worse, so the denial stays out
+    until it is demonstrated.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_global_search_claim_is_gone(self):
+        """The old wording is what invited reading an empty result as proof."""
+        description = await _published_description()
+
+        assert 'global search' not in description
+        assert 'OR a bill-source account' not in description
+
+    @pytest.mark.asyncio
+    async def test_an_empty_result_is_not_claimed_to_be_proof(self):
+        """This is the inference the old wording invited, now refused."""
+        description = await _published_description()
+
+        assert 'NOT proof that the account belongs to no invoice unit' in description
+        assert 'BILL SOURCE' in description
+
+    @pytest.mark.asyncio
+    async def test_it_names_where_to_look_instead(self):
+        """A warning with no alternative leaves a model no legal next step."""
+        description = await _published_description()
+
+        assert '`bill_source_accounts` filters on' in description
+        assert '`Rule.BillSourceAccounts` names' in description
+
+    @pytest.mark.asyncio
+    async def test_no_unproven_denial_is_reinstated(self):
+        """The guard that matters: nobody may re-add the undemonstrated claim.
+
+        If a later change shows live that `accounts` cannot match a bill
+        source, this test is the one to delete, in the same commit as the
+        evidence.
+        """
+        description = await _published_description()
+
+        for denial in (
+            'does NOT match bill-source',
+            'does not match bill-source',
+            'not against bill-source accounts',
+            "receiver and the rule's linked accounts only",
+        ):
+            assert denial not in description, f'reinstated an unproven claim: {denial!r}'
+
+    @pytest.mark.asyncio
+    async def test_the_parameter_docstrings_agree_with_the_description(self):
+        """A router docstring that still over-promises is read by humans."""
+        from awslabs.billing_cost_management_mcp_server.tools import invoice_units_tools
+
+        source = inspect.getsource(invoice_units_tools)
+
+        assert 'Global-search filter across receiver, linked, and bill-source' not in source
+        assert source.count('does not establish that the account belongs to no invoice') >= 2
