@@ -47,6 +47,7 @@ _COMMON = frozenset({'start_date', 'end_date', 'filter', 'billing_view_arn'})
 _PAGED = frozenset({'max_items', 'next_token'})
 _COST_AND_USAGE = _COMMON | _PAGED | {'granularity', 'metrics', 'group_by'}
 _FORECAST = _COMMON | {'metric', 'granularity', 'prediction_interval_level'}
+_DIMENSION_VALUES = _COMMON | _PAGED | {'dimension', 'dimension_key', 'context', 'search_string'}
 
 # The arguments each operation sends to its AWS API. Any other argument a caller sets is
 # rejected (except UNCHECKED_ARGUMENTS): the handler would drop it, and the result would read as if it had applied (a
@@ -54,7 +55,7 @@ _FORECAST = _COMMON | {'metric', 'granularity', 'prediction_interval_level'}
 OPERATION_ARGUMENTS: Dict[str, frozenset] = {
     'getCostAndUsage': _COST_AND_USAGE,
     'getCostAndUsageWithResources': _COST_AND_USAGE,
-    'getDimensionValues': _COMMON | _PAGED | {'dimension', 'context', 'search_string'},
+    'getDimensionValues': _DIMENSION_VALUES,
     'getCostForecast': _FORECAST,
     'getUsageForecast': _FORECAST,
     'getTagsOrValues': _COMMON | _PAGED | {'tag_key', 'search_string'},
@@ -102,7 +103,15 @@ UNUSED_ARGUMENT_REASONS: Dict[str, str] = {
     'dimension': (
         'it names the dimension whose values getDimensionValues lists. To split costs by a '
         'dimension, use getCostAndUsage with group_by; to narrow them, use a Dimensions leaf '
-        'in filter; to list its values, use operation=getDimensionValues.'
+        'in filter (a tag, cost category or PRODUCT_ATTRIBUTE key takes a Tags, CostCategories '
+        'or ProductAttributes leaf, and the matching group_by Type); to list its values, use '
+        'operation=getDimensionValues.'
+    ),
+    'dimension_key': (
+        'it selects the PRODUCT_ATTRIBUTE key whose values getDimensionValues lists. To list '
+        'them, use operation=getDimensionValues with dimension=PRODUCT_ATTRIBUTE and '
+        'dimension_key; to split costs by it, use getCostAndUsage with group_by Type '
+        'PRODUCT_ATTRIBUTE; to narrow them, use a ProductAttributes leaf in filter.'
     ),
     'context': (
         'it selects the getDimensionValues context (COST_AND_USAGE, RESERVATIONS or '
