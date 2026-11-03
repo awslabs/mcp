@@ -37,11 +37,12 @@ unified_sql_server = FastMCP(
     name='session-sql',
     description="""Execute SQL queries on the persistent session database.
 
-This tool queries tables created by other tools (like cost_explorer_sql) within the current session.
+This tool queries the tables other tools store large results in during the current session (such a
+response has `data.data_stored: true` and names the table in `data.table_name`).
 All tools share the same database, allowing cross-tool data analysis and joins.
 
 Use this tool to:
-- Query tables created by cost_explorer_sql and other tools
+- Query tables that other tools stored their results in
 - Join data from multiple AWS APIs
 - Perform complex analysis across different data sources
 
