@@ -1026,7 +1026,7 @@ class StorageLensQueryTool:
 
 IMPORTANT USAGE GUIDELINES:
 - Before using this tool, provide a 1-3 sentence explanation starting with "EXPLANATION:"
-- Dialect: Athena engine version 3 (Trino SQL). In CSV exports every column is a string, so cast before math or numeric comparison, e.g. SUM(CAST(metric_value AS BIGINT))
+- Dialect: Athena engine version 3 (Trino SQL). In CSV exports every column is a string, so cast before math or numeric comparison, e.g. SUM(CAST(metric_value AS BIGINT)). report_date is a string in CSV and Parquet exports (e.g. '2025-07-15'): compare it to a date string or use CAST(report_date AS DATE)
 - Reference the Storage Lens metrics table with the {table} placeholder (or its qualified <database>.<table> name). A query that does neither is rejected with a validation_error. Every {table} is replaced; nothing else in the query is changed
 - database_name and table_name, if given, must start with a letter and contain only letters, digits and underscores (at most 255 characters); other values are rejected with a validation_error
 - Perform aggregations (GROUP BY) when analyzing data across multiple dimensions
