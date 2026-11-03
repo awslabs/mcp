@@ -2442,3 +2442,16 @@ async def test_empty_or_null_filters_are_skipped(mock_create_client, filters, mo
     assert mock_client.get_products.call_args.kwargs['Filters'] == []
     assert not any('Applied' in str(c) for c in mock_context.info.await_args_list)
     assert result['error_type'] == 'no_results'
+
+
+@pytest.mark.asyncio
+async def test_filters_doc_gives_rds_and_windows_guidance():
+    """RDS needs engine and deployment option and still returns an UnusedBox twin; Windows needs licenseModel."""
+    tool = await aws_pricing_server.get_tool('aws-pricing')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert "For Windows, also pass licenseModel: 'No License required'" in description
+    assert 'For RDS (AmazonRDS), pass databaseEngine and deploymentOption' in description
+    assert 'skip the one whose usagetype contains UnusedBox' in description
+    assert 'InstanceUsageIOOptimized is a separate, higher-priced product' in description
+    assert "skip products with deploymentModel 'Custom' (RDS Custom)" in description
