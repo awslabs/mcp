@@ -250,13 +250,19 @@ class TestArgumentValidationErrors:
         async with Client(served) as client:
             return await client.call_tool('probe', args, raise_on_error=False)
 
+    @staticmethod
+    def _body(result):
+        """The structured content of a client result, which must be present."""
+        assert result.structured_content is not None
+        return result.structured_content
+
     @pytest.mark.asyncio
     async def test_a_wrong_type_is_a_structured_validation_error(self, served):
         """A wrong type gets error_type, retry_strategy and the parameter that failed."""
         result = await self._call(served, {'filter': '{"a": 1}'})
 
         assert result.is_error
-        body = result.structured_content
+        body = self._body(result)
         assert body['status'] == 'error'
         assert body['error_type'] == 'validation_error'
         assert body['retry_strategy'] == 'modify_request'
@@ -265,7 +271,9 @@ class TestArgumentValidationErrors:
             {'parameter': 'filter', 'message': 'Input should be a valid dictionary'}
         ]
         assert body['message'] == 'Invalid arguments: filter: Input should be a valid dictionary'
-        assert json.loads(result.content[0].text) == body
+        content = result.content[0]
+        assert isinstance(content, TextContent)
+        assert json.loads(content.text) == body
 
     @pytest.mark.asyncio
     async def test_every_failing_parameter_is_listed(self, served):
@@ -274,9 +282,10 @@ class TestArgumentValidationErrors:
             served, {'metrics': ['Hour', 5], 'filter': '["x"]', 'max_items': 'many'}
         )
 
-        params = [p['parameter'] for p in result.structured_content['data']['invalid_parameters']]
+        body = self._body(result)
+        params = [p['parameter'] for p in body['data']['invalid_parameters']]
         assert params == ['metrics.1', 'filter', 'max_items']
-        assert 'filter: Input should be a valid dictionary' in result.structured_content['message']
+        assert 'filter: Input should be a valid dictionary' in body['message']
 
     @pytest.mark.asyncio
     async def test_a_long_bad_list_is_capped_and_counted(self, served):
@@ -285,10 +294,11 @@ class TestArgumentValidationErrors:
 
         result = await self._call(served, {'metrics': list(range(_MAX_ARGUMENT_PROBLEMS + 15))})
 
-        data = result.structured_content['data']
+        body = self._body(result)
+        data = body['data']
         assert len(data['invalid_parameters']) == _MAX_ARGUMENT_PROBLEMS
         assert data['omitted_count'] == 15
-        assert result.structured_content['message'].endswith('; and 15 more')
+        assert body['message'].endswith('; and 15 more')
 
     @pytest.mark.asyncio
     async def test_a_very_long_bad_list_is_handled_in_linear_time(self, served):
@@ -298,7 +308,7 @@ class TestArgumentValidationErrors:
         started = time.monotonic()
         result = await self._call(served, {'metrics': list(range(20_000))})
 
-        assert result.structured_content['data']['omitted_count'] == 20_000 - 10
+        assert self._body(result)['data']['omitted_count'] == 20_000 - 10
         assert time.monotonic() - started < 5
 
     @pytest.mark.asyncio
@@ -306,7 +316,7 @@ class TestArgumentValidationErrors:
         """A bad list item in a list-or-string union is reported once, at the item."""
         result = await self._call(served, {'ids': [True]})
 
-        assert result.structured_content['data']['invalid_parameters'] == [
+        assert self._body(result)['data']['invalid_parameters'] == [
             {'parameter': 'ids.0', 'message': 'Input should be a valid string'}
         ]
 
@@ -315,7 +325,7 @@ class TestArgumentValidationErrors:
         """The argument name is never dropped, even one that looks like a union branch tag."""
         result = await self._call(served, {'list': 1})
 
-        assert result.structured_content['data']['invalid_parameters'] == [
+        assert self._body(result)['data']['invalid_parameters'] == [
             {'parameter': 'list', 'message': 'Unexpected keyword argument'}
         ]
 
@@ -324,14 +334,14 @@ class TestArgumentValidationErrors:
         """The response names the operation argument when the call has one, else the tool."""
         result = await self._call(served, {'operation': 'getCostAndUsage', 'max_items': 'x'})
 
-        assert result.structured_content['operation'] == 'getCostAndUsage'
+        assert self._body(result)['operation'] == 'getCostAndUsage'
 
     @pytest.mark.asyncio
     async def test_an_echoed_operation_is_truncated(self, served):
         """A very long operation value is cut before it is echoed back."""
         result = await self._call(served, {'operation': 'o' * 5000, 'max_items': 'x'})
 
-        assert result.structured_content['operation'] == 'o' * 100 + '...'
+        assert self._body(result)['operation'] == 'o' * 100 + '...'
 
     @pytest.mark.asyncio
     async def test_valid_arguments_are_untouched(self, served):
