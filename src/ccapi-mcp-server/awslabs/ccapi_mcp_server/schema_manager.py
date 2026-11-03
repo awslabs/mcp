@@ -37,6 +37,8 @@ class SchemaManager:
         try:
             cache_dir.mkdir(exist_ok=True)
         except OSError:
+            pass
+        if not os.access(cache_dir, os.W_OK):
             # Read-only installs (Lambda, immutable container images) cannot write next to
             # the package. mkdtemp gives a private dir, so other users cannot plant schemas.
             cache_dir = Path(tempfile.mkdtemp(prefix='ccapi-mcp-schemas-'))
