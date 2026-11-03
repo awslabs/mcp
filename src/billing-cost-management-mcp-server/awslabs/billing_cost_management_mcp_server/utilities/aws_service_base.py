@@ -32,19 +32,37 @@ import os
 import re
 import time
 from . import constants
-from .error_contract import DO_NOT_RETRY, InvalidNextTokenError
+from .error_contract import DO_NOT_RETRY, MODIFY_REQUEST, InvalidNextTokenError
 from .logging_utils import get_context_logger, get_logger
 from botocore.config import Config
 from botocore.exceptions import (
     BotoCoreError,
+    CapacityNotAvailableError,
+    ChecksumError,
     ClientError,
+    ConfigNotFound,
+    ConfigParseError,
+    CredentialRetrievalError,
+    FlexibleChecksumError,
+    HTTPClientError,
+    IncompleteReadError,
+    InvalidConfigError,
+    LoginError,
+    MetadataRetrievalError,
+    NoAuthTokenError,
     NoCredentialsError,
     NoRegionError,
     ParamValidationError,
     PartialCredentialsError,
     ProfileNotFound,
+    RefreshWithMFAUnsupportedError,
+    SSOError,
+    TokenRetrievalError,
+    UnknownCredentialError,
     UnknownServiceError,
 )
+from botocore.exceptions import ConnectionError as BotoConnectionError
+from botocore.exceptions import ValidationError as BotoValidationError
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from fastmcp import Context
@@ -54,23 +72,66 @@ from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Tup
 # Configure logger for this module
 logger = get_logger(__name__)
 
-# BotoCoreError subclasses that report a credential or configuration problem rather
-# than a connection failure. Retrying the same request cannot fix them during the run,
-# so handle_aws_error keeps error_type='aws_connection_error' (stable for callers) but
-# sets retry_strategy='do_not_retry' explicitly; ErrorSignalingMiddleware keeps a
-# retry_strategy that is already set. Real connection failures (EndpointConnectionError,
-# ConnectTimeoutError, ReadTimeoutError, ConnectionClosedError) stay retryable.
-_NON_RETRYABLE_BOTOCORE_ERRORS = (
+# The only BotoCoreError subclasses that are transient: the classes botocore's own
+# standard retry mode retries (ConnectionError: endpoint, connect timeout, proxy, SSL;
+# HTTPClientError: read timeout, connection closed, response streaming),
+# CapacityNotAvailableError (botocore's client-side token bucket on a non-blocking
+# acquire; botocore does not raise it in the standard retry mode this server uses, so it
+# is kept retryable defensively), and a response body cut short or corrupted in transit
+# (raised while reading the body, after botocore's retries; FlexibleChecksumError is
+# also raised for request checksum settings, which no tool sets). botocore's
+# ValidationError family is modify_request. Every other BotoCoreError is raised the
+# same way on every attempt (credentials, configuration, an SDK-side check), so
+# handle_aws_error keeps error_type='aws_connection_error' (stable for callers) but sets
+# retry_strategy explicitly; ErrorSignalingMiddleware keeps a retry_strategy that is
+# already set. botocore tries a container-metadata credential fetch 3 times (2 retries)
+# before it raises CredentialRetrievalError; an instance-metadata fetch is tried once by
+# default (metadata_service_num_attempts) and a failure usually ends as
+# NoCredentialsError.
+_TRANSIENT_BOTOCORE_ERRORS = (
+    BotoConnectionError,
+    HTTPClientError,
+    CapacityNotAvailableError,
+    IncompleteReadError,
+    ChecksumError,
+    FlexibleChecksumError,
+)
+
+# Non-transient BotoCoreErrors the user can fix in their AWS setup: the credential source
+# (e.g. a credential_process or SSO session that expired), the region, or an outdated
+# botocore that does not know the service.
+_CONFIGURATION_BOTOCORE_ERRORS = (
     NoCredentialsError,
     PartialCredentialsError,
+    CredentialRetrievalError,
+    TokenRetrievalError,
+    SSOError,
+    LoginError,
+    MetadataRetrievalError,
+    NoAuthTokenError,
+    RefreshWithMFAUnsupportedError,
+    UnknownCredentialError,
     NoRegionError,
     ProfileNotFound,
+    ConfigNotFound,
+    ConfigParseError,
+    InvalidConfigError,
     UnknownServiceError,
 )
 
 _HINT_AWS_CONFIGURATION = (
     'AWS credentials or client configuration are missing or invalid. Do not retry; '
-    'ask the user to fix the AWS profile, credentials, or region.'
+    'ask the user to check the credential source (profile, SSO session, credential_process, '
+    'or instance/container role) or the region, or to upgrade boto3/botocore if the '
+    'service is unknown.'
+)
+_HINT_BOTO_VALIDATION = (
+    'The AWS SDK rejected the request arguments before sending them. Correct them using '
+    'details, then retry.'
+)
+_HINT_AWS_SDK = (
+    'The AWS SDK raised a client-side error; this is not a network failure, and the same '
+    'request fails the same way. Do not retry; report the details to the user.'
 )
 
 
@@ -160,7 +221,69 @@ def parse_json(
     try:
         return json.loads(json_str)
     except json.JSONDecodeError:
-        raise ValueError(f'Invalid JSON format for {parameter_name} parameter: {json_str}')
+        raise ValueError(
+            f'Invalid JSON format for {parameter_name} parameter: {json_str}. Pass valid JSON, '
+            'with double quotes around strings (single quotes, as in a Python repr, are not '
+            'JSON).'
+        )
+
+
+def parse_filter(
+    filter_expr: Optional[Union[str, Dict[str, Any]]], parameter_name: str = 'filter'
+) -> Any:
+    """Parse a filter expression, rejecting an empty one.
+
+    An empty filter (``''``, ``""`` or another blank JSON string, ``{}``, ``[]``, ``null``)
+    is an error rather than "no filter": dropping it would run the query unfiltered, and the
+    result would read as a filtered one.
+
+    Args:
+        filter_expr: The filter, as an object or a JSON string. None means no filter.
+        parameter_name: Name of the parameter (for error messages)
+
+    Returns:
+        The parsed filter (not shape-checked; the service validates it), or None when
+        ``filter_expr`` is None
+
+    Raises:
+        ValueError: If the filter is empty or not valid JSON
+    """
+    if filter_expr is None:
+        return None
+    if isinstance(filter_expr, str):
+        filter_expr = filter_expr.strip()
+    parsed = parse_json(filter_expr, parameter_name)
+    if parsed in (None, {}, []) or (isinstance(parsed, str) and not parsed.strip()):
+        raise ValueError(
+            f'{parameter_name} is empty. Omit {parameter_name} to query without one, or pass '
+            'a filter expression.'
+        )
+    return parsed
+
+
+DEFAULT_COST_METRICS = ['UnblendedCost']
+
+
+def parse_metrics(metrics: Optional[Union[str, List[str]]]) -> List[str]:
+    """Parse a Cost Explorer ``metrics`` argument into a list of metric names.
+
+    Args:
+        metrics: Metric names, as a list or a JSON array string
+
+    Returns:
+        The metric names, or ``['UnblendedCost']`` when ``metrics`` is not set or is empty
+
+    Raises:
+        ValueError: If ``metrics`` is not a list of non-empty metric names
+    """
+    if metrics is not None and not isinstance(metrics, (str, list)):
+        raise ValueError('metrics must be a list of metric names or a JSON array string')
+    parsed = parse_json(metrics, 'metrics')
+    if not parsed:
+        return list(DEFAULT_COST_METRICS)
+    if not isinstance(parsed, list) or not all(isinstance(m, str) and m for m in parsed):
+        raise ValueError('metrics must be a list of metric names or a JSON array string')
+    return parsed
 
 
 def get_date_range(
@@ -247,7 +370,13 @@ async def handle_aws_error(
         # Get AWS error details
         aws_error = error.response.get('Error', {})
         error_code = aws_error.get('Code', 'UnknownError')
-        aws_message = aws_error.get('Message') or 'No error message provided'
+        aws_message = aws_error.get('Message') or (
+            # Cost Explorer sends DataUnavailableException with an empty Message.
+            f'{service_name} has no data for this request '
+            '(DataUnavailableException; the service sent no message).'
+            if error_code == 'DataUnavailableException'
+            else 'No error message provided'
+        )
         request_id = error.response.get('ResponseMetadata', {}).get('RequestId', 'Unknown')
         http_status = error.response.get('ResponseMetadata', {}).get('HTTPStatusCode', 0)
 
@@ -313,7 +442,12 @@ async def handle_aws_error(
     elif isinstance(error, BotoCoreError):
         error_type = 'aws_connection_error'
         error_code = error.__class__.__name__
-        user_message = f'AWS service connection error: {error_code}'
+        transient = isinstance(error, _TRANSIENT_BOTOCORE_ERRORS)
+        user_message = (
+            f'AWS service connection error: {error_code}'
+            if transient
+            else f'AWS SDK error (not a connection failure): {error_code}'
+        )
         await ctx_logger.error(f'Connection error: {error_context}', exc_info=True)
 
         error_response.update(
@@ -325,10 +459,18 @@ async def handle_aws_error(
             }
         )
 
-        if isinstance(error, _NON_RETRYABLE_BOTOCORE_ERRORS):
-            # Credential/configuration failure: same error_type, but not retryable.
+        if isinstance(error, BotoValidationError):
+            # botocore's ValidationError family (UnknownParameterError, RangeError, ...):
+            # the arguments are wrong, as for ParamValidationError above.
+            error_response['retry_strategy'] = MODIFY_REQUEST
+            error_response['hint'] = _HINT_BOTO_VALIDATION
+        elif not transient:
             error_response['retry_strategy'] = DO_NOT_RETRY
-            error_response['hint'] = _HINT_AWS_CONFIGURATION
+            error_response['hint'] = (
+                _HINT_AWS_CONFIGURATION
+                if isinstance(error, _CONFIGURATION_BOTOCORE_ERRORS)
+                else _HINT_AWS_SDK
+            )
 
     else:
         error_type = 'unknown_error'
@@ -385,6 +527,8 @@ class PageSpec:
         page_max: Largest number of items one page can hold.
         page_size_param: Request field that sets the page size, or None when the
             service chooses the page size.
+        page_min: Smallest page size the service accepts. A smaller request is raised
+            to it, so near ``max_items`` a page can hold up to ``page_min`` items.
         fixed_page_size: Always request ``page_max``. For services whose token is bound
             to the page size, so a continuation must repeat it.
         items_per_page_unit: Items each unit of page size can return. For APIs whose
@@ -397,7 +541,13 @@ class PageSpec:
         caller_token_error_codes: Codes that mean a rejected token only on the first
             request of a continuation, i.e. when the caller's own next_token was sent.
             For services that report a bad token with a generic code (e.g.
-            ``InternalServerException``); on a later page that code is an ordinary failure.
+            ``ValidationException`` or ``InternalServerException``); on a later page that
+            code is an ordinary failure. Because such a code also reports other invalid
+            arguments, it counts as a rejected token only when the error message names the
+            token (contains "token"), unless ``caller_token_message_required`` is False.
+        caller_token_message_required: Require the error message to name the token before
+            a ``caller_token_error_codes`` code is treated as a rejected token. Set False
+            only for a service whose token errors do not name the token.
     """
 
     result_key: Union[str, Tuple[str, ...]]
@@ -405,19 +555,26 @@ class PageSpec:
     token_key_in_response: str
     page_max: int
     page_size_param: Optional[str] = None
+    page_min: int = 1
     fixed_page_size: bool = False
     items_per_page_unit: int = 1
     count_items: Callable[[List[Any]], int] = len
     token_error_codes: FrozenSet[str] = field(default=TOKEN_ERROR_CODES)
     caller_token_error_codes: FrozenSet[str] = frozenset()
+    caller_token_message_required: bool = True
 
 
-def partial_data_warning(items_returned: int) -> str:
-    """Build the warning attached to a result that stopped before the last page."""
+def partial_data_warning(items_returned: int, limit_param: str = 'max_items') -> str:
+    """Build the warning attached to a result that stopped before the last page.
+
+    Args:
+        items_returned: Items in the result.
+        limit_param: The parameter that stopped paging (``max_items`` or ``max_pages``).
+    """
     return (
         f'Partial data: returned {items_returned} items and more remain. Totals, counts and '
         'top-N computed from this result undercount the real data. Call again with a larger '
-        'max_items, continue with next_token, or state in the answer that the result is '
+        f'{limit_param}, continue with next_token, or state in the answer that the result is '
         'partial. Do not report the number of items returned as a total count.'
     )
 
@@ -461,6 +618,18 @@ def _error_code(error: Exception) -> str:
     return type(error).__name__
 
 
+def _is_caller_token_error(error: Exception, code: str, spec: PageSpec) -> bool:
+    """Whether a generic error code on the first request means the caller's token was rejected."""
+    if code not in spec.caller_token_error_codes:
+        return False
+    if not spec.caller_token_message_required:
+        return True
+    message = (
+        error.response.get('Error', {}).get('Message') if isinstance(error, ClientError) else ''
+    )
+    return 'token' in (message or '').lower()
+
+
 def _items_of(response: Dict[str, Any], result_key: Union[str, Tuple[str, ...]]) -> List[Any]:
     path = (result_key,) if isinstance(result_key, str) else result_key
     value: Any = response
@@ -479,106 +648,8 @@ def _page_size(spec: PageSpec, max_items: Optional[int], collected: int) -> Opti
     largest = spec.page_max // unit
     if spec.fixed_page_size or max_items is None:
         return largest
-    # Never request a page of 0, which some services reject.
-    return max(min(largest, (max_items - collected) // unit), 1)
-
-
-# Superseded by paginate_aws_items; kept until every tool has moved to it.
-async def paginate_aws_response(
-    ctx: Context,
-    operation_name: str,
-    api_function: Any,
-    request_params: Dict[str, Any],
-    result_key: str,
-    token_param: str = 'NextToken',
-    token_key: str = 'NextToken',
-    max_pages: Optional[int] = None,
-) -> Tuple[List[Any], Dict[str, Any]]:
-    """Handle pagination for AWS API calls.
-
-    Args:
-        ctx: The MCP context object
-        operation_name: Name of the operation (for logging)
-        api_function: Function to call for each page
-        request_params: Parameters to pass to the API function
-        result_key: Key in the response that contains the results list
-        token_param: Parameter name for the pagination token in the request
-        token_key: Key name for the pagination token in the response
-        max_pages: Maximum number of pages to fetch (optional)
-
-    Returns:
-        Tuple of (combined_results, pagination_metadata)
-    """
-    # Get context logger for consistent logging
-    ctx_logger = get_context_logger(ctx, __name__)
-
-    all_results = []
-    current_token = None
-    pages_fetched = 0
-
-    # For performance timing
-    start_time = datetime.now()
-
-    # Fetch all pages
-    while True:
-        # Add token if we have one
-        if current_token:
-            request_params[token_param] = current_token
-
-        # Make API call for current page
-        page_info = f'Fetching {operation_name} page {pages_fetched + 1}{" using next_token" if current_token else ""}'
-        await ctx_logger.info(page_info)
-
-        try:
-            # Make the API call
-            response = api_function(**request_params)
-
-            # Get the results and add to combined list
-            results = response.get(result_key, [])
-            all_results.extend(results)
-
-            # Count pages
-            pages_fetched += 1
-            await ctx_logger.info(f'Received {len(results)} results (total: {len(all_results)})')
-
-            # Check if we have more pages
-            current_token = response.get(token_key)
-
-            # Stop conditions
-            if not current_token:
-                await ctx_logger.info('No more pages available')
-                break
-
-            if max_pages and pages_fetched >= max_pages:
-                await ctx_logger.info(f'Reached maximum pages limit ({max_pages})')
-                break
-
-        except Exception as e:
-            # Log error with both context and Loguru for consistent handling
-            error_msg = f'Error fetching page {pages_fetched + 1} of {operation_name}: {str(e)}'
-            await ctx_logger.error(error_msg, exc_info=True)
-            raise
-
-    # Log performance information
-    end_time = datetime.now()
-    duration_ms = (end_time - start_time).total_seconds() * 1000
-
-    # Create pagination metadata
-    pagination_metadata = {
-        'complete_dataset': not current_token,
-        'pages_fetched': pages_fetched,
-        'total_results': len(all_results),
-        'has_more': bool(current_token),
-        'next_token': current_token or None,
-        'duration_ms': int(duration_ms),
-    }
-
-    # Log completion with timing info
-    await ctx_logger.info(
-        f'Completed {operation_name} pagination: {pages_fetched} pages, {len(all_results)} results in {duration_ms:.1f}ms'
-    )
-
-    return all_results, pagination_metadata
+    # Never request a page of 0, which some services reject, or one below page_min.
+    return max(min(largest, (max_items - collected) // unit), spec.page_min, 1)
 
 
 async def paginate_aws_items(
@@ -590,8 +661,14 @@ async def paginate_aws_items(
     *,
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
+    max_pages: Optional[int] = None,
 ) -> Tuple[List[Any], List[Dict[str, Any]], Dict[str, Any]]:
     """Fetch pages until the data ends or the next page could exceed ``max_items``.
+
+    ``max_pages`` limits the call to a number of pages instead, each at the spec's page
+    size, and returns every item fetched. It is for operations whose token only works
+    with the same page size (``fixed_page_size``), where a page cannot shrink to fit
+    ``max_items``.
 
     Every request repeats ``request_params`` unchanged, apart from the token and,
     where the API allows, the page size: several services bind their token to the
@@ -605,6 +682,7 @@ async def paginate_aws_items(
         spec: How the operation pages.
         max_items: Most items to return. None fetches every page.
         next_token: The caller's token from a previous response.
+        max_pages: Most pages to fetch, instead of ``max_items``. None fetches every page.
 
     Returns:
         ``(items, pages, pagination)``: every kept item, the raw responses the items
@@ -612,12 +690,17 @@ async def paginate_aws_items(
         block (see ``with_pagination``).
 
     Raises:
-        ValueError: ``max_items`` is less than 1, or ``next_token`` is empty.
+        ValueError: ``max_items`` or ``max_pages`` is less than 1, both are set, or
+            ``next_token`` is empty.
         InvalidNextTokenError: The first page failed because ``next_token`` was rejected.
         Exception: Any other failure on the first page, unchanged.
     """
     if max_items is not None and max_items < 1:
         raise ValueError('max_items must be at least 1. Omit it to fetch every page.')
+    if max_pages is not None and max_items is not None:
+        raise ValueError('max_pages and max_items cannot be used together. Pass only one.')
+    if max_pages is not None and max_pages < 1:
+        raise ValueError('max_pages must be at least 1. Omit it to fetch every page.')
     if next_token is not None and not next_token.strip():
         # An empty token would silently restart from page 1 while the caller
         # believes the result continues a previous one.
@@ -638,6 +721,8 @@ async def paginate_aws_items(
 
     while True:
         if max_items is not None and pages and collected >= max_items:
+            break
+        if max_pages is not None and len(pages) >= max_pages:
             break
         if pages:
             limit_reached = paging_limit_reached(started)
@@ -667,7 +752,7 @@ async def paginate_aws_items(
             code = _error_code(error)
             is_token_error = bool(token) and code in spec.token_error_codes
             if not pages:
-                if next_token and (is_token_error or code in spec.caller_token_error_codes):
+                if next_token and (is_token_error or _is_caller_token_error(error, code, spec)):
                     raise InvalidNextTokenError(operation, code) from error
                 raise
             # Keep what was fetched. The token that requested the failed page lets a
@@ -718,7 +803,8 @@ async def paginate_aws_items(
     elif limit_reached and has_more:
         pagination['warning'] = paging_limit_warning(collected, limit_reached)
     elif has_more:
-        pagination['warning'] = partial_data_warning(collected)
+        limit_param = 'max_pages' if max_pages is not None else 'max_items'
+        pagination['warning'] = partial_data_warning(collected, limit_param)
     return items, pages, pagination
 
 
@@ -749,6 +835,23 @@ def first_page_fields(pages: Sequence[Dict[str, Any]], keys: Sequence[str]) -> D
     """Return fields that only the first page carries (e.g. totals, group definitions)."""
     first = pages[0] if pages else {}
     return {key: first[key] for key in keys if key in first}
+
+
+def whole_query_in_one_page(
+    pages: Sequence[Dict[str, Any]], next_token: Optional[str], pagination: Dict[str, Any]
+) -> bool:
+    """Whether the result is the whole query in one page.
+
+    Some APIs (e.g. Cost Explorer Savings Plans utilization details, and grouped Reserved
+    Instance coverage and utilization) sum a page's Total from only the rows on that page, so
+    such a Total covers the query only when this returns True.
+
+    Args:
+        pages: The pages from ``paginate_aws_items``.
+        next_token: The caller's token. A continuation's first page is not the query's.
+        pagination: The pagination block from ``paginate_aws_items``.
+    """
+    return len(pages) == 1 and next_token is None and pagination['complete_dataset']
 
 
 def format_response(

@@ -24,6 +24,7 @@ This module contains unit tests for the sql_utils.py module, including:
 - API response conversion to database tables
 """
 
+import json
 import os
 import pytest
 import sqlite3
@@ -71,29 +72,16 @@ def temp_db_path():
 class TestShouldConvertToSql:
     """Tests for should_convert_to_sql function."""
 
-    def test_should_convert_large_response(self):
-        """Test should_convert_to_sql with large response."""
-        # Setup - Response size above threshold
-        threshold = int(os.getenv('MCP_SQL_THRESHOLD', 50 * 1024))  # 50KB default
-        large_size = threshold + 1024  # 1KB over threshold
+    @pytest.mark.parametrize('offset,expected', [(1024, True), (0, False), (-1024, False)])
+    def test_converts_only_above_threshold(self, offset, expected):
+        """A response converts only when it is larger than SQL_CONVERSION_THRESHOLD."""
+        from awslabs.billing_cost_management_mcp_server.utilities import (
+            sql_utils as sql_utils_mod,
+        )
 
-        # Execute
-        result = should_convert_to_sql(large_size)
-
-        # Assert
-        assert result is True
-
-    def test_should_not_convert_small_response(self):
-        """Test should_convert_to_sql with small response."""
-        # Setup - Response size below threshold
-        threshold = int(os.getenv('MCP_SQL_THRESHOLD', 50 * 1024))  # 50KB default
-        small_size = threshold - 1024  # 1KB under threshold
-
-        # Execute
-        result = should_convert_to_sql(small_size)
-
-        # Assert
-        assert result is True
+        size = sql_utils_mod.SQL_CONVERSION_THRESHOLD + offset
+        with patch.object(sql_utils_mod, 'FORCE_SQL_CONVERSION', False):
+            assert should_convert_to_sql(size) is expected
 
     def test_should_convert_with_force_enabled(self):
         """Test should_convert_to_sql with FORCE_SQL_CONVERSION enabled."""
@@ -598,6 +586,94 @@ class TestExecuteSessionSql:
             mock_connection.reset_mock()
             mock_cursor.reset_mock()
 
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_comment_prefixed_insert_is_durable(
+        self, mock_get_path, temp_db_path, mock_context
+    ):
+        """A comment-prefixed INSERT must persist after the connection closes.
+
+        Regression test for the keyword-prefix commit check: ``.strip()`` does
+        not remove a leading SQL comment, so ``startswith('INSERT')`` was False
+        and the write was never committed. sqlite3 still opens an implicit
+        transaction for the statement, so the write was silently rolled back on
+        close. We read the row back on a FRESH connection to assert durability,
+        not just in-memory visibility.
+        """
+        mock_get_path.return_value = temp_db_path
+
+        # Seed a table on its own connection so the INSERT below is the only
+        # thing under test.
+        seed = sqlite3.connect(temp_db_path)
+        seed.execute('CREATE TABLE t (id INTEGER)')
+        seed.execute('INSERT INTO t VALUES (101)')
+        seed.commit()
+        seed.close()
+
+        result = await execute_session_sql(mock_context, '/* c */ INSERT INTO t VALUES (2)')
+        assert result['status'] == 'success'
+
+        # Fresh connection: only committed data is visible here.
+        check = sqlite3.connect(temp_db_path)
+        rows = check.execute('SELECT id FROM t ORDER BY id').fetchall()
+        check.close()
+        assert rows == [(2,), (101,)], f'comment-prefixed INSERT was not committed: {rows}'
+
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_replace_statement_is_durable(self, mock_get_path, temp_db_path, mock_context):
+        """A REPLACE statement must persist after the connection closes.
+
+        Regression test: ``REPLACE`` is valid SQLite DML (synonym for
+        ``INSERT OR REPLACE``) but was absent from the keyword list, so the
+        write was never committed and was rolled back on close.
+        """
+        mock_get_path.return_value = temp_db_path
+
+        seed = sqlite3.connect(temp_db_path)
+        seed.execute('CREATE TABLE t (id INTEGER PRIMARY KEY)')
+        seed.execute('INSERT INTO t VALUES (101)')
+        seed.commit()
+        seed.close()
+
+        result = await execute_session_sql(mock_context, 'REPLACE INTO t VALUES (3)')
+        assert result['status'] == 'success'
+
+        check = sqlite3.connect(temp_db_path)
+        rows = check.execute('SELECT id FROM t ORDER BY id').fetchall()
+        check.close()
+        assert rows == [(3,), (101,)], f'REPLACE was not committed: {rows}'
+
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_plain_write_operations_still_durable(
+        self, mock_get_path, temp_db_path, mock_context
+    ):
+        """Baseline: plain INSERT/UPDATE still commit after the fix.
+
+        Guards against a regression where switching to ``conn.in_transaction``
+        might stop committing ordinary writes. DELETE/DROP/ALTER/TRUNCATE are
+        intentionally not covered because ``validate_sql_query`` rejects them.
+        """
+        mock_get_path.return_value = temp_db_path
+
+        seed = sqlite3.connect(temp_db_path)
+        seed.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT)')
+        seed.commit()
+        seed.close()
+
+        insert_result = await execute_session_sql(
+            mock_context, "INSERT INTO t VALUES (1, 'alice')"
+        )
+        assert insert_result['status'] == 'success'
+
+        update_result = await execute_session_sql(
+            mock_context, "UPDATE t SET name = 'bob' WHERE id = 1"
+        )
+        assert update_result['status'] == 'success'
+
+        check = sqlite3.connect(temp_db_path)
+        rows = check.execute('SELECT id, name FROM t').fetchall()
+        check.close()
+        assert rows == [(1, 'bob')], f'plain write operations were not committed: {rows}'
+
     @patch('sqlite3.connect')
     @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
     async def test_execute_with_connection_error(self, mock_get_path, mock_connect, mock_context):
@@ -817,6 +893,22 @@ class TestConvertApiResponseToTableAdditional:
         assert _get_specialized_converter('budget_actions') == 'records'
         assert _get_specialized_converter('budget_notifications') == 'records'
 
+    def test_specialized_converter_routes_es_linked_account_charges_to_records(self):
+        """Enterprise Support linked-account charges map to the 'records' converter.
+
+        Without this entry the lookup returns None and the whole charges list is
+        offloaded into one cell of the generic (key, value) table, which cannot be
+        filtered, sorted or aggregated with SQL.
+        """
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _get_specialized_converter,
+        )
+
+        assert (
+            _get_specialized_converter('enterprise_support_list_linked_account_charges')
+            == 'records'
+        )
+
     def test_specialized_converter_routes_bvs_segment_ops_to_records(self):
         """BVS list billing view segments operations map to the 'records' converter."""
         from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
@@ -910,6 +1002,46 @@ class TestConvertResponseIfNeeded:
         }
         assert 'next_token' not in result
         assert all(q['description'].startswith('PARTIAL DATA') for q in result['sample_queries'])
+
+    @pytest.mark.asyncio
+    async def test_es_linked_account_charges_offload_is_row_per_charge(self):
+        """An offloaded ES charges response stores one row per charge, with pagination kept.
+
+        The generic (key, value) fallback would store the whole charges list in a single
+        cell, so a query such as "top linked accounts by Support charge" could not run.
+        """
+        mock_context = MagicMock(spec=Context)
+        mock_context.info = AsyncMock()
+        pagination = {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 3,
+        }
+        charges = [
+            {'account_id': '111122223333', 'total_support_eligible_spend': '100.00'},
+            {'account_id': '444455556666', 'total_support_eligible_spend': '200.00'},
+            {'account_id': '777788889999', 'total_support_eligible_spend': '300.00'},
+        ]
+        response = with_pagination({'linked_account_charges': charges}, pagination)
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
+            return_value=True,
+        ):
+            result = await convert_response_if_needed(
+                mock_context, response, 'enterprise_support_list_linked_account_charges'
+            )
+
+        # One row per charge, not one row holding the whole list.
+        assert result['row_count'] == len(charges)
+        # Charge fields became columns, so the generic key/value pair is absent.
+        assert result['schema'] == ['account_id', 'total_support_eligible_spend']
+        assert 'value' not in result['schema']
+        assert result['preview'][0]['account_id'] == '111122223333'
+        # The lowercase pagination block survives the offload.
+        assert result['pagination']['items_returned'] == len(charges)
+        assert result['pagination']['complete_dataset'] is True
 
     @pytest.mark.asyncio
     async def test_partial_generic_offload_omits_rows_retrieved(self):
@@ -1018,6 +1150,15 @@ class TestDerivePaginationEnvelope:
             'pagination': block,
         }
 
+    def test_raw_token_fields_are_not_pagination(self):
+        """Only the pagination block counts; a raw service token field is ignored."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _derive_pagination_envelope,
+        )
+
+        assert _derive_pagination_envelope({'PriceList': ['{}'], 'NextToken': 'page2'}) == {}
+        assert _derive_pagination_envelope({'Pagination': {'has_more': True}}) == {}
+
     def test_non_paginated_response_returns_empty(self):
         """Forecast / pricing responses without pagination markers get an empty envelope so unrelated APIs aren't polluted."""
         from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
@@ -1050,144 +1191,6 @@ class TestDerivePaginationEnvelope:
             )
 
         assert result.get('next_page_token') == 'caller-override'
-
-
-class TestDeriveLegacyPaginationEnvelope:
-    """Shapes from tools not yet moved to paginate_aws_items still reach the offload result."""
-
-    def test_from_paginated_wrapper(self):
-        """Response with a Pagination sub-dict (paginate_aws_response output) populates the envelope."""
-        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
-            _derive_pagination_envelope,
-        )
-
-        response = {
-            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01'}}],
-            'Pagination': {
-                'next_token': 'page2',
-                'has_more': True,
-                'pages_fetched': 3,
-                'complete_dataset': False,
-            },
-        }
-
-        assert _derive_pagination_envelope(response) == {
-            'next_page_token': 'page2',
-            'has_more': True,
-            'pages_fetched': 3,
-        }
-
-    def test_from_single_page_response_with_token(self):
-        """Single-page boto3 response with NextPageToken populates the envelope."""
-        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
-            _derive_pagination_envelope,
-        )
-
-        response = {
-            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01'}}],
-            'NextPageToken': 'continue-here',
-        }
-
-        assert _derive_pagination_envelope(response) == {
-            'next_page_token': 'continue-here',
-            'has_more': True,
-            'pages_fetched': 1,
-        }
-
-    def test_from_single_page_response_with_null_token(self):
-        """Final-page boto3 response (NextPageToken present but None) marks has_more=False."""
-        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
-            _derive_pagination_envelope,
-        )
-
-        response = {'ResultsByTime': [], 'NextPageToken': None}
-
-        assert _derive_pagination_envelope(response) == {
-            'next_page_token': None,
-            'has_more': False,
-            'pages_fetched': 1,
-        }
-
-    def test_custom_token_key(self):
-        """token_key picks up alternative continuation-token field names (e.g. NextToken)."""
-        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
-            _derive_pagination_envelope,
-        )
-
-        response = {'PriceList': ['{...}'], 'NextToken': 'page2'}
-
-        assert _derive_pagination_envelope(response, token_key='NextToken') == {
-            'next_page_token': 'page2',
-            'has_more': True,
-            'pages_fetched': 1,
-        }
-
-    def test_pagination_block_wins_over_legacy_fields(self):
-        """A response carrying the lowercase block is read as the new format only."""
-        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
-            _derive_pagination_envelope,
-        )
-
-        block = {
-            'complete_dataset': True,
-            'has_more': False,
-            'next_token': None,
-            'items_returned': 1,
-        }
-        response = {'items': [1], 'NextPageToken': 'stale', 'pagination': block}
-
-        assert _derive_pagination_envelope(response) == {
-            'complete_dataset': True,
-            'pagination': block,
-        }
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        'response,token_key,expected',
-        [
-            (
-                {
-                    'ResultsByTime': [{'a': 1}],
-                    'Pagination': {'next_token': 'page2', 'has_more': True, 'pages_fetched': 2},
-                },
-                'NextPageToken',
-                {'next_page_token': 'page2', 'has_more': True, 'pages_fetched': 2},
-            ),
-            (
-                {'segments': [{'a': 1}], 'nextToken': 'tok'},
-                'nextToken',
-                {'next_page_token': 'tok', 'has_more': True, 'pages_fetched': 1},
-            ),
-        ],
-        ids=['pagination_wrapper', 'single_page_token'],
-    )
-    async def test_legacy_shapes_reach_offload_sentinel(self, response, token_key, expected):
-        """convert_response_if_needed carries both legacy shapes into the offload result."""
-        mock_context = MagicMock(spec=Context)
-        mock_context.info = AsyncMock()
-
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
-            return_value=True,
-        ):
-            result = await convert_response_if_needed(
-                mock_context, response, 'legacy_api', pagination_token_key=token_key
-            )
-
-        assert result['data_stored'] is True
-        assert {key: result.get(key) for key in expected} == expected
-        assert 'complete_dataset' not in result
-        assert 'pagination' not in result
-
-    @pytest.mark.asyncio
-    async def test_legacy_shape_below_threshold_is_returned_unchanged(self):
-        """A small legacy response is returned as is, with no partial-data lead."""
-        mock_context = MagicMock(spec=Context)
-        response = {'ResultsByTime': [], 'Pagination': {'next_token': 't', 'has_more': True}}
-
-        result = await convert_response_if_needed(mock_context, response, 'legacy_api')
-
-        assert result is response
 
 
 @pytest.mark.asyncio
@@ -1371,7 +1374,7 @@ class TestValidateSqlQuery:
         Without this rejection, an attacker (or a prompt-injected
         agent) can attach any SQLite file readable by the process
         and read it back via subsequent SELECTs — a filter bypass
-        that the blacklist previously missed.
+        that the denylist previously missed.
         """
         from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
             validate_sql_query,
@@ -1403,8 +1406,8 @@ class TestSessionAuthorizer:
     """Engine-level defense against ATTACH DATABASE.
 
     The authorizer is the second line of defense behind the regex
-    blacklist in ``validate_sql_query``. Even if the query text were
-    to slip past the blacklist (comment tricks, whitespace variants,
+    denylist in ``validate_sql_query``. Even if the query text were
+    to slip past the denylist (comment tricks, whitespace variants,
     dynamic SQL from a trigger), the SQLite parser calls the
     authorizer for every operation the query would perform. ATTACH
     returns SQLITE_DENY here, so the connection refuses to mount any
@@ -2487,3 +2490,165 @@ def test_coerce_for_column_real_branch():
     assert _coerce_for_column(object(), 'REAL') is None
     # Non-REAL column passes the value through unchanged.
     assert _coerce_for_column('kept', 'TEXT') == 'kept'
+
+
+@pytest.mark.asyncio
+async def test_pricing_products_sample_queries_run_and_read_the_on_demand_price(
+    mock_context, tmp_path
+):
+    """Every pricing sample query runs on the stored rows, and one reads the On-Demand USD price.
+
+    pricing_terms is JSON text keyed by offer and rate codes that differ per product, so a price
+    is reachable only by walking the keys (json_each), not by a fixed json_extract path.
+    """
+    db_path = str(tmp_path / 'session.db')
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        'CREATE TABLE IF NOT EXISTS schema_info '
+        '(table_name TEXT PRIMARY KEY, created_at TEXT, operation TEXT, '
+        'query TEXT, row_count INTEGER)'
+    )
+    product = {
+        'product': {
+            'productFamily': 'Compute Instance',
+            'sku': 'SKU123',
+            'attributes': {'instanceType': 'm5.large', 'operatingSystem': 'Linux'},
+        },
+        'terms': {
+            'OnDemand': {
+                'SKU123.JRTCKXETXF': {
+                    'priceDimensions': {
+                        'SKU123.JRTCKXETXF.6YS6EN2CT7': {
+                            'unit': 'Hrs',
+                            'description': '$0.096 per On Demand Linux m5.large Instance Hour',
+                            'pricePerUnit': {'USD': '0.0960000000'},
+                        }
+                    }
+                }
+            },
+            'Reserved': {
+                'SKU123.4NA7Y494T4': {
+                    'priceDimensions': {
+                        'SKU123.4NA7Y494T4.6YS6EN2CT7': {
+                            'unit': 'Hrs',
+                            'pricePerUnit': {'USD': '0.0600000000'},
+                        }
+                    }
+                }
+            },
+        },
+    }
+    tiered = {
+        'product': {'productFamily': 'Storage', 'sku': 'SKU456', 'attributes': {}},
+        'terms': {
+            'OnDemand': {
+                'SKU456.JRTCKXETXF': {
+                    'priceDimensions': {
+                        'SKU456.JRTCKXETXF.PGHJ3S3EYE': {
+                            'unit': 'GB-Mo',
+                            'beginRange': '0',
+                            'endRange': '51200',
+                            'description': 'first 50 TB',
+                            'pricePerUnit': {'USD': '0.0230000000'},
+                        },
+                        'SKU456.JRTCKXETXF.D42MF2PVJS': {
+                            'unit': 'GB-Mo',
+                            'beginRange': '51200',
+                            'endRange': 'Inf',
+                            'description': 'over 50 TB',
+                            'pricePerUnit': {'USD': '0.0220000000'},
+                        },
+                    }
+                }
+            }
+        },
+    }
+    reserved_only = {
+        'product': {'productFamily': 'Compute Instance', 'sku': 'SKU789', 'attributes': {}},
+        'terms': {'Reserved': product['terms']['Reserved']},
+    }
+    response = {'PriceList': [json.dumps(product), json.dumps(tiered), json.dumps(reserved_only)]}
+    # Other tests in this file re-import sql_utils; patch and call the module now loaded.
+    sql_utils = sys.modules['awslabs.billing_cost_management_mcp_server.utilities.sql_utils']
+
+    with (
+        patch.object(sql_utils, 'should_convert_to_sql', return_value=True),
+        patch.object(sql_utils, 'get_db_connection', return_value=(conn, conn.cursor())),
+    ):
+        result = await sql_utils.convert_response_if_needed(
+            mock_context, response, 'aws_pricing_get_products', service_code='AmazonEC2'
+        )
+
+    assert result['data_stored'] is True
+    # The conversion closes its connection; query the stored rows as session-sql would.
+    conn = sqlite3.connect(db_path)
+    priced = []
+    for sample in result['sample_queries']:
+        cursor = conn.execute(sample['sql'])
+        columns = [d[0] for d in cursor.description]
+        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        if 'usd' in columns:
+            priced.append(rows)
+    # One row per On-Demand dimension: tiers keep their ranges, the price is a number, and a
+    # product with only Reserved terms has no On-Demand row.
+    # Rows come out by sku, then tier.
+    assert len(priced) == 1
+    assert priced[0] == [
+        {
+            'sku': 'SKU123',
+            'product_family': 'Compute Instance',
+            'unit': 'Hrs',
+            'begin_range': None,
+            'end_range': None,
+            'usd': 0.096,
+            'description': '$0.096 per On Demand Linux m5.large Instance Hour',
+        },
+        {
+            'sku': 'SKU456',
+            'product_family': 'Storage',
+            'unit': 'GB-Mo',
+            'begin_range': '0',
+            'end_range': '51200',
+            'usd': 0.023,
+            'description': 'first 50 TB',
+        },
+        {
+            'sku': 'SKU456',
+            'product_family': 'Storage',
+            'unit': 'GB-Mo',
+            'begin_range': '51200',
+            'end_range': 'Inf',
+            'usd': 0.022,
+            'description': 'over 50 TB',
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_records_tables_get_only_their_own_sample_queries(mock_context, tmp_path):
+    """The pricing price query is offered only for pricing tables; a records table's samples all run."""
+    db_path = str(tmp_path / 'session.db')
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        'CREATE TABLE IF NOT EXISTS schema_info '
+        '(table_name TEXT PRIMARY KEY, created_at TEXT, operation TEXT, '
+        'query TEXT, row_count INTEGER)'
+    )
+    response = {'Actions': [{'ActionId': 'a1', 'Status': 'STANDBY'}], 'count': 1}
+    sql_utils = sys.modules['awslabs.billing_cost_management_mcp_server.utilities.sql_utils']
+
+    with (
+        patch.object(sql_utils, 'should_convert_to_sql', return_value=True),
+        patch.object(sql_utils, 'get_db_connection', return_value=(conn, conn.cursor())),
+    ):
+        result = await sql_utils.convert_response_if_needed(
+            mock_context, response, 'budget_actions'
+        )
+
+    assert result['data_stored'] is True
+    names = [sample['name'] for sample in result['sample_queries']]
+    assert 'On-Demand USD prices' not in names
+    conn = sqlite3.connect(db_path)
+    for sample in result['sample_queries']:
+        assert 'pricing_terms' not in sample['sql']
+        conn.execute(sample['sql']).fetchall()

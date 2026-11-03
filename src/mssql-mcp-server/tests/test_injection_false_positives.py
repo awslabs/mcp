@@ -173,3 +173,33 @@ def test_real_select_into_still_detected():
     sql = 'SELECT col1, col2 INTO #temp_table FROM source_table'
     keywords = detect_mutating_keywords(sql)
     assert 'SELECT INTO' in keywords
+
+
+# ─── NEXT VALUE FOR read-only-bypass fix ────────────────────────────────────────
+
+
+def test_next_value_for_detected():
+    """SELECT NEXT VALUE FOR advances a sequence outside transaction scope and must be blocked."""
+    from awslabs.mssql_mcp_server.mutable_sql_detector import detect_mutating_keywords
+
+    sql = 'SELECT NEXT VALUE FOR dbo.MySeq'
+    keywords = detect_mutating_keywords(sql)
+    assert 'NEXT VALUE FOR' in keywords
+
+
+def test_next_value_for_whitespace_and_case_detected():
+    """Case and extra whitespace variants are still detected."""
+    from awslabs.mssql_mcp_server.mutable_sql_detector import detect_mutating_keywords
+
+    sql = 'select  next   value\nfor s.OrderSeq'
+    keywords = detect_mutating_keywords(sql)
+    assert 'NEXT VALUE FOR' in keywords
+
+
+def test_next_value_for_inside_string_literal_not_flagged():
+    """The phrase inside a string literal is data, not a sequence call, and must not be flagged."""
+    from awslabs.mssql_mcp_server.mutable_sql_detector import detect_mutating_keywords
+
+    sql = "SELECT * FROM Orders WHERE note = 'next value for x'"
+    keywords = detect_mutating_keywords(sql)
+    assert 'NEXT VALUE FOR' not in keywords

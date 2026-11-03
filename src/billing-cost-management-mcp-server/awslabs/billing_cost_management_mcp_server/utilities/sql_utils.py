@@ -59,6 +59,18 @@ BUSY_TIMEOUT_MS = int(
     os.getenv('BCM_MCP_SQLITE_TIMEOUT_MS', 30000)
 )  # 30s default — handles concurrent subagent writes
 
+# Ceilings on the handle fields that grow with the stored data's shape. A
+# per-cell cap alone does not bound them: a wide response puts hundreds of
+# at-cap cells or long flattened column names on the handle.
+# Longest preview cell text kept before it is shortened with a marker
+PREVIEW_CELL_MAX_CHARS = 200
+# Bytes the preview rows may use, costed as each cell's JSON encoding
+PREVIEW_BUDGET_BYTES = 4096
+# Most column names the handle's schema lists
+SCHEMA_COLUMN_LIMIT = 60
+# Bytes the handle's schema column list may use
+SCHEMA_BUDGET_BYTES = 4096
+
 # Session database path singleton
 _SESSION_DB_PATH = None
 
@@ -130,7 +142,7 @@ def cleanup_session_db() -> None:
 def _session_authorizer(action, arg1, arg2, db_name, trigger_name):
     """SQLite authorizer callback: deny cross-DB attach/detach.
 
-    Belt-and-suspenders with the regex blacklist in
+    Belt-and-suspenders with the regex denylist in
     :func:`validate_sql_query`. The regex catches the query text
     before SQLite parses it; this authorizer catches every SQL parser
     action the connection actually attempts, including anything the
@@ -406,6 +418,9 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
         'cost_optimization_hub_list_efficiency_metrics': 'coh_efficiency_metrics',
         'budget_actions': 'records',
         'budget_notifications': 'records',
+        'enterprise_support_list_linked_account_charges': 'records',
+        'business_support_list_account_charges': 'records',
+        'business_support_list_subscription_history': 'records',
         'sp_explorer_describe_savings_plans': 'records',
         'sp_explorer_describe_savings_plan_rates': 'records',
         'sp_explorer_describe_savings_plans_offerings': 'records',
@@ -574,67 +589,24 @@ def _create_and_insert(
     return count
 
 
-def _derive_legacy_pagination_envelope(
-    response: Dict[str, Any], token_key: str = 'NextPageToken'
-) -> Dict[str, Any]:
-    """Extract pagination metadata from a tool not yet moved to ``paginate_aws_items``.
-
-    Recognizes two shapes produced upstream:
-
-    - Multi-page wrapper built by callers after ``paginate_aws_response``:
-      ``{'<ResultsKey>': [...], 'Pagination': {next_token, has_more, pages_fetched, ...}}``
-    - Single-page raw boto3 response with a continuation-token field (e.g.
-      ``NextPageToken``).
-
-    Args:
-        response: The API response (or paginated wrapper) being offloaded.
-        token_key: Name of the continuation-token field in the single-page
-            boto3 response.
-
-    Returns:
-        Dict with ``next_page_token``, ``has_more``, ``pages_fetched`` keys.
-        Empty dict if the response carries no pagination markers.
-    """
-    if 'Pagination' in response and isinstance(response['Pagination'], dict):
-        pag_meta = response['Pagination']
-        return {
-            'next_page_token': pag_meta.get('next_token'),
-            'has_more': pag_meta.get('has_more', False),
-            'pages_fetched': pag_meta.get('pages_fetched'),
-        }
-    if token_key in response:
-        token = response.get(token_key)
-        return {
-            'next_page_token': token,
-            'has_more': bool(token),
-            'pages_fetched': 1,
-        }
-    return {}
-
-
-def _derive_pagination_envelope(
-    response: Dict[str, Any], token_key: str = 'NextPageToken'
-) -> Dict[str, Any]:
+def _derive_pagination_envelope(response: Dict[str, Any]) -> Dict[str, Any]:
     """Extract the pagination block from a response so it survives SQL offload.
 
     Reads the lowercase ``pagination`` block attached by
     ``aws_service_base.with_pagination``. A partial result's ``warning`` sits at the top
-    level of the response. A response without that block falls back to the shapes of
-    tools not yet moved to ``paginate_aws_items`` (see
-    ``_derive_legacy_pagination_envelope``).
+    level of the response.
 
     Args:
         response: The tool response being offloaded.
-        token_key: Continuation-token field of a legacy single-page response.
 
     Returns:
         ``{'complete_dataset', 'warning' (partial only), 'pagination': {...}}``, in that
         order so the partial-data signal leads. Empty dict if the response carries no
-        pagination markers (e.g. a forecast response).
+        pagination block (e.g. a forecast response).
     """
     block = response.get('pagination')
     if not isinstance(block, dict):
-        return _derive_legacy_pagination_envelope(response, token_key)
+        return {}
     complete = bool(block.get('complete_dataset', True))
     envelope: Dict[str, Any] = {'complete_dataset': complete}
     if not complete:
@@ -649,7 +621,6 @@ async def convert_response_if_needed(
     ctx: Context,
     response: Dict[str, Any],
     api_name: str,
-    pagination_token_key: str = 'NextPageToken',
     **metadata,
 ) -> Dict[str, Any]:
     """Offload an API response to SQL if it exceeds the size threshold.
@@ -669,8 +640,6 @@ async def convert_response_if_needed(
         ctx: MCP context
         response: API response data
         api_name: Name of the API operation (e.g. 'aws_pricing_get_products')
-        pagination_token_key: Name of the continuation-token field in a legacy
-            single-page boto3 response. Defaults to 'NextPageToken'.
         **metadata: Additional metadata to include in the offload sentinel.
 
     Returns:
@@ -681,7 +650,7 @@ async def convert_response_if_needed(
 
     # Pull pagination markers out of the response so they survive offload —
     # caller-provided metadata still wins on key conflict.
-    metadata = {**_derive_pagination_envelope(response, pagination_token_key), **metadata}
+    metadata = {**_derive_pagination_envelope(response), **metadata}
 
     # Inline results lead with the partial-data signal too, so it is read before the data.
     inline_response = response
@@ -722,6 +691,239 @@ async def convert_response_if_needed(
         return inline_response
 
 
+def _truncate_preview_value(value: Any, max_chars: int = PREVIEW_CELL_MAX_CHARS) -> Any:
+    """Shorten one preview cell.
+
+    Args:
+        value: The cell value read back from the table.
+        max_chars: Longest string kept before truncation.
+
+    Returns:
+        The value unchanged when it is short or not a string, otherwise the
+        first ``max_chars`` characters with an elision marker recording how much
+        was left in the table.
+    """
+    if not isinstance(value, str) or len(value) <= max_chars:
+        return value
+    return f'{value[:max_chars]}... [{len(value)} chars total, query the table for the full value]'
+
+
+def _bounded_schema(
+    columns: List[str], budget_bytes: int = SCHEMA_BUDGET_BYTES
+) -> Tuple[List[str], Optional[int]]:
+    """Return a bounded column list, by count and by bytes.
+
+    A count limit alone is not enough: flattened names repeat their parent
+    prefixes, so sixty long names can rebuild a sizeable share of the payload.
+
+    Args:
+        columns: Every column in the stored table.
+        budget_bytes: Bytes the serialized column list may use.
+
+    Returns:
+        The column names kept, and the full count when any were dropped
+        (``None`` otherwise, so the handle stays unchanged for normal tables).
+    """
+    kept: List[str] = []
+    spent = 0
+    for column in columns[:SCHEMA_COLUMN_LIMIT]:
+        cost = len(column.encode('utf-8')) + 4  # quotes and the ', ' separator json.dumps writes
+        if spent + cost > budget_bytes:
+            break
+        kept.append(column)
+        spent += cost
+    if len(kept) == len(columns):
+        return kept, None
+    return kept, len(columns)
+
+
+def _unserializable_preview_value(value: Any) -> str:
+    """Return a bounded text stand-in for a cell that is not a JSON scalar, such as a BLOB.
+
+    Args:
+        value: The cell value read back from the table.
+
+    Returns:
+        The value's ``str()`` form shortened like any other preview cell, or a
+        placeholder naming its type when even ``str()`` fails.
+    """
+    try:
+        text = str(value)
+    except Exception:
+        return f'<unserializable {type(value).__name__}>'
+    return _truncate_preview_value(text)
+
+
+def _bounded_preview(
+    preview_rows: Iterable[Tuple[Any, ...]], columns: List[str]
+) -> Tuple[List[Dict[str, Any]], bool]:
+    """Build the preview, stopping at :data:`PREVIEW_BUDGET_BYTES`.
+
+    Each row is costed in full and kept only when the whole row fits, so every
+    kept row carries every column. The one exception is a first row that alone
+    exceeds the budget: its cells are kept up to the budget, so the preview is
+    not empty for a very wide table.
+
+    Args:
+        preview_rows: Rows read back from the stored table.
+        columns: Column names, in cursor order.
+
+    Returns:
+        The preview rows kept, and whether anything was dropped.
+    """
+    preview: List[Dict[str, Any]] = []
+    spent = 0
+    for row in preview_rows:
+        cells: List[Tuple[str, Any, int]] = []
+        for index, column in enumerate(columns):
+            value = row[index]
+            if value is None or isinstance(value, (str, int, float, bool)):
+                cell = _truncate_preview_value(value)
+            else:
+                # Shorten the text form too, so a large BLOB is cut rather
+                # than costing the whole row.
+                cell = _unserializable_preview_value(value)
+            # Cost each cell as its JSON encoding, the form the handle takes on
+            # the wire; json.dumps escapes non-ASCII, so the count never undercounts.
+            cost = len(json.dumps({column: cell}).encode('utf-8'))
+            cells.append((column, cell, cost))
+
+        row_cost = sum(cost for _, _, cost in cells)
+        if spent + row_cost <= PREVIEW_BUDGET_BYTES:
+            preview.append({column: cell for column, cell, _ in cells})
+            spent += row_cost
+            continue
+
+        if not preview:
+            # A first row wider than the whole budget would otherwise leave
+            # the preview empty; keep its leading cells that fit instead.
+            item: Dict[str, Any] = {}
+            for column, cell, cost in cells:
+                if spent + cost > PREVIEW_BUDGET_BYTES:
+                    break
+                item[column] = cell
+                spent += cost
+            if item:
+                preview.append(item)
+        return preview, True
+    return preview, False
+
+
+# UTC midnight as ISO 8601 writes it: ``T00:00`` or ``T00:00:00`` with optional zero
+# fractional seconds, then ``Z``, ``+00:00``, ``+0000`` or no zone (Cost Explorer returns
+# ``...T00:00:00Z``). ``-00:00`` means an unknown offset, so it is not UTC. ASCII digits
+# only, matched with fullmatch so a trailing newline is not accepted.
+_UTC_MIDNIGHT_RE = re.compile(
+    r'([0-9]{4}-[0-9]{2}-[0-9]{2})T00:00(?::00(?:\.0+)?)?(?:Z|\+00:?00)?'
+)
+_ISO_DATE_RE = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}')
+
+
+def _ce_bound_date(value: str) -> Optional[str]:
+    """Return the ``YYYY-MM-DD`` of a date or UTC-midnight timestamp, or None if it is not one.
+
+    The date must exist on the calendar, so ``2026-02-30`` is not one.
+    """
+    if _ISO_DATE_RE.fullmatch(value):
+        date = value
+    else:
+        match = _UTC_MIDNIGHT_RE.fullmatch(value)
+        if match is None:
+            return None
+        date = match.group(1)
+    try:
+        datetime.strptime(date, '%Y-%m-%d')
+    except ValueError:
+        return None
+    return date
+
+
+def _ce_period_bounds(time_periods: List[Any]) -> Tuple[List[Tuple[Any, Any]], Optional[bool]]:
+    """Return the (start, end) to store for each Cost Explorer ``TimePeriod``.
+
+    getCostAndUsage returns DAILY and MONTHLY bounds as ``YYYY-MM-DD``;
+    getCostAndUsageWithResources returns the same bounds as UTC-midnight
+    timestamps. Stored verbatim, a date filter on TEXT drops the last day of the
+    timestamp table and a JOIN across the two matches nothing. So when every
+    bound in the response is a date or UTC midnight, all are stored as dates.
+    Otherwise (HOURLY, whose periods always have a non-midnight bound) every
+    bound is kept as returned, so one response never mixes the two formats.
+
+    Args:
+        time_periods: The ``TimePeriod`` of each result, in order.
+
+    Returns:
+        One (start, end) pair per period (a missing bound is None), and whether
+        the bounds are dates: None when there is no bound at all.
+    """
+    bounds = [
+        (tp.get('Start'), tp.get('End')) if isinstance(tp, dict) else (None, None)
+        for tp in time_periods
+    ]
+    dates: List[Tuple[Any, Any]] = []
+    seen_bound = False
+    for pair in bounds:
+        converted = []
+        for value in pair:
+            if value is None:
+                converted.append(None)
+                continue
+            seen_bound = True
+            date = _ce_bound_date(value) if isinstance(value, str) else None
+            if date is None:
+                return bounds, False
+            converted.append(date)
+        dates.append((converted[0], converted[1]))
+    return dates, (True if seen_bound else None)
+
+
+# The stored period formats, worded once for the handle and the sample query notes.
+_CE_DATE_FORMAT = "'YYYY-MM-DD'"
+_CE_KEPT_FORMAT = "as the API returned it, e.g. 'YYYY-MM-DDTHH:MM:SSZ' for HOURLY"
+
+
+def _ce_time_period_formats(as_dates: bool) -> Dict[str, str]:
+    """Describe how this table stores Cost Explorer periods, for the handle.
+
+    The columns are TEXT and compare byte by byte, so a literal of another form
+    silently matches nothing.
+
+    Args:
+        as_dates: Whether ``_ce_period_bounds`` stored the bounds as dates.
+
+    Returns:
+        A description per period column.
+    """
+    if as_dates:
+        start = (
+            f'TEXT {_CE_DATE_FORMAT} (UTC date). Compared as text: filter with date literals. '
+            "HOURLY tables store 'YYYY-MM-DDTHH:MM:SSZ'; use substr(time_period_start, 1, 10) "
+            'to compare their days with this table'
+        )
+    else:
+        start = (
+            f'TEXT {_CE_KEPT_FORMAT}. Compared as text: filter with literals of the same '
+            'form, or use substr(time_period_start, 1, 10) to compare days'
+        )
+    exclusive = (
+        'The end is exclusive: the period covers time_period_start up to, not including, '
+        'time_period_end'
+    )
+    return {
+        'time_period_start': start,
+        'time_period_end': (
+            f'TEXT {_CE_DATE_FORMAT} (UTC date). {exclusive}'
+            if as_dates
+            else f'TEXT as the API returned it. {exclusive}'
+        ),
+    }
+
+
+def _ce_time_format_note(as_dates: bool) -> str:
+    """One clause on the stored period format, for sample query descriptions."""
+    return f'time_period_start is {_CE_DATE_FORMAT if as_dates else _CE_KEPT_FORMAT}'
+
+
 async def convert_api_response_to_table(
     ctx: Context, response: Dict[str, Any], operation_name: str, **metadata
 ) -> Dict[str, Any]:
@@ -760,6 +962,9 @@ async def convert_api_response_to_table(
 
     try:
         rows_inserted = 0
+        # Whether the Cost Explorer periods were stored as dates; None when this
+        # table holds no Cost Explorer periods.
+        ce_periods_as_dates: Optional[bool] = None
 
         # Create table and insert data based on response type
         if converter_type == 'pricing_products' and 'PriceList' in response:
@@ -814,10 +1019,11 @@ async def convert_api_response_to_table(
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
             cursor.execute(sql)
 
-            for result_by_time in response.get('ResultsByTime', []):
-                time_period = result_by_time.get('TimePeriod', {})
-                start = time_period.get('Start')
-                end = time_period.get('End')
+            results_by_time = response.get('ResultsByTime', [])
+            period_bounds, ce_periods_as_dates = _ce_period_bounds(
+                [r.get('TimePeriod', {}) for r in results_by_time]
+            )
+            for result_by_time, (start, end) in zip(results_by_time, period_bounds):
                 estimated = result_by_time.get('Estimated', False)
 
                 # Handle grouped data
@@ -905,8 +1111,11 @@ async def convert_api_response_to_table(
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
             cursor.execute(sql)
 
-            for forecast in response.get('ForecastResultsByTime', []):
-                time_period = forecast.get('TimePeriod', {})
+            forecasts = response.get('ForecastResultsByTime', [])
+            period_bounds, ce_periods_as_dates = _ce_period_bounds(
+                [f.get('TimePeriod', {}) for f in forecasts]
+            )
+            for forecast, (start, end) in zip(forecasts, period_bounds):
                 # Use validated table name
                 validate_table_name(table_name)
                 insert_sql = create_safe_sql_statement(
@@ -917,8 +1126,8 @@ async def convert_api_response_to_table(
                 cursor.execute(
                     insert_sql,
                     (
-                        time_period.get('Start'),
-                        time_period.get('End'),
+                        start,
+                        end,
                         float(forecast.get('MeanValue', 0)),
                         float(forecast.get('PredictionIntervalLowerBound', 0)),
                         float(forecast.get('PredictionIntervalUpperBound', 0)),
@@ -1097,13 +1306,10 @@ async def convert_api_response_to_table(
         # Get column names for preview
         columns = [description[0] for description in cursor.description]
 
-        # Format preview as list of dictionaries
-        preview = []
-        for row in preview_rows:
-            preview_item = {}
-            for i, col in enumerate(columns):
-                preview_item[col] = row[i]
-            preview.append(preview_item)
+        # Format preview as list of dictionaries, bounded so a wide or long-celled
+        # table cannot rebuild the payload the offload exists to keep off the handle
+        preview, preview_truncated = _bounded_preview(preview_rows, columns)
+        schema_columns, schema_column_count = _bounded_schema(columns)
 
         # Register table in schema info, and commit it before the await below. The INSERT opens a
         # write transaction; holding it across the await lets a concurrent conversion on the same
@@ -1116,6 +1322,13 @@ async def convert_api_response_to_table(
         conn.commit()
 
         await ctx.info(f'Converted {rows_inserted} rows to SQL table: {table_name}')
+
+        # The stored period format, appended to the time-ordered sample query descriptions.
+        time_note = (
+            f'. {_ce_time_format_note(ce_periods_as_dates)}'
+            if ce_periods_as_dates is not None
+            else ''
+        )
 
         # Get sample queries based on table type with enhanced examples
         # Start with a basic query for all tables
@@ -1157,7 +1370,7 @@ async def convert_api_response_to_table(
             sample_queries.append(
                 {
                     'name': 'Cost trend over time',
-                    'description': 'Shows cost pattern across the time period',
+                    'description': 'Shows cost pattern across the time period' + time_note,
                     'sql': trend_query,
                 }
             )
@@ -1236,6 +1449,38 @@ async def convert_api_response_to_table(
                 }
             )
 
+            # pricing_terms is JSON keyed by offer and rate codes that differ per product, so a
+            # price is read by walking those keys with json_each.
+            on_demand_query = (
+                create_safe_sql_statement(
+                    'SELECT',
+                    table_name,
+                    'sku, product_family, '
+                    "json_extract(pd.value, '$.unit') AS unit, "
+                    "json_extract(pd.value, '$.beginRange') AS begin_range, "
+                    "json_extract(pd.value, '$.endRange') AS end_range, "
+                    "CAST(json_extract(pd.value, '$.pricePerUnit.USD') AS REAL) AS usd, "
+                    "json_extract(pd.value, '$.description') AS description",
+                )
+                + f", json_each({table_name}.pricing_terms, '$.OnDemand') AS term"
+                + ", json_each(term.value, '$.priceDimensions') AS pd"
+                + ' ORDER BY sku, CAST(begin_range AS REAL) LIMIT 20'
+            )
+            sample_queries.append(
+                {
+                    'name': 'On-Demand USD prices',
+                    'description': (
+                        'One row per On-Demand price dimension; a tiered price has one row per '
+                        'tier, from begin_range to end_range. pricing_terms and attributes are '
+                        "JSON text. For Reserved Instance prices use '$.Reserved' and also select "
+                        "json_extract(term.value, '$.termAttributes'), which holds the lease "
+                        'length and purchase option. Use json_extract(attributes, '
+                        "'$.instanceType') (any attribute name) to filter or show attributes"
+                    ),
+                    'sql': on_demand_query,
+                }
+            )
+
         elif converter_type == 'forecast':
             # Cost Explorer forecast queries
 
@@ -1249,7 +1494,8 @@ async def convert_api_response_to_table(
             sample_queries.append(
                 {
                     'name': 'Forecast trend',
-                    'description': 'Shows forecast values with confidence bounds over time',
+                    'description': 'Shows forecast values with confidence bounds over time'
+                    + time_note,
                     'sql': forecast_query,
                 }
             )
@@ -1446,11 +1692,25 @@ async def convert_api_response_to_table(
             'data_stored': True,
             'session_db': db_path,
             'table_name': table_name,
-            'schema': columns,
+            'schema': schema_columns,
             'row_count': rows_inserted,
             'sample_queries': sample_queries,
             'preview': preview,
             **metadata,
+            # Present only when a bound applied, and after the metadata so a
+            # caller's keyword cannot overwrite them.
+            **(
+                {'schema_column_count': schema_column_count}
+                if schema_column_count is not None
+                else {}
+            ),
+            **({'preview_truncated': True} if preview_truncated else {}),
+            # The stored time format, for the tables that hold Cost Explorer periods.
+            **(
+                {'column_formats': _ce_time_period_formats(ce_periods_as_dates)}
+                if ce_periods_as_dates is not None
+                else {}
+            ),
         }
 
     except Exception as e:
@@ -1516,19 +1776,21 @@ async def execute_session_sql(
         # Execute the main query
         await ctx.info(f'Executing SQL query: {query[:100]}...')
 
-        # Get query type (read or write)
-        query_upper = query.strip().upper()
-        is_write_operation = any(
-            query_upper.startswith(cmd)
-            for cmd in ['INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER']
-        )
-
         # Execute the query with validation
         validate_sql_query(query)
         cursor.execute(query)
 
-        # Commit if this is a write operation
-        if is_write_operation:
+        # Commit if the statement opened a transaction.
+        #
+        # We rely on sqlite3's own view of the transaction state rather than a
+        # keyword-prefix check on the query text. A prefix check misses writes
+        # that sqlite3 still runs inside an implicit transaction -- for example
+        # comment-prefixed DML ("/* c */ INSERT ...") and REPLACE statements --
+        # leaving the transaction uncommitted so the write is silently rolled
+        # back when the connection closes. conn.in_transaction reflects the
+        # actual engine state and commits exactly when there is something to
+        # commit.
+        if conn.in_transaction:
             conn.commit()
 
         # Get results

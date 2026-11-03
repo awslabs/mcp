@@ -22,6 +22,7 @@ from ..utilities.aws_service_base import (
     paginate_aws_items,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.logging_utils import get_context_logger
 from ..utilities.sql_utils import convert_response_if_needed
 from fastmcp import Context, FastMCP
@@ -41,15 +42,22 @@ sp_explorer_server = FastMCP(
 This tool provides visibility into what an account already owns and what it can buy through four
 operations:
 
-1. describe_savings_plans: The plans the account owns, with state, term, payment option, and
-   expiry. Pass states to scope the result.
+1. describe_savings_plans: the plans owned by the calling account only, with state, term, payment
+   option, and expiry. No member-account plans are returned, even from a management account, so an
+   empty result does not mean the organization owns none. Pass states to scope the result. For an
+   organization-wide inventory use sp-performance get_savings_plans_utilization_details (one entry
+   per plan ARN, and the owning account is the ARN's account field) or cost-explorer
+   getDimensionValues with SAVINGS_PLAN_ARN under context=SAVINGS_PLANS. Both read Cost Explorer,
+   which lists a plan only where it has utilization records in the window, so pass an explicit
+   12-month start_date and end_date: a shorter window drops retired and idle plans, and a member
+   account's idle plan still displaces a new purchase.
 2. describe_savings_plan_rates: The rates on one Savings Plan the customer already owns.
 3. describe_savings_plans_offerings: The offerings available to purchase.
 4. describe_savings_plans_offering_rates: The rates for offerings available to purchase.
 
 USE THIS TOOL FOR:
-- **What plans an account owns** — including plans in the queued, returned, and payment-failed
-  states, which Cost Explorer does not report on
+- **What plans the calling account owns** — including plans in the queued, returned, and
+  payment-failed states, which Cost Explorer does not report on
 - **When a plan expires or can still be returned** — the end and returnableUntil fields
 - **The rates locked in on an existing plan**
 - **What is available to purchase and at what rate** — to compare the rate one plan type, term, and
@@ -65,7 +73,9 @@ IMPORTANT: the vocabulary here differs from Cost Explorer's, so values carried o
 Explorer response or recommendation will be rejected. See the individual parameter descriptions.
 
 PAGINATION (all four operations):
-- max_items is the total number of items returned. Omit it to fetch every page (no limit). Pass it,
+- max_items is the total number of items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it,
   or narrow the filters, for queries that can be large (an unfiltered offering or offering-rate
   query runs to thousands of entries).
 - If the response has complete_dataset: false, call again with a larger max_items, continue with
@@ -127,12 +137,29 @@ async def sp_explorer(
             and a three-year term is 94608000.
         currencies: The currencies as a list. One or more of CNY, USD, and EUR.
         descriptions: The descriptions as a list.
-        service_codes: The service codes as a list. For
-            describe_savings_plans_offering_rates these are AmazonEC2, AmazonECS, AmazonEKS,
-            AWSLambda, AmazonSageMaker, AmazonRDS, AuroraDSQL, AmazonDynamoDB, AmazonElastiCache,
-            AmazonDocDB, AmazonNeptune, AmazonTimestream, AmazonMCS, AWSDatabaseMigrationSvc, and
-            AmazonES.
-        usage_types: The usage types as a list.
+        service_codes: The service codes as a list. describe_savings_plans_offerings takes
+            the plan's own code: ComputeSavingsPlans (Compute and EC2Instance plans),
+            MachineLearningSavingsPlans (SageMaker plans), or DatabaseSavingsPlans (Database
+            plans), as in the serviceCode field of a returned offering. Any other value,
+            including a rate code such as AmazonSageMaker, matches nothing and returns an empty
+            result, not an error. The exception is a value containing EC2 in upper or lower
+            case, such as AmazonEC2, ec2 or EC2InstanceSavingsPlans: it fails the whole request,
+            even alongside a valid code, with a ValidationException whose message lists
+            AmazonEC2 as allowed. For EC2Instance plans use ComputeSavingsPlans.
+            describe_savings_plans_offering_rates takes the code of the service the rate
+            applies to: AmazonEC2, AmazonECS, AmazonEKS, AWSLambda, AmazonSageMaker, AmazonRDS,
+            AuroraDSQL, AmazonDynamoDB, AmazonElastiCache, AmazonDocDB, AmazonNeptune,
+            AmazonTimestream, AmazonMCS, AWSDatabaseMigrationSvc, and AmazonES.
+        usage_types: The usage types as a list. The two offering operations use different
+            usage types, and a value from one matches nothing on the other. An offering's usage
+            type names the plan, such as ComputeSP:1yrNoUpfront, or EC2SP:m5.1yrNoUpfront for a
+            regional plan. A rate's usage type names the usage it covers, such as
+            BoxUsage:m5.large.
+            Outside us-east-1 a regional usage type carries a region prefix
+            (AFS1-EC2SP:c5.1yrAllUpfront, USW2-BoxUsage:m5.large). In us-east-1 most have none,
+            but some rates carry one (USE1-Fargate-GB-Hours). A value that matches nothing
+            returns an empty result, not an error, so copy values from the usageType field of
+            a returned offering or rate.
         operations: The operations as a list.
         filters: The filters as a list of {"name": ..., "values": [...]} objects. The
             accepted names differ per operation: describe_savings_plans takes region,
@@ -141,7 +168,19 @@ async def sp_explorer(
             productDescription, tenancy, productType, serviceCode, usageType, and operation;
             describe_savings_plans_offerings takes region and instanceFamily; and
             describe_savings_plans_offering_rates takes region, instanceFamily, instanceType,
-            productDescription, tenancy, and productId.
+            productDescription, and tenancy. For describe_savings_plans the values are strings, numbers included, matched exactly and case-sensitively, and a value that
+            matches no plan returns an empty list, not an error: savings-plan-type is Compute,
+            EC2Instance, SageMaker, or Database; payment-option is 'All Upfront', 'Partial
+            Upfront', or 'No Upfront', with the spaces; term is the duration in seconds as a
+            string, "31536000" or "94608000"; upfront and commitment are decimal strings such as
+            "4.38", with no currency sign; start and end are exact timestamps such as
+            "2025-01-01T00:00:00.000Z", matched to the millisecond rather than as a range; region
+            is a region code such as us-east-1; and ec2-instance-family and instance-family are an
+            instance family such as m5. The two rate operations use the pricing vocabulary, not
+            Cost Explorer's, and a value in another spelling also returns an empty list: tenancy
+            is lower case, shared or dedicated (Cost Explorer's Shared matches nothing); and
+            productDescription is the full operating system name such as Linux/UNIX, Windows, or
+            Red Hat Enterprise Linux (Linux alone matches nothing).
         max_items: Total number of items to return across all pages. Omit it to fetch every
             page.
         next_token: The pagination.next_token from a previous response; continue with otherwise
@@ -225,6 +264,8 @@ SP_DESCRIBE_SAVINGS_PLANS = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 
@@ -282,6 +323,52 @@ async def describe_savings_plans(
             next_token=next_token,
         )
 
+        # An empty list is the live behaviour for a management account whose plans were all bought
+        # in member accounts: DescribeSavingsPlans is scoped to the calling account and returns
+        # none of them, even when asked for by id or ARN. Say so in the result itself, not only in
+        # the tool description, so a caller reading the response cannot take [] for "owns none".
+        # An empty result is never large enough to offload, so it returns directly.
+        if not all_plans:
+            # A filter value spelled differently from the API's (ComputeSavingsPlans for Compute,
+            # PARTIAL_UPFRONT for 'Partial Upfront') also returns [] with no error, and then the
+            # account-scope text alone points the caller at the wrong cause. states needs no note:
+            # the API validates it and rejects a misspelled state with a ValidationException.
+            filter_note = (
+                (
+                    'The request was narrowed by filters, and a filter value that matches no '
+                    'plan returns this same empty list rather than an error. Values are matched '
+                    'exactly and are case-sensitive (for example savings-plan-type Compute, '
+                    'payment-option \'Partial Upfront\', term "31536000"), so check them against '
+                    'the filters parameter description. An unfiltered call tells the two causes '
+                    'apart. '
+                )
+                if filters
+                else ''
+            )
+            return format_response(
+                'success',
+                with_pagination(
+                    {
+                        'savingsPlans': [],
+                        'message': 'No Savings Plans found for the calling account. '
+                        + filter_note
+                        + (
+                            'This operation '
+                            'returns only plans the calling account bought, so an empty result '
+                            'does not mean the organization owns none: from a management '
+                            'account, member-account plans are never returned. For an '
+                            'organization-wide inventory call sp-performance '
+                            'get_savings_plans_utilization_details (the owning account is the '
+                            "plan ARN's account field) or cost-explorer getDimensionValues with "
+                            'SAVINGS_PLAN_ARN under context=SAVINGS_PLANS, passing an explicit '
+                            '12-month window, since both list a plan only where it has '
+                            'utilization records inside it.'
+                        ),
+                    },
+                    pagination,
+                ),
+            )
+
         # A large inventory is offloaded to session SQL (one row per plan)
         # instead of returned inline; a small result passes through unchanged.
         # An offloaded table is queried with the session-sql tool.
@@ -304,6 +391,8 @@ SP_DESCRIBE_SAVINGS_PLAN_RATES = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 
@@ -335,9 +424,14 @@ async def describe_savings_plan_rates(
         await ctx_logger.info(f'Describing rates for Savings Plan {savings_plan_id}')
 
         # Create request parameters
-        request_params: dict = {'savingsPlanId': savings_plan_id}
+        # savingsPlanId is required. Sending it as None makes botocore report a type error on the
+        # value; omitting it makes botocore name the missing field, which is the more useful
+        # failure for a caller that forgot it.
+        request_params: dict = {}
 
         # Add optional parameters if provided
+        if savings_plan_id:
+            request_params['savingsPlanId'] = savings_plan_id
         if filters:
             request_params['filters'] = filters
 
@@ -381,6 +475,8 @@ SP_DESCRIBE_SAVINGS_PLANS_OFFERINGS = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 
@@ -492,6 +588,8 @@ SP_DESCRIBE_SAVINGS_PLANS_OFFERING_RATES = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 

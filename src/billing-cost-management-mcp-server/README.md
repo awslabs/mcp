@@ -69,7 +69,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 
 ### AWS Invoicing
 
-- **Invoice summaries**: List invoice-level details (invoice ID, type, billing period, issued/due dates, issuing entity, and amounts with discount/tax/fee breakdowns across base, tax, and payment currencies) for an account or a single invoice, filtered by month or date range
+- **Invoice summaries**: List invoice-level details (invoice ID, type, billing period, issued/due dates, issuing entity, and amounts with discount/tax/fee breakdowns across base, tax, and payment currencies) for an account (filtered by month or date range) or a single invoice
 - **Invoice units**: List and retrieve invoice unit definitions (groups of accounts that receive a separate invoice, with their receiver account and linked-account rules), filtered by name, receiver, or member account; and fetch invoice receiver profiles (legal name, address, tax registration number) for a set of accounts
 - **Procurement portal preferences**: List and retrieve procurement portal connections (SAP Business Network, Coupa) and e-invoice delivery / purchase-order retrieval settings
 
@@ -84,6 +84,11 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Support contract details**: Review the contract terms that govern how a billing period's charge is allocated, including the allocation method, Reserved Instance and Savings Plan treatment, and the payer accounts covered
 - **Per-account charge breakdown**: Break a billing period's charge down by linked account with prorated Support-eligible spend, subscription periods, and per-service spend
 
+### AWS Business Support
+
+- **Account charges**: Retrieve a billing month's Business Support charges per account, with the Support-eligible spend each charge was calculated from, the tiered charge breakdown, any applied discount, and the profile-wide totals. The current month is returned as an estimate
+- **Subscription history**: Review the Support plan contracts in effect for a billing month or a date range, including the plan and the contract start and end dates
+
 ### Specialized Cost Optimization Prompts
 
 - **Graviton migration analysis**: Guided analysis to identify EC2 instances suitable for AWS Graviton migration
@@ -92,7 +97,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
-2. Install Python 3.10 or newer using uv python install 3.10 (or a more recent version)
+2. Install Python 3.11 or newer using uv python install 3.11 (or a more recent version)
 3. Set up AWS credentials with access to AWS services
    - You need an AWS account with appropriate permissions
    - Configure AWS credentials with `aws configure` or environment variables
@@ -235,6 +240,8 @@ Cost Explorer:
 - ce:GetCostAndUsageComparisons
 - ce:GetCostComparisonDrivers
 - ce:GetAnomalies
+- ce:GetAnomalyMonitors
+- ce:GetAnomalySubscriptions
 - ce:GetCostAndUsage
 - ce:GetCostAndUsageComparisons
 - ce:GetCostAndUsageWithResources
@@ -293,7 +300,7 @@ Compute Optimizer Automation:
 - ec2:DescribeVolumes (required by ListRecommendedActions and ListAutomationRulePreview)
 
 AWS Budgets:
-- budgets:ViewBudget (also covers budget notifications, per-budget and account-wide)
+- budgets:ViewBudget (also covers budget notifications, per-budget and account-wide, and budget performance history)
 - budgets:DescribeBudgetActionsForBudget (required for budget actions by budget name)
 - budgets:DescribeBudgetActionsForAccount (required for account-wide budget actions)
 
@@ -304,6 +311,8 @@ AWS Pricing:
 
 AWS Free Tier:
 - freetier:GetFreeTierUsage
+- freetier:GetAccountPlanState
+- freetier:ListAccountActivities
 
 AWS Billing and Cost Management Pricing Calculator:
 - bcm-pricing-calculator:GetPreferences
@@ -324,6 +333,12 @@ Storage Lens (Athena and S3):
 - athena:GetTableMetadata
 - athena:ListDatabases
 - athena:ListTableMetadata
+- glue:GetDatabase
+- glue:CreateDatabase
+- glue:GetTable
+- glue:CreateTable
+- glue:GetPartitions (Athena checks it, with glue:UpdateTable, for ALTER TABLE ... SET LOCATION)
+- glue:UpdateTable (points the table at another day's report folder)
 - s3:GetObject
 - s3:ListBucket
 - s3:PutObject
@@ -367,6 +382,8 @@ AWS Billing:
 - billing:GetEnterpriseSupportChargeSummary
 - billing:GetEnterpriseSupportContractDetails
 - billing:ListEnterpriseSupportLinkedAccountCharges
+- billing:ListBusinessSupportAccountCharges
+- billing:ListBusinessSupportSubscriptionHistory
 - billing:ListBillingViewSegments
 
 #### Configuration
@@ -385,11 +402,9 @@ The server uses these key environment variables:
 
 ## Pagination
 
-`cost-anomaly`, `list-cost-category-definitions`, `list-cost-allocation-tags`, `list-cost-allocation-tag-backfill-history`, `invoicing`, `invoice-units`, the billing view tools, `get-billing-preferences`, `procurement-preferences`, `enterprise-support`, `sp-purchase-analyzer`, `sp-explorer`, `free-tier-usage`, `bcm-pricing-calc`, the Billing Conductor tools and `compute-optimizer` page as described here; the other list tools keep their current paging parameters until they move to it.
+List tools take `max_items` (the total number of items to return) and `next_token`. Without `max_items` a tool fetches every page; with it, the tool stops before a page that could take the result past `max_items` (the first page is always returned). `ri-performance` `get_reservation_utilization` grouped by `SUBSCRIPTION_ID` takes `max_pages` instead of `max_items`: its `next_token` only works with the same page size, so it returns whole pages of 500 groups; omit `max_pages` to fetch every page. Billing Conductor `get-billing-group-cost-report` requests pages of 200 to 300 results, the range the service accepts, so a `max_items` below 200 can return up to 200. `next_token` in a response is the AWS service's own continuation token: pass it back, with every other parameter unchanged, to get the next items.
 
-These tools take `max_items` (the total number of items to return) and `next_token`. Without `max_items` a tool fetches every page; with it, the tool stops before a page that could take the result past `max_items` (the first page is always returned). `next_token` in a response is the AWS service's own continuation token: pass it back, with every other parameter unchanged, to get the next items.
-
-A response that stops before the end of the data leads with `complete_dataset: false` and a `warning`, and every response from these tools carries a `pagination` block:
+A response that stops before the end of the data leads with `complete_dataset: false` and a `warning`, and every paginated response carries a `pagination` block:
 
 ```json
 {"complete_dataset": false, "warning": "Partial data: ...", "pagination": {"complete_dataset": false, "has_more": true, "next_token": "<service token>", "items_returned": 5000}, "...": "data"}
@@ -423,11 +438,11 @@ Tool errors are returned with `isError: true` and a JSON body that includes:
 
 | `retry_strategy` | `error_type` values |
 |------------------|---------------------|
-| `retry_same_request` | Throttling (`ThrottlingException`, `Throttling`, `ThrottledException`, `TooManyRequestsException`, `RequestLimitExceeded`, `LimitExceededException`, `throttling_error`), `aws_connection_error`, server-side errors (`InternalServerException`, `InternalErrorException`, `ServiceUnavailable`, `service_unavailable`, ...), timeouts (`unknown_timeouterror`), and any otherwise unmapped AWS error with an HTTP 5xx status |
+| `retry_same_request` | Throttling (`ThrottlingException`, `Throttling`, `ThrottledException`, `TooManyRequestsException`, `RequestLimitExceeded`, `LimitExceededException`, `RequestThrottled`, `RequestThrottledException`, `ProvisionedThroughputExceededException`, `TransactionInProgressException`, `PriorRequestNotComplete`, `EC2ThrottledException`, `SlowDown`, `BandwidthLimitExceeded`, `throttling_error`), `aws_connection_error` (transient botocore errors only: connection failures, no client-side request capacity, response body cut short or corrupted; other botocore errors set their own `retry_strategy`, see below), server-side errors (`InternalServerException`, `InternalErrorException`, `InternalError`, `IDPCommunicationError`, `ServiceUnavailable`, `service_unavailable`, ...), timeouts (`unknown_timeouterror`), and any otherwise unmapped AWS error with an HTTP 5xx status |
 | `modify_request` | `validation_error`, `invalid_operation`, `invalid_parameter_value`, `ValidationException`, `InvalidParameter*`, `InvalidInputException`, `InvalidNextTokenException`, `ExpiredNextTokenException`, `InvalidRequestException`, `BadRequestException`, `BillExpirationException`, `RequestChangedException`, `invalid_next_token`, `no_results`, `ResourceNotFoundException`, `resource_not_found`, `NotFoundException`, `not_found` |
 | `do_not_retry` | `AccessDenied*`, `access_denied`, `UnauthorizedOperation`, `UnauthorizedException`, `AuthFailure`, `OptInRequiredException`, `opt_in_required`, `enrollment_error`, `DataUnavailableException`, and any missing or unrecognized `error_type` |
 
-A tool can override the mapping for a specific error by passing `retry_strategy=` and `hint=` to `format_response`. Session SQL errors from invalid queries are `modify_request`, and when every region of a multi-region call fails, `retry_strategy` is combined from each region's own error. A botocore `ParamValidationError` (malformed request parameters, rejected before any request is sent) is a `validation_error`. Credential and configuration errors (`NoCredentialsError`, `PartialCredentialsError`, `NoRegionError`, `ProfileNotFound`, `UnknownServiceError`) keep `error_type: aws_connection_error` but are `do_not_retry`. The full mapping is in `utilities/error_contract.py`.
+A tool can override the mapping for a specific error by passing `retry_strategy=` and `hint=` to `format_response`. Session SQL errors from invalid queries are `modify_request`, and when every region of a multi-region call fails, `retry_strategy` is combined from each region's own error. A botocore `ParamValidationError` (malformed request parameters, rejected before any request is sent) is a `validation_error`. `aws_connection_error` is `retry_same_request` only for transient failures: botocore's `ConnectionError` and `HTTPClientError` classes (such as `EndpointConnectionError` and `ReadTimeoutError`), `CapacityNotAvailableError` (raised by botocore's client-side token bucket when no request capacity is available; kept retryable), and a response body cut short or corrupted in transit (`IncompleteReadError`, `ChecksumError`, `FlexibleChecksumError`); `boto_error_type` names the botocore class. Every other botocore error keeps `error_type: aws_connection_error` but sets its own `retry_strategy`: `modify_request` for botocore's other argument checks (`UnknownParameterError`, `RangeError`, ...), and `do_not_retry` for credential and configuration errors (`NoCredentialsError`, `CredentialRetrievalError` from a failed `credential_process`, an expired SSO token, `NoRegionError`, `ProfileNotFound`, ...) and any other SDK-side failure, since a retry fails the same way. The full mapping is in `utilities/error_contract.py`.
 
 ## Supported AWS Services
 
@@ -444,6 +459,8 @@ The server currently supports the following AWS services
    - get_cost_comparison_drivers
    - get_cost_and_usage_comparisons
    - get_anomalies
+   - get_anomaly_monitors
+   - get_anomaly_subscriptions
    - get_cost_and_usage
    - get_cost_and_usage_with_resources
    - get_dimension_values
@@ -456,9 +473,12 @@ The server currently supports the following AWS services
    - describe_budgets
    - describe_budget_actions (DescribeBudgetActionsForBudget / DescribeBudgetActionsForAccount)
    - describe_budget_notifications (DescribeNotificationsForBudget / DescribeBudgetNotificationsForAccount)
+   - describe_budget_performance_history
 
 3. **AWS Free Tier**
    - get_free_tier_usage
+   - get_account_plan_state
+   - list_account_activities
 
 4. **AWS Pricing**
    - get_service_codes
@@ -543,7 +563,10 @@ The server currently supports the following AWS services
 16. **AWS Enterprise Support**
     - `enterprise-support` tool: get_charge_summary, get_contract_details, list_linked_account_charges
 
-17. **AWS Billing Views**
+17. **AWS Business Support**
+    - `business-support` tool: list_account_charges, list_subscription_history
+
+18. **AWS Billing Views**
     - `get-billing-view`: retrieve metadata for a specific billing view
     - `list-billing-views`: list billing views available for a given time period
     - `list-source-views-for-billing-view`: list source views that a custom billing view is built from

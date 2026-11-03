@@ -22,6 +22,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.regional_fanout import
     decode_regional_next_token,
     encode_regional_next_token,
     fan_out_regions,
+    format_regional_aws_error,
     is_regional_next_token,
 )
 from botocore.exceptions import ClientError
@@ -153,3 +154,17 @@ def test_regional_next_token_rejects_unsupported_region():
 def test_is_regional_next_token(token, expected):
     """Regional tokens are recognized without knowing which regions are expected."""
     assert is_regional_next_token(token) is expected
+
+
+@pytest.mark.asyncio
+async def test_format_regional_aws_error_keeps_explicit_retry_strategy():
+    """A non-transient botocore error keeps its do_not_retry through the fan-out."""
+    from botocore.exceptions import SSOTokenLoadError
+
+    error = await format_regional_aws_error(
+        AsyncMock(), SSOTokenLoadError(error_msg='expired'), 'ListRules', 'Compute Optimizer'
+    )
+
+    assert error['error_type'] == 'aws_connection_error'
+    assert error['retry_strategy'] == 'do_not_retry'
+    assert error['hint'].startswith('AWS credentials or client configuration')

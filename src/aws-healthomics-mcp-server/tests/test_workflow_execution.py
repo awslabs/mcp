@@ -697,6 +697,48 @@ async def test_list_runs_with_date_filters():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'created_after,created_before,expected_ids',
+    [
+        ('2023-06-10', None, ['run-2', 'run-3']),
+        ('2023-06-10T00:00', None, ['run-2', 'run-3']),
+        (None, '2023-06-20', ['run-1', 'run-2']),
+        ('2023-06-10', '2023-06-20T00:00', ['run-2']),
+    ],
+)
+async def test_list_runs_date_filters_without_utc_offset(
+    created_after, created_before, expected_ids
+):
+    """Date filters without a UTC offset are treated as UTC instead of failing."""
+    base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    mock_client = MagicMock()
+    mock_client.list_runs.return_value = {
+        'items': [
+            {'id': 'run-1', 'creationTime': base_time - timedelta(days=10)},  # 2023-06-05
+            {'id': 'run-2', 'creationTime': base_time},  # 2023-06-15
+            {'id': 'run-3', 'creationTime': base_time + timedelta(days=10)},  # 2023-06-25
+        ]
+    }
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await list_runs(
+            ctx=AsyncMock(),
+            max_results=10,
+            next_token=None,
+            status=None,
+            created_after=created_after,
+            created_before=created_before,
+            run_group_id=None,
+        )
+
+    assert 'error' not in result
+    assert [run['id'] for run in result['runs']] == expected_ids
+
+
+@pytest.mark.asyncio
 async def test_list_runs_with_created_before_filter():
     """Test listing runs with created_before filter."""
     base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
@@ -1058,6 +1100,14 @@ async def test_parse_iso_datetime_various_formats():
 
     dt3 = parse_iso_datetime('2023-06-15T12:00:00')
     assert dt3.year == 2023
+
+    # Inputs without an offset are treated as UTC
+    assert parse_iso_datetime('2023-06-15') == datetime(2023, 6, 15, tzinfo=timezone.utc)
+    assert parse_iso_datetime('2023-06-15T12:00') == datetime(2023, 6, 15, 12, tzinfo=timezone.utc)
+    # An explicit offset is kept, not overwritten with UTC
+    assert parse_iso_datetime('2023-06-15T12:00:00-05:00') == datetime(
+        2023, 6, 15, 17, tzinfo=timezone.utc
+    )
 
     # Test invalid format
     try:
@@ -3076,3 +3126,163 @@ class TestStartRunSessionPolicy:
         params = {'requestId': 'test-token', **mock_client.start_run.call_args.kwargs}
         report = ParamValidator().validate(params, input_shape)
         assert not report.has_errors(), report.generate_report()
+
+
+class TestStartRunOutputUriPrefixMode:
+    """start_run and get_run handling of the optional output URI prefix mode.
+
+    - When output_uri_prefix_mode is omitted, no outputUriPrefixMode key is forwarded, so
+      the HealthOmics API default (SERVICE_DEFINED) applies.
+    - A valid value is forwarded to the API and reflected in the response.
+    - An invalid value returns a validation error and the API is not called.
+    - get_run returns outputUriPrefixMode only when the API response contains it.
+    """
+
+    _base_params = {
+        'workflow_id': 'wfl-12345',
+        'role_arn': 'arn:aws:iam::123456789012:role/HealthOmicsRole',
+        'name': 'test-run',
+        'output_uri': 's3://my-bucket/outputs/',
+        'parameters': {'param1': 'value1'},
+    }
+
+    _api_response = {
+        'id': 'run-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        'status': 'PENDING',
+        'uuid': 'uuid-abc-123',
+    }
+
+    async def _call(self, mock_client, **kwargs):
+        wrapper = MCPToolTestWrapper(start_run)
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            return await wrapper.call(ctx=AsyncMock(), **self._base_params, **kwargs)
+
+    @pytest.mark.asyncio
+    async def test_start_run_omits_output_uri_prefix_mode_when_none(self):
+        """output_uri_prefix_mode=None => no outputUriPrefixMode key in the API params."""
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        result = await self._call(mock_client, output_uri_prefix_mode=None)
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        call_kwargs = mock_client.start_run.call_args.kwargs
+        assert 'outputUriPrefixMode' not in call_kwargs
+        assert result['outputUriPrefixMode'] == 'SERVICE_DEFINED'
+
+    @pytest.mark.asyncio
+    async def test_start_run_omits_output_uri_prefix_mode_when_unresolved_field(self):
+        """An unresolved Field default is treated as omitted, not forwarded or rejected."""
+        from pydantic import Field
+
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        result = await self._call(mock_client, output_uri_prefix_mode=Field(None))
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        assert 'outputUriPrefixMode' not in mock_client.start_run.call_args.kwargs
+        assert result['outputUriPrefixMode'] == 'SERVICE_DEFINED'
+
+    @pytest.mark.parametrize('mode', ['SERVICE_DEFINED', 'NONE_WITH_OVERWRITE'])
+    @pytest.mark.asyncio
+    async def test_start_run_forwards_valid_output_uri_prefix_mode(self, mode):
+        """Each valid value is forwarded to the API and reflected in the response."""
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        result = await self._call(mock_client, output_uri_prefix_mode=mode)
+
+        assert 'error' not in result, f'Unexpected error for mode={mode!r}: {result}'
+        mock_client.start_run.assert_called_once()
+        assert mock_client.start_run.call_args.kwargs['outputUriPrefixMode'] == mode
+        assert result['outputUriPrefixMode'] == mode
+
+    @pytest.mark.parametrize('mode', ['INVALID', 'none_with_overwrite', '', 'NONE'])
+    @pytest.mark.asyncio
+    async def test_start_run_invalid_output_uri_prefix_mode_returns_error(self, mode):
+        """An invalid value returns a validation error naming it and never calls the API."""
+        mock_client = MagicMock()
+
+        result = await self._call(mock_client, output_uri_prefix_mode=mode)
+
+        assert 'error' in result
+        assert f"'{mode}'" in result['error']
+        assert 'NONE_WITH_OVERWRITE' in result['error']
+        assert result['error'].count('Invalid output URI prefix mode') == 1
+        mock_client.start_run.assert_not_called()
+
+    def test_start_run_output_uri_prefix_mode_description_documents_overwrite(self):
+        """The parameter description names both values and the overwrite risk."""
+        field_info = (
+            _inspect.signature(_workflow_execution.start_run)
+            .parameters['output_uri_prefix_mode']
+            .default
+        )
+        description = field_info.description
+
+        assert field_info.default is None
+        assert 'SERVICE_DEFINED' in description
+        assert 'NONE_WITH_OVERWRITE' in description
+        assert 'overwrites' in description
+        assert 'unique output_uri per run' in description
+
+    @pytest.mark.asyncio
+    async def test_start_run_params_validate_against_botocore_model(self):
+        """The forwarded params, including outputUriPrefixMode, satisfy the real StartRun shape."""
+        import botocore.session
+        from botocore.validate import ParamValidator
+
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        await self._call(mock_client, output_uri_prefix_mode='NONE_WITH_OVERWRITE')
+
+        input_shape = (
+            botocore.session.get_session()
+            .get_service_model('omics')
+            .operation_model('StartRun')
+            .input_shape
+        )
+        # requestId is an idempotency token that boto3 auto-populates on real clients
+        params = {'requestId': 'test-token', **mock_client.start_run.call_args.kwargs}
+        report = ParamValidator().validate(params, input_shape)
+        assert not report.has_errors(), report.generate_report()
+
+    @pytest.mark.parametrize('mode', ['SERVICE_DEFINED', 'NONE_WITH_OVERWRITE'])
+    @pytest.mark.asyncio
+    async def test_get_run_surfaces_output_uri_prefix_mode(self, mode):
+        """get_run includes outputUriPrefixMode unchanged when the API returns it."""
+        mock_client = MagicMock()
+        mock_client.get_run.return_value = {
+            'id': 'run-12345',
+            'status': 'RUNNING',
+            'outputUriPrefixMode': mode,
+        }
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await get_run(AsyncMock(), run_id='run-12345')
+
+        assert result['outputUriPrefixMode'] == mode
+
+    @pytest.mark.asyncio
+    async def test_get_run_omits_output_uri_prefix_mode_when_absent(self):
+        """get_run omits outputUriPrefixMode when the API response does not contain it."""
+        mock_client = MagicMock()
+        mock_client.get_run.return_value = {'id': 'run-12345', 'status': 'RUNNING'}
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await get_run(AsyncMock(), run_id='run-12345')
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        assert 'outputUriPrefixMode' not in result

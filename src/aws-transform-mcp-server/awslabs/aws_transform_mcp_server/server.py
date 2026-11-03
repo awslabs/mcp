@@ -41,6 +41,7 @@ from awslabs.aws_transform_mcp_server.tools.chat import ChatHandler
 from awslabs.aws_transform_mcp_server.tools.collaborator import CollaboratorHandler
 from awslabs.aws_transform_mcp_server.tools.configure import ConfigureHandler
 from awslabs.aws_transform_mcp_server.tools.connector import ConnectorHandler
+from awslabs.aws_transform_mcp_server.tools.download_artifact import DownloadArtifactHandler
 from awslabs.aws_transform_mcp_server.tools.get_resource import GetResourceHandler
 from awslabs.aws_transform_mcp_server.tools.hitl import HitlHandler
 from awslabs.aws_transform_mcp_server.tools.job import JobHandler
@@ -155,6 +156,7 @@ def _register_handlers(mcp: MCPServer) -> None:
     JobHandler(mcp)
     HitlHandler(mcp)
     ArtifactHandler(mcp)
+    DownloadArtifactHandler(mcp)
     ChatHandler(mcp)
     ConnectorHandler(mcp)
     ListResourcesHandler(mcp)
