@@ -1677,6 +1677,16 @@ class TestSpPerformanceDescription:
         assert 'lags ~1 day' not in end_date_doc
         assert 'last 2-3 days (counting today) is not processed yet' in end_date_doc
 
+    async def test_granularity_doc_lists_hourly_and_its_date_format(self):
+        """HOURLY is accepted by the API, but only with the opt-in and timestamp dates."""
+        tool = await sp_performance_server.get_tool('sp-performance')
+        assert tool is not None
+        granularity_doc = tool.parameters['properties']['granularity'].get('description', '')
+        assert '(DAILY or MONTHLY)' not in granularity_doc
+        assert 'DAILY, MONTHLY or HOURLY' in granularity_doc
+        assert 'hourly granularity opt-in' in granularity_doc
+        assert 'YYYY-MM-DDTHH:MM:SSZ' in granularity_doc
+
     async def test_lists_utilization_details_filter_dimensions(self):
         """Every GetSavingsPlansUtilizationDetails filter dimension is named."""
         description = await self._description()
