@@ -1,12 +1,12 @@
 # End-to-end test: Changes on this branch
 
-2026-10-01 21:55 UTC
+2026-11-03 21:38 UTC
 
 - **Scenario**: `branch`
-- **Code under test**: `feat/redshift-session-redesign` at `aa1073db`
+- **Code under test**: `feat/redshift-guide-skill` at `f67f46ea`
 - **Agent**: `kiro-cli`, model `claude-opus-5`
 - **Exit status**: `0`
-- **Duration**: 15.3 min
+- **Duration**: 9.1 min
 - **Region**: `us-east-1`
 - **Provisioned**: `mcp-e2e-provisioned`, ra3.large x2
 - **Serverless**: `mcp-e2e-serverless`, 8 RPU
@@ -16,51 +16,42 @@
 
 | Scenario | Result | Comment |
 |---|---|---|
-| `cluster_type` required on every cluster tool | PASS | Omitted or empty value refused by the schema on `execute_query` and `list_columns` before any AWS call. |
-| Invalid `cluster_type` value refused, not guessed | PASS | `Provisioned` rejected as a literal error; only `provisioned`/`serverless` accepted. |
-| Name present as the other type is refused, not silently redirected | PASS | `No serverless cluster named mcp-e2e-provisioned was found. Found instead: a provisioned one.` |
-| Unknown identifier refused with guidance | PASS | Points at `list_clusters`. |
-| Refusal states the age of the stored discovery | PASS | "last looked up 10 seconds ago"; after `list_clusters` the same refusal reported 3 seconds, so the listing refreshes it. |
-| Identifier plus type reaches that warehouse and no other | PASS | A schema created on the provisioned cluster is absent from the workgroup under the same database name. |
-| Write confirmation names the warehouse the statement would reach | PASS | `rw_*` log: `Refused a write on mcp-e2e-provisioned (provisioned):dev`, built from the call's own arguments. |
-| `MAX_RESULT_ROWS` at the cap | PASS | 1000 rows returned, `row_count` 1000, last row present — read to the end across pages. |
-| `MAX_RESULT_ROWS` one row over the cap | PASS | `The result has 1001 rows, over the MAX_RESULT_ROWS limit of 1000, so none of it is returned`, with advice on shaping a smaller result. |
-| `MAX_RESULT_ROWS` on a large result, both warehouse types | PASS | 172456-row result refused whole on the workgroup; cap and wording identical on the provisioned cluster. |
-| Row cap on the batch-denied single-statement path | PASS | Same refusal at 1001 rows, same full read at 1000, through `ExecuteStatement`. |
-| Session-control functions refused in read-only mode | PASS | All six refused by name: `SET_CONFIG`, `PG_CANCEL_BACKEND`, `PG_TERMINATE_BACKEND`, `CHANGE_QUERY_PRIORITY`, `CHANGE_SESSION_PRIORITY`, `CHANGE_USER_PRIORITY`. |
-| Session-control functions classified as writes in read-write mode | PASS | `rw_*` sent `pg_terminate_backend` to the confirmation gate; `nbw_*` refused `change_user_priority` as a write. Neither ran. |
-| Transaction control refused at every access mode | PASS | `COMMIT` refused at `rwu_*` naming the four transaction parameters; `BEGIN` refused at `ro_*` with the read-only wording. |
-| A comment followed by a semicolon is nothing to run | PASS | `sql holds no statement to execute`, not the single-statement message. |
-| Multi-statement submission refused | PASS | |
-| `TRUNCATE` and `CALL` refused inside a named transaction | PASS | Both named in the refusal as able to commit the transaction they run in; both left the transaction open and usable. |
-| `TRUNCATE` permitted standalone in read-write mode | PASS | Ran outside a transaction and the table was observably emptied. |
-| Read-only protection holds for DML the guard passes through | PASS | `INSERT` at `ro_*` reached the engine and failed `transaction is read-only`. |
-| Named transactions, open / statement / commit / rollback | PASS | Three concurrent transactions across both warehouses, each closed independently. |
-| Transaction keys are per cluster, type and name | PASS | `load` on the cluster and `load` on the workgroup were separate; `load:step1` and `load` on one target were separate, and committing one left the other open. |
-| Failed statement aborts its transaction and drops the name | PASS | Release reported with the engine error; the name then reported unknown, naming the target as `mcp-e2e-provisioned (provisioned):dev`. |
-| A failed open reports the transaction was not opened | PASS | `Transaction 'bad' was not opened.` and the name was free to open again. |
-| Reopening an open name refused | PASS | |
-| Transactions are per server process | PASS | A name opened at `ro_*` is unknown at `rwu_*`. |
-| Session state outside a transaction is lost | PASS | `CREATE TEMP TABLE` reported success, then the next call could not find the table; the same table inside a named transaction was usable across calls. |
-| Batch-denied fallback serves reads | PASS | Reads against seeded user tables at both `nb_*` and `nbw_*`, on both warehouses. |
-| Batch-denied fallback refuses writes at every access mode | PASS | Same refusal at read-only `nb_*` and at unconfirmed read-write `nbw_*`, naming the grant and the 300-second re-probe. |
-| Batch-denied fallback refuses named transactions | PASS | Refused at both `nb_*` and `nbw_*`; latched per cluster, the workgroup independently of the cluster. |
-| All four list tools work under the batch denial | PASS | `list_databases`, `list_schemas`, `list_tables`, `list_columns` served through `ExecuteStatement`. |
-| `list_clusters` unaffected by the batch denial | PASS | Control-plane only. |
-| `review_cluster` under the batch denial | PASS | Serverless workgroup reviewed through the fallback: 32 signals, provisioned-only diagnostics skipped, `ServerlessScaling` run. |
-| `review_cluster` at the default configuration | PASS | Provisioned cluster: 48 signals evaluated, 12 findings. `signals_evaluated` counts signals, not rows. |
-| Serverless workgroups report their tags | PASS | `mcp-e2e-serverless` reported `purpose=redshift-mcp-server-e2e-harness`; another workgroup in the account reported untagged. |
-| Unknown schema or table returns an empty list | PASS | |
+| `retrieve_skill_file` with no argument returns the guide, frontmatter stripped, single chunk, no structured copy | PASS | |
+| Guide pointer leads the server instructions, and the pointer + Current Settings block fits the 2,048-char window (387 chars) | PASS | |
+| Guide pointer is first in the description of every tool but `retrieve_skill_file`, at all five configurations | PASS | |
+| `retrieve_skill_file` description lists each multi-chunk reference with its chunk count | PASS | Lists exactly the three 35–38 KB files as 2 chunks; matches the files on disk |
+| Final chunk of a two-chunk reference is the file's exact tail and carries no continuation marker | PASS | `references/redshift-storage-remediation.md` chunk 2, char 25,000 onward |
+| A chunk past the end is refused, naming the last chunk | PASS | `Chunk 3 not found: ... ends at chunk 2.` |
+| An unlisted path is refused and the refusal lists the available references | PASS | `SKILL.md` and `references/../../server.py` both refused; 12 references listed |
+| Every reference the guide cites is in the served set, and nothing else is | PASS | 12 cited = 12 available |
+| Guide files served at a configuration denied `BatchExecuteStatement` | PASS | No AWS call involved |
+| Each chunk served is logged by path and number | PASS | `Serving skill file <path> chunk N of M`, the format the harness grades on |
+| Eight tools registered per configuration | PASS | |
+| Compatibility-path read reports the server's application name, provisioned and serverless | PASS | `awslabs/mcp/redshift-mcp-server/0.1.2`; before this branch the path left it unset |
+| The SET and the caller's statement share one session on the compatibility path | PASS | One `session_id` in `sys_query_history`; one SET per read in `list-statements` |
+| `query_id` returned is the caller's statement, not the SET | PASS | `describe-statement` returns the caller's SQL and the session id |
+| Compatibility-path session is released shortly after the statement | PASS | `Session is not available` when reused minutes later |
+| A failing SET fails the call with the engine's message and the caller's statement is never submitted | PASS | Bad database; canary SQL absent from `list-statements`, one statement in the log |
+| TICKIT read returns correct data over the compatibility path | PASS | 49,990 users; 8,798 events |
+| Catalog discovery over the compatibility path | PASS | `nb_list_tables` (7 tables), `nb_list_columns` |
+| `review_cluster` over the compatibility path | PASS | 8 queries, 32 signals, 2 findings; 16 statements with no session exhaustion |
+| Write refused at read-write + batch-denied, naming the denied action and the 300s re-probe | PASS | |
+| Named transaction refused at both batch-denied configurations | PASS | Read-only and read-write wording both correct |
+| `MAX_RESULT_ROWS` still enforced on the compatibility path | PASS | 1,001 rows refused whole |
+| Batch-path read unchanged: tagged session, sub-statement `query_id` | PASS | `...:3` suffix distinguishes it from the compatibility path |
+| Read-only wrapper still refuses a write on the batch path | PASS | `ERROR: transaction is read-only` |
+| Named transaction across calls shares one connection and commits | PASS | Same `pg_backend_pid()` in both calls |
+| Unconfirmed write at `rwu_` runs, persists across calls, and was cleaned up | PASS | Scratch table in `public`, dropped |
+| Read at `rw_` runs with no confirmation | PASS | |
+| `list_clusters` unchanged | PASS | Both harness warehouses `available`, other clusters untouched |
 
-- The row cap was triggered on `execute_query` on both warehouse types and on the batch-denied path, at the cap and one row over. It was not independently triggered on `review_cluster` or the four list tools, because no reachable catalogue result on these warehouses exceeds 1000 rows; those paths share the same `_read_result` function, so the coverage is by shared code rather than by direct observation.
-- `rw_*` never completes a confirmation round trip, as the harness documents: this CLI does not advertise MCP elicitation, so every write there is refused fail-closed. A confirm and a decline remain unobservable from this client.
-- The `nbw_*` write refusals prove the ordering the branch intends: confirmation is consulted before the fallback, so the fallback's own explanation only surfaces at a configuration that skips confirmation.
-- A denial of only one half of cluster discovery (provisioned or serverless listing) could not be exercised; the credentials here are denied `BatchExecuteStatement` only, so the "listing was denied" clause in the resolution refusal was not observed.
-- All writes were confined to a `mcp_e2e_scratch` schema on the provisioned cluster, which was dropped; the seeded `tickit` schema was only read, and no transactions were left open.
+- Not reachable in this run: the `rw_` write confirmation itself (accept/decline needs a client that can prompt), and a compatibility-path result spanning more than one Data API page (it would have to return megabytes through the tool). The statement-id change that page reading depends on was verified instead through `describe-statement`.
+- The read-write role has no `CREATE` on schema `tickit`, so the write scenarios used `public`; the scratch table was dropped.
+- Both batch-denied configurations now issue two Data API statements per read instead of one, which is inherent to the change and visible as paired `on the compatibility path` log lines.
 
 ## Prompt
 
-Written by the harness, not by hand. The agent derives the cases from the package's unit tests, and is told where to look rather than what to expect.
+Written by the harness, not by hand, and never says what to expect.
 
 You have the Redshift MCP server available at several configurations, each running the working tree you are testing. Every configuration exposes the same tools, distinguished by prefix, so `ro_execute_query` and `rw_execute_query` are the same tool at two configurations:
 - `ro_*` — default configuration: read-only, which is what a user gets by installing it
@@ -87,13 +78,13 @@ intelligible without the rest of the reply.
 
 ## Transcript
 
-I'll start by understanding what's in the current branch.Working tree is clean, so scope is the committed branch diff. Starting with discovery.Serverless tags are reported from `ListTagsForResource`. Now testing that `cluster_type` is required.Now the `MAX_RESULT_ROWS` cap (default 1000).Read to its end: 1000 rows, last `userid` 1000. Now over the cap.Now the guard's new session-control function rules, in read-only mode.All six refused. Now confirming the same statements are classified as writes in read-write mode, rather than run as reads.Now the batch-denied configurations.Note the fallback read's `query_id` carries no `:N` sub-statement suffix — a bare `ExecuteStatement`, not a batch. Now transactions under denial.Guard rules that apply at every access mode.Now named transactions. Opening three at once: two names on the provisioned cluster (one containing the `:` separator) and the same name on the workgroup.Now a failing statement inside a transaction.Now writes at the unconfirmed read-write configuration.The temp table creation reported success. Checking whether the next call finds it.Now the same inside a named transaction, which is the documented remedy.Now `review_cluster` on both warehouse types, one of them through the batch-denied fallback. These take minutes.One last cap check, on the fallback path.Scratch schema gone, no transactions left open, both warehouses back to their seeded state.
+I'll start by understanding the current branch changes, then design and run the tests.Now I'll start the test. First, the new `retrieve_skill_file` tool.Now the compatibility path. First the targets, then the session-tagging behaviour.Now the configurations that are not denied the batch action, to confirm they are unchanged.Testing is complete. What the branch changes, and what I verified:
 
-Scope note: `git status` reports a clean working tree, so there were no uncommitted changes to cover. The branch's three newest commits carry the behaviour under test — `aa1073db` (cluster_type required on every cluster tool, typed-tuple keys), `86445391` (result row cap, pagination, guard additions, serverless tags, review_cluster resolution), `fe88f3be` (session state outside a transaction) — on top of the earlier branch work, including the batch-denial fallback.
+**`retrieve_skill_file`** (new tool, plus the guide pointer in the instructions and every other tool's description). Served the guide and reference files at both a normal and a batch-denied configuration, compared served chunks byte-for-byte against the files on disk, and exercised the refusals.
 
-What the evidence looked like in a few places worth calling out: the fallback's reads come back with a bare `query_id` (`b08b1ebf-…`) rather than a batch sub-statement suffix (`…:3`), so the compatibility path is demonstrably `ExecuteStatement`; the "no open transaction" and write-refusal messages render the target as `mcp-e2e-provisioned (provisioned):dev`, the new typed form, and the denied-batch log shows the latch key changing from `provisioned:mcp-e2e-provisioned` in older runs to `mcp-e2e-provisioned (provisioned)` now; and the serverless latch was taken independently of the provisioned one.
+**The batch-denied compatibility path** (`nb_*`, `nbw_*`). Previously a read there ran alone with no session; now a `SET application_name` mints a session and the caller's statement runs on it. The observable is `current_setting('application_name')`, which came back `awslabs/mcp/redshift-mcp-server/0.1.2` on both warehouse types. I confirmed the pairing three ways: `sys_query_history` shows the SET and the statement on one `session_id`, `redshift-data list-statements` under the denied role shows one SET per read, and `describe-statement` on the `query_id` the tool returned shows the caller's SQL (not the SET) with the session attached. The session was already gone when probed afterwards, consistent with the drain keepalive.
 
-[tool] Running: cd /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server && git status && echo "=== BRANCH ===" && git branch --show-current && echo "=== LOG ===" && git log --oneline -15
+[tool] Running: cd [package root] && pwd && git status && echo "=== BRANCH ===" && git branch --show-current && echo "=== LOG ===" && git log --oneline -15
 
 [tool] Reading listing redshift-mcp-server
 
@@ -101,71 +92,71 @@ What the evidence looked like in a few places worth calling out: the fallback's 
 
 [tool] status: Completed
 
-[tool] Running: cd /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server && echo "=== merge-base with main ===" && git merge-base HEAD main && echo "=== commits unique to branch ===" && git log --oneline main..H...
+[tool] Running: cd [package root] && git status --porcelain && echo "=== merge-base ===" && git merge-base HEAD origin/main 2>/dev/null || git log --oneline -1 HEA...
 
 [tool] status: Completed
 
-[tool] Reading scenarios.py:1
+[tool] Running: cd [package root] && git diff HEAD~1 HEAD -- awslabs/redshift_mcp_server/redshift.py awslabs/redshift_mcp_server/transactions.py
 
-[tool] Running: cd /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server && git show --stat fe88f3be && echo "=====" && git show --stat 86445391 && echo "=====" && git show --stat aa1073db
+[tool] status: Completed
+
+[tool] Running: cd [package root] && git diff HEAD~1 HEAD -- awslabs/redshift_mcp_server/server.py README.md .gitignore
+
+[tool] status: Completed
+
+[tool] Running: cd [package root] && git diff HEAD~1 HEAD -- tests/test_redshift.py tests/test_server.py | head -500
+
+[tool] status: Completed
+
+[tool] Running: cd [package root] && git diff HEAD~1 HEAD -- e2e_tests/scenarios.py e2e_tests/agent.py && echo "=== rest of test_server diff ===" && git diff HEAD~...
+
+[tool] status: Completed
+
+[tool] Running: cd [package root] && grep -n "_APP_NAME_SQL\|_SESSION_DRAIN\|_execute_statement_fallback_no_batch\|_no_batch_denied\|FALLBACK_NO_BATCH\|def execute...
+
+[tool] status: Completed
+
+[tool] Running: cd [package root] && grep -n "execute_\|import" awslabs/redshift_mcp_server/catalog.py | head -20 && echo "=== review ===" && grep -rn "execute_sta...
+
+[tool] status: Completed
+
+[tool] Running: cd [package root] && grep -n "_no_batch_latched\|_latched\|def .*(" awslabs/redshift_mcp_server/redshift.py | grep -n "latch" | head -20; echo "---...
+
+[tool] status: Completed
+
+[tool] Running: cd [package root] && grep -rn "execute" awslabs/redshift_mcp_server/review/executor.py | head
+
+[tool] status: Completed
+
+[tool] Reading config.toml:1, SKILL.md:1
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
+
+[tool] status: Completed
+
+[tool] Running: cd [package root]/awslabs/redshift_mcp_server/skills/redshift-guide && python3 - <<'EOF' import math,pathlib for p in sorted(pathlib.Path('referenc...
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
+
+[tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
+
+[tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/retrieve_skill_file
 
 [tool] status: Completed
 
 [tool] status: Completed
 
-[tool] Reading clusters.py:1, consts.py:1
-
 [tool] status: Completed
-
-[tool] Running: cd /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server && grep -n "max_result_rows\|MAX_RESULT_ROWS\|MAX_RESULT_PAGES\|too many rows\|row_count\|TotalNumRows" awslabs/redshift_mcp_server/redshi...
-
-[tool] Running: cd /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server && grep -n "cluster_type\|@mcp.tool\|async def .*_tool\|Field(" awslabs/redshift_mcp_server/server.py | head -80
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Reading redshift.py:321-450, server.py:226-345
-
-[tool] status: Completed
-
-[tool] Running: cd /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server && grep -n "no_batch\|batch_denied\|_latch\|BatchExecuteStatement\|fallback" awslabs/redshift_mcp_server/redshift.py | head -70
-
-[tool] status: Completed
-
-[tool] Reading redshift.py:81-210, redshift.py:1266-1465
-
-[tool] status: Completed
-
-[tool] Reading redshift.py:571-900
-
-[tool] status: Completed
-
-[tool] Reading catalog.py:1
-
-[tool] status: Completed
-
-[tool] Running: cd /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server && grep -n "pg_cancel_backend\|pg_terminate_backend\|change_query_priority\|change_session_priority\|change_user_priority\|set_config\|_SE...
-
-[tool] status: Completed
-
-[tool] Reading sql_guard.py:31-180, sql_guard.py:301-420
-
-[tool] status: Completed
-
-[tool] Running: cd /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server && grep -n "raise ToolError\|class ClusterKey\|class Target\|class TransactionKey\|NamedTuple\|def __str__" awslabs/redshift_mcp_server/tr...
-
-[tool] Running: cd /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server && grep -n "signals_evaluated\|cluster_type\|max_result_rows\|resolve_cluster" awslabs/redshift_mcp_server/review/executor.py
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Reading transactions.py:171-290, models.py:26-70
-
-[tool] status: Completed
-
-[tool] Running: cd /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server && grep -n "MAX_RESULT_ROWS\|SERVERS\|env\|ACCESS_MODE\|UNSAFE" e2e_tests/agent.py | head -40 && echo "=== generated agent config ===" && ...
 
 [tool] status: Completed
 
@@ -173,83 +164,111 @@ What the evidence looked like in a few places worth calling out: the fallback's 
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
 
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/list_schemas
-
-[tool] status: Completed
-
-[tool] status: Completed
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
 
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
 
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] Running: aws redshift-data describe-statement --id c0667556-fd2e-4f87-8315-a7c95beaf858 --profile [profile] --region us-east-1 --query '{Sql:QueryString,Status:Status,Session:SessionId,Sub:S...
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] Running: cd [package root] && ACC=$(aws sts get-caller-identity --profile [profile] --query Account --output text) && echo "role arn: arn:aws:iam::$A...
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_tables
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] Running: cd /tmp && ACC=[account] && creds=$(aws sts assume-role --role-arn "arn:aws:iam::$ACC:role/mcp-e2e-denied-batch" --role-session-name verify --profile [profile] --query 'Credentia...
+
 [tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
 
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
 [tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
 
-[tool] status: Completed
-
-[tool] status: Completed
-
 [tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
 
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+[tool] Running: cd [package root] && uv run --frozen python -c " from awslabs.redshift_mcp_server.server import mcp, GUIDE_POINTER, _current_settings i = mcp.instr...
 
 [tool] status: Completed
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/review_cluster
+
+[tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_tables
 
 [tool] Running: @awslabs.redshift-mcp-server-no-batch/list_columns
 
@@ -257,194 +276,10 @@ What the evidence looked like in a few places worth calling out: the fallback's 
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_databases
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_schemas
+[tool] Running: cd [package root]/e2e_tests/.logs && for f in awslabs.redshift-mcp-server.log awslabs.redshift-mcp-server-no-batch.log; do echo "=== $f ==="; grep ...
 
 [tool] status: Completed
 
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/review_cluster
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/review_cluster
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/list_columns
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/list_clusters
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: cd /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server/e2e_tests/.logs && echo "=== rw: write refusals ===" && grep -h "Refused a write on" awslabs.redshift-mcp-server-read-write.log | tail -3 ...
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/list_tables
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/list_schemas
+[tool] Running: cd [package root]/e2e_tests/.logs && echo "=== guide lines at the no-batch config ===" && grep "Serving skill file" awslabs.redshift-mcp-server-no-...
 
 [tool] status: Completed
