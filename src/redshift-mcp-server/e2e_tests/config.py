@@ -72,6 +72,7 @@ class Config:
     namespace_name: str
     workgroup_name: str
     base_capacity: int
+    guide_workgroup_name: str
     database: str
     schema: str
     s3_read_role_name: str
@@ -156,6 +157,7 @@ def load() -> Config:
         namespace_name=_require(serverless, 'serverless', 'namespace_name', str),
         workgroup_name=_require(serverless, 'serverless', 'workgroup_name', str),
         base_capacity=_require(serverless, 'serverless', 'base_capacity', int),
+        guide_workgroup_name=_require(serverless, 'serverless', 'guide_workgroup_name', str),
         database=_require(database, 'database', 'name', str),
         schema=_require(database, 'database', 'schema', str),
         s3_read_role_name=_require(iam, 'iam', 's3_read_role_name', str),
