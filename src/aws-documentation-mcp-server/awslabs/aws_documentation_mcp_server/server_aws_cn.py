@@ -27,6 +27,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     extract_content_from_html,
     format_documentation_result,
     is_html_content,
+    to_html_page_url,
     url_matches_allowlist,
 )
 from loguru import logger
@@ -95,7 +96,7 @@ async def read_documentation(
     ## URL Requirements
 
     - Must be from the docs.amazonaws.cn domain
-    - Must end with .html
+    - Must end with .html or .md
 
     ## Example URLs
 
@@ -108,6 +109,8 @@ async def read_documentation(
     - Preserved headings and structure
     - Code blocks for examples
     - Lists and tables converted to markdown format
+    - Links to other pages kept as published, often relative (e.g. `invocation-sync.md`);
+      resolve a relative link against the page URL before reading it
 
     ## Handling Long Documents
 
@@ -125,16 +128,18 @@ async def read_documentation(
     Returns:
         Markdown content of the AWS China documentation
     """
-    # Validate that URL is from docs.amazonaws.cn and ends with .html
+    # Validate that URL is from docs.amazonaws.cn and ends with .html or .md
     url_str = str(url)
     if not url_matches_allowlist(url_str, CN_ALLOWED_DOMAIN_REGEXES):
         error_msg = f'Invalid URL: {url_str}. URL must be from the docs.amazonaws.cn domain'
         await ctx.error(error_msg)
         return error_msg
-    if not url_str.endswith('.html'):
-        error_msg = f'Invalid URL: {url_str}. URL must end with .html'
+    page_url = to_html_page_url(url_str)
+    if page_url is None:
+        error_msg = f'Invalid URL: {url_str}. URL must end with .html or .md'
         await ctx.error(error_msg)
         return error_msg
+    url_str = page_url
 
     return await read_documentation_impl(
         ctx, url_str, max_length, start_index, SESSION_UUID, CN_ALLOWED_DOMAIN_REGEXES
