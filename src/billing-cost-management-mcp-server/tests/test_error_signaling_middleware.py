@@ -14,6 +14,7 @@
 
 """Tests for ErrorSignalingMiddleware."""
 
+import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.server import (
     ErrorSignalingMiddleware,
@@ -53,7 +54,11 @@ class TestErrorSignalingMiddleware:
         mcp_result = result.to_mcp_result()
         assert isinstance(mcp_result, CallToolResult)
         assert mcp_result.is_error is True
-        assert mcp_result.structured_content == {'status': 'error', 'message': 'Access denied'}
+        assert mcp_result.structured_content == {
+            'status': 'error',
+            'message': 'Access denied',
+            'retry_strategy': 'do_not_retry',
+        }
 
     @pytest.mark.asyncio
     async def test_success_response_unchanged(self, middleware, mock_context):
@@ -68,15 +73,34 @@ class TestErrorSignalingMiddleware:
         assert result is success_result
 
     @pytest.mark.asyncio
-    async def test_error_response_preserves_content(self, middleware, mock_context):
-        """Error response should preserve the original content blocks."""
+    async def test_error_response_preserves_fields(self, middleware, mock_context):
+        """Error response should keep every original field alongside the retry guidance."""
+        original = {
+            'status': 'error',
+            'error_type': 'validation_error',
+            'message': 'Invalid date format',
+            'service': 'Cost Explorer',
+            'operation': 'getCostAndUsage',
+        }
+        error_result = ToolResult(structured_content=original)
+        call_next = AsyncMock(return_value=error_result)
+
+        result = await middleware.on_call_tool(mock_context, call_next)
+
+        mcp_result = result.to_mcp_result()
+        assert mcp_result.is_error is True
+        assert mcp_result.structured_content.items() >= original.items()
+        assert mcp_result.structured_content['retry_strategy'] == 'modify_request'
+        assert 'hint' in mcp_result.structured_content
+
+    @pytest.mark.asyncio
+    async def test_error_content_text_matches_structured_content(self, middleware, mock_context):
+        """The text block the model reads should carry the same fields as structured_content."""
         error_result = ToolResult(
             structured_content={
                 'status': 'error',
-                'error_type': 'ValidationError',
-                'message': 'Invalid date format',
-                'service': 'Cost Explorer',
-                'operation': 'getCostAndUsage',
+                'error_type': 'ThrottlingException',
+                'message': 'Rate exceeded',
             },
         )
         call_next = AsyncMock(return_value=error_result)
@@ -84,9 +108,44 @@ class TestErrorSignalingMiddleware:
         result = await middleware.on_call_tool(mock_context, call_next)
 
         mcp_result = result.to_mcp_result()
+        assert len(mcp_result.content) == 1
+        assert json.loads(mcp_result.content[0].text) == mcp_result.structured_content
+        assert mcp_result.structured_content['retry_strategy'] == 'retry_same_request'
+
+    @pytest.mark.asyncio
+    async def test_error_custom_content_preserved(self, middleware, mock_context):
+        """Content that is not the serialized structured_content should be left as-is."""
+        custom = [TextContent(type='text', text='Custom error summary')]
+        error_result = ToolResult(
+            content=custom,
+            structured_content={'status': 'error', 'error_type': 'access_denied'},
+        )
+        call_next = AsyncMock(return_value=error_result)
+
+        result = await middleware.on_call_tool(mock_context, call_next)
+
+        mcp_result = result.to_mcp_result()
+        assert mcp_result.content == custom
+        assert mcp_result.structured_content['retry_strategy'] == 'do_not_retry'
+
+    @pytest.mark.asyncio
+    async def test_error_tool_override_kept(self, middleware, mock_context):
+        """A retry_strategy and hint set by the tool should not be replaced."""
+        original = {
+            'status': 'error',
+            'error_type': 'validation_error',
+            'retry_strategy': 'do_not_retry',
+            'hint': 'Ask the user to pick a supported region.',
+        }
+        error_result = ToolResult(structured_content=original)
+        call_next = AsyncMock(return_value=error_result)
+
+        result = await middleware.on_call_tool(mock_context, call_next)
+
+        mcp_result = result.to_mcp_result()
         assert mcp_result.is_error is True
+        assert mcp_result.structured_content == original
         assert mcp_result.content == error_result.content
-        assert mcp_result.structured_content['error_type'] == 'ValidationError'
 
     @pytest.mark.asyncio
     async def test_error_response_preserves_meta(self, middleware, mock_context):
@@ -133,3 +192,29 @@ class TestErrorSignalingMiddleware:
         result = await middleware.on_call_tool(mock_context, call_next)
 
         assert result is other_result
+
+
+class TestErrorSignalingEndToEnd:
+    """Runs a real tool through FastMCP so the content check sees what tools actually return."""
+
+    @pytest.mark.asyncio
+    async def test_dict_error_from_tool_carries_retry_guidance(self):
+        """A tool's dict error reaches the client with is_error and matching text content."""
+        from fastmcp import Client, FastMCP
+
+        server = FastMCP(name='test')
+        server.add_middleware(ErrorSignalingMiddleware())
+
+        @server.tool
+        def failing_tool() -> dict:
+            return {'status': 'error', 'error_type': 'ThrottlingException', 'message': 'slow'}
+
+        async with Client(server) as client:
+            result = await client.call_tool('failing_tool', raise_on_error=False)
+
+        assert result.is_error is True
+        assert result.structured_content is not None
+        assert result.structured_content['retry_strategy'] == 'retry_same_request'
+        content = result.content[0]
+        assert isinstance(content, TextContent)
+        assert json.loads(content.text) == result.structured_content

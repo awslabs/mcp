@@ -19,6 +19,10 @@ entity mappings, and access patterns. It ensures GSI configurations are valid an
 with the schema requirements.
 """
 
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core.identifier_validator import (
+    validate_key_template,
+    validate_python_identifier,
+)
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.key_template_parser import (
     KeyTemplateParser,
 )
@@ -179,6 +183,11 @@ class GSIValidator:
 
             gsi_name = gsi.name
 
+            # The GSI name becomes a method-name identifier in the generated code via
+            # safe_name = to_snake_case(name) (def build_gsi_pk_for_lookup_<safe_name>), and
+            # to_snake_case only swaps case/hyphens, so the raw name must be a valid identifier.
+            errors.extend(validate_python_identifier(gsi_name, f'{gsi_path}.name', 'GSI name'))
+
             if gsi_name in seen_names:
                 errors.append(
                     ValidationError(
@@ -232,6 +241,12 @@ class GSIValidator:
                 continue
 
             mapping_name = mapping.name
+
+            # The mapping name also feeds safe_name (the generated method identifier), so it
+            # must be a valid identifier even though it is additionally cross-referenced below.
+            errors.extend(
+                validate_python_identifier(mapping_name, f'{mapping_path}.name', 'GSI name')
+            )
 
             if mapping_name not in valid_gsi_names:
                 if valid_gsi_names:
@@ -351,6 +366,15 @@ class GSIValidator:
             List of ValidationError objects
         """
         errors = []
+
+        # Security: GSI templates are rendered into f-string key builders in generated code, the
+        # same as entity pk_template/sk_template. Reject string break-out characters and any
+        # brace expression that is not a well-formed {field} placeholder before anything else.
+        security_errors = validate_key_template(
+            template, f'{template_path}.{template_type}', template_type
+        )
+        if security_errors:
+            return security_errors
 
         # First validate template syntax
         syntax_errors = self.template_parser.validate_template_syntax(template)

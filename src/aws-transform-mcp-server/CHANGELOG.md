@@ -7,7 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Asia Pacific (Singapore) `ap-southeast-1` is now included in region discovery,
+  so accounts whose only AWS Transform profile lives there are found by the
+  startup credential probe and by SSO profile discovery.
+
+- Added the `download_artifact` tool, which streams a job or user artifact, or a
+  connector asset, through the `GetArtifact` event-stream operation so no
+  pre-signed S3 URL is returned to the client. The file is saved only after the
+  terminal `streamFinishedEvent` arrives; a stream that ends without it is
+  reported as `STREAM_INCOMPLETE` and nothing is written. Without `outputPath`
+  the file is written to the allowed write base (`AWS_TRANSFORM_MCP_WRITE_DIR`
+  or the server working directory); an `outputPath` that ends in `/`, has no
+  file extension, or names an existing directory saves inside it under the
+  file's own name, as `get_resource`'s `savePath` does. The bytes are never
+  returned inline; the result carries the path, byte count, and SHA-256.
+  Workspace-scope downloads are not supported.
+
 ### Removed
+
+- Removed the `ListPlanUpdates` call from the `plan` resource in `get_resource`
+  and `list_resources`. The call hard-coded `planVersion='1'`, which the service
+  rejects with a `ValidationException` for any job whose latest plan version is
+  not exactly 1 — every job that has no plan yet (version 0) and every re-planned
+  job (version 2 and up). The service exposes no way for a client to read the
+  current plan version, and the server only ever requested a full snapshot
+  (`timestamp=0`), which `ListJobPlanSteps` already provides without a version
+  parameter. `get_resource(plan)` now auto-paginates `ListJobPlanSteps` (a
+  filtered page can be empty yet carry a `nextToken`, so single-page reads could
+  truncate large plans); `list_resources(plan)` keeps manual pagination via
+  `stepsNextToken`. The `planUpdates`/`updatesNextToken` output fields and the
+  `updatesNextToken` parameter are gone; a job with no plan yet returns
+  `NOT_FOUND` instead of a validation error.
 
 - Trimmed the vendored `elasticgumbyfrontendservice` service model to the
   operations available through this server (and pruned their now-unused shapes):
@@ -24,6 +56,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `create_connector` now returns a reachable `verificationLink` in AWS
+  GovCloud. The link was built against the commercial console
+  (`console.aws.amazon.com`), which does not serve the `aws-us-gov` partition,
+  so the URL users were told to open to finish connector setup was broken. The
+  console host is now chosen from the region.
+- AWS GovCloud (`us-gov-west-1`) can now authenticate. Both discovery fan-outs
+  (the startup credential probe and the SSO `ListAvailableProfiles` sweep) ran
+  over a hardcoded list of nine commercial regions, so a GovCloud caller found
+  no profile in any region and every tool reported `NOT_CONFIGURED` or
+  `NO_PROFILES` even though the account was fine. The region list is now chosen
+  from the caller's partition — the resolved AWS region for credential auth,
+  the Identity Center region for SSO — so neither partition probes the other.
+- `configure(authMode="cookie")` now accepts a GovCloud application URL. The
+  origin parser's region group matched only two-word region ids, so
+  `us-gov-west-1` was rejected with `INVALID_APPLICATION_URL`.
 - Artifact uploads and downloads now use transfer-specific HTTP timeouts instead
   of HTTPX's five-second default, preventing large pre-signed S3 transfers from
   failing while data is still being sent or received.

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- `AUTH_AUDIENCE` and `AUTH_CLIENT_ID` configuration options for `AUTH_TYPE=oauth`, matched against the `aud` and `client_id`/`azp` claims of JWT tokens. Use `AUTH_CLIENT_ID` with providers whose access tokens carry no `aud` claim, such as Amazon Cognito. One of the two is required alongside `AUTH_ISSUER` and `AUTH_JWKS_URI`
+
 ### Fixed
 
 - Missing api calls for s3 customizations in static map (#4548)

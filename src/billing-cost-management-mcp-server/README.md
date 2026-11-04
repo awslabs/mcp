@@ -26,8 +26,8 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 
 - **Reserved Instance planning**: Analyze RI coverage and receive purchase recommendations
 - **Savings Plans performance**: Analyze how much eligible spend existing plans cover and how much of their commitment is consumed over a lookback window
-- **Savings Plans inventory**: Describe the plans an account owns with their state, term, payment option, commitment, and expiry, including the queued, returned, and payment-failed plans that Cost Explorer does not report
-- **Savings Plans rates and offerings**: Look up the rates locked in on plans already owned, and the offerings available to purchase with their rates, to compare terms and payment options against real numbers
+- **Savings Plans inventory**: Describe the plans an account owns with their state, term, payment option, commitment, and expiry, including the queued, returned, and payment-failed plans that Cost Explorer does not report; a large inventory is offloaded to session SQL to save tokens
+- **Savings Plans rates and offerings**: Look up the rates locked in on plans already owned, and the offerings available to purchase with their rates, to compare terms and payment options against real numbers. A large result from any of these describe operations is offloaded to session SQL (queryable with the `session-sql` tool) to save tokens
 - **Savings Plans recommendations**: Get personalized purchase recommendations based on usage patterns, the hourly data-points behind a recommendation, and the history of when recommendations were generated
 - **Savings Plans purchase analysis**: Run Purchase Analyzer what-if analyses — maximum savings, a specific commitment, or a target average coverage — and retrieve the projected cost, coverage, and utilization once an analysis completes
 
@@ -55,6 +55,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Detailed cost breakdowns**: Get billing group cost reports broken down by service name or billing period
 - **Pricing rules and plans**: List pricing rules (MARKUP, DISCOUNT, TIERING) and pricing plans with their associations
 - **Custom line items**: List custom cost allocations including support fees, shared service costs, taxes, credits, and RI/SP distribution
+- **Billing transfer preferences**: Check whether billing groups are created automatically for new end customers in a two-level billing transfer, and which pricing plan they use
 
 ### Cost Allocation Tags
 
@@ -68,7 +69,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 
 ### AWS Invoicing
 
-- **Invoice summaries**: List invoice-level details (invoice ID, type, billing period, issued/due dates, issuing entity, and amounts with discount/tax/fee breakdowns across base, tax, and payment currencies) for an account or a single invoice, filtered by month or date range
+- **Invoice summaries**: List invoice-level details (invoice ID, type, billing period, issued/due dates, issuing entity, and amounts with discount/tax/fee breakdowns across base, tax, and payment currencies) for an account (filtered by month or date range) or a single invoice
 - **Invoice units**: List and retrieve invoice unit definitions (groups of accounts that receive a separate invoice, with their receiver account and linked-account rules), filtered by name, receiver, or member account; and fetch invoice receiver profiles (legal name, address, tax registration number) for a set of accounts
 - **Procurement portal preferences**: List and retrieve procurement portal connections (SAP Business Network, Coupa) and e-invoice delivery / purchase-order retrieval settings
 
@@ -83,6 +84,11 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Support contract details**: Review the contract terms that govern how a billing period's charge is allocated, including the allocation method, Reserved Instance and Savings Plan treatment, and the payer accounts covered
 - **Per-account charge breakdown**: Break a billing period's charge down by linked account with prorated Support-eligible spend, subscription periods, and per-service spend
 
+### AWS Business Support
+
+- **Account charges**: Retrieve a billing month's Business Support charges per account, with the Support-eligible spend each charge was calculated from, the tiered charge breakdown, any applied discount, and the profile-wide totals. The current month is returned as an estimate
+- **Subscription history**: Review the Support plan contracts in effect for a billing month or a date range, including the plan and the contract start and end dates
+
 ### Specialized Cost Optimization Prompts
 
 - **Graviton migration analysis**: Guided analysis to identify EC2 instances suitable for AWS Graviton migration
@@ -91,7 +97,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
-2. Install Python 3.10 or newer using uv python install 3.10 (or a more recent version)
+2. Install Python 3.11 or newer using uv python install 3.11 (or a more recent version)
 3. Set up AWS credentials with access to AWS services
    - You need an AWS account with appropriate permissions
    - Configure AWS credentials with `aws configure` or environment variables
@@ -234,6 +240,8 @@ Cost Explorer:
 - ce:GetCostAndUsageComparisons
 - ce:GetCostComparisonDrivers
 - ce:GetAnomalies
+- ce:GetAnomalyMonitors
+- ce:GetAnomalySubscriptions
 - ce:GetCostAndUsage
 - ce:GetCostAndUsageComparisons
 - ce:GetCostAndUsageWithResources
@@ -262,6 +270,8 @@ Cost Optimization Hub:
 - cost-optimization-hub:ListRecommendations
 - cost-optimization-hub:ListRecommendationSummaries
 - cost-optimization-hub:ListEfficiencyMetrics
+- cost-optimization-hub:ListEnrollmentStatuses
+- cost-optimization-hub:GetPreferences
 
 Compute Optimizer:
 - compute-optimizer:GetAutoScalingGroupRecommendations
@@ -290,7 +300,7 @@ Compute Optimizer Automation:
 - ec2:DescribeVolumes (required by ListRecommendedActions and ListAutomationRulePreview)
 
 AWS Budgets:
-- budgets:ViewBudget (also covers budget notifications, per-budget and account-wide)
+- budgets:ViewBudget (also covers budget notifications, per-budget and account-wide, and budget performance history)
 - budgets:DescribeBudgetActionsForBudget (required for budget actions by budget name)
 - budgets:DescribeBudgetActionsForAccount (required for account-wide budget actions)
 
@@ -301,6 +311,8 @@ AWS Pricing:
 
 AWS Free Tier:
 - freetier:GetFreeTierUsage
+- freetier:GetAccountPlanState
+- freetier:ListAccountActivities
 
 AWS Billing and Cost Management Pricing Calculator:
 - bcm-pricing-calculator:GetPreferences
@@ -321,6 +333,12 @@ Storage Lens (Athena and S3):
 - athena:GetTableMetadata
 - athena:ListDatabases
 - athena:ListTableMetadata
+- glue:GetDatabase
+- glue:CreateDatabase
+- glue:GetTable
+- glue:CreateTable
+- glue:GetPartitions (Athena checks it, with glue:UpdateTable, for ALTER TABLE ... SET LOCATION)
+- glue:UpdateTable (points the table at another day's report folder)
 - s3:GetObject
 - s3:ListBucket
 - s3:PutObject
@@ -343,6 +361,7 @@ AWS Billing Conductor:
 - billingconductor:ListCustomLineItems
 - billingconductor:ListCustomLineItemVersions
 - billingconductor:ListResourcesAssociatedToCustomLineItem
+- billingconductor:GetBillingTransferPreference
 
 AWS Invoicing:
 - invoicing:ListInvoiceSummaries
@@ -363,6 +382,8 @@ AWS Billing:
 - billing:GetEnterpriseSupportChargeSummary
 - billing:GetEnterpriseSupportContractDetails
 - billing:ListEnterpriseSupportLinkedAccountCharges
+- billing:ListBusinessSupportAccountCharges
+- billing:ListBusinessSupportSubscriptionHistory
 - billing:ListBillingViewSegments
 
 #### Configuration
@@ -379,6 +400,50 @@ The server uses these key environment variables:
 }
 ```
 
+## Pagination
+
+List tools take `max_items` (the total number of items to return) and `next_token`. Without `max_items` a tool fetches every page; with it, the tool stops before a page that could take the result past `max_items` (the first page is always returned). `ri-performance` `get_reservation_utilization` grouped by `SUBSCRIPTION_ID` takes `max_pages` instead of `max_items`: its `next_token` only works with the same page size, so it returns whole pages of 500 groups; omit `max_pages` to fetch every page. Billing Conductor `get-billing-group-cost-report` requests pages of 200 to 300 results, the range the service accepts, so a `max_items` below 200 can return up to 200. `next_token` in a response is the AWS service's own continuation token: pass it back, with every other parameter unchanged, to get the next items.
+
+A response that stops before the end of the data leads with `complete_dataset: false` and a `warning`, and every paginated response carries a `pagination` block:
+
+```json
+{"complete_dataset": false, "warning": "Partial data: ...", "pagination": {"complete_dataset": false, "has_more": true, "next_token": "<service token>", "items_returned": 5000}, "...": "data"}
+```
+
+The `pagination` block comes before the data, so it is read before the data itself.
+
+`has_more` is true only when `next_token` can continue the result. A result can be partial with `has_more: false`, for example when a page failed in a way that invalidates the token or when one region of a multi-region call failed; the `warning` then says how to recover.
+
+One call also stops paging, on a page boundary, when it reaches the server's time limit. The result is then partial and continues with `next_token`.
+
+| Environment variable | Default | Limit |
+|---|---|---|
+| `BCM_MCP_PAGINATION_MAX_SECONDS` | `300` | Seconds one call spends paging |
+
+A rejected or expired `next_token` returns `error_type: invalid_next_token`; call again without `next_token` to restart.
+
+## Error responses
+
+Tool errors are returned with `isError: true` and a JSON body that includes:
+
+| Field | Description |
+|-------|-------------|
+| `status` | Always `error` |
+| `error_type` | Stable classification. AWS API errors pass the AWS error code through (`ThrottlingException`, `AccessDeniedException`, ...); local errors use lowercase values (`validation_error`, `no_results`, `invalid_operation`, ...) |
+| `message` | Human-readable explanation |
+| `retry_strategy` | What the caller should do next: `retry_same_request`, `modify_request`, or `do_not_retry` |
+| `hint` | Optional fixed recovery guidance |
+
+`retry_strategy` is derived from `error_type`:
+
+| `retry_strategy` | `error_type` values |
+|------------------|---------------------|
+| `retry_same_request` | Throttling (`ThrottlingException`, `Throttling`, `ThrottledException`, `TooManyRequestsException`, `RequestLimitExceeded`, `LimitExceededException`, `RequestThrottled`, `RequestThrottledException`, `ProvisionedThroughputExceededException`, `TransactionInProgressException`, `PriorRequestNotComplete`, `EC2ThrottledException`, `SlowDown`, `BandwidthLimitExceeded`, `throttling_error`), `aws_connection_error` (transient botocore errors only: connection failures, no client-side request capacity, response body cut short or corrupted; other botocore errors set their own `retry_strategy`, see below), server-side errors (`InternalServerException`, `InternalErrorException`, `InternalError`, `IDPCommunicationError`, `ServiceUnavailable`, `service_unavailable`, ...), timeouts (`unknown_timeouterror`), and any otherwise unmapped AWS error with an HTTP 5xx status |
+| `modify_request` | `validation_error`, `invalid_operation`, `invalid_parameter_value`, `ValidationException`, `InvalidParameter*`, `InvalidInputException`, `InvalidNextTokenException`, `ExpiredNextTokenException`, `InvalidRequestException`, `BadRequestException`, `BillExpirationException`, `RequestChangedException`, `invalid_next_token`, `no_results`, `ResourceNotFoundException`, `resource_not_found`, `NotFoundException`, `not_found` |
+| `do_not_retry` | `AccessDenied*`, `access_denied`, `UnauthorizedOperation`, `UnauthorizedException`, `AuthFailure`, `OptInRequiredException`, `opt_in_required`, `enrollment_error`, `DataUnavailableException`, and any missing or unrecognized `error_type` |
+
+A tool can override the mapping for a specific error by passing `retry_strategy=` and `hint=` to `format_response`. Session SQL errors from invalid queries are `modify_request`, and when every region of a multi-region call fails, `retry_strategy` is combined from each region's own error. A botocore `ParamValidationError` (malformed request parameters, rejected before any request is sent) is a `validation_error`. `aws_connection_error` is `retry_same_request` only for transient failures: botocore's `ConnectionError` and `HTTPClientError` classes (such as `EndpointConnectionError` and `ReadTimeoutError`), `CapacityNotAvailableError` (raised by botocore's client-side token bucket when no request capacity is available; kept retryable), and a response body cut short or corrupted in transit (`IncompleteReadError`, `ChecksumError`, `FlexibleChecksumError`); `boto_error_type` names the botocore class. Every other botocore error keeps `error_type: aws_connection_error` but sets its own `retry_strategy`: `modify_request` for botocore's other argument checks (`UnknownParameterError`, `RangeError`, ...), and `do_not_retry` for credential and configuration errors (`NoCredentialsError`, `CredentialRetrievalError` from a failed `credential_process`, an expired SSO token, `NoRegionError`, `ProfileNotFound`, ...) and any other SDK-side failure, since a retry fails the same way. The full mapping is in `utilities/error_contract.py`.
+
 ## Supported AWS Services
 
 The server currently supports the following AWS services
@@ -394,6 +459,8 @@ The server currently supports the following AWS services
    - get_cost_comparison_drivers
    - get_cost_and_usage_comparisons
    - get_anomalies
+   - get_anomaly_monitors
+   - get_anomaly_subscriptions
    - get_cost_and_usage
    - get_cost_and_usage_with_resources
    - get_dimension_values
@@ -406,9 +473,12 @@ The server currently supports the following AWS services
    - describe_budgets
    - describe_budget_actions (DescribeBudgetActionsForBudget / DescribeBudgetActionsForAccount)
    - describe_budget_notifications (DescribeNotificationsForBudget / DescribeBudgetNotificationsForAccount)
+   - describe_budget_performance_history
 
 3. **AWS Free Tier**
    - get_free_tier_usage
+   - get_account_plan_state
+   - list_account_activities
 
 4. **AWS Pricing**
    - get_service_codes
@@ -421,6 +491,8 @@ The server currently supports the following AWS services
    - list_recommendations
    - list_recommendation_summaries
    - list_efficiency_metrics
+   - list_enrollment_statuses
+   - get_preferences
 
 6. **Compute Optimizer**
    - get_auto_scaling_group_recommendations
@@ -467,6 +539,7 @@ The server currently supports the following AWS services
    - list_custom_line_items
    - list_custom_line_item_versions
    - list_resources_associated_to_custom_line_item
+   - get_billing_transfer_preference
 
 11. **Cost Allocation Tags**
     - list_cost_allocation_tags
@@ -488,9 +561,12 @@ The server currently supports the following AWS services
     - get-billing-preferences
 
 16. **AWS Enterprise Support**
-    - `enterprise_support` tool: get_charge_summary, get_contract_details, list_linked_account_charges
+    - `enterprise-support` tool: get_charge_summary, get_contract_details, list_linked_account_charges
 
-17. **AWS Billing Views**
+17. **AWS Business Support**
+    - `business-support` tool: list_account_charges, list_subscription_history
+
+18. **AWS Billing Views**
     - `get-billing-view`: retrieve metadata for a specific billing view
     - `list-billing-views`: list billing views available for a given time period
     - `list-source-views-for-billing-view`: list source views that a custom billing view is built from

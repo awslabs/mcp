@@ -18,6 +18,9 @@ This module defines all the valid values and structures expected in schema.json 
 used for code generation. It serves as the single source of truth for schema validation.
 """
 
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core.identifier_validator import (
+    validate_python_identifier,
+)
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.validation_utils import (
     ValidationError,
 )
@@ -422,6 +425,10 @@ def validate_parameter_core(
     # Validate parameter name uniqueness
     if 'name' in param:
         param_name = param['name']
+        # Parameter names are interpolated into generated-code identifier positions (lambda
+        # argument names and `self.`/`entity.` attribute accesses in the key builders), where
+        # escaping is not possible, so reject names that are not valid identifiers.
+        errors.extend(validate_python_identifier(param_name, f'{path}.name', 'Parameter name'))
         if param_name in param_names:
             errors.append(
                 ValidationError(

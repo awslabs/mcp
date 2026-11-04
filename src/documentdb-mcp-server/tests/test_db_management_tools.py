@@ -14,8 +14,6 @@
 """Tests for DocumentDB MCP Server database management tools."""
 
 import pytest
-import uuid
-from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
 from awslabs.documentdb_mcp_server.db_management_tools import (
     create_collection,
     drop_collection,
@@ -33,17 +31,13 @@ class TestListDatabasesTool:
         """Test successful listing of databases."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Create some test databases
         mock_client['test_db1']
         mock_client['test_db2']
 
         # Act
-        result = await list_databases(connection_id)
+        result = await list_databases()
 
         # Assert
         assert 'databases' in result
@@ -54,11 +48,11 @@ class TestListDatabasesTool:
         assert result['count'] >= 2  # At least our two test databases
 
     @pytest.mark.asyncio
-    async def test_list_databases_connection_not_found(self, mock_ctx):
-        """Test list_databases with invalid connection ID."""
+    async def test_list_databases_not_configured(self, mock_ctx):
+        """Test list_databases when no connection string is configured."""
         # Act/Assert
-        with pytest.raises(ValueError, match='Connection ID .* not found'):
-            await list_databases(str(uuid.uuid4()))
+        with pytest.raises(ValueError, match='connection is not configured'):
+            await list_databases()
 
     @pytest.mark.asyncio
     async def test_list_databases_handles_generic_exception(
@@ -67,10 +61,6 @@ class TestListDatabasesTool:
         """Test handling of generic exceptions during list_databases."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         def mock_list_database_names(*args, **kwargs):
             raise Exception('Generic error')
@@ -81,7 +71,7 @@ class TestListDatabasesTool:
 
         # Act/Assert
         with pytest.raises(ValueError, match='Failed to list databases: Generic error'):
-            await list_databases(connection_id)
+            await list_databases()
 
 
 class TestCreateCollectionTool:
@@ -94,16 +84,12 @@ class TestCreateCollectionTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', True)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Act/Assert
         with pytest.raises(
             ValueError, match='Operation not permitted: Server is configured in read-only mode'
         ):
-            await create_collection(connection_id, 'test_db', 'new_collection')
+            await create_collection('test_db', 'new_collection')
 
     @pytest.mark.asyncio
     async def test_create_collection_success(self, mock_ctx, patch_client, monkeypatch):
@@ -112,13 +98,9 @@ class TestCreateCollectionTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Act
-        result = await create_collection(connection_id, 'test_db', 'new_collection')
+        result = await create_collection('test_db', 'new_collection')
 
         # Assert
         assert result['success'] is True
@@ -135,30 +117,26 @@ class TestCreateCollectionTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Create the collection first
         mock_client['test_db'].create_collection('existing_collection')
 
         # Act
-        result = await create_collection(connection_id, 'test_db', 'existing_collection')
+        result = await create_collection('test_db', 'existing_collection')
 
         # Assert
         assert result['success'] is False
         assert 'already exists' in result['message']
 
     @pytest.mark.asyncio
-    async def test_create_collection_connection_not_found(self, mock_ctx, monkeypatch):
-        """Test create collection with invalid connection ID."""
+    async def test_create_collection_not_configured(self, mock_ctx, monkeypatch):
+        """Test create collection when no connection string is configured."""
         # Arrange
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         # Act/Assert
-        with pytest.raises(ValueError, match='Connection ID .* not found'):
-            await create_collection(str(uuid.uuid4()), 'test_db', 'new_collection')
+        with pytest.raises(ValueError, match='connection is not configured'):
+            await create_collection('test_db', 'new_collection')
 
     @pytest.mark.asyncio
     async def test_create_collection_handles_generic_exception(
@@ -169,10 +147,6 @@ class TestCreateCollectionTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         def mock_create_collection(*args, **kwargs):
             raise Exception('Generic error')
@@ -181,7 +155,7 @@ class TestCreateCollectionTool:
 
         # Act/Assert
         with pytest.raises(ValueError, match='Failed to create collection: Generic error'):
-            await create_collection(connection_id, 'test_db', 'new_collection')
+            await create_collection('test_db', 'new_collection')
 
 
 class TestListCollectionsTool:
@@ -192,17 +166,13 @@ class TestListCollectionsTool:
         """Test successful listing of collections."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Create some test collections
         mock_client['test_db'].create_collection('collection1')
         mock_client['test_db'].create_collection('collection2')
 
         # Act
-        result = await list_collections(connection_id, 'test_db')
+        result = await list_collections('test_db')
 
         # Assert
         assert isinstance(result, list)
@@ -210,11 +180,11 @@ class TestListCollectionsTool:
         assert 'collection2' in result
 
     @pytest.mark.asyncio
-    async def test_list_collections_connection_not_found(self, mock_ctx):
-        """Test list_collections with invalid connection ID."""
+    async def test_list_collections_not_configured(self, mock_ctx):
+        """Test list_collections when no connection string is configured."""
         # Act/Assert
-        with pytest.raises(ValueError, match='Connection ID .* not found'):
-            await list_collections(str(uuid.uuid4()), 'test_db')
+        with pytest.raises(ValueError, match='connection is not configured'):
+            await list_collections('test_db')
 
     @pytest.mark.asyncio
     async def test_list_collections_handles_generic_exception(
@@ -223,10 +193,6 @@ class TestListCollectionsTool:
         """Test handling of generic exceptions during list_collections."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         def mock_list_collection_names(*args, **kwargs):
             raise Exception('Generic error')
@@ -237,7 +203,7 @@ class TestListCollectionsTool:
 
         # Act/Assert
         with pytest.raises(ValueError, match='Failed to list collections: Generic error'):
-            await list_collections(connection_id, 'test_db')
+            await list_collections('test_db')
 
 
 class TestDropCollectionTool:
@@ -250,10 +216,6 @@ class TestDropCollectionTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', True)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Create a collection first
         mock_client['test_db'].create_collection('test_collection')
@@ -262,7 +224,7 @@ class TestDropCollectionTool:
         with pytest.raises(
             ValueError, match='Operation not permitted: Server is configured in read-only mode'
         ):
-            await drop_collection(connection_id, 'test_db', 'test_collection')
+            await drop_collection('test_db', 'test_collection')
 
     @pytest.mark.asyncio
     async def test_drop_collection_success(self, mock_ctx, patch_client, monkeypatch):
@@ -271,10 +233,6 @@ class TestDropCollectionTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Create a collection first
         mock_client['test_db'].create_collection('test_collection')
@@ -284,7 +242,7 @@ class TestDropCollectionTool:
         assert 'test_collection' in collections_before
 
         # Act
-        result = await drop_collection(connection_id, 'test_db', 'test_collection')
+        result = await drop_collection('test_db', 'test_collection')
 
         # Assert
         assert result['success'] is True
@@ -301,27 +259,23 @@ class TestDropCollectionTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Act
-        result = await drop_collection(connection_id, 'test_db', 'nonexistent_collection')
+        result = await drop_collection('test_db', 'nonexistent_collection')
 
         # Assert
         assert result['success'] is False
         assert 'does not exist' in result['message']
 
     @pytest.mark.asyncio
-    async def test_drop_collection_connection_not_found(self, mock_ctx, monkeypatch):
-        """Test drop collection with invalid connection ID."""
+    async def test_drop_collection_not_configured(self, mock_ctx, monkeypatch):
+        """Test drop collection when no connection string is configured."""
         # Arrange
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         # Act/Assert
-        with pytest.raises(ValueError, match='Connection ID .* not found'):
-            await drop_collection(str(uuid.uuid4()), 'test_db', 'test_collection')
+        with pytest.raises(ValueError, match='connection is not configured'):
+            await drop_collection('test_db', 'test_collection')
 
     @pytest.mark.asyncio
     async def test_drop_collection_handles_generic_exception(
@@ -332,10 +286,6 @@ class TestDropCollectionTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Create the collection first to ensure it exists
         mock_client['test_db'].create_collection('test_collection')
@@ -348,4 +298,4 @@ class TestDropCollectionTool:
 
         # Act/Assert
         with pytest.raises(ValueError, match='Failed to drop collection: Generic error'):
-            await drop_collection(connection_id, 'test_db', 'test_collection')
+            await drop_collection('test_db', 'test_collection')

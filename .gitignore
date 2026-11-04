@@ -571,3 +571,9 @@ src/openapi-mcp-server/*.txt
 src/openapi-mcp-server/*-coverage.xml
 src/openapi-mcp-server/junit.xml
 executive-summary.md
+
+# E2E harness: the config names an AWS account and profile, the generated agent carries live
+# session credentials, and the server logs hold every statement a run sent.
+src/redshift-mcp-server/e2e_tests/config.toml
+src/redshift-mcp-server/e2e_tests/.kiro/
+src/redshift-mcp-server/e2e_tests/.logs/

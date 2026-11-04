@@ -492,6 +492,124 @@ class TestStartRunBatch:
         mock_get_client.assert_called_once_with(region_name='eu-west-1', profile_name='my-profile')
 
 
+class TestStartRunBatchSessionPolicy:
+    """start_run_batch handling of the optional session_policy parameter."""
+
+    _policy = {
+        'Version': '2012-10-17',
+        'Statement': [{'Effect': 'Allow', 'Action': 's3:GetObject', 'Resource': '*'}],
+    }
+
+    async def _call(self, mock_client, batch_run_settings, **kwargs):
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.run_batch.get_omics_client',
+            return_value=mock_client,
+        ):
+            return await start_run_batch_wrapper.call(
+                ctx=AsyncMock(),
+                workflow_id='workflow-123',
+                role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+                output_uri='s3://output-bucket/results/',
+                batch_run_settings=batch_run_settings,
+                **kwargs,
+            )
+
+    @pytest.mark.asyncio
+    async def test_session_policy_string_in_default_run_setting(
+        self, sample_start_run_batch_response, sample_inline_batch_run_settings
+    ):
+        """A JSON string policy is placed (minified) in defaultRunSetting."""
+        import json
+
+        policy_str = json.dumps(self._policy, separators=(',', ':'))
+        mock_client = MagicMock()
+        mock_client.start_run_batch.return_value = sample_start_run_batch_response
+
+        result = await self._call(
+            mock_client, sample_inline_batch_run_settings, session_policy=policy_str
+        )
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        call_kwargs = mock_client.start_run_batch.call_args.kwargs
+        assert call_kwargs['defaultRunSetting']['sessionPolicy'] == policy_str
+        assert 'sessionPolicy' not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_session_policy_dict_is_serialized(
+        self, sample_start_run_batch_response, sample_inline_batch_run_settings
+    ):
+        """A dict policy is serialized to a JSON string in defaultRunSetting."""
+        import json
+
+        mock_client = MagicMock()
+        mock_client.start_run_batch.return_value = sample_start_run_batch_response
+
+        await self._call(
+            mock_client, sample_inline_batch_run_settings, session_policy=self._policy
+        )
+
+        forwarded = mock_client.start_run_batch.call_args.kwargs['defaultRunSetting'][
+            'sessionPolicy'
+        ]
+        assert isinstance(forwarded, str)
+        assert json.loads(forwarded) == self._policy
+
+    @pytest.mark.asyncio
+    async def test_session_policy_omitted_by_default(
+        self, sample_start_run_batch_response, sample_inline_batch_run_settings
+    ):
+        """No session_policy => no sessionPolicy key in defaultRunSetting."""
+        mock_client = MagicMock()
+        mock_client.start_run_batch.return_value = sample_start_run_batch_response
+
+        await self._call(mock_client, sample_inline_batch_run_settings)
+
+        call_kwargs = mock_client.start_run_batch.call_args.kwargs
+        assert 'sessionPolicy' not in call_kwargs['defaultRunSetting']
+
+    @pytest.mark.parametrize('session_policy', ['not json', '[1, 2]', '{}', 'x' * 3000])
+    @pytest.mark.asyncio
+    async def test_invalid_session_policy_returns_error(
+        self, session_policy, sample_inline_batch_run_settings
+    ):
+        """An invalid session policy returns an error and never calls the API."""
+        mock_client = MagicMock()
+
+        result = await self._call(
+            mock_client, sample_inline_batch_run_settings, session_policy=session_policy
+        )
+
+        assert 'error' in result
+        assert 'Invalid session policy' in result['error']
+        mock_client.start_run_batch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_params_validate_against_botocore_model(
+        self, sample_start_run_batch_response, sample_inline_batch_run_settings
+    ):
+        """The forwarded params, including sessionPolicy, satisfy the real StartRunBatch shape."""
+        import botocore.session
+        from botocore.validate import ParamValidator
+
+        mock_client = MagicMock()
+        mock_client.start_run_batch.return_value = sample_start_run_batch_response
+
+        await self._call(
+            mock_client, sample_inline_batch_run_settings, session_policy=self._policy
+        )
+
+        input_shape = (
+            botocore.session.get_session()
+            .get_service_model('omics')
+            .operation_model('StartRunBatch')
+            .input_shape
+        )
+        # requestId is an idempotency token that boto3 auto-populates on real clients
+        params = {'requestId': 'test-token', **mock_client.start_run_batch.call_args.kwargs}
+        report = ParamValidator().validate(params, input_shape)
+        assert not report.has_errors(), report.generate_report()
+
+
 # --- get_batch Tests ---
 
 

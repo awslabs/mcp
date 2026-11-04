@@ -118,6 +118,13 @@ STRIPPED_SQL_PATTERNS = [
 
 _SELECT_INTO_RE = re.compile(r'(?is)\bselect\b[^;]*?\binto\b\s+[#@\w\[\"]')
 
+# NEXT VALUE FOR permanently advances a SQL Server sequence. Sequence generation
+# happens outside transaction scope, so neither the READ COMMITTED isolation level
+# nor the post-query rollback reverses it. It therefore mutates database state even
+# though the statement begins with the otherwise-safe SELECT token, so it must be
+# detected explicitly rather than relying on the leading-keyword check.
+_NEXT_VALUE_FOR_RE = re.compile(r'(?i)\bnext\s+value\s+for\b')
+
 # Tokens that may validly begin a T-SQL batch in read-only mode.
 # Any first token NOT in this set is treated as an implicit stored procedure call.
 _SAFE_READONLY_FIRST_TOKENS = frozenset(
@@ -219,6 +226,9 @@ def detect_mutating_keywords(sql_text: str) -> list[str]:
     # SELECT ... INTO creates a new table and is not covered by the keyword pattern above.
     if _SELECT_INTO_RE.search(stripped):
         result.append('SELECT INTO')
+    # NEXT VALUE FOR advances a sequence and is not reversed by rollback.
+    if _NEXT_VALUE_FOR_RE.search(stripped):
+        result.append('NEXT VALUE FOR')
     if _is_implicit_procedure_call(stripped):
         result.append('IMPLICIT PROCEDURE CALL')
     return result

@@ -26,8 +26,10 @@ from loguru import logger
 
 
 # Matches: https://{tenantId}.transform.{region}.on.aws
+# The region group allows more than two leading words so GovCloud region ids
+# (us-gov-west-1) match alongside commercial ones (us-east-1).
 _ORIGIN_REGION_PATTERN = re.compile(
-    r'https://[a-z0-9-]+\.transform(?:-[a-z-]+)?\.([a-z]+-[a-z]+-\d+)\.on\.aws$'
+    r'https://[a-z0-9-]+\.transform(?:-[a-z-]+)?\.([a-z]{2}(?:-[a-z]+)+-\d+)\.on\.aws$'
 )
 
 

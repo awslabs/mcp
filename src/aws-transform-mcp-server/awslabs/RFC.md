@@ -99,14 +99,14 @@ class WorkspaceHandler:
 
 Three authentication methods (any ONE is sufficient):
 
-1. **AWS Credentials (zero-config, recommended):** Auto-detected at startup. The server probes SigV4 credentials by fanning out `ListWorkspaces` across all 9 supported regions (`us-east-1`, `eu-central-1`, `ap-southeast-2`, `ap-northeast-1`, `eu-west-2`, `ap-northeast-2`, `sa-east-1`, `ap-south-1`, `ca-central-1`) with a 5-second timeout per region. If exactly one region succeeds, it auto-selects. If multiple succeed, stores them for deferred selection via `switch_profile`. Uses boto3's standard credential chain (`AWS_PROFILE`, `~/.aws/credentials`, instance profile).
+1. **AWS Credentials (zero-config, recommended):** Auto-detected at startup. The server probes SigV4 credentials by fanning out `ListWorkspaces`, with a 5-second timeout per region, across the 10 supported commercial regions (`us-east-1`, `eu-central-1`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `eu-west-2`, `ap-northeast-2`, `sa-east-1`, `ap-south-1`, `ca-central-1`) — or across `us-gov-west-1` alone when the caller's region is in the GovCloud partition. If exactly one region succeeds, it auto-selects. If multiple succeed, stores them for deferred selection via `switch_profile`. Uses boto3's standard credential chain (`AWS_PROFILE`, `~/.aws/credentials`, instance profile).
 
 2. **SSO/IdC (explicit):** User calls `configure` with `authMode: "sso"`, `startUrl`, and `idcRegion`. Server runs OAuth Authorization Code + PKCE flow:
    - Registers a temporary OIDC client via `boto3` sso-oidc (`register_client`)
    - Starts a local HTTP callback server on `127.0.0.1:8079`
    - Opens a browser for login (uses platform-specific `open`/`xdg-open` commands)
    - Exchanges the auth code for tokens
-   - Fans out `ListAvailableProfiles` across all 9 regions to discover available profiles
+   - Fans out `ListAvailableProfiles` across the supported regions of the caller's partition to discover available profiles
    - Supports MCP elicitation for multi-profile selection (falls back to PROFILE_SELECTION_REQUIRED)
    - Stores bearer + refresh token in `~/.aws-transform-mcp/config.json`
 
@@ -157,7 +157,7 @@ Published to PyPI as `awslabs.aws-transform-mcp-server`:
 
 2. **HITL task schema complexity** — HITL tasks have runtime-defined schemas that vary by component type. The server dynamically generates JSON Schema, response templates, and hints from agent artifacts at task fetch time. 52 component customizations and 114 output schema definitions are maintained in auto-generated code.
 
-3. **Multi-region profile discovery** — Both SSO and SigV4 startup probe fan out concurrent requests across 9 regions with a 5-second timeout per region. Network conditions can make startup slow. Multiple-region responses require deferred selection via elicitation or `switch_profile`.
+3. **Multi-region profile discovery** — Both SSO and SigV4 startup probe fan out concurrent requests across the supported regions of the caller's partition (10 commercial, 1 GovCloud) with a 5-second timeout per region. Network conditions can make startup slow. Multiple-region responses require deferred selection via elicitation or `switch_profile`.
 
 4. **Polling complexity** — Chat responses, job creation, and status checks all use internal polling loops (up to 60-90 seconds). The `adaptive_poll` tool adds agent-driven polling on top. Long-running operations can hit MCP client timeouts.
 

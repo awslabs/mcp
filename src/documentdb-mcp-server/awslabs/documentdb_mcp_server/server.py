@@ -15,6 +15,8 @@
 """AWS Labs DocumentDB MCP Server implementation for querying AWS DocumentDB."""
 
 import argparse
+import os
+import sys
 from awslabs.documentdb_mcp_server.analytic_tools import (
     analyze_schema,
     count_documents,
@@ -23,11 +25,7 @@ from awslabs.documentdb_mcp_server.analytic_tools import (
     get_database_stats,
 )
 from awslabs.documentdb_mcp_server.config import serverConfig
-from awslabs.documentdb_mcp_server.connection_tools import (
-    DocumentDBConnection,
-    connect,
-    disconnect,
-)
+from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
 from awslabs.documentdb_mcp_server.db_management_tools import (
     create_collection,
     drop_collection,
@@ -43,12 +41,12 @@ from mcp.server.mcpserver import MCPServer
 # Create the MCPServer server
 mcp = MCPServer(
     'awslabs.documentdb-mcp-server',
-    instructions="""DocumentDB MCP Server provides tools to connect to and query AWS DocumentDB databases.
+    instructions="""DocumentDB MCP Server provides tools to query a single AWS DocumentDB cluster.
 
-    Usage pattern:
-    1. First use the `connect` tool to establish a connection and get a connection_id
-    2. Use the connection_id with other tools to perform operations
-    3. When finished, use the `disconnect` tool to release resources
+    The cluster is configured by the operator at server startup (via the
+    --connection-string CLI argument or the DOCUMENTDB_CONNECTION_STRING
+    environment variable). Tools operate on that configured cluster directly and
+    take only database/collection/query arguments.
 
     Server Configuration:
     - The server can be configured in read-only mode, which blocks write operations
@@ -62,10 +60,6 @@ mcp = MCPServer(
 
 
 # Register all tools
-
-# Connection tools
-mcp.tool(name='connect')(connect)
-mcp.tool(name='disconnect')(disconnect)
 
 # Query tools
 mcp.tool(name='find')(find)
@@ -103,10 +97,15 @@ def main():
         help='Set the logging level',
     )
     parser.add_argument(
-        '--connection-timeout',
-        type=int,
-        default=30,
-        help='Idle connection timeout in minutes (default: 30)',
+        '--connection-string',
+        type=str,
+        default=None,
+        help=(
+            'DocumentDB connection string for the cluster this server connects to. '
+            'May also be set via the DOCUMENTDB_CONNECTION_STRING environment '
+            'variable. Required for database operations; if omitted, database '
+            'tools will fail until it is configured.'
+        ),
     )
     parser.add_argument(
         '--allow-write',
@@ -127,9 +126,25 @@ def main():
     logger.info('Starting DocumentDB MCP Server')
     logger.info(f'Log level: {args.log_level}')
 
-    # Set connection timeout
-    DocumentDBConnection._idle_timeout = args.connection_timeout
-    logger.info(f'Idle connection timeout: {args.connection_timeout} minutes')
+    # Configure the connection string from the operator (CLI arg takes precedence
+    # over the environment variable).
+    serverConfig.connection_string = args.connection_string or os.environ.get(
+        'DOCUMENTDB_CONNECTION_STRING'
+    )
+    if serverConfig.connection_string:
+        try:
+            DocumentDBConnection.validate_retry_writes_false(serverConfig.connection_string)
+        except ValueError as e:
+            # Fail fast on a misconfigured connection string, but surface a clear
+            # operator-facing message rather than a raw traceback.
+            logger.critical(f'Invalid DocumentDB connection string: {str(e)}')
+            sys.exit(1)
+        logger.info('DocumentDB connection string configured')
+    else:
+        logger.warning(
+            'No DocumentDB connection string configured. Database tools will fail '
+            'until --connection-string (or DOCUMENTDB_CONNECTION_STRING) is set.'
+        )
 
     # Configure read-only mode
     serverConfig.read_only_mode = not args.allow_write
@@ -143,8 +158,8 @@ def main():
     except Exception as e:
         logger.critical(f'Failed to start server: {str(e)}')
     finally:
-        # Close all DB connections
-        DocumentDBConnection.close_all_connections()
+        # Close the DB connection
+        DocumentDBConnection.close()
 
 
 if __name__ == '__main__':

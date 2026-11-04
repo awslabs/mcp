@@ -16,10 +16,43 @@
 
 from datetime import datetime
 from pydantic import BaseModel, Field
-from typing import Any, Dict, Optional, TypeVar
+from typing import Any, Dict, NamedTuple, Optional, TypeVar
 
 
 RedshiftDataModelT = TypeVar('RedshiftDataModelT', bound='RedshiftDataModel')
+
+
+class ClusterKey(NamedTuple):
+    """A cluster's identifier and type: the key of everything this server holds per cluster.
+
+    That is open transactions, the per-target cap and the batch-denial latch. The type is part of
+    it because the two AWS namespaces are separate, so a provisioned cluster and a workgroup can
+    share a name.
+
+    A tuple rather than a joined string, like `Target` and the transaction key: joined with a
+    separator, a database or transaction name containing it made two keys equal.
+    """
+
+    identifier: str
+    type: str
+
+    def __str__(self) -> str:
+        """Show it in errors and the log as `<identifier> (<type>)`.
+
+        Not as `<type>:<identifier>`, which looks like an identifier to pass back.
+        """
+        return f'{self.identifier} ({self.type})'
+
+
+class Target(NamedTuple):
+    """A cluster and a database: where a statement runs, and what the transaction cap counts."""
+
+    cluster: ClusterKey
+    database: str
+
+    def __str__(self) -> str:
+        """Show it as `<cluster>:<database>`."""
+        return f'{self.cluster}:{self.database}'
 
 
 class RedshiftDataModel(BaseModel):
@@ -32,12 +65,28 @@ class RedshiftDataModel(BaseModel):
 
     @staticmethod
     def cell_value(cell: dict) -> Any:
-        """Unwrap a single Redshift Data API result cell to a Python scalar."""
+        """Unwrap a single Redshift Data API result cell to a Python scalar.
+
+        Every member is read to a scalar, because a value that is not one does not survive the
+        trip out: this server's models declare scalar fields, and the MCP layer serializes
+        `bytes` by decoding it as UTF-8 - which silently turns a blob into a string that cannot
+        be told from a real one, and raises UnicodeDecodeError past this server's error handling
+        when it is not decodable.
+        """
         if cell.get('isNull'):
             return None
+        blob = cell.get('blobValue')
+        if blob is not None:
+            # Hex, to keep it a scalar. A member the API defines, though Redshift sends VARBYTE,
+            # GEOMETRY and GEOGRAPHY as base64 in `stringValue`, which arrives unchanged.
+            return blob.hex()
         for key in ('stringValue', 'longValue', 'doubleValue', 'booleanValue'):
             if key in cell:
                 return cell[key]
+        # A member this does not know, which botocore hands over as
+        # `{'SDK_UNKNOWN_MEMBER': {'name': ...}}` and whose value it has already discarded. The
+        # name of it is all there is to report, and it is reported as the string every other
+        # unrecognized value is.
         return str(cell)
 
     @classmethod
@@ -72,6 +121,11 @@ class RedshiftCluster(BaseModel):
         default_factory=dict, description='Tags associated with the cluster'
     )
 
+    @property
+    def key(self) -> ClusterKey:
+        """This cluster as everything keyed per cluster names it."""
+        return ClusterKey(self.identifier, self.type)
+
 
 class RedshiftDatabase(RedshiftDataModel):
     """Information about a database in a Redshift cluster."""
@@ -79,7 +133,9 @@ class RedshiftDatabase(RedshiftDataModel):
     database_name: str = Field(..., description='The name of the database')
     database_owner: Optional[int] = Field(None, description='The database owner user ID')
     database_type: Optional[str] = Field(
-        None, description='The type of database (local or shared)'
+        None,
+        description="The type of database: 'local' on the cluster itself, 'shared' from a "
+        "datashare, or 'auto mounted catalog' mounted from an external catalog such as AWS Glue",
     )
     database_acl: Optional[str] = Field(
         None, description='Access control information (for internal use)'

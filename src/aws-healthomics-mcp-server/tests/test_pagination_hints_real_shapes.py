@@ -421,14 +421,14 @@ class TestSearchIdiomAgainstRealSearchGenomicsFiles:
     async def test_incomplete_page_pagination_block_matches_real_response(self):
         """Exercises the storage-level pagination path (search_paginated()).
 
-        Only this path can legitimately mint a fresh continuation_token
-        (genomics_search_orchestrator.py's search_paginated() builds one from
-        next_global_token.encode() when has_more_results is True); the plain
-        search() path only ever passes the caller's own input token straight
-        through (see genomics_search_orchestrator.py line ~202), so it can
-        never produce this has_more=True + fresh-token shape. Using
-        enable_storage_pagination=True here so the mocked method matches the
-        real code path that can actually reach this state.
+        search_paginated() mints a fresh continuation_token from
+        next_global_token.encode() when has_more_results is True (see
+        genomics_search_orchestrator.py's search_paginated()). The plain
+        search() path also mints a fresh token now (str(next_offset), see
+        that method's pagination_info construction), but this test targets
+        search_paginated()'s own base64-JSON token shape specifically, so it
+        still needs enable_storage_pagination=True to route to that method
+        rather than search().
         """
         mock_ctx = AsyncMock()
         mock_orchestrator = MagicMock()

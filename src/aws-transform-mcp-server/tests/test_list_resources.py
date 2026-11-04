@@ -864,25 +864,20 @@ class TestListResourcesHandler:
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
-    async def test_plan_merges_results(self, _, mock_fes, handler, ctx):
-        async def fes_side_effect(op, body):
-            if op == 'ListJobPlanSteps':
-                return {'steps': [{'id': 's1'}], 'nextToken': 'steps-tok'}
-            return {'updates': [{'id': 'u1'}], 'nextToken': 'updates-tok'}
-
-        mock_fes.side_effect = fes_side_effect
+    async def test_plan_returns_steps(self, _, mock_fes, handler, ctx):
+        mock_fes.return_value = {'steps': [{'id': 's1'}], 'nextToken': 'steps-tok'}
         result = await handler.list_resources(
             ctx, resource=ResourceType.plan, workspaceId='ws1', jobId='j1'
         )
         parsed = _parse_result(result)
         assert parsed['success'] is True
         assert 'planSteps' in parsed['data']
-        assert 'planUpdates' in parsed['data']
+        assert 'planUpdates' not in parsed['data']
         assert parsed['data']['stepsNextToken'] == 'steps-tok'
-        assert parsed['data']['updatesNextToken'] == 'updates-tok'
         # Nested nextToken should be stripped
         assert 'nextToken' not in parsed['data']['planSteps']
-        assert 'nextToken' not in parsed['data']['planUpdates']
+        args = mock_fes.await_args.args
+        assert args[0] == 'ListJobPlanSteps'
 
     @pytest.mark.asyncio
     @patch(
@@ -892,8 +887,9 @@ class TestListResourcesHandler:
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
-    async def test_plan_both_fail(self, _, mock_fes, handler, ctx):
-        mock_fes.side_effect = RuntimeError('api down')
+    async def test_plan_no_steps_returns_not_found(self, _, mock_fes, handler, ctx):
+        """A planless job returns empty steps (not an error) and maps to NOT_FOUND."""
+        mock_fes.return_value = {'steps': []}
         result = await handler.list_resources(
             ctx, resource=ResourceType.plan, workspaceId='ws1', jobId='j1'
         )
@@ -908,25 +904,65 @@ class TestListResourcesHandler:
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
-    async def test_plan_partial_failure(self, _, mock_fes, handler, ctx):
-        """When one of the two plan calls fails, result includes the other."""
-        call_count = 0
+    async def test_plan_non_dict_response_returns_not_found(self, _, mock_fes, handler, ctx):
+        mock_fes.return_value = None
+        result = await handler.list_resources(
+            ctx, resource=ResourceType.plan, workspaceId='ws1', jobId='j1'
+        )
+        parsed = _parse_result(result)
+        assert parsed['error']['code'] == 'NOT_FOUND'
 
-        async def fes_side_effect(op, body):
-            nonlocal call_count
-            call_count += 1
-            if op == 'ListJobPlanSteps':
-                raise RuntimeError('steps failed')
-            return {'updates': [{'id': 'u1'}]}
-
-        mock_fes.side_effect = fes_side_effect
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
+    )
+    async def test_plan_last_page_has_no_token(self, _, mock_fes, handler, ctx):
+        mock_fes.return_value = {'steps': [{'id': 's1'}]}
         result = await handler.list_resources(
             ctx, resource=ResourceType.plan, workspaceId='ws1', jobId='j1'
         )
         parsed = _parse_result(result)
         assert parsed['success'] is True
-        assert 'planSteps' not in parsed['data']
-        assert 'planUpdates' in parsed['data']
+        assert 'stepsNextToken' not in parsed['data']
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
+    )
+    async def test_plan_empty_page_with_token_is_not_not_found(self, _, mock_fes, handler, ctx):
+        """An empty page that carries a nextToken keeps paginating instead of NOT_FOUND."""
+        mock_fes.return_value = {'steps': [], 'nextToken': 'more'}
+        result = await handler.list_resources(
+            ctx, resource=ResourceType.plan, workspaceId='ws1', jobId='j1'
+        )
+        parsed = _parse_result(result)
+        assert parsed['success'] is True
+        assert parsed['data']['stepsNextToken'] == 'more'
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
+    )
+    async def test_plan_api_error_returns_failure(self, _, mock_fes, handler, ctx):
+        mock_fes.side_effect = RuntimeError('api down')
+        result = await handler.list_resources(
+            ctx, resource=ResourceType.plan, workspaceId='ws1', jobId='j1'
+        )
+        parsed = _parse_result(result)
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'REQUEST_FAILED'
 
     # ── agents ─────────────────────────────────────────────────────────
 

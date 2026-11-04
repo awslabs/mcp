@@ -17,8 +17,9 @@ import httpx
 import markdownify
 import re
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
-from typing import Any, Dict, List, Sequence
-from urllib.parse import quote_plus, urljoin
+from mcp.server.mcpserver.exceptions import ToolError
+from typing import Any, Dict, List, Optional, Sequence
+from urllib.parse import quote_plus, urljoin, urlsplit, urlunsplit
 
 
 # An unresolved cross-reference leaves an href with no filename, e.g. './.html#anchor'.
@@ -41,7 +42,20 @@ def _unwrap_broken_links(root) -> None:
             anchor.unwrap()
 
 
-class UnreadablePageError(ValueError):
+class DocumentationToolError(ToolError, ValueError):
+    """An anticipated failure whose message is meant for the caller.
+
+    The MCP SDK forwards a ``ToolError``'s message to the client and withholds the text of any
+    other exception, keeping crash details off the wire (python-sdk#3314). Every failure the read
+    path raises deliberately already builds a message for the caller, so those messages have to
+    travel as a ``ToolError`` to arrive at all.
+
+    ``ValueError`` stays in the bases because that is what these paths raised before, and callers
+    and tests catch it.
+    """
+
+
+class UnreadablePageError(DocumentationToolError):
     """Raised when a page carries no extractable content, only markup."""
 
 
@@ -72,7 +86,7 @@ def extract_content_from_html(html: str) -> str:
         UnreadablePageError: the page carries no extractable content
     """
     if not html:
-        raise UnreadablePageError('Empty HTML content')
+        raise UnreadablePageError('Empty HTML content.')
 
     try:
         # First use BeautifulSoup to clean up the HTML
@@ -185,13 +199,13 @@ def extract_content_from_html(html: str) -> str:
         )
 
         if not content.strip():
-            raise UnreadablePageError('Page failed to be simplified from HTML')
+            raise UnreadablePageError('Page failed to be simplified from HTML.')
 
         return content
     except UnreadablePageError:
         raise
     except Exception as e:
-        raise UnreadablePageError(f'Error converting HTML to Markdown: {str(e)}') from e
+        raise UnreadablePageError(f'Error converting HTML to Markdown: {str(e)}.') from e
 
 
 def is_html_content(page_raw: str, content_type: str) -> bool:
@@ -273,75 +287,91 @@ def format_documentation_result(url: str, content: str, start_index: int, max_le
     return result
 
 
-def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
-    """Extract requested sections from HTML.
+# ATX headings; four or more leading spaces make an indented code block instead.
+_MARKDOWN_HEADING = re.compile(r'^ {0,3}(#{1,6})[ \t]+(.*?)[ \t]*$')
+
+
+def _heading_text(title: str) -> str:
+    """Reduce a Markdown heading title to the text a reader sees."""
+    text = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', title)  # links keep their text
+    return ' '.join(re.sub(r'[*`\\\u00b6]', '', text).split())  # markers, escapes, pilcrow
+
+
+def extract_sections_from_markdown(markdown: str, section_titles: List[str]) -> str:
+    """Extract requested level-2 sections from Markdown.
 
     Args:
-        html: Raw HTML content
+        markdown: Markdown content of the whole page
         section_titles: List of section titles to extract
 
     Returns:
-        Filtered HTML content containing only the requested sections
+        Markdown content containing only the requested sections
     """
-    if not html or not section_titles:
-        return 'No content or section titles provided'
-
-    from bs4 import BeautifulSoup, Tag
-
-    soup = BeautifulSoup(html, 'html.parser')
-
-    if not has_readable_text(soup):
+    if not markdown.strip():
         raise UnreadablePageError('The page carries no readable content.')
+
+    if not section_titles:
+        return 'No content or section titles provided'
 
     normalized_titles = {}
     for title in section_titles:
-        normalized_key = ' '.join(title.strip().lower().split())
-        normalized_titles[normalized_key] = title.strip()
+        # Normalize like page headings, so a title copied with its markup still matches
+        normalized_titles[_heading_text(title).lower()] = title.strip()
 
-    h2_tags = soup.find_all('h2')
     available_level2_sections = []
-    matched_sections_html = []
+    matched_sections = []
     found_sections = set()
+    current = None  # lines of the matched section being collected
+    in_code_block = False
 
-    for h2 in h2_tags:
-        h2_text = ' '.join(h2.get_text().split())
-        available_level2_sections.append(h2_text)
+    for line in markdown.split('\n'):
+        stripped = line.strip()
+        # Track fenced code blocks — '#' lines inside them are not headings
+        if stripped.startswith('```') or stripped.startswith('~~~'):
+            in_code_block = not in_code_block
+        heading = None if in_code_block else _MARKDOWN_HEADING.match(line)
 
-        normalized_h2 = h2_text.lower()
+        # A section runs until the next level-2 heading. A level-1 line does not end it:
+        # converted HTML leaves a paragraph such as '# of hosts' unescaped.
+        if heading and len(heading.group(1)) == 2:
+            if current is not None:
+                matched_sections.append('\n'.join(current).strip())
+                current = None
+            h2_text = _heading_text(heading.group(2))
+            available_level2_sections.append(h2_text)
+            normalized_h2 = h2_text.lower()
+            if normalized_h2 in normalized_titles:
+                current = []
+                found_sections.add(normalized_titles[normalized_h2])
 
-        if normalized_h2 in normalized_titles:
-            section_content = [h2]
+        if current is not None:
+            current.append(line)
 
-            for sibling in h2.find_next_siblings():
-                # Only Tag elements have name attribute; skip NavigableStrings
-                if isinstance(sibling, Tag) and sibling.name in ['h1', 'h2']:
-                    break
-                section_content.append(sibling)
-
-            section_html_str = ''.join(str(elem) for elem in section_content)
-            matched_sections_html.append(section_html_str)
-            found_sections.add(normalized_titles[normalized_h2])
+    if current is not None:
+        matched_sections.append('\n'.join(current).strip())
 
     if not found_sections:
         section_list = ', '.join(f'"{title}"' for title in section_titles)
         if available_level2_sections:
             available_list = ', '.join(f'"{section}"' for section in available_level2_sections)
             error_msg = f'No matching sections were found: {section_list}. Available sections: {available_list}. Please retry with one or more of these sections or use the read_documentation tool instead to get the full document content.'
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
         else:
             error_msg = 'This document does not contain subsections. Please use the read_documentation tool instead to get the full document content.'
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
 
-    result_html = ''.join(matched_sections_html)
+    result = '\n\n'.join(matched_sections)
 
     if len(found_sections) < len(section_titles):
         missing_sections = [
             title.strip() for title in section_titles if title.strip() not in found_sections
         ]
         missing_list = ', '.join(f'"{title}"' for title in missing_sections)
-        result_html += f'\n\n<blockquote><strong>Note</strong>: The following requested sections were not found: {missing_list}</blockquote>'
+        result += (
+            f'\n\n> **Note**: The following requested sections were not found: {missing_list}'
+        )
 
-    return result_html
+    return result
 
 
 def truncate_large_tables(
@@ -416,6 +446,31 @@ def truncate_large_tables(
             i += 1
 
     return '\n'.join(result)
+
+
+def to_html_page_url(url: str) -> Optional[str]:
+    """Return the '.html' page URL for a documentation page given as '.html' or '.md'.
+
+    Published Markdown links its sibling pages as relative '.md' files, often with a section
+    fragment. Accepting those URLs lets agents follow links as published, without the read tools
+    expanding every link to an absolute URL. Fetches still target the bare '.html' page: it
+    negotiates Markdown or HTML, which search_table needs, and search results key their query
+    IDs by the '.html' URL.
+
+    Args:
+        url: Documentation page URL, optionally with a query or fragment
+
+    Returns:
+        The '.html' page URL without query or fragment, or None when the path ends with
+        neither '.html' nor '.md'
+    """
+    parts = urlsplit(url)._replace(query='', fragment='')
+    path = parts.path.casefold()
+    if path.endswith('.html'):
+        return urlunsplit(parts)
+    if path.endswith('.md'):
+        return urlunsplit(parts._replace(path=parts.path[: -len('.md')] + '.html'))
+    return None
 
 
 def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationResult]:

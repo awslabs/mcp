@@ -22,9 +22,6 @@ from typing import Annotated, Any, Dict, List, Union
 
 
 async def insert(
-    connection_id: Annotated[
-        str, Field(description='The connection ID returned by the connect tool')
-    ],
     database: Annotated[str, Field(description='Name of the database')],
     collection: Annotated[str, Field(description='Name of the collection')],
     documents: Annotated[
@@ -45,12 +42,7 @@ async def insert(
         raise ValueError('Operation not permitted: Server is configured in read-only mode')
 
     try:
-        # Get connection
-        if connection_id not in DocumentDBConnection._connections:
-            raise ValueError(f'Connection ID {connection_id} not found. You must connect first.')
-
-        connection_info = DocumentDBConnection._connections[connection_id]
-        client = connection_info.client
+        client = DocumentDBConnection.get_client()
 
         db = client[database]
         coll = db[collection]
@@ -76,9 +68,6 @@ async def insert(
 
 
 async def update(
-    connection_id: Annotated[
-        str, Field(description='The connection ID returned by the connect tool')
-    ],
     database: Annotated[str, Field(description='Name of the database')],
     collection: Annotated[str, Field(description='Name of the collection')],
     filter: Annotated[Dict[str, Any], Field(description='Filter to select documents to update')],
@@ -111,12 +100,7 @@ async def update(
         raise ValueError('Operation not permitted: Server is configured in read-only mode')
 
     try:
-        # Get connection
-        if connection_id not in DocumentDBConnection._connections:
-            raise ValueError(f'Connection ID {connection_id} not found. You must connect first.')
-
-        connection_info = DocumentDBConnection._connections[connection_id]
-        client = connection_info.client
+        client = DocumentDBConnection.get_client()
 
         db = client[database]
         coll = db[collection]
@@ -155,9 +139,6 @@ async def update(
 
 
 async def delete(
-    connection_id: Annotated[
-        str, Field(description='The connection ID returned by the connect tool')
-    ],
     database: Annotated[str, Field(description='Name of the database')],
     collection: Annotated[str, Field(description='Name of the collection')],
     filter: Annotated[Dict[str, Any], Field(description='Filter to select documents to delete')],
@@ -178,12 +159,7 @@ async def delete(
         raise ValueError('Operation not permitted: Server is configured in read-only mode')
 
     try:
-        # Get connection
-        if connection_id not in DocumentDBConnection._connections:
-            raise ValueError(f'Connection ID {connection_id} not found. You must connect first.')
-
-        connection_info = DocumentDBConnection._connections[connection_id]
-        client = connection_info.client
+        client = DocumentDBConnection.get_client()
 
         db = client[database]
         coll = db[collection]

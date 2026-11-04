@@ -27,7 +27,6 @@ from fastmcp import FastMCP
 from awslabs.ecs_mcp_server.modules import (
     aws_knowledge_proxy,
     containerize,
-    delete,
     express,
     infrastructure,
     resource_management,
@@ -204,9 +203,6 @@ AWS documentation including ECS's newest feature launches
     infrastructure.create_infrastructure = secure_tool(
         config, PERMISSION_WRITE, "create_ecs_infrastructure"
     )(infrastructure.create_infrastructure)
-    delete.delete_infrastructure = secure_tool(
-        config, PERMISSION_WRITE, "delete_ecs_infrastructure"
-    )(delete.delete_infrastructure)
     express.build_and_push_image_to_ecr = secure_tool(
         config, PERMISSION_WRITE, "build_and_push_image_to_ecr"
     )(express.build_and_push_image_to_ecr)

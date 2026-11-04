@@ -14,134 +14,77 @@
 
 """Connection management tools for DocumentDB MCP Server."""
 
-import uuid
-from datetime import datetime, timedelta
+import threading
+from awslabs.documentdb_mcp_server.config import serverConfig
 from loguru import logger
-from pydantic import Field
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, OperationFailure
-from typing import Annotated, Any, Dict
 from urllib.parse import parse_qs, urlparse
 
 
-class ConnectionInfo:
-    """Stores information about a DocumentDB connection."""
-
-    def __init__(self, connection_string: str, client: MongoClient):
-        """Initialize a ConnectionInfo object.
-
-        Args:
-            connection_string: The connection string used to connect to DocumentDB
-            client: The MongoDB client instance connected to DocumentDB
-        """
-        self.connection_string = connection_string
-        self.client = client
-        self.connection_id = str(uuid.uuid4())
-        self.last_used = datetime.now()
-
-
 class DocumentDBConnection:
-    """Manages connections to DocumentDB."""
+    """Manages the single operator-configured connection to DocumentDB."""
 
-    # Connection pool mapped by connection_id
-    _connections = {}
+    # The single pymongo client, created lazily from the operator-configured
+    # connection string.
+    _client = None
 
-    # Idle timeout in minutes (connections unused for this long will be closed)
-    _idle_timeout = 30
+    _lock = threading.Lock()
 
     @classmethod
-    def create_connection(cls, connection_string: str) -> ConnectionInfo:
-        """Create a new connection to DocumentDB.
-
-        Args:
-            connection_string: DocumentDB connection string
-                Example: "mongodb://username:password@docdb-cluster.cluster-xyz.us-west-2.docdb.amazonaws.com:27017/?tls=true&tlsCAFile=global-bundle.pem&retryWrites=false"  # pragma: allowlist secret
+    def _connect(cls) -> MongoClient:
+        """Build and verify a new client from the operator-configured connection string.
 
         Returns:
-            ConnectionInfo containing the connection ID and client
-        """
-        logger.info('Creating new DocumentDB connection')
-        DocumentDBConnection.validate_retry_writes_false(connection_string)
-        client = MongoClient(connection_string)
+            A new, verified pymongo client.
 
-        # Test connection
+        Raises:
+            ConnectionFailure/OperationFailure: If the initial connection fails.
+        """
+        logger.info('Creating DocumentDB connection from operator configuration')
+        client = MongoClient(serverConfig.connection_string)
         try:
             client.admin.command('ping')
             logger.info('Connected successfully to DocumentDB')
         except (ConnectionFailure, OperationFailure) as e:
             logger.error(f'Failed to connect to DocumentDB: {str(e)}')
+            client.close()
             raise
-
-        # Store connection info
-        connection_info = ConnectionInfo(connection_string, client)
-        cls._connections[connection_info.connection_id] = connection_info
-
-        return connection_info
+        return client
 
     @classmethod
-    def get_connection(cls, connection_id: str) -> MongoClient:
-        """Get an existing connection by ID.
-
-        Args:
-            connection_id: The connection ID returned by create_connection
+    def get_client(cls) -> MongoClient:
+        """Return the operator-configured DocumentDB client, creating it if needed.
 
         Returns:
-            An active pymongo client connected to DocumentDB
+            A pymongo client connected to the configured DocumentDB.
 
         Raises:
-            ValueError: If the connection ID is not found
+            ValueError: If no connection string has been configured (fail closed).
         """
-        if connection_id not in cls._connections:
-            raise ValueError(f'Connection ID {connection_id} not found. You must connect first.')
+        if not serverConfig.connection_string:
+            raise ValueError(
+                'DocumentDB connection is not configured. Start the server with '
+                '--connection-string (or set DOCUMENTDB_CONNECTION_STRING) to the '
+                'cluster endpoint this server should connect to.'
+            )
 
-        # Update last used timestamp
-        connection_info = cls._connections[connection_id]
-        connection_info.last_used = datetime.now()
+        if cls._client is None:
+            with cls._lock:
+                # Double-checked: another thread may have built it while we waited.
+                if cls._client is None:
+                    cls._client = cls._connect()
 
-        return connection_info.client
-
-    @classmethod
-    def close_connection(cls, connection_id: str) -> None:
-        """Close a specific connection by ID.
-
-        Args:
-            connection_id: The connection ID to close
-
-        Raises:
-            ValueError: If the connection ID is not found
-        """
-        if connection_id not in cls._connections:
-            raise ValueError(f'Connection ID {connection_id} not found')
-
-        logger.info(f'Closing DocumentDB connection {connection_id}')
-        connection_info = cls._connections[connection_id]
-        connection_info.client.close()
-        del cls._connections[connection_id]
+        return cls._client
 
     @classmethod
-    def close_idle_connections(cls) -> None:
-        """Close connections that have been idle for longer than the timeout."""
-        now = datetime.now()
-        idle_threshold = now - timedelta(minutes=cls._idle_timeout)
-
-        idle_connections = [
-            conn_id
-            for conn_id, info in cls._connections.items()
-            if info.last_used < idle_threshold
-        ]
-
-        for conn_id in idle_connections:
-            logger.info(f'Closing idle DocumentDB connection {conn_id}')
-            cls._connections[conn_id].client.close()
-            del cls._connections[conn_id]
-
-    @classmethod
-    def close_all_connections(cls) -> None:
-        """Close all open connections."""
-        for conn_id, conn_info in list(cls._connections.items()):
-            logger.info(f'Closing DocumentDB connection {conn_id}')
-            conn_info.client.close()
-        cls._connections.clear()
+    def close(cls) -> None:
+        """Close the DocumentDB connection if one is open."""
+        with cls._lock:
+            if cls._client is not None:
+                logger.info('Closing DocumentDB connection')
+                cls._client.close()
+                cls._client = None
 
     @staticmethod
     def validate_retry_writes_false(conn_str: str) -> None:
@@ -166,61 +109,3 @@ class DocumentDBConnection:
 
         if retry_value.lower() != 'false':
             raise ValueError(f"Invalid retryWrites value: '{retry_value}'. Expected 'false'.")
-
-
-async def connect(
-    connection_string: Annotated[
-        str,
-        Field(
-            description='DocumentDB connection string. Example: "mongodb://user:pass@docdb-cluster.cluster-xyz.us-west-2.docdb.amazonaws.com:27017/?tls=true&tlsCAFile=global-bundle.pem"'  # pragma: allowlist secret
-        ),
-    ],
-) -> Dict[str, Any]:
-    """Connect to an AWS DocumentDB cluster.
-
-    This tool establishes and validates a connection to DocumentDB.
-    The returned connection_id can be used with other tools instead of providing
-    the full connection string each time.
-
-    Returns:
-        Dict[str, Any]: Connection details including connection_id and available databases
-    """
-    try:
-        # Create connection and get connection info
-        connection_info = DocumentDBConnection.create_connection(connection_string)
-        client = connection_info.client
-
-        # List available databases
-        databases = client.list_database_names()
-
-        return {
-            'connection_id': connection_info.connection_id,
-            'message': 'Successfully connected to DocumentDB',
-            'databases': databases,
-        }
-    except Exception as e:
-        logger.error(f'Error connecting to DocumentDB: {str(e)}')
-        raise ValueError(f'Failed to connect to DocumentDB: {str(e)}')
-
-
-async def disconnect(
-    connection_id: Annotated[
-        str, Field(description='The connection ID returned by the connect tool')
-    ],
-) -> Dict[str, Any]:
-    """Close a connection to DocumentDB.
-
-    This tool closes a previously established connection to DocumentDB.
-
-    Returns:
-        Dict[str, Any]: Confirmation of successful disconnection
-    """
-    try:
-        DocumentDBConnection.close_connection(connection_id)
-        return {'success': True, 'message': f'Successfully closed connection {connection_id}'}
-    except ValueError as e:
-        logger.error(f'Error disconnecting from DocumentDB: {str(e)}')
-        raise ValueError(str(e))
-    except Exception as e:
-        logger.error(f'Error disconnecting from DocumentDB: {str(e)}')
-        raise ValueError(f'Failed to disconnect from DocumentDB: {str(e)}')

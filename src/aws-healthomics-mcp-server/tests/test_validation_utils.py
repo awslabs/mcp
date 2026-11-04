@@ -1743,6 +1743,112 @@ class TestParseTags:
             parse_tags(42)
 
 
+class TestNormalizeSessionPolicy:
+    """Tests for normalize_session_policy function."""
+
+    _policy = {
+        'Version': '2012-10-17',
+        'Statement': [{'Effect': 'Allow', 'Action': 's3:GetObject', 'Resource': '*'}],
+    }
+
+    def test_dict_is_serialized_compactly(self):
+        """A dict policy is serialized to compact JSON."""
+        import json
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            normalize_session_policy,
+        )
+
+        result = normalize_session_policy(self._policy)
+        assert result is not None
+        assert json.loads(result) == self._policy
+        assert ' ' not in result
+
+    def test_json_string_is_minified(self):
+        """A pretty-printed JSON string is re-serialized compactly."""
+        import json
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            normalize_session_policy,
+        )
+
+        result = normalize_session_policy(json.dumps(self._policy, indent=2))
+        assert result == json.dumps(self._policy, separators=(',', ':'))
+
+    def test_pretty_printed_string_over_limit_but_fits_when_minified(self):
+        """Whitespace does not count against the length limit."""
+        import json
+        from awslabs.aws_healthomics_mcp_server.consts import SESSION_POLICY_MAX_LENGTH
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            normalize_session_policy,
+        )
+
+        policy = {'k': 'a' * 1500}
+        pretty = json.dumps(policy, indent=1000)
+        assert len(pretty) > SESSION_POLICY_MAX_LENGTH
+
+        result = normalize_session_policy(pretty)
+        assert result is not None
+        assert len(result) <= SESSION_POLICY_MAX_LENGTH
+        assert json.loads(result) == policy
+
+    def test_non_ascii_is_not_escaped(self):
+        """Non-ASCII characters are kept as-is rather than expanded to unicode escapes."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            normalize_session_policy,
+        )
+
+        assert normalize_session_policy({'k': 'résumé-基因'}) == '{"k":"résumé-基因"}'
+
+    def test_none_and_unresolved_field_default_return_none(self):
+        """None and an unresolved pydantic FieldInfo default mean 'not provided'."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            normalize_session_policy,
+        )
+        from pydantic import Field
+
+        assert normalize_session_policy(None) is None
+        assert normalize_session_policy(Field(None)) is None
+
+    @pytest.mark.parametrize(
+        'value, match',
+        [
+            ('{not valid json}', 'not valid JSON'),
+            ('', 'not valid JSON'),
+            ('["a", "b"]', 'must be a JSON object'),
+            ('{}', 'must not be empty'),
+            ({}, 'must not be empty'),
+            (42, 'must be a JSON string or dict, got int'),
+            ({'k': {1, 2}}, 'not JSON serializable'),
+        ],
+    )
+    def test_invalid_inputs_raise(self, value, match):
+        """Malformed, non-object, empty, and unsupported inputs raise ValueError."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            normalize_session_policy,
+        )
+
+        with pytest.raises(ValueError, match=match):
+            normalize_session_policy(value)
+
+    def test_length_limit(self):
+        """Policies at the max length pass; one character more is rejected."""
+        from awslabs.aws_healthomics_mcp_server.consts import SESSION_POLICY_MAX_LENGTH
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            normalize_session_policy,
+        )
+
+        overhead = len('{"k":""}')
+        at_limit = '{"k":"' + 'a' * (SESSION_POLICY_MAX_LENGTH - overhead) + '"}'
+        assert len(at_limit) == SESSION_POLICY_MAX_LENGTH
+        assert normalize_session_policy(at_limit) == at_limit
+
+        over_limit = '{"k":"' + 'a' * (SESSION_POLICY_MAX_LENGTH - overhead + 1) + '"}'
+        with pytest.raises(ValueError, match='exceeds the maximum'):
+            normalize_session_policy(over_limit)
+
+        with pytest.raises(ValueError, match='exceeds the maximum'):
+            normalize_session_policy({'k': 'a' * SESSION_POLICY_MAX_LENGTH})
+
+
 class TestParseIdList:
     """Tests for parse_id_list function."""
 

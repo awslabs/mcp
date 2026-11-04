@@ -22,9 +22,6 @@ from typing import Annotated, Any, Dict, List, Optional
 
 
 async def find(
-    connection_id: Annotated[
-        str, Field(description='The connection ID returned by the connect tool')
-    ],
     database: Annotated[str, Field(description='Name of the database')],
     collection: Annotated[str, Field(description='Name of the collection')],
     query: Annotated[
@@ -46,12 +43,7 @@ async def find(
         List[Dict[str, Any]]: List of matching documents
     """
     try:
-        # Get connection
-        if connection_id not in DocumentDBConnection._connections:
-            raise ValueError(f'Connection ID {connection_id} not found. You must connect first.')
-
-        connection_info = DocumentDBConnection._connections[connection_id]
-        client = connection_info.client
+        client = DocumentDBConnection.get_client()
 
         db = client[database]
         coll = db[collection]
@@ -74,9 +66,6 @@ async def find(
 
 
 async def aggregate(
-    connection_id: Annotated[
-        str, Field(description='The connection ID returned by the connect tool')
-    ],
     database: Annotated[str, Field(description='Name of the database')],
     collection: Annotated[str, Field(description='Name of the collection')],
     pipeline: Annotated[
@@ -106,12 +95,7 @@ async def aggregate(
                 )
 
     try:
-        # Get connection
-        if connection_id not in DocumentDBConnection._connections:
-            raise ValueError(f'Connection ID {connection_id} not found. You must connect first.')
-
-        connection_info = DocumentDBConnection._connections[connection_id]
-        client = connection_info.client
+        client = DocumentDBConnection.get_client()
 
         db = client[database]
         coll = db[collection]

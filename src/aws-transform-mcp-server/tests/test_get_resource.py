@@ -465,42 +465,58 @@ class TestGetResourceHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        'awslabs.aws_transform_mcp_server.tools.get_resource.paginate_all',
         new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
     )
-    async def test_plan_success(self, _, mock_fes, handler, ctx):
-        async def fes_side_effect(op, body):
-            if op == 'ListJobPlanSteps':
-                return {'steps': [{'id': 's1'}]}
-            return {'updates': [{'id': 'u1'}]}
-
-        mock_fes.side_effect = fes_side_effect
+    async def test_plan_success(self, _, mock_paginate, handler, ctx):
+        mock_paginate.return_value = {'steps': [{'id': 's1'}]}
         result = await handler.get_resource(
             ctx, resource=GetResourceType.plan, workspaceId='ws1', jobId='j1'
         )
         parsed = _parse_result(result)
         assert parsed['success'] is True
         assert 'planSteps' in parsed['data']
-        assert 'planUpdates' in parsed['data']
+        assert 'planUpdates' not in parsed['data']
+        mock_paginate.assert_awaited_once_with(
+            'ListJobPlanSteps', {'workspaceId': 'ws1', 'jobId': 'j1'}, 'steps'
+        )
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        'awslabs.aws_transform_mcp_server.tools.get_resource.paginate_all',
         new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
     )
-    async def test_plan_both_fail(self, _, mock_fes, handler, ctx):
-        mock_fes.side_effect = RuntimeError('api error')
+    async def test_plan_no_steps_returns_not_found(self, _, mock_paginate, handler, ctx):
+        """A planless job returns empty steps (not an error) and maps to NOT_FOUND."""
+        mock_paginate.return_value = {'steps': []}
         result = await handler.get_resource(
             ctx, resource=GetResourceType.plan, workspaceId='ws1', jobId='j1'
         )
         parsed = _parse_result(result)
         assert parsed['error']['code'] == 'NOT_FOUND'
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.paginate_all',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
+    async def test_plan_api_error_returns_failure(self, _, mock_paginate, handler, ctx):
+        mock_paginate.side_effect = RuntimeError('api error')
+        result = await handler.get_resource(
+            ctx, resource=GetResourceType.plan, workspaceId='ws1', jobId='j1'
+        )
+        parsed = _parse_result(result)
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'REQUEST_FAILED'
 
     # ── exception handling ─────────────────────────────────────────────
 

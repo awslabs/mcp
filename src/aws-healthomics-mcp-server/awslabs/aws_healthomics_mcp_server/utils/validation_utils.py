@@ -15,6 +15,10 @@
 """Validation utilities for workflow management."""
 
 import posixpath
+from awslabs.aws_healthomics_mcp_server.consts import (
+    ERROR_INVALID_SESSION_POLICY,
+    SESSION_POLICY_MAX_LENGTH,
+)
 from awslabs.aws_healthomics_mcp_server.models import ContainerRegistryMap, DefinitionRepository
 from awslabs.aws_healthomics_mcp_server.utils.content_resolver import resolve_single_content
 from enum import Enum
@@ -125,6 +129,68 @@ def parse_tags(tags: Any) -> Dict[str, str]:
             raise ValueError('Tags JSON must be an object, e.g. {"key": "value"}')
         return parsed
     raise ValueError(f'Tags must be a JSON string or dict, got {type(tags).__name__}')
+
+
+def normalize_session_policy(session_policy: Any) -> Optional[str]:
+    """Normalize a session policy into the compact JSON string expected by HealthOmics.
+
+    MCP clients may send the policy as a JSON string or as a native dict object.
+    Both are re-serialized compactly so whitespace does not count against the
+    SESSION_POLICY_MAX_LENGTH limit. Only the shape (non-empty JSON object) and
+    length are checked locally; IAM policy semantics are validated by the service.
+
+    Args:
+        session_policy: Inline IAM policy as a JSON string or a dict, or None.
+            An unresolved pydantic FieldInfo default (direct invocation) is treated as None.
+
+    Returns:
+        The session policy as a compact JSON string, or None if not provided.
+
+    Raises:
+        ValueError: If the policy is not a JSON object, is empty, is not JSON
+            serializable, exceeds SESSION_POLICY_MAX_LENGTH characters, or is an
+            unsupported type.
+    """
+    import json
+    from pydantic.fields import FieldInfo
+
+    if session_policy is None or isinstance(session_policy, FieldInfo):
+        return None
+
+    if isinstance(session_policy, dict):
+        parsed = session_policy
+    elif isinstance(session_policy, str):
+        try:
+            parsed = json.loads(session_policy)
+        except json.JSONDecodeError as e:
+            raise ValueError(ERROR_INVALID_SESSION_POLICY.format(f'not valid JSON ({e})')) from e
+        if not isinstance(parsed, dict):
+            raise ValueError(ERROR_INVALID_SESSION_POLICY.format('must be a JSON object'))
+    else:
+        raise ValueError(
+            ERROR_INVALID_SESSION_POLICY.format(
+                f'must be a JSON string or dict, got {type(session_policy).__name__}'
+            )
+        )
+
+    if not parsed:
+        raise ValueError(ERROR_INVALID_SESSION_POLICY.format('must not be empty'))
+
+    try:
+        policy_str = json.dumps(parsed, separators=(',', ':'), ensure_ascii=False)
+    except (TypeError, ValueError) as e:
+        raise ValueError(
+            ERROR_INVALID_SESSION_POLICY.format(f'not JSON serializable ({e})')
+        ) from e
+
+    if len(policy_str) > SESSION_POLICY_MAX_LENGTH:
+        raise ValueError(
+            ERROR_INVALID_SESSION_POLICY.format(
+                f'length {len(policy_str)} exceeds the maximum of '
+                f'{SESSION_POLICY_MAX_LENGTH} characters'
+            )
+        )
+    return policy_str
 
 
 def parse_id_list(value: Any) -> list:

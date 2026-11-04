@@ -134,7 +134,9 @@ class WDLWorkflowLinter(WorkflowLinter):
         tmp_path = None
         try:
             # Create temporary file for the WDL content
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.wdl', delete=False) as tmp_file:
+            with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.wdl', delete=False, encoding='utf-8'
+            ) as tmp_file:
                 tmp_file.write(workflow_content)
                 tmp_path = Path(tmp_file.name)
 
@@ -197,7 +199,7 @@ class WDLWorkflowLinter(WorkflowLinter):
                         )
 
                     full_path.parent.mkdir(parents=True, exist_ok=True)
-                    full_path.write_text(content)
+                    full_path.write_text(content, encoding='utf-8')
 
                 # Validate main_workflow_file path stays within temp directory
                 main_file_path = (tmp_path / main_workflow_file).resolve()
@@ -253,7 +255,9 @@ class CWLWorkflowLinter(WorkflowLinter):
         tmp_path = None
         try:
             # Create temporary file for the CWL content
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.cwl', delete=False) as tmp_file:
+            with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.cwl', delete=False, encoding='utf-8'
+            ) as tmp_file:
                 tmp_file.write(workflow_content)
                 tmp_path = Path(tmp_file.name)
 
@@ -316,7 +320,7 @@ class CWLWorkflowLinter(WorkflowLinter):
                         )
 
                     full_path.parent.mkdir(parents=True, exist_ok=True)
-                    full_path.write_text(content)
+                    full_path.write_text(content, encoding='utf-8')
 
                 # Validate main_workflow_file path stays within temp directory
                 main_file_path = (tmp_path / main_workflow_file).resolve()

@@ -305,6 +305,59 @@ class TestProbeSigv4Fes:
 
         mock_set.assert_called_once_with(False)
 
+    @pytest.mark.asyncio
+    async def test_discovery_is_scoped_to_the_caller_partition(self):
+        """The resolved region picks the partition the probe fans out over."""
+        from awslabs.aws_transform_mcp_server.server import _probe_sigv4_transform_api
+
+        mock_session = MagicMock()
+        mock_session.get_credentials.return_value = MagicMock()
+
+        with (
+            patch(f'{_SERVER_MOD}.AwsHelper') as mock_helper,
+            patch(f'{_SERVER_MOD}.set_sigv4_fes_available'),
+            patch(f'{_SERVER_MOD}.set_sigv4_region'),
+            patch(f'{_SERVER_MOD}._discover_sigv4_regions', new_callable=AsyncMock) as mock_disc,
+        ):
+            mock_helper.create_session.return_value = mock_session
+            mock_helper.resolve_region.return_value = 'us-gov-west-1'
+            mock_disc.return_value = ['us-gov-west-1']
+            await _probe_sigv4_transform_api()
+
+        mock_disc.assert_awaited_once_with('us-gov-west-1')
+
+
+# ── _discover_sigv4_regions ─────────────────────────────────────────────
+
+
+class TestDiscoverSigv4Regions:
+    """The probe must not fan out across partitions."""
+
+    @pytest.mark.asyncio
+    async def test_gov_region_probes_only_gov_fes(self):
+        from awslabs.aws_transform_mcp_server.consts import FES_GOV_REGIONS
+        from awslabs.aws_transform_mcp_server.server import _discover_sigv4_regions
+
+        with patch(f'{_SERVER_MOD}.call_fes_direct_sigv4', new_callable=AsyncMock) as mock_sigv4:
+            mock_sigv4.return_value = {'workspaces': []}
+            regions = await _discover_sigv4_regions('us-gov-west-1')
+
+        assert regions == FES_GOV_REGIONS
+        assert mock_sigv4.call_count == len(FES_GOV_REGIONS)
+        assert mock_sigv4.call_args.kwargs['region'] == 'us-gov-west-1'
+
+    @pytest.mark.asyncio
+    async def test_commercial_region_never_probes_gov(self):
+        from awslabs.aws_transform_mcp_server.consts import FES_REGIONS
+        from awslabs.aws_transform_mcp_server.server import _discover_sigv4_regions
+
+        with patch(f'{_SERVER_MOD}.call_fes_direct_sigv4', new_callable=AsyncMock) as mock_sigv4:
+            mock_sigv4.return_value = {'workspaces': []}
+            regions = await _discover_sigv4_regions('us-east-1')
+
+        assert regions == FES_REGIONS
+        assert not any(r.startswith('us-gov-') for r in regions)
+
 
 # ── _startup clears stale config ─────────────────────────────────────────
 

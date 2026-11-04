@@ -124,6 +124,12 @@ configured_secret_arns: Dict[str, str] = {}
 configured_default_secret_arn: Optional[str] = None
 
 
+def _configure_windows_event_loop_policy() -> None:
+    """Use a selector loop on Windows for psycopg's async connections."""
+    if sys.platform == 'win32':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
 class DummyCtx(Context):
     """A dummy context class for error handling in MCP tools."""
 
@@ -1562,6 +1568,10 @@ def main():
     global configured_rds_proxy_mode
     global configured_ca_bundle
     global configured_sslmode
+
+    # psycopg's async mode does not support ProactorEventLoop. Set the policy
+    # before startup validation or MCP can create an event loop.
+    _configure_windows_event_loop_policy()
 
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for postgres'

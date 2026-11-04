@@ -30,6 +30,7 @@ def mock_context():
     context.info = AsyncMock()
     context.warning = AsyncMock()
     context.error = AsyncMock()
+    context.debug = AsyncMock()
     return context
 
 
@@ -158,7 +159,8 @@ class TestGetAnomalies:
             end_date,
             None,  # monitor_arn
             None,  # feedback
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # total_impact_operator
             None,  # total_impact_start
             None,  # total_impact_end
@@ -191,7 +193,8 @@ class TestGetAnomalies:
             end_date,
             monitor_arn,
             None,  # feedback
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # total_impact_operator
             None,  # total_impact_start
             None,  # total_impact_end
@@ -217,7 +220,8 @@ class TestGetAnomalies:
             end_date,
             None,  # monitor_arn
             feedback,
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # total_impact_operator
             None,  # total_impact_start
             None,  # total_impact_end
@@ -228,12 +232,12 @@ class TestGetAnomalies:
         assert 'Feedback' in call_kwargs
         assert call_kwargs['Feedback'] == 'YES'
 
-    async def test_get_anomalies_with_max_results(self, mock_context, mock_ce_client):
-        """Test get_anomalies with max_results parameter."""
+    async def test_get_anomalies_with_max_items(self, mock_context, mock_ce_client):
+        """max_items sets the page size when it is below the 10,000 page maximum."""
         # Setup
         start_date = '2023-01-01'
         end_date = '2023-01-31'
-        max_results = 50
+        max_items = 50
 
         # Execute
         await get_anomalies(
@@ -243,7 +247,8 @@ class TestGetAnomalies:
             end_date,
             None,  # monitor_arn
             None,  # feedback
-            max_results,
+            max_items,
+            None,  # next_token
             None,  # total_impact_operator
             None,  # total_impact_start
             None,  # total_impact_end
@@ -270,7 +275,8 @@ class TestGetAnomalies:
             end_date,
             None,  # monitor_arn
             None,  # feedback
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             total_impact_operator,
             total_impact_start,
             None,  # total_impact_end
@@ -299,7 +305,8 @@ class TestGetAnomalies:
             end_date,
             None,  # monitor_arn
             None,  # feedback
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             total_impact_operator,
             total_impact_start,
             total_impact_end,
@@ -362,7 +369,8 @@ class TestGetAnomalies:
             end_date,
             None,  # monitor_arn
             None,  # feedback
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # total_impact_operator
             None,  # total_impact_start
             None,  # total_impact_end
@@ -410,7 +418,8 @@ class TestGetAnomalies:
             end_date,
             None,  # monitor_arn
             None,  # feedback
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # total_impact_operator
             None,  # total_impact_start
             None,  # total_impact_end

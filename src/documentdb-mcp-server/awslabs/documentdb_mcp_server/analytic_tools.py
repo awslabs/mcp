@@ -21,9 +21,6 @@ from typing import Annotated, Any, Dict, List, Optional
 
 
 async def count_documents(
-    connection_id: Annotated[
-        str, Field(description='The connection ID returned by the connect tool')
-    ],
     database: Annotated[str, Field(description='Name of the database')],
     collection: Annotated[str, Field(description='Name of the collection')],
     filter: Annotated[
@@ -39,12 +36,7 @@ async def count_documents(
         Dict[str, Any]: Count result
     """
     try:
-        # Get connection
-        if connection_id not in DocumentDBConnection._connections:
-            raise ValueError(f'Connection ID {connection_id} not found. You must connect first.')
-
-        connection_info = DocumentDBConnection._connections[connection_id]
-        client = connection_info.client
+        client = DocumentDBConnection.get_client()
 
         db = client[database]
         coll = db[collection]
@@ -66,9 +58,6 @@ async def count_documents(
 
 
 async def get_database_stats(
-    connection_id: Annotated[
-        str, Field(description='The connection ID returned by the connect tool')
-    ],
     database: Annotated[str, Field(description='Name of the database')],
 ) -> Dict[str, Any]:
     """Get statistics about a DocumentDB database.
@@ -80,12 +69,7 @@ async def get_database_stats(
         Dict[str, Any]: Database statistics
     """
     try:
-        # Get connection
-        if connection_id not in DocumentDBConnection._connections:
-            raise ValueError(f'Connection ID {connection_id} not found. You must connect first.')
-
-        connection_info = DocumentDBConnection._connections[connection_id]
-        client = connection_info.client
+        client = DocumentDBConnection.get_client()
 
         db = client[database]
 
@@ -103,9 +87,6 @@ async def get_database_stats(
 
 
 async def get_collection_stats(
-    connection_id: Annotated[
-        str, Field(description='The connection ID returned by the connect tool')
-    ],
     database: Annotated[str, Field(description='Name of the database')],
     collection: Annotated[str, Field(description='Name of the collection')],
 ) -> Dict[str, Any]:
@@ -118,12 +99,7 @@ async def get_collection_stats(
         Dict[str, Any]: Collection statistics
     """
     try:
-        # Get connection
-        if connection_id not in DocumentDBConnection._connections:
-            raise ValueError(f'Connection ID {connection_id} not found. You must connect first.')
-
-        connection_info = DocumentDBConnection._connections[connection_id]
-        client = connection_info.client
+        client = DocumentDBConnection.get_client()
 
         db = client[database]
 
@@ -196,9 +172,6 @@ def get_field_type(docs, path):
 
 
 async def analyze_schema(
-    connection_id: Annotated[
-        str, Field(description='The connection ID returned by the connect tool')
-    ],
     database: Annotated[str, Field(description='Name of the database')],
     collection: Annotated[str, Field(description='Name of the collection to analyze')],
     sample_size: Annotated[
@@ -214,12 +187,7 @@ async def analyze_schema(
         Dict[str, Any]: Schema analysis results including field coverage
     """
     try:
-        # Get connection
-        if connection_id not in DocumentDBConnection._connections:
-            raise ValueError(f'Connection ID {connection_id} not found. You must connect first.')
-
-        connection_info = DocumentDBConnection._connections[connection_id]
-        client = connection_info.client
+        client = DocumentDBConnection.get_client()
 
         db = client[database]
         coll = db[collection]
@@ -293,9 +261,6 @@ async def analyze_schema(
 
 
 async def explain_operation(
-    connection_id: Annotated[
-        str, Field(description='The connection ID returned by the connect tool')
-    ],
     database: Annotated[str, Field(description='Name of the database')],
     collection: Annotated[str, Field(description='Name of the collection')],
     operation_type: Annotated[
@@ -321,12 +286,7 @@ async def explain_operation(
         Dict[str, Any]: Operation explanation
     """
     try:
-        # Get connection
-        if connection_id not in DocumentDBConnection._connections:
-            raise ValueError(f'Connection ID {connection_id} not found. You must connect first.')
-
-        connection_info = DocumentDBConnection._connections[connection_id]
-        client = connection_info.client
+        client = DocumentDBConnection.get_client()
 
         db = client[database]
         # Get collection but no need to store in variable since we use db.command directly

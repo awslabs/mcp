@@ -14,8 +14,6 @@
 """Tests for DocumentDB MCP Server write tools (insert, update, delete)."""
 
 import pytest
-import uuid
-from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
 from awslabs.documentdb_mcp_server.write_tools import delete, insert, serverConfig, update
 
 
@@ -31,10 +29,6 @@ class TestInsertTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', True)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up document
         document = {'name': 'Test Document', 'value': 42}
@@ -43,7 +37,7 @@ class TestInsertTool:
         with pytest.raises(
             ValueError, match='Operation not permitted: Server is configured in read-only mode'
         ):
-            await insert(connection_id, 'test_db', 'test_collection', document)
+            await insert('test_db', 'test_collection', document)
 
     @pytest.mark.asyncio
     async def test_insert_multiple_documents_read_only_mode(
@@ -54,10 +48,6 @@ class TestInsertTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', True)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up documents
         documents = [{'name': 'Document 1', 'value': 10}, {'name': 'Document 2', 'value': 20}]
@@ -66,7 +56,7 @@ class TestInsertTool:
         with pytest.raises(
             ValueError, match='Operation not permitted: Server is configured in read-only mode'
         ):
-            await insert(connection_id, 'test_db', 'test_collection', documents)
+            await insert('test_db', 'test_collection', documents)
 
     @pytest.mark.asyncio
     async def test_insert_single_document_success(self, mock_ctx, patch_client, monkeypatch):
@@ -75,16 +65,12 @@ class TestInsertTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up document
         document = {'name': 'Test Document', 'value': 42}
 
         # Act
-        result = await insert(connection_id, 'test_db', 'test_collection', document)
+        result = await insert('test_db', 'test_collection', document)
 
         # Assert
         assert result['success'] is True
@@ -99,16 +85,12 @@ class TestInsertTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up documents
         documents = [{'name': 'Document 1', 'value': 10}, {'name': 'Document 2', 'value': 20}]
 
         # Act
-        result = await insert(connection_id, 'test_db', 'test_collection', documents)
+        result = await insert('test_db', 'test_collection', documents)
 
         # Assert
         assert result['success'] is True
@@ -118,8 +100,8 @@ class TestInsertTool:
         assert isinstance(result['inserted_ids'][1], str)
 
     @pytest.mark.asyncio
-    async def test_insert_connection_not_found(self, mock_ctx, monkeypatch):
-        """Test insert with invalid connection ID."""
+    async def test_insert_not_configured(self, mock_ctx, monkeypatch):
+        """Test insert when no connection string is configured."""
         # Arrange
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
@@ -127,8 +109,8 @@ class TestInsertTool:
         document = {'name': 'Test Document', 'value': 42}
 
         # Act/Assert
-        with pytest.raises(ValueError, match='Connection ID .* not found'):
-            await insert(str(uuid.uuid4()), 'test_db', 'test_collection', document)
+        with pytest.raises(ValueError, match='connection is not configured'):
+            await insert('test_db', 'test_collection', document)
 
     @pytest.mark.asyncio
     async def test_insert_handles_generic_exception(self, mock_ctx, patch_client, monkeypatch):
@@ -137,10 +119,6 @@ class TestInsertTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Mock the insert_one method to raise an exception
         def mock_insert_one(*args, **kwargs):
@@ -155,7 +133,7 @@ class TestInsertTool:
 
         # Act/Assert
         with pytest.raises(ValueError, match='Failed to insert documents: Generic error'):
-            await insert(connection_id, 'test_db', 'test_collection', document)
+            await insert('test_db', 'test_collection', document)
 
 
 class TestUpdateTool:
@@ -170,10 +148,6 @@ class TestUpdateTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', True)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up filter and update
         filter_doc = {'name': 'Old Name'}
@@ -183,7 +157,7 @@ class TestUpdateTool:
         with pytest.raises(
             ValueError, match='Operation not permitted: Server is configured in read-only mode'
         ):
-            await update(connection_id, 'test_db', 'test_collection', filter_doc, update_doc)
+            await update('test_db', 'test_collection', filter_doc, update_doc)
 
     @pytest.mark.asyncio
     async def test_update_single_document_success(self, mock_ctx, patch_client, monkeypatch):
@@ -192,10 +166,6 @@ class TestUpdateTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up test document
         document = {'name': 'Old Name', 'value': 42}
@@ -206,7 +176,7 @@ class TestUpdateTool:
         update_doc = {'$set': {'name': 'New Name'}}
 
         # Act
-        result = await update(connection_id, 'test_db', 'test_collection', filter_doc, update_doc)
+        result = await update('test_db', 'test_collection', filter_doc, update_doc)
 
         # Assert
         assert result['success'] is True
@@ -221,10 +191,6 @@ class TestUpdateTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up test documents
         documents = [
@@ -239,9 +205,7 @@ class TestUpdateTool:
         update_doc = {'$set': {'status': 'completed'}}
 
         # Act
-        result = await update(
-            connection_id, 'test_db', 'test_collection', filter_doc, update_doc, False, True
-        )
+        result = await update('test_db', 'test_collection', filter_doc, update_doc, False, True)
 
         # Assert
         assert result['success'] is True
@@ -256,19 +220,13 @@ class TestUpdateTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up filter and update for a document that doesn't exist
         filter_doc = {'name': 'Non-existent'}
         update_doc = {'$set': {'name': 'New Document', 'value': 100}}
 
         # Act
-        result = await update(
-            connection_id, 'test_db', 'test_collection', filter_doc, update_doc, True, False
-        )
+        result = await update('test_db', 'test_collection', filter_doc, update_doc, True, False)
 
         # Assert
         assert result['success'] is True
@@ -282,10 +240,6 @@ class TestUpdateTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up test document
         document = {'name': 'Old Name', 'value': 42}
@@ -296,7 +250,7 @@ class TestUpdateTool:
         update_doc = {'name': 'New Name'}  # No $set operator
 
         # Act
-        result = await update(connection_id, 'test_db', 'test_collection', filter_doc, update_doc)
+        result = await update('test_db', 'test_collection', filter_doc, update_doc)
 
         # Assert
         assert result['success'] is True
@@ -304,8 +258,8 @@ class TestUpdateTool:
         assert result['modified_count'] == 1
 
     @pytest.mark.asyncio
-    async def test_update_connection_not_found(self, mock_ctx, monkeypatch):
-        """Test update with invalid connection ID."""
+    async def test_update_not_configured(self, mock_ctx, monkeypatch):
+        """Test update when no connection string is configured."""
         # Arrange
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
@@ -314,8 +268,8 @@ class TestUpdateTool:
         update_doc = {'$set': {'name': 'Updated'}}
 
         # Act/Assert
-        with pytest.raises(ValueError, match='Connection ID .* not found'):
-            await update(str(uuid.uuid4()), 'test_db', 'test_collection', filter_doc, update_doc)
+        with pytest.raises(ValueError, match='connection is not configured'):
+            await update('test_db', 'test_collection', filter_doc, update_doc)
 
     @pytest.mark.asyncio
     async def test_update_handles_generic_exception(self, mock_ctx, patch_client, monkeypatch):
@@ -324,10 +278,6 @@ class TestUpdateTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Mock the update_one method to raise an exception
         def mock_update_one(*args, **kwargs):
@@ -343,7 +293,7 @@ class TestUpdateTool:
 
         # Act/Assert
         with pytest.raises(ValueError, match='Failed to update documents: Generic error'):
-            await update(connection_id, 'test_db', 'test_collection', filter_doc, update_doc)
+            await update('test_db', 'test_collection', filter_doc, update_doc)
 
 
 class TestDeleteTool:
@@ -358,10 +308,6 @@ class TestDeleteTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', True)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up filter
         filter_doc = {'name': 'Test Document'}
@@ -370,7 +316,7 @@ class TestDeleteTool:
         with pytest.raises(
             ValueError, match='Operation not permitted: Server is configured in read-only mode'
         ):
-            await delete(connection_id, 'test_db', 'test_collection', filter_doc)
+            await delete('test_db', 'test_collection', filter_doc)
 
     @pytest.mark.asyncio
     async def test_delete_single_document_success(self, mock_ctx, patch_client, monkeypatch):
@@ -379,10 +325,6 @@ class TestDeleteTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up test document
         document = {'name': 'Test Document', 'value': 42}
@@ -392,7 +334,7 @@ class TestDeleteTool:
         filter_doc = {'name': 'Test Document'}
 
         # Act
-        result = await delete(connection_id, 'test_db', 'test_collection', filter_doc)
+        result = await delete('test_db', 'test_collection', filter_doc)
 
         # Assert
         assert result['success'] is True
@@ -405,10 +347,6 @@ class TestDeleteTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up test documents
         documents = [
@@ -422,15 +360,15 @@ class TestDeleteTool:
         filter_doc = {'category': 'A', 'status': 'expired'}
 
         # Act
-        result = await delete(connection_id, 'test_db', 'test_collection', filter_doc, True)
+        result = await delete('test_db', 'test_collection', filter_doc, True)
 
         # Assert
         assert result['success'] is True
         assert result['deleted_count'] > 0
 
     @pytest.mark.asyncio
-    async def test_delete_connection_not_found(self, mock_ctx, monkeypatch):
-        """Test delete with invalid connection ID."""
+    async def test_delete_not_configured(self, mock_ctx, monkeypatch):
+        """Test delete when no connection string is configured."""
         # Arrange
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
@@ -438,8 +376,8 @@ class TestDeleteTool:
         filter_doc = {'name': 'Test Document'}
 
         # Act/Assert
-        with pytest.raises(ValueError, match='Connection ID .* not found'):
-            await delete(str(uuid.uuid4()), 'test_db', 'test_collection', filter_doc)
+        with pytest.raises(ValueError, match='connection is not configured'):
+            await delete('test_db', 'test_collection', filter_doc)
 
     @pytest.mark.asyncio
     async def test_delete_handles_generic_exception(self, mock_ctx, patch_client, monkeypatch):
@@ -448,10 +386,6 @@ class TestDeleteTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Mock the delete_one method to raise an exception
         def mock_delete_one(*args, **kwargs):
@@ -466,4 +400,4 @@ class TestDeleteTool:
 
         # Act/Assert
         with pytest.raises(ValueError, match='Failed to delete documents: Generic error'):
-            await delete(connection_id, 'test_db', 'test_collection', filter_doc)
+            await delete('test_db', 'test_collection', filter_doc)
