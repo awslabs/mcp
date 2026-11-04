@@ -168,9 +168,10 @@ _TARGET_ROLE_READ_ONLY = 'READ_ONLY'
 
 # Proxy topology changes on the order of minutes at worst, while this lookup sits
 # on the connect path and costs 1 + N describe calls. A short TTL keeps repeated
-# connects cheap without pinning a stale answer for long. Keyed by (region,
-# instance); the value is (expiry_monotonic, proxy_dict_or_None) so a negative
-# result is cached too -- the no-proxy case is the common one.
+# connects cheap without pinning a stale answer for long. The value is
+# (expiry_monotonic, proxy_dict_or_None) so a negative
+# result is cached too -- the no-proxy case is the common one. See the key type
+# below for what actually distinguishes one lookup from another.
 _PROXY_LOOKUP_TTL_SECONDS = 60.0
 # Key: (region, target_id, is_cluster, want_read_only). The last two are part of
 # the key because the answer genuinely differs by them -- an instance and a
@@ -510,7 +511,8 @@ def proxy_supports_connection(
       actually authenticate with, otherwise the proxy has no credentials for us.
 
     Args:
-        proxy: A DBProxy dict as returned by find_proxy_for_instance.
+        proxy: A DBProxy dict as returned by find_proxy_for_instance or
+            find_proxy_for_cluster.
         connection_method: The ConnectionMethod value in use.
         secret_arn: The Secrets Manager ARN this connection will authenticate with,
             or '' when none is resolved (valid on the IAM path).

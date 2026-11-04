@@ -1017,6 +1017,137 @@ class TestInternalCreateConnection:
 
             assert mock_pg_conn.call_args[1]['host'] == proxy_host
 
+    @pytest.mark.parametrize(
+        'bad_value', ['on', 'true', 'enabled', 'yes', '1', 'disabled', 'proxy', '']
+    )
+    def test_rds_proxy_parameter_rejects_unrecognized_values(self, bad_value):
+        """An unhonourable value must raise, not silently connect directly.
+
+        --rds_proxy is guarded by argparse choices=; this parameter has no such
+        guard, so without validation anything other than exact lowercase 'auto'
+        would fail the mode comparison and connect directly -- indistinguishable
+        from "this target has no proxy". That matters here more than most places:
+        the parameter exists so a caller that is not the config file can request
+        proxy routing, and a model filling an enum produces 'AUTO' or 'true' a
+        fair share of the time.
+        """
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_instance_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection'),
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
+        ):
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'MasterUsername': 'postgres',
+                'MasterUserSecret': {'SecretArn': _FIXTURE_SECRET_ARN},
+                'Endpoint': {'Address': 'instance.endpoint.com', 'Port': 5432},
+                'DBInstanceIdentifier': 'my-instance',
+            }
+
+            with pytest.raises(ValueError, match='rds_proxy must be'):
+                server_module.internal_create_connection(
+                    region='us-east-1',
+                    database_type=DatabaseType.RPG,
+                    connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                    cluster_identifier='',
+                    db_endpoint='instance.endpoint.com',
+                    port=5432,
+                    database='testdb',
+                    rds_proxy=bad_value,
+                )
+
+            # Refused before any lookup: a rejected request must not have side effects.
+            mock_proxy.assert_not_called()
+
+    @pytest.mark.parametrize(
+        'value,expect_lookup',
+        [('auto', True), ('AUTO', True), ('  Auto  ', True), ('off', False), ('OFF', False)],
+    )
+    def test_rds_proxy_parameter_is_case_and_whitespace_insensitive(self, value, expect_lookup):
+        """Case and surrounding whitespace are normalized rather than rejected.
+
+        Rejecting 'AUTO' outright would be honest but unhelpful; the intent is
+        unambiguous, so normalize it and only raise for values that name no mode.
+        """
+        proxy_host = 'my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com'
+
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_instance_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
+        ):
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'MasterUsername': 'postgres',
+                'MasterUserSecret': {'SecretArn': _FIXTURE_SECRET_ARN},
+                'Endpoint': {'Address': 'instance.endpoint.com', 'Port': 5432},
+                'DBInstanceIdentifier': 'my-instance',
+            }
+            mock_proxy.return_value = _proxy(proxy_host)
+            mock_pg_conn.return_value = MagicMock()
+
+            server_module.internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.RPG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='',
+                db_endpoint='instance.endpoint.com',
+                port=5432,
+                database='testdb',
+                rds_proxy=value,
+            )
+
+            assert mock_proxy.called is expect_lookup
+            expected_host = proxy_host if expect_lookup else 'instance.endpoint.com'
+            assert mock_pg_conn.call_args[1]['host'] == expected_host
+
+    def test_rds_api_never_pays_for_a_proxy_lookup(self):
+        """The Data API cannot use a proxy, so it must not pay to discover one.
+
+        proxy_supports_connection rejects RDS_API correctly, but only after the
+        lookup has already cost one describe_db_proxies plus N paginated
+        describe_db_proxy_targets. Every Data API deployment that enables the flag
+        would pay that on the connect path for a discarded result.
+        """
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+            ) as mock_props,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_valid_endpoints'
+            ) as mock_valid,
+            patch('awslabs.postgres_mcp_server.server.RDSDataAPIConnection') as mock_rds_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_cluster') as mock_cluster,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_inst,
+        ):
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
+            mock_map.get.return_value = None
+            props = self._apg_cluster_props()
+            props['HttpEndpointEnabled'] = True
+            mock_props.return_value = props
+            mock_valid.return_value = [(props['Endpoint'], 5432)]
+            mock_rds_conn.return_value = MagicMock()
+
+            server_module.internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.RDS_API,
+                cluster_identifier='c',
+                db_endpoint=props['Endpoint'],
+                port=5432,
+                database='testdb',
+            )
+
+            mock_cluster.assert_not_called()
+            mock_inst.assert_not_called()
+
     def test_rpg_instance_uses_direct_endpoint_when_no_proxy(self):
         """Test that direct endpoint is used when no RDS Proxy is found."""
         with (
