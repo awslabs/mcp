@@ -2487,6 +2487,39 @@ class TestFutureBillingPeriod:
         call_kwargs = mock_client.get_billing_group_cost_report.call_args[1]
         assert call_kwargs.get('BillingPeriodRange') == rng
 
+    @pytest.mark.parametrize('start', [202701, {'Year': 2027}, True])
+    async def test_cost_report_non_string_start_is_a_param_validation_error(
+        self, _today, mock_ctx, start, monkeypatch
+    ):
+        """A non-string start is left to botocore, whose error names the field and type."""
+        monkeypatch.delenv('AWS_PROFILE', raising=False)
+        client = boto3.Session(
+            aws_access_key_id='a', aws_secret_access_key='b', region_name='us-east-1'
+        ).client('billingconductor')
+        sent = []
+
+        def _record_and_block(request, **_):
+            # A request that got past botocore's validation is recorded and never sent.
+            sent.append(request)
+            raise AssertionError('request reached the wire')
+
+        client.meta.events.register('before-send', _record_and_block)
+        rng = json.dumps(
+            {'InclusiveStartBillingPeriod': start, 'ExclusiveEndBillingPeriod': '2026-10'}
+        )
+
+        with patch(PATCH_BC_CLIENT, return_value=client):
+            result = await get_billing_group_cost_report(mock_ctx, BILLING_GROUP_ARN_1, rng)
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'validation_error'
+        assert result['boto_error_type'] == 'ParamValidationError'
+        assert (
+            'Invalid type for parameter BillingPeriodRange.InclusiveStartBillingPeriod'
+            in result['message']
+        )
+        assert sent == []
+
     @pytest.mark.parametrize('op,method,key,args', CONFIG_LISTS)
     @patch(PATCH_BC_CLIENT)
     async def test_config_lists_flag_future_month(
@@ -2533,6 +2566,10 @@ class TestFutureBillingPeriod:
         (date(2026, 10, 28), '2026-13', False),
         (date(2026, 10, 28), '2026-00', False),
         (date(2026, 10, 28), None, False),
+        (date(2026, 10, 28), 202701, False),
+        (date(2026, 10, 28), {'Year': 2027}, False),
+        (date(2026, 10, 28), ['2027-01'], False),
+        (date(2026, 10, 28), b'2027-01', False),
     ],
 )
 def test_is_future_billing_period_year_boundary(today, period, future):
