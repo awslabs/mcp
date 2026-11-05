@@ -1,12 +1,12 @@
 # End-to-end test: The guide, unprompted
 
-2026-11-03 21:48 UTC
+2026-11-05 02:25 UTC
 
 - **Scenario**: `guide`
-- **Code under test**: `feat/redshift-guide-skill` at `f67f46ea`
+- **Code under test**: `feat/redshift-guide-skill` at `6d01b634`
 - **Agent**: `kiro-cli`, model `claude-opus-5`
 - **Exit status**: `0`
-- **Duration**: 2.2 min
+- **Duration**: 2.0 min
 - **Region**: `us-east-1`
 - **Provisioned**: `mcp-e2e-provisioned`, ra3.large x2
 - **Serverless**: `mcp-e2e-serverless`, 8 RPU
@@ -31,21 +31,33 @@ Which tables in database `dev` on my Redshift warehouse `mcp-e2e-harbor` take up
 
 ## Transcript
 
-I'll start by loading the Redshift guide this server requires, and discover the cluster at the same time.`mcp-e2e-harbor` is a Serverless workgroup. This is a storage-attribution question, so the guide requires me to load its storage reference first.Now I'll run the anchor attribution query and load the reclaim-estimate guidance at the same time.Only one row came back, a small internal table. Let me check whether `dev` actually holds user tables and whether I'm seeing everything.Superuser access confirmed, so nothing is hidden from me. `dev` has only the default schemas, so let me check `public` for tables.**`dev` on `mcp-e2e-harbor` has no user tables, so there is nothing taking up space and nothing to reclaim.**
+I'll start by loading the Redshift guide, as this server requires.`mcp-e2e-harbor` is a serverless workgroup, so I'll attribute space with `SVV_TABLE_INFO` (the STV/STL storage views don't exist there).Only an internal table came back. Let me confirm that's the real picture and not a visibility limit.**Database `dev` on `mcp-e2e-harbor` holds no user tables, so there is nothing consuming space and nothing to reclaim.**
 
-What I checked:
+What `SVV_TABLE_INFO` returns is a single row, and it isn't yours:
 
-- `SVV_TABLE_INFO` (the per-table attribution view, queried as superuser `IAMR:Admin`, so nothing was hidden by permissions) returned a single row: `pg_internal.redshift_auto_health_check_`, 0.03 GB, 4,000 rows, 0 ghost rows. That is a Redshift-managed internal health-check table, not your data.
+| schema | table | size | rows | ghost rows |
 
-- `dev` contains only `information_schema`, `pg_catalog` and `public`, and `public` is empty. So the absence of rows in `SVV_TABLE_INFO` is a genuinely empty database, not the view omitting zero-block tables.
+|---|---|---|---|---|
 
-Reclaimable space is zero. The estimate for a `VACUUM DELETE ONLY` is `size_gb × (ghost_rows / tbl_rows)` per table, and the only table present reports 0 ghost rows, so a vacuum would return nothing and is not worth the I/O.
+| pg_internal | redshift_auto_health_check_ | 32 MB | 4,000 | 0 |
 
-Two things worth knowing before you conclude the warehouse is empty:
+That table belongs to Redshift's own automatic health check. It carries zero ghost rows, and you can't vacuum or drop it in any case.
 
-- The workgroup also has three auto-mounted catalogs (`awsdatacatalog`, `[catalog]@s3tablescatalog`, `[catalog]@s3tablescatalog`). Data there sits in S3/Iceberg, is billed as S3 storage rather than Redshift managed storage, and Redshift cannot be connected to those catalogs for size inspection, so it does not appear in any per-table view here.
+A cross-check backs this up: I'm connected as `IAMR:Admin`, a superuser, so `SVV_TABLE_INFO` rows aren't being filtered by privilege; `dev` contains only `public`, `pg_catalog` and `information_schema`, and `public` is empty.
 
-- Your account has six other warehouses with a `dev` database, including `mcp-e2e-serverless` and `mcp-e2e-provisioned` (same e2e-harness tag) plus `redshift-cluster-analytics`, `-appsec`, `-marketing` and `redshift-workgroup-etl`. If you expected tables, you may be thinking of one of those. Name one and I'll run the same attribution against it.
+Two things worth knowing before you go looking elsewhere:
+
+- The workgroup also auto-mounts three external catalogs (`awsdatacatalog`, `[catalog]@s3tablescatalog`, `[catalog]@s3tablescatalog`). Data in those lives in S3 or S3 Tables and is billed there, not as Redshift managed storage. Redshift refuses connections to an auto-mounted catalog, so neither I nor `SVV_TABLE_INFO` can size them from here.
+
+- If you see a storage figure in the console or in CloudWatch that this doesn't explain, on Serverless that reading is managed storage plus cache plus query spill, not permanent table data. Snapshots and recovery points also bill against managed storage and never show up in `SVV_TABLE_INFO`. Pruning old recovery points would be the lever there, not `VACUUM`.
+
+If you expected tables here, tell me which workgroup or cluster you think they're on and I'll run the same attribution against it.
+
+[tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
 
 [tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
 
@@ -55,23 +67,9 @@ Two things worth knowing before you conclude the warehouse is empty:
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
-
-[tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
-
-[tool] status: Completed
-
 [tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
-
-[tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
-
-[tool] status: Completed
-
-[tool] status: Completed
 
 [tool] status: Completed
 
@@ -83,10 +81,6 @@ Two things worth knowing before you conclude the warehouse is empty:
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server/list_tables
-
 [tool] Running: @awslabs.redshift-mcp-server/list_databases
-
-[tool] status: Completed
 
 [tool] status: Completed
