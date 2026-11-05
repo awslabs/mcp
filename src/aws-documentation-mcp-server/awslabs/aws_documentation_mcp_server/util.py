@@ -381,19 +381,16 @@ def select_sections(markdown: str, section_titles: List[str]) -> SectionSelectio
     lines = markdown.split('\n')
     headings = _markdown_headings(lines)
 
+    # Normalize like page headings, so a title copied with its markup still matches
+    requested = [(title.strip(), _heading_text(title).lower()) for title in section_titles]
     sections_for: Dict[str, List[_Heading]] = {}
     names_page: Dict[str, bool] = {}
-    for title in section_titles:
-        # Normalize like page headings, so a title copied with its markup still matches
-        key = _heading_text(title).lower()
+    for _, key in requested:
         if key in sections_for:
             continue
         matches = [h for h in headings if key and h.text.lower() == key]
         sections_for[key] = [h for h in matches if h.level > 1]
         names_page[key] = any(h.level == 1 for h in matches)
-
-    def key_of(title: str) -> str:
-        return _heading_text(title).lower()
 
     selected = {h.line for matched in sections_for.values() for h in matched}
 
@@ -414,16 +411,20 @@ def select_sections(markdown: str, section_titles: List[str]) -> SectionSelectio
             error_msg = 'This document does not contain subsections. Please use the read_documentation tool instead to get the full document content.'
             raise DocumentationToolError(error_msg)
 
-    missing = [
-        title.strip()
-        for title in section_titles
-        if not sections_for[key_of(title)] and not names_page[key_of(title)]
-    ]
+    # One note entry per normalized title, spelled as first requested
+    unmatched: Dict[str, str] = {}
+    page_named: Dict[str, str] = {}
+    for title, key in requested:
+        if not sections_for[key] and not names_page[key]:
+            unmatched.setdefault(key, title)
+        elif names_page[key]:
+            page_named.setdefault(key, title)
+    missing = list(unmatched.values())
 
     if not selected:
         return SectionSelection(markdown, True, missing)
 
-    page_titles = [title.strip() for title in section_titles if names_page[key_of(title)]]
+    page_titles = list(page_named.values())
 
     sections = []
     open_section = None  # (first line, level) of the section being collected
@@ -440,25 +441,6 @@ def select_sections(markdown: str, section_titles: List[str]) -> SectionSelectio
         sections.append('\n'.join(lines[open_section[0] :]).strip())
 
     return SectionSelection('\n\n'.join(sections), False, missing, page_titles)
-
-
-def extract_sections_from_markdown(markdown: str, section_titles: List[str]) -> str:
-    """Extract requested sections from Markdown, matching headings at any level.
-
-    Kept as the string-returning entry point for callers that import it. See select_sections for how titles resolve, where sections end, and when the whole page
-    is returned.
-
-    Args:
-        markdown: Markdown content of the whole page
-        section_titles: List of section titles to extract
-
-    Returns:
-        Markdown content containing only the requested sections
-    """
-    selection = select_sections(markdown, section_titles)
-    if selection.whole_page:
-        return f'{selection.notes.lstrip()}\n\n{markdown}' if selection.notes else markdown
-    return selection.markdown + selection.notes
 
 
 def truncate_large_tables(

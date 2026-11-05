@@ -21,7 +21,6 @@ from awslabs.aws_documentation_mcp_server.util import (
     add_search_intent_to_search_request,
     enforce_redirect_allowlist,
     extract_content_from_html,
-    extract_sections_from_markdown,
     format_documentation_result,
     has_empty_link_target,
     has_readable_text,
@@ -32,6 +31,14 @@ from awslabs.aws_documentation_mcp_server.util import (
     url_matches_allowlist,
 )
 from unittest.mock import MagicMock, patch
+
+
+def extract_sections_from_markdown(markdown, section_titles):
+    """Return the selection as read_sections renders it, without the server's paging."""
+    selection = select_sections(markdown, section_titles)
+    if selection.whole_page:
+        return f'{selection.notes.lstrip()}\n\n{markdown}' if selection.notes else markdown
+    return selection.markdown + selection.notes
 
 
 ALLOWLIST = (
@@ -1053,13 +1060,13 @@ class TestSectionsAtAnyHeadingLevel:
         result = extract_sections_from_markdown(self.QUOTAS, ['Tables', '  Service quotas  '])
         assert result.endswith('were not found: "Service quotas"')
 
-    def test_several_page_titles_share_one_note(self):
-        """Two spellings of the page title alongside a section are noted together."""
+    def test_page_title_spellings_are_noted_once(self):
+        """Two spellings of the page title alongside a section are noted once."""
         result = extract_sections_from_markdown(
             self.QUOTAS, ['Quotas in Amazon DynamoDB', 'QUOTAS IN AMAZON DYNAMODB', 'Table size']
         )
         assert result.endswith(
-            '"Quotas in Amazon DynamoDB", "QUOTAS IN AMAZON DYNAMODB" also name the whole page.'
+            '"Quotas in Amazon DynamoDB" also names the whole page.'
             ' Use the read_documentation tool to read all of it.'
         )
 
@@ -1077,15 +1084,10 @@ class TestSectionsAtAnyHeadingLevel:
         with pytest.raises(ValueError, match='Available sections: "Setup", "Usage".'):
             select_sections(markdown, ['Missing'])
 
-    def test_whole_page_from_the_wrapper_puts_notes_first(self):
-        """The string wrapper orders a whole-page result the way read_sections does."""
-        result = extract_sections_from_markdown(
-            self.QUOTAS, ['Quotas in Amazon DynamoDB', 'Service quotas']
-        )
-        assert result == (
-            '> **Note**: The following requested sections were not found: "Service quotas"'
-            f'\n\n{self.QUOTAS}'
-        )
+    def test_missing_title_spellings_are_noted_once(self):
+        """Two spellings of a title that matches nothing are listed once, as first written."""
+        result = extract_sections_from_markdown(self.QUOTAS, ['Tables', 'Foo', 'foo', 'Bar'])
+        assert result.endswith('were not found: "Foo", "Bar"')
 
     def test_title_repeated_in_another_case_is_not_reported_missing(self):
         """Two spellings of one title resolve together, so neither is listed as not found."""
