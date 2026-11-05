@@ -865,6 +865,38 @@ def internal_connect_to_database(
     return (db_connection, llm_response)
 
 
+async def _run_server(
+    startup_query_args: Optional[Tuple[ConnectionMethod, str, str, str]],
+) -> None:
+    """Validate the database connection, then serve MCP requests, on one event loop.
+
+    The startup SELECT 1 must run on the same event loop that serves requests:
+    AsyncmyPoolConnection's aiorwlock.RWLock and its asyncmy pool bind to the
+    loop that first uses them, so validating on a separate asyncio.run() loop
+    made the first real query fail with "is bound to a different event loop".
+
+    Args:
+        startup_query_args: (connection_method, cluster_identifier, db_endpoint,
+            database) of the connection to validate, or None to skip validation.
+    """
+    if startup_query_args is not None:
+        response = await run_query('SELECT 1', DummyCtx(), *startup_query_args)
+        if (
+            isinstance(response, list)
+            and len(response) == 1
+            and isinstance(response[0], dict)
+            and 'error' in response[0]
+        ):
+            logger.error('Failed to validate database connection to MySQL. Exit the MCP server')
+            sys.exit(1)
+        else:
+            logger.success('Successfully validated database connection to MySQL')
+
+    logger.info('MySQL MCP server started')
+    await mcp.run_stdio_async()
+    logger.info('MySQL MCP server stopped')
+
+
 def main():
     """Main entry point for the MCP server application.
 
@@ -927,6 +959,7 @@ def main():
     ca_bundle_path = args.ca_bundle
 
     try:
+        startup_query_args: Optional[Tuple[ConnectionMethod, str, str, str]] = None
         if args.db_type:
             db_connection: Optional[AbstractDBConnection] = None
 
@@ -953,33 +986,14 @@ def main():
             )
 
             if db_connection:
-                ctx = DummyCtx()
-                response = asyncio.run(
-                    run_query(
-                        'SELECT 1',
-                        ctx,
-                        ConnectionMethod[args.connection_method],
-                        cluster_identifier,
-                        args.db_endpoint,
-                        args.database,
-                    )
+                startup_query_args = (
+                    ConnectionMethod[args.connection_method],
+                    cluster_identifier,
+                    args.db_endpoint,
+                    args.database,
                 )
-                if (
-                    isinstance(response, list)
-                    and len(response) == 1
-                    and isinstance(response[0], dict)
-                    and 'error' in response[0]
-                ):
-                    logger.error(
-                        'Failed to validate database connection to MySQL. Exit the MCP server'
-                    )
-                    sys.exit(1)
-                else:
-                    logger.success('Successfully validated database connection to MySQL')
 
-        logger.info('MySQL MCP server started')
-        mcp.run()
-        logger.info('MySQL MCP server stopped')
+        asyncio.run(_run_server(startup_query_args))
     finally:
         db_connection_map.close_all_sync()
 
