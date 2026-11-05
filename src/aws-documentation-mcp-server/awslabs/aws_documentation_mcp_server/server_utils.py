@@ -27,7 +27,6 @@ from awslabs.aws_documentation_mcp_server.util import (
     extract_sections_from_markdown,
     format_documentation_result,
     is_html_content,
-    rewrite_markdown_links,
     truncate_large_tables,
 )
 from collections import deque
@@ -202,7 +201,6 @@ async def fetch_markdown(
             raise DocumentationToolError(error_msg) from e
 
     try:
-        content = rewrite_markdown_links(content, base_url=page.served)
         return page, truncate_large_tables(content, url=page.served)
     except Exception as e:
         error_msg = str(e)
