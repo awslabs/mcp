@@ -85,6 +85,50 @@ class TestSchemaManager:
         assert sm.cache_dir.exists()
         assert sm.metadata_file.exists() or sm.metadata_file.parent.exists()
 
+    def test_schema_manager_read_only_package_dir(self, tmp_path):
+        """Test SchemaManager falls back to a writable cache dir on a read-only install."""
+        from awslabs.ccapi_mcp_server import schema_manager as schema_manager_module
+
+        package_dir = tmp_path / 'package'
+        package_dir.mkdir()
+        package_dir.chmod(0o555)
+        try:
+            with (
+                patch.object(
+                    schema_manager_module, '__file__', str(package_dir / 'schema_manager.py')
+                ),
+                patch('tempfile.tempdir', str(tmp_path)),
+            ):
+                sm = schema_manager_module.SchemaManager()
+
+            assert sm.cache_dir.is_dir()
+            assert package_dir not in sm.cache_dir.parents
+            assert sm.metadata_file.exists()
+        finally:
+            package_dir.chmod(0o755)
+
+    def test_schema_manager_read_only_existing_cache_dir(self, tmp_path):
+        """Test SchemaManager falls back when an existing .schemas dir is read-only."""
+        from awslabs.ccapi_mcp_server import schema_manager as schema_manager_module
+
+        package_dir = tmp_path / 'package'
+        existing_cache_dir = package_dir / '.schemas'
+        existing_cache_dir.mkdir(parents=True)
+        existing_cache_dir.chmod(0o555)
+        try:
+            with (
+                patch.object(
+                    schema_manager_module, '__file__', str(package_dir / 'schema_manager.py')
+                ),
+                patch('tempfile.tempdir', str(tmp_path)),
+            ):
+                sm = schema_manager_module.SchemaManager()
+
+            assert sm.cache_dir != existing_cache_dir
+            assert sm.metadata_file.exists()
+        finally:
+            existing_cache_dir.chmod(0o755)
+
     @pytest.mark.asyncio
     async def test_get_schema_cached_recent(self):
         """Test get_schema with recent cached schema."""
