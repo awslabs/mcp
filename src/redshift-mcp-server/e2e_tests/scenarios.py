@@ -169,7 +169,6 @@ def _grade_guide(log: str, config: Config) -> str:
         at, then = first(earlier), first(later)
         return at is not None and then is not None and at < then
 
-    query = 'Executing query on cluster'
     # Each chunk served logs `chunk <n> of <count>`, so a reference read in part misses a line.
     served = set(
         re.findall(r'Serving skill file (references/\S+) chunk (\d+) of (\d+)$', log, re.M)
@@ -178,7 +177,7 @@ def _grade_guide(log: str, config: Config) -> str:
 
     passed = {
         'Guide retrieved with no argument before the first query': before(
-            r'Serving skill file SKILL\.md', query
+            r'Serving skill file SKILL\.md', target
         ),
         # list_clusters' answer: the other tools' success lines end naming a cluster.
         "Target's type taken from list_clusters, not asked for or guessed wrong": before(

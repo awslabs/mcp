@@ -223,6 +223,7 @@ class TestTheGuideScenarioIsGradedFromTheServerLog:
     def test_a_guide_retrieved_after_the_first_query_fails(self):
         """Read after the agent acted, it steered nothing."""
         assert self._failed(_LIST, _LISTED, _QUERY, _GUIDE, _REFERENCE) == [_GUIDE_ROW]
+        assert self._failed(_LIST, _LISTED, _TABLES, _GUIDE, _REFERENCE, _QUERY) == [_GUIDE_ROW]
 
     def test_no_call_naming_the_target_fails_both_ordering_checks(self):
         """An agent that stopped to ask the user for the type never named the target."""
