@@ -1879,3 +1879,36 @@ class TestResponsePeriods:
         assert 'but the figures cover only the requested days' in description
         assert 'from the requested start to the requested end' not in description
         assert 'get_reservation_coverage entries are not snapped' in description
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('metrics', ['["Hour"]', '["Bogus"]', '[]'])
+async def test_utilization_rejects_metrics(mock_context, metrics):
+    """Utilization has no metric selection, so any metrics value is an error, not ignored."""
+    client = MagicMock()
+
+    result = await _call_tool(
+        client, mock_context, operation='get_reservation_utilization', metrics=metrics
+    )
+
+    assert result['status'] == 'error'
+    assert result['error_type'] == 'validation_error'
+    assert 'metrics applies only to get_reservation_coverage' in result['message']
+    client.get_reservation_utilization.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'extra', [{}, {'metrics': None}, {'metrics': ''}], ids=['omitted', 'none', 'empty']
+)
+async def test_utilization_without_metrics_still_succeeds(mock_context, extra):
+    """Omitted, None or empty metrics is the normal utilization call, as for coverage."""
+    client = MagicMock()
+    client.get_reservation_utilization.return_value = {'UtilizationsByTime': []}
+
+    result = await _call_tool(
+        client, mock_context, operation='get_reservation_utilization', **extra
+    )
+
+    assert result['status'] == 'success'
+    client.get_reservation_utilization.assert_called_once()

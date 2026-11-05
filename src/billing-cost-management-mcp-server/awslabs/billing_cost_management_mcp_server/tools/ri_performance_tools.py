@@ -210,7 +210,7 @@ async def ri_performance(
         start_date: Start date in YYYY-MM-DD format (inclusive). Defaults to 30 days ago if not provided.
         end_date: End date in YYYY-MM-DD format (exclusive). Defaults to today if not provided.
         granularity: Time granularity of the data (DAILY or MONTHLY). Defaults to DAILY. Ignored when group_by is provided (granularity and group_by are mutually exclusive).
-        metrics: List of metrics to retrieve for coverage as a JSON string (e.g., '["Hour", "Cost"]'). Valid values are Hour, Unit and Cost; Unit is EC2 only. Defaults to Hour only.
+        metrics: get_reservation_coverage only. List of metrics to retrieve as a JSON string (e.g., '["Hour", "Cost"]'). Valid values are Hour, Unit and Cost; Unit is EC2 only. Defaults to Hour only. get_reservation_utilization rejects it: it has no metric selection and returns all of its utilization figures.
         group_by: Optional grouping as a JSON string. For coverage: AZ, CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION, INSTANCE_TYPE, INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PLATFORM, REGION, or TENANCY, depending on the service (see the tool description) (SERVICE is NOT valid — filter on it instead). For utilization: SUBSCRIPTION_ID only.
         filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE defaults to EC2 when omitted; valid coverage SERVICE values are "Amazon Elastic Compute Cloud - Compute", "Amazon Relational Database Service", "Amazon ElastiCache", "Amazon MemoryDB", "Amazon Redshift", "Amazon OpenSearch Service", and "Amazon Elasticsearch Service" (use the full display name, not "EC2"/"RDS"); coverage takes one SERVICE value per call and rejects more. SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
         sort_by: Optional sort as a JSON string: '{"Key": "<key>", "SortOrder": "DESCENDING"}'. SortOrder is required: ASCENDING or DESCENDING, upper case only. Valid keys differ per operation (see SORTING in the tool description). get_reservation_utilization ignores sort_by without group_by (the response then carries a sort_by_note).
@@ -258,6 +258,7 @@ async def ri_performance(
                 max_items,
                 next_token,
                 max_pages,
+                metrics=metrics,
             )
         else:
             return format_response(
@@ -519,6 +520,7 @@ async def get_reservation_utilization(
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
     max_pages: Optional[int] = None,
+    metrics: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Retrieves reservation utilization data using the AWS Cost Explorer API.
 
@@ -536,11 +538,19 @@ async def get_reservation_utilization(
         next_token: The token from a previous response. Ignored without group_by.
         max_pages: Number of pages of 500 groups to return. None fetches every page. Ignored
             without group_by.
+        metrics: Not supported; set only to report a validation error.
 
     Returns:
         Dict containing utilization data
     """
     try:
+        if metrics:
+            raise ValueError(
+                'metrics applies only to get_reservation_coverage. '
+                'get_reservation_utilization has no metric selection: it returns all of its '
+                'utilization figures. Remove metrics.'
+            )
+
         # Get date range using shared utility
         start, end = get_date_range(start_date, end_date)
 

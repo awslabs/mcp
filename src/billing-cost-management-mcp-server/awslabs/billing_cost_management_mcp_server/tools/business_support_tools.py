@@ -57,8 +57,10 @@ async def _business_support(
         billing_month: Single calendar month in ``YYYY-MM`` format. Required for
             list_account_charges, optional for list_subscription_history.
         account_id: 12-digit account id to filter to (both operations).
-        start_date: Lower timestamp bound (list_subscription_history only).
-        end_date: Upper timestamp bound (list_subscription_history only).
+        start_date: Keeps the selected month's contracts that end on or after this date
+            (list_subscription_history only).
+        end_date: Keeps the selected month's contracts that start on or before this date
+            (list_subscription_history only).
         max_items: Most items to return across pages.
         next_token: Pagination token from a previous response.
 
@@ -128,9 +130,9 @@ async def _business_support(
 2) list_subscription_history - the Business Support subscription contract history
    Required: operation="list_subscription_history". Everything else is optional.
    Optional:
-     - billing_month: a single calendar month "YYYY-MM" to scope the history to contracts in effect that month. When omitted, the API defaults to the CURRENT month (UTC), not the full history; to cover several months pass start_date/end_date. A month with no Business Support data returns a not_found error, not an empty list. Same 2024-01 and future-month bounds as above, applied only when supplied.
+     - billing_month: a single calendar month "YYYY-MM" to scope the history to contracts in effect that month. When omitted, the API defaults to the CURRENT month (UTC), not the full history; to cover several months, make one call per billing_month. A month with no Business Support data returns a not_found error, not an empty list. Same 2024-01 and future-month bounds as above, applied only when supplied.
      - account_id: a 12-digit AWS account number to filter to one account. Same omit-means-no-filter rule as above.
-     - start_date, end_date: ISO-8601 dates or timestamps bounding the contract window (e.g. "2025-01-01" or "2025-01-01T00:00:00Z"). They are validated locally (format, and start_date on or before end_date) and then sent as given.
+     - start_date, end_date: ISO-8601 dates or timestamps (e.g. "2025-01-01" or "2025-01-01T00:00:00Z") that filter the selected month's contracts and never add other months. start_date keeps contracts ending on or after it; end_date keeps contracts starting on or before it. They are validated locally (format, and start_date on or before end_date) and then sent as given.
      - max_items, next_token: paging, as above.
    Paginated: the tool follows nextToken for you.
    Returns: `data.subscription_contracts`, a list where each item contains:
@@ -159,7 +161,6 @@ EXAMPLES
 - {"operation": "list_account_charges", "billing_month": "2026-06"}
 - {"operation": "list_account_charges", "billing_month": "2026-06", "account_id": "111122223333"}
 - {"operation": "list_subscription_history"}  (current month only)
-- {"operation": "list_subscription_history", "start_date": "2025-01-01", "end_date": "2026-06-30"}
 - {"operation": "list_subscription_history", "account_id": "111122223333", "billing_month": "2026-06"}""",
 )
 async def business_support(
@@ -184,8 +185,10 @@ async def business_support(
         billing_month: Single calendar month in ``YYYY-MM`` format. Required for
             list_account_charges, optional for list_subscription_history.
         account_id: 12-digit account id to filter to (both operations).
-        start_date: Lower timestamp bound (list_subscription_history only).
-        end_date: Upper timestamp bound (list_subscription_history only).
+        start_date: Keeps the selected month's contracts that end on or after this date
+            (list_subscription_history only).
+        end_date: Keeps the selected month's contracts that start on or before this date
+            (list_subscription_history only).
         max_items: Most items to return across pages.
         next_token: Pagination token from a previous response.
 
