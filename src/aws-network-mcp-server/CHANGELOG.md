@@ -10,3 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial project setup
+
+### Fixed
+
+- Honour `FASTMCP_LOG_LEVEL` (default `WARNING`) instead of a hardcoded `DEBUG` log level
