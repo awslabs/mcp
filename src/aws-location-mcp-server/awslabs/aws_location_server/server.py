@@ -252,12 +252,12 @@ async def search_places(
         return result
     except botocore.exceptions.ClientError as e:
         error_msg = f'AWS geo-places Service error: {str(e)}'
-        print(error_msg)
+        logger.error(error_msg)
         await ctx.error(error_msg)
         return {'error': error_msg}
     except Exception as e:
         error_msg = f'Error searching places: {str(e)}'
-        print(error_msg)
+        logger.error(error_msg)
         await ctx.error(error_msg)
         return {'error': error_msg}
 
@@ -336,7 +336,7 @@ async def get_place(
         }
         return result
     except Exception as e:
-        print(f'get_place error: {e}')
+        logger.error(f'get_place error: {e}')
         await ctx.error(f'get_place error: {e}')
         return {'error': str(e)}
 
@@ -358,7 +358,7 @@ async def reverse_geocode(
         response = geo_places_client.geo_places_client.reverse_geocode(
             QueryPosition=[longitude, latitude]
         )
-        print(f'reverse_geocode raw response: {response}')
+        logger.debug(f'reverse_geocode raw response: {response}')
         place = response.get('Place', {})
         if not place:
             return {'raw_response': response}
@@ -539,7 +539,7 @@ async def search_nearby(
             current_radius *= expansion_factor
         return {'places': [], 'radius_used': current_radius / expansion_factor}
     except Exception as e:
-        print(f'search_nearby error: {e}')
+        logger.error(f'search_nearby error: {e}')
         await ctx.error(f'search_nearby error: {e}')
         return {'error': str(e)}
 
@@ -662,7 +662,7 @@ async def search_places_open_now(
                 break
             current_radius *= expansion_factor
         if not open_places:
-            print(
+            logger.debug(
                 'search_places_open_now: No places found open now after expanding radius. Check OpeningHours and OpenNow fields above.'
             )
         result = {
