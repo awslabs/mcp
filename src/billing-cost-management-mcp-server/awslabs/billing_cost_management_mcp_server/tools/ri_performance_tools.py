@@ -337,6 +337,23 @@ CE_GET_RESERVATION_COVERAGE = PageSpec(
 )
 
 
+def _parse_list(value: Optional[str], name: str) -> Any:
+    """Parse a JSON array parameter. Omitted or an empty list ('[]') returns None.
+
+    The API rejects an empty Metrics or GroupBy list, so '[]' means the same as omitting the
+    parameter. Any other value must be a JSON array.
+
+    Raises:
+        ValueError: If the value is not valid JSON or not a JSON array
+    """
+    if not value:
+        return None
+    parsed = parse_json(value, name)
+    if not isinstance(parsed, list):
+        raise ValueError(f'{name} must be a JSON array, or omitted. Got: {value}')
+    return parsed or None
+
+
 async def get_reservation_coverage(
     ctx: Context,
     ce_client: Any,
@@ -389,16 +406,20 @@ async def get_reservation_coverage(
             'TimePeriod': {'Start': start, 'End': end},
         }
 
-        # Add optional parameters if provided
-        if metrics:
-            request_params['Metrics'] = parse_json(metrics, 'metrics')
+        # Add optional parameters if provided; an empty list means the API default.
+        parsed_metrics = _parse_list(metrics, 'metrics')
+        if parsed_metrics:
+            request_params['Metrics'] = parsed_metrics
+
+        # An empty group_by ('[]') is no grouping; the API rejects an empty GroupBy.
+        group_by = _parse_list(group_by, 'group_by')
 
         # GetReservationCoverage treats Granularity and GroupBy as mutually
         # exclusive: "Granularity is not supported when specifying groupBy".
         # Construct exactly one of them so a grouped request cannot include
         # Granularity, which the API rejects with a ValidationException.
         if group_by:
-            request_params['GroupBy'] = parse_json(group_by, 'group_by')
+            request_params['GroupBy'] = group_by
         else:
             request_params['Granularity'] = granularity
 
@@ -564,9 +585,11 @@ async def get_reservation_utilization(
             'TimePeriod': {'Start': start, 'End': end},
         }
 
-        # Add optional parameters if provided
+        # Add optional parameters if provided. An empty group_by ('[]') is no grouping;
+        # the API rejects an empty GroupBy.
+        group_by = _parse_list(group_by, 'group_by')
         if group_by:
-            request_params['GroupBy'] = parse_json(group_by, 'group_by')
+            request_params['GroupBy'] = group_by
 
         # GetReservationUtilization treats Granularity and GroupBy as mutually
         # exclusive: "If GroupBy is set, Granularity can't be set". Only send
