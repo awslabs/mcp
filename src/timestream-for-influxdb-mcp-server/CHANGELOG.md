@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are now enabled by setting `ALLOW_WRITE=true` when starting the server instead
   of passing `tool_write_mode=True` per call. Read-only remains the default.
 
+### Fixed
+
+- Pass `max_results` to the list tools (clusters, instances, instances for a cluster,
+  parameter groups) as an integer `maxResults`; the string value was rejected by
+  botocore parameter validation.
+
 ### Added
 
 - Initial project setup
