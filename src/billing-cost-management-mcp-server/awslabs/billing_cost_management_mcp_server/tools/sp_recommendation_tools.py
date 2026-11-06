@@ -192,6 +192,12 @@ async def sp_recommendation(
         return await handle_aws_error(ctx, e, 'sp_recommendation', 'Cost Explorer')
 
 
+# Both paginated operations answer a rejected NextPageToken (stale, from other parameters,
+# truncated, or made up) with an AccessDeniedException that has no message, not with
+# InvalidNextTokenException. A real permission error carries a message, so only a message-less
+# one on the first request of a continuation is treated as the caller's token being rejected.
+_REJECTED_TOKEN_EMPTY_MESSAGE_CODES = frozenset({'AccessDeniedException'})
+
 # The details list sits inside SavingsPlansPurchaseRecommendation, alongside the term, payment
 # option, and summary that give the details their meaning.
 CE_GET_SAVINGS_PLANS_PURCHASE_RECOMMENDATION = PageSpec(
@@ -200,6 +206,7 @@ CE_GET_SAVINGS_PLANS_PURCHASE_RECOMMENDATION = PageSpec(
     token_key_in_response='NextPageToken',
     page_max=6000,
     page_size_param='PageSize',
+    caller_token_empty_message_codes=_REJECTED_TOKEN_EMPTY_MESSAGE_CODES,
 )
 
 
@@ -389,6 +396,7 @@ CE_LIST_SAVINGS_PLANS_PURCHASE_RECOMMENDATION_GENERATION = PageSpec(
     token_key_in_response='NextPageToken',
     page_max=6000,
     page_size_param='PageSize',
+    caller_token_empty_message_codes=_REJECTED_TOKEN_EMPTY_MESSAGE_CODES,
 )
 
 

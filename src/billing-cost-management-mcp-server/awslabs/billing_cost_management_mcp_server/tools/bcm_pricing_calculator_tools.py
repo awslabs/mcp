@@ -69,6 +69,13 @@ LIST_WORKLOAD_ESTIMATE_USAGE_PAGE_SPEC = PageSpec(
 )
 # MatchOption values. The service rejects any other value, including other casings.
 VALID_MATCH_OPTIONS = ('EQUALS', 'STARTS_WITH', 'CONTAINS')
+# Fixed output order; each row is (GetPreferences key, account_types name,
+# rate_type_selections key).
+PREFERENCE_ACCOUNT_TYPES = (
+    ('managementAccountRateTypeSelections', 'management account', 'management_account'),
+    ('memberAccountRateTypeSelections', 'member account', 'member_account'),
+    ('standaloneAccountRateTypeSelections', 'standalone account', 'standalone_account'),
+)
 PREFERENCES_NOT_CONFIGURED_ERROR = 'BCM Pricing Calculator preferences are not configured. Please configure preferences before using this service.'
 
 bcm_pricing_calculator_server = FastMCP(
@@ -202,6 +209,7 @@ async def bcm_pricing_calc_core(
                     {
                         'message': 'Preferences are properly configured',
                         'account_types': preferences_result['account_types'],
+                        'rate_type_selections': preferences_result.get('rate_type_selections', {}),
                     },
                 )
         else:
@@ -269,7 +277,11 @@ USE THIS TOOL FOR:
 
 4) get_preferences - get the rate preferences available to an account
    Required: operation="get_preferences"
-   Returns: Retrieves the current preferences for AWS Billing and Cost Management Pricing Calculator.
+   Returns: `account_types` (the account types that have rate preferences) and `rate_type_selections`: for each of those account types (`management_account`, `member_account`, `standalone_account`), the list of preferred rate types selected for it in the Pricing Calculator rate preferences. An account type the service does not return is left out. Rate types:
+   - BEFORE_DISCOUNTS: public On-Demand rates, with no discounts or commitments.
+   - AFTER_DISCOUNTS: rates after usage-based discounts (such as volume or tiered discounts), without Savings Plans or Reserved Instances.
+   - AFTER_DISCOUNTS_AND_COMMITMENTS: a blend of your Savings Plans and Reserved Instances rates and AFTER_DISCOUNTS rates, weighted by your previous month's commitment coverage.
+   These are the selected rate types, not the rate a given estimate used: each workload estimate's own rate_type (from get_workload_estimate; list_workload_estimates can return it as null) is the rate type it uses.
 
 ## PAGINATION (list_workload_estimates, list_workload_estimate_usage only)
 - max_items: total items returned. If it is omitted, the tool fetches every page for """
@@ -377,7 +389,8 @@ async def get_preferences(ctx: Context) -> dict:
         ctx: The MCP context object
 
     Returns:
-        dict: Contains either 'account_types' list if preferences are valid,
+        dict: Contains 'account_types' (the account type names) and 'rate_type_selections'
+              (each returned account type's rate type list) if preferences are valid,
               or 'error' message if not found or error occurred
     """
     try:
@@ -387,25 +400,23 @@ async def get_preferences(ctx: Context) -> dict:
         await ctx.info('Checking BCM Pricing Calculator preferences...')
         response = bcm_client.get_preferences()
 
-        # Check if the response contains valid preferences for any account type
-        if response and (
-            'managementAccountRateTypeSelections' in response
-            or 'memberAccountRateTypeSelections' in response
-            or 'standaloneAccountRateTypeSelections' in response
-        ):
-            # Log which type of account preferences were found
-            account_types = []
-            if 'managementAccountRateTypeSelections' in response:
-                account_types.append('management account')
-            if 'memberAccountRateTypeSelections' in response:
-                account_types.append('member account')
-            if 'standaloneAccountRateTypeSelections' in response:
-                account_types.append('standalone account')
+        # Keep each account type the response has (present, even if empty), with its rate types
+        response = response or {}
+        present = [
+            (name, key, response[response_key])
+            for response_key, name, key in PREFERENCE_ACCOUNT_TYPES
+            if response_key in response
+        ]
+        if present:
+            account_types = [name for name, _, _ in present]
 
             await ctx.info(
                 f'BCM Pricing Calculator preferences are properly configured for: {", ".join(account_types)}'
             )
-            return {'account_types': account_types}
+            return {
+                'account_types': account_types,
+                'rate_type_selections': {key: rate_types for _, key, rate_types in present},
+            }
         else:
             error_msg = 'BCM Pricing Calculator preferences are not configured - no rate type selections found'
             await ctx.error(error_msg)
