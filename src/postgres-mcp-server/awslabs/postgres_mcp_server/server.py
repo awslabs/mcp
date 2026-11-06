@@ -135,7 +135,17 @@ configured_default_secret_arn: Optional[str] = None
 # main(), but its pool must not be initialized until MCP starts serving on its
 # own event loop. The lifespan validates it on that loop before tool calls are
 # accepted.
-startup_pg_wire_connection: Optional[PsycopgPoolConnection] = None
+startup_pg_wire_connection: Optional[AbstractDBConnection] = None
+
+
+def _startup_validation_uses_serving_loop(db_connection: AbstractDBConnection) -> bool:
+    """Return whether startup validation must run on MCP's serving loop.
+
+    Loop-affine connectors set ``requires_serving_loop`` on the class. The
+    class is checked, rather than the instance, so a test double that
+    auto-creates attributes stays on the synchronous startup path.
+    """
+    return getattr(type(db_connection), 'requires_serving_loop', False) is True
 
 
 def _configure_windows_event_loop_policy() -> None:
@@ -1876,10 +1886,10 @@ def main():
             # rds_superuser connection aborts startup; under the default
             # 'warn' it is allowed with a logged warning.
             if db_connection:
-                if isinstance(db_connection, PsycopgPoolConnection):
-                    # Defer PG-wire validation to the MCP lifespan. Running it
-                    # through asyncio.run() here would initialize the pool and
-                    # RWLock on a temporary loop that closes before mcp.run().
+                if _startup_validation_uses_serving_loop(db_connection):
+                    # Defer loop-affine validation to the MCP lifespan. Running
+                    # it through asyncio.run() here would bind the pool and
+                    # RWLock to a temporary loop that closes before mcp.run().
                     startup_pg_wire_connection = db_connection
                 else:
                     try:

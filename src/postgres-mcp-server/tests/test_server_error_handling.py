@@ -966,6 +966,25 @@ class TestMainStartupValidation:
         assert exc.value.code == 1
         mock_run.assert_not_called()
 
+    def test_serving_loop_startup_is_opt_in_on_the_connection_class(self):
+        """Only a class that sets requires_serving_loop defers startup validation.
+
+        A MagicMock auto-creates attributes, so the check has to read the class.
+        Otherwise every mocked startup connection would skip the synchronous path.
+        """
+        connection = PsycopgPoolConnection(
+            host='test.endpoint',
+            port=5432,
+            database='postgres',
+            readonly=True,
+            secret_arn='',
+            db_user='test-user',
+            region='us-east-1',
+            is_test=True,
+        )
+        assert server_module._startup_validation_uses_serving_loop(connection) is True
+        assert server_module._startup_validation_uses_serving_loop(MagicMock()) is False
+
 
 class TestPsycopgStartupLifespan:
     """Regression coverage for loop ownership of startup PG-wire connections."""
@@ -984,6 +1003,15 @@ class TestPsycopgStartupLifespan:
             startup_pg_wire_connection=server_module.startup_pg_wire_connection,
         ):
             yield
+
+    def test_mcp_is_constructed_with_server_lifespan(self):
+        """Serving uses the lifespan passed to MCPServer, not a direct call.
+
+        Tests that enter server_lifespan() themselves stay green if the
+        constructor argument is deleted. The low-level server is built with
+        that argument, so this pins the wiring mcp.run() actually uses.
+        """
+        assert server_module.mcp.settings.lifespan is server_module.server_lifespan
 
     def test_startup_validation_and_first_query_share_mcp_loop(self):
         """A startup PG-wire pool is never bound to a temporary asyncio.run loop."""
@@ -1037,6 +1065,11 @@ class TestPsycopgStartupLifespan:
             def cursor(self):
                 return Cursor()
 
+        # The stand-in pool is loop-agnostic. The real aiorwlock on
+        # PsycopgPoolConnection is what this test exercises: validation
+        # acquires it on the serving loop, and the tool call reuses that
+        # same lock. Dropping the lock would make the cross-loop regression
+        # invisible.
         class Pool:
             name = 'test-pool'
             size = 1

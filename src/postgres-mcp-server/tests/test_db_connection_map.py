@@ -11,7 +11,7 @@ from awslabs.postgres_mcp_server.connection.db_connection_map import (
     ConnectionMethod,
     DBConnectionMap,
 )
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestDBConnectionMap:
@@ -500,36 +500,55 @@ class TestDBConnectionMap:
         connection_map.set(ConnectionMethod.RDS_API, 'c', 'e', 'db', conn)
 
         async def driver():
-            # Calling close_all from within a running loop forces the
-            # asyncio.run(...) inside it to raise RuntimeError, which the
-            # RuntimeError branch handles by closing the coroutine.
+            # Calling close_all from within a running loop must not nest
+            # asyncio.run. The coroutine is closed, and the skip is logged.
             connection_map.close_all()
 
-        # Must not raise.
-        asyncio.run(driver())
+        with patch('awslabs.postgres_mcp_server.connection.db_connection_map.logger') as logger:
+            # Must not raise.
+            asyncio.run(driver())
 
         conn.close.assert_called_once()
         assert connection_map.map == {}
         # The coroutine was closed (cancelled) without being awaited to
         # completion, so its body never ran.
         assert started['count'] == 0
+        logger.warning.assert_called_once()
+        assert 'running event loop' in logger.warning.call_args.args[0]
 
-    @pytest.mark.asyncio
-    async def test_close_all_async_awaits_coroutine_closes(self, connection_map):
-        """close_all_async() closes connections on the current event loop."""
-        completed = []
+    def test_close_all_logs_runtime_error_from_awaited_close(self, connection_map):
+        """A RuntimeError raised by close() is logged, not treated as a nested loop."""
+        ran = {'count': 0}
 
         async def async_close():
-            completed.append('closed')
+            ran['count'] += 1
+            raise RuntimeError('bound to a different event loop')
 
         conn = MagicMock()
         conn.close = MagicMock(side_effect=async_close)
         connection_map.set(ConnectionMethod.RDS_API, 'c', 'e', 'db', conn)
 
+        with patch('awslabs.postgres_mcp_server.connection.db_connection_map.logger') as logger:
+            connection_map.close_all()
+
+        assert ran['count'] == 1
+        assert connection_map.map == {}
+        logger.warning.assert_called_once()
+        message = logger.warning.call_args.args[0]
+        assert 'Failed to await close()' in message
+        assert 'bound to a different event loop' in message
+        assert 'running event loop' not in message
+
+    @pytest.mark.asyncio
+    async def test_close_all_async_awaits_coroutine_closes(self, connection_map):
+        """close_all_async() closes connections on the current event loop."""
+        conn = MagicMock()
+        conn.close = AsyncMock()
+        connection_map.set(ConnectionMethod.RDS_API, 'c', 'e', 'db', conn)
+
         await connection_map.close_all_async()
 
-        assert completed == ['closed']
-        conn.close.assert_called_once()
+        conn.close.assert_awaited_once()
         assert connection_map.map == {}
 
     @pytest.mark.asyncio
@@ -547,17 +566,86 @@ class TestDBConnectionMap:
                 if self.fail:
                     raise ValueError('async close failed')
 
-        connection_map.set(ConnectionMethod.RDS_API, 'first', 'e', 'db', Connection('first', True))
-        connection_map.set(ConnectionMethod.RDS_API, 'second', 'e', 'db', Connection('second'))
+        failed = Connection('first', True)
+        succeeded = Connection('second')
+        connection_map.set(ConnectionMethod.RDS_API, 'first', 'e', 'db', failed)
+        connection_map.set(ConnectionMethod.RDS_API, 'second', 'e', 'db', succeeded)
 
         with patch('awslabs.postgres_mcp_server.connection.db_connection_map.logger') as logger:
             await connection_map.close_all_async()
 
         assert completed == ['first', 'second']
-        assert connection_map.map == {}
+        # The failed close stays in the map; the successful one is dropped.
+        assert connection_map.get(ConnectionMethod.RDS_API, 'first', 'e', 'db') is failed
+        assert connection_map.get(ConnectionMethod.RDS_API, 'second', 'e', 'db') is None
         assert len(logger.warning.call_args_list) == 1
         assert 'async close failed' in logger.warning.call_args.args[0]
         assert 'first' in logger.warning.call_args.args[0]
+
+    @pytest.mark.asyncio
+    async def test_close_all_async_closes_concurrently(self, connection_map):
+        """close_all_async() waits on every close together, not one after another."""
+        started = 0
+        both_started = asyncio.Event()
+        release = asyncio.Event()
+
+        class Connection:
+            async def close(self):
+                nonlocal started
+                started += 1
+                if started == 2:
+                    both_started.set()
+                await release.wait()
+
+        connection_map.set(ConnectionMethod.RDS_API, 'first', 'e', 'db', Connection())
+        connection_map.set(ConnectionMethod.RDS_API, 'second', 'e', 'db', Connection())
+
+        async def driver():
+            task = asyncio.create_task(connection_map.close_all_async())
+            await asyncio.wait_for(both_started.wait(), timeout=1)
+            release.set()
+            await task
+
+        await driver()
+        assert started == 2
+        assert connection_map.map == {}
+
+    @pytest.mark.asyncio
+    async def test_close_all_async_bounds_a_wedged_close(self, connection_map):
+        """A close that never returns is abandoned after the timeout and left mapped."""
+
+        class Wedged:
+            async def close(self):
+                await asyncio.Event().wait()
+
+        class Fast:
+            def __init__(self):
+                self.closed = False
+
+            async def close(self):
+                self.closed = True
+
+        wedged = Wedged()
+        fast = Fast()
+        connection_map.set(ConnectionMethod.RDS_API, 'wedged', 'e', 'db', wedged)
+        connection_map.set(ConnectionMethod.RDS_API, 'fast', 'e', 'db', fast)
+
+        with (
+            patch(
+                'awslabs.postgres_mcp_server.connection.db_connection_map._CLOSE_TIMEOUT_SECONDS',
+                0.01,
+            ),
+            patch('awslabs.postgres_mcp_server.connection.db_connection_map.logger') as logger,
+        ):
+            await connection_map.close_all_async()
+
+        assert fast.closed is True
+        assert connection_map.get(ConnectionMethod.RDS_API, 'fast', 'e', 'db') is None
+        assert connection_map.get(ConnectionMethod.RDS_API, 'wedged', 'e', 'db') is wedged
+        logger.warning.assert_called_once()
+        message = logger.warning.call_args.args[0]
+        assert 'timed out' in message
+        assert 'wedged' in message
 
     def test_close_all_warns_when_coroutine_await_fails(self, connection_map):
         """A coroutine close() that raises is caught and logged, not propagated."""
