@@ -83,7 +83,7 @@ MCP クライアントの設定で MCP サーバーを設定します(例: Kiro 
   "mcpServers": {
     "awslabs.amazon_qindex_mcp_server": {
       "command": "uvx",
-      "args": ["awslabs.amazon_qindex_mcp_server"],
+      "args": ["awslabs.amazon-qindex-mcp-server"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1"
