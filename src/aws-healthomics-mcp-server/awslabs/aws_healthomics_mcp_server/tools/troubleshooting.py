@@ -20,8 +20,9 @@ from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
     get_task_logs_internal,
 )
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
+from awslabs.aws_healthomics_mcp_server.utils.datetime_utils import parse_iso_datetime_utc
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
-from datetime import datetime, timedelta
+from datetime import timedelta
 from loguru import logger
 from mcp.server.mcpserver import Context
 from pydantic import Field
@@ -55,14 +56,14 @@ def calculate_log_time_window(start_time, end_time, buffer_minutes=5):
     try:
         # Convert to datetime objects if they're strings
         if isinstance(start_time, str):
-            start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            start_dt = parse_iso_datetime_utc(start_time)
         elif hasattr(start_time, 'replace'):  # datetime object
             start_dt = start_time
         else:
             return None, None
 
         if isinstance(end_time, str):
-            end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+            end_dt = parse_iso_datetime_utc(end_time)
         elif hasattr(end_time, 'replace'):  # datetime object
             end_dt = end_time
         else:
@@ -163,7 +164,7 @@ async def diagnose_run_failure(
                 # Adjust start time to be 15 minutes before stop
                 try:
                     if isinstance(stop_time, str):
-                        stop_dt = datetime.fromisoformat(stop_time.replace('Z', '+00:00'))
+                        stop_dt = parse_iso_datetime_utc(stop_time)
                     else:
                         stop_dt = stop_time
                     log_start_dt = stop_dt - timedelta(minutes=15)
@@ -286,9 +287,7 @@ async def diagnose_run_failure(
                             # Non-detailed mode: 15 minutes before stop to 5 minutes after
                             try:
                                 if isinstance(task_stop_time, str):
-                                    task_stop_dt = datetime.fromisoformat(
-                                        task_stop_time.replace('Z', '+00:00')
-                                    )
+                                    task_stop_dt = parse_iso_datetime_utc(task_stop_time)
                                 else:
                                     task_stop_dt = task_stop_time
                                 task_start_dt = task_stop_dt - timedelta(minutes=15)
