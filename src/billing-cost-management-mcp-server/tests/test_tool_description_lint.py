@@ -252,3 +252,36 @@ def test_description_names_every_response_member(mounted_tools, tool_name):
                     missing.append(f'{shape_name}.{member} = {value}')
 
     assert missing == [], f'{tool_name} description does not name: {missing}'
+
+
+# A one-line example call in a description: "- {...}" or "Example ...: {...}".
+_EXAMPLE_CALL = re.compile(r'^(?:- |Example[^:]*: )(\{".*\})$')
+
+
+def test_example_calls_are_valid_arguments(mounted_tools):
+    """Each one-line example call is JSON that validates against the tool's input schema.
+
+    An example that passes a JSON string must escape its inner quotes in the served text, so
+    the string value also decodes as JSON. In a regular (non-raw) Python string a single
+    backslash before a quote is dropped, and the example is not JSON at all.
+    """
+    import json
+    import jsonschema
+
+    problems, checked = [], 0
+    for name, tool in mounted_tools.items():
+        for line in (tool.description or '').splitlines():
+            match = _EXAMPLE_CALL.match(line.strip())
+            if not match:
+                continue
+            checked += 1
+            try:
+                arguments = json.loads(match.group(1))
+                jsonschema.validate(arguments, _input_schema(tool))
+                for value in arguments.values():
+                    if isinstance(value, str) and value[:1] in ('[', '{'):
+                        json.loads(value)
+            except (ValueError, jsonschema.ValidationError) as e:
+                problems.append(f'{name}: {match.group(1)[:80]} ({str(e).splitlines()[0]})')
+    assert checked >= 40
+    assert not problems, problems

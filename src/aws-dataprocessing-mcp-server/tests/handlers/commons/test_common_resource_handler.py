@@ -1939,7 +1939,7 @@ async def test_create_data_processing_role_attach_policy_error(handler, mock_iam
         ctx,
         role_name='test-role',
         service_type='glue',
-        managed_policy_arns=['arn:aws:iam::aws:policy/NonExistentPolicy'],
+        managed_policy_arns=['arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole'],
     )
     response = CallToolResultWrapper(result)
 
@@ -1977,3 +1977,171 @@ async def test_create_data_processing_role_inline_policy_error(handler, mock_iam
 
     assert response.is_error
     assert 'Failed to create IAM role' in response.content[0].text
+
+
+# ============================================================================
+# Managed policy and inline policy validation tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'service_type,policy_arn',
+    [
+        ('glue', 'arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole'),
+        ('emr', 'arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole'),
+        ('emr', 'arn:aws:iam::aws:policy/service-role/AmazonEMRServicePolicy_v2'),
+        ('athena', 'arn:aws:iam::aws:policy/AmazonAthenaFullAccess'),
+    ],
+)
+async def test_create_data_processing_role_supported_managed_policies(
+    handler, mock_iam_client, service_type, policy_arn
+):
+    """Test that supported managed policies are attached for each service type."""
+    handler.iam_client = mock_iam_client
+    mock_iam_client.create_role.return_value = {
+        'Role': {'Arn': 'arn:aws:iam::123456789012:role/test-role'}
+    }
+
+    result = await handler.create_data_processing_role(
+        Mock(),
+        role_name='test-role',
+        service_type=service_type,
+        managed_policy_arns=[policy_arn],
+    )
+
+    assert not result.is_error
+    mock_iam_client.attach_role_policy.assert_called_once_with(
+        RoleName='test-role', PolicyArn=policy_arn
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'service_type,policy_arn',
+    [
+        ('glue', 'arn:aws:iam::aws:policy/AdministratorAccess'),
+        ('glue', 'arn:aws:iam::aws:policy/IAMFullAccess'),
+        ('glue', 'arn:aws:iam::123456789012:policy/CustomPolicy'),
+        ('glue', 'arn:aws:iam::aws:policy/AmazonAthenaFullAccess'),
+        ('athena', 'arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole'),
+    ],
+)
+async def test_create_data_processing_role_unsupported_managed_policy(
+    handler, mock_iam_client, service_type, policy_arn
+):
+    """Test that unsupported managed policies are rejected before the role is created."""
+    handler.iam_client = mock_iam_client
+
+    result = await handler.create_data_processing_role(
+        Mock(),
+        role_name='test-role',
+        service_type=service_type,
+        managed_policy_arns=[policy_arn],
+    )
+
+    assert result.is_error
+    assert 'Unsupported managed policies' in result.content[0].text
+    mock_iam_client.create_role.assert_not_called()
+    mock_iam_client.attach_role_policy.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'statement,expected_message',
+    [
+        ({'Effect': 'Allow', 'Action': '*', 'Resource': '*'}, 'Unsupported action'),
+        ({'Effect': 'Allow', 'Action': ['*:*'], 'Resource': '*'}, 'Unsupported action'),
+        ({'Effect': 'Allow', 'Action': ['i*:Put*'], 'Resource': '*'}, 'Unsupported action'),
+        ({'Effect': 'Allow', 'Action': 'iam:*', 'Resource': '*'}, 'Unsupported IAM action'),
+        (
+            {'Effect': 'Allow', 'Action': ['IAM:AttachRolePolicy'], 'Resource': '*'},
+            'Unsupported IAM action',
+        ),
+        (
+            {'Effect': 'Allow', 'Action': ['iam:PutRolePolicy'], 'Resource': '*'},
+            'Unsupported IAM action',
+        ),
+        (
+            {'Effect': 'Allow', 'NotAction': ['s3:GetObject'], 'Resource': '*'},
+            'cannot use NotAction',
+        ),
+        ({'Effect': 'Allow', 'Action': 123, 'Resource': '*'}, 'must be a string'),
+        ({'Effect': 'Allow', 'Action': [123], 'Resource': '*'}, 'must be a string'),
+    ],
+)
+async def test_create_data_processing_role_unsupported_inline_policy(
+    handler, mock_iam_client, statement, expected_message
+):
+    """Test that unsupported inline policy statements are rejected before the role is created."""
+    handler.iam_client = mock_iam_client
+
+    result = await handler.create_data_processing_role(
+        Mock(), role_name='test-role', service_type='glue', inline_policy=statement
+    )
+
+    assert result.is_error
+    assert expected_message in result.content[0].text
+    mock_iam_client.create_role.assert_not_called()
+    mock_iam_client.put_role_policy.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_data_processing_role_inline_policy_supported_iam_actions(
+    handler, mock_iam_client
+):
+    """Test that inline policies with supported IAM actions and Deny statements are accepted."""
+    handler.iam_client = mock_iam_client
+    mock_iam_client.create_role.return_value = {
+        'Role': {'Arn': 'arn:aws:iam::123456789012:role/test-role'}
+    }
+    inline_policy = [
+        {
+            'Effect': 'Allow',
+            'Action': ['iam:PassRole', 'glue:*', 's3:Get*'],
+            'Resource': 'arn:aws:iam::123456789012:role/test-role',
+        },
+        {'Effect': 'Deny', 'NotAction': 's3:GetObject', 'Resource': '*'},
+    ]
+
+    result = await handler.create_data_processing_role(
+        Mock(), role_name='test-role', service_type='glue', inline_policy=inline_policy
+    )
+
+    assert not result.is_error
+    mock_iam_client.put_role_policy.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_add_inline_policy_unsupported_statement(handler, mock_iam_client):
+    """Test that add_inline_policy rejects unsupported statements without calling IAM."""
+    handler.iam_client = mock_iam_client
+
+    result = await handler.add_inline_policy(
+        Mock(),
+        policy_name='test-policy',
+        role_name='test-role',
+        permissions=[
+            {'Effect': 'Allow', 'Action': 's3:GetObject', 'Resource': '*'},
+            {'Effect': 'Allow', 'Action': 'iam:AttachRolePolicy', 'Resource': '*'},
+        ],
+    )
+
+    assert result.is_error
+    assert 'Unsupported IAM action' in result.content[0].text
+    mock_iam_client.get_role_policy.assert_not_called()
+    mock_iam_client.put_role_policy.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_add_inline_policy_non_dict_statement(handler, mock_iam_client):
+    """Test that add_inline_policy rejects statements that are not JSON objects."""
+    handler.iam_client = mock_iam_client
+
+    result = await handler.add_inline_policy(
+        Mock(), policy_name='test-policy', role_name='test-role', permissions=['s3:GetObject']
+    )
+
+    assert result.is_error
+    assert 'must be a JSON object' in result.content[0].text
+    mock_iam_client.put_role_policy.assert_not_called()

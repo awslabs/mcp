@@ -91,7 +91,9 @@ Accepted filter names:
   Overprovisioned; storage also NotOptimized), InstanceFindingReasonCode,
   StorageFindingReasonCode, Idle (True, False). RDS has no plain `Finding` or
   `FindingReasonCode` filter: pick the instance or storage variant (a plain one is
-  rejected with the choices listed).
+  rejected with the choices listed). `idle` and `instance_finding` are computed separately,
+  so a DB instance can be Optimized and `idle: True`: check both. `idle` is null for Aurora
+  cluster recommendations.
 - get_ecs_service_recommendations: Finding (Optimized, Underprovisioned, Overprovisioned),
   FindingReasonCode (CPU/Memory Overprovisioned/Underprovisioned)
 - get_idle_recommendations: Finding (Idle, Unattached, Unused), ResourceType
@@ -144,6 +146,10 @@ resource gets a bigger dollar discount than the current one, the after-discounts
 the larger. The two can also be equal, for example when Compute Optimizer has no discount
 data to apply, and `savings_opportunity_after_discounts` is null when Compute Optimizer
 returns no after-discounts figure. Say which one you report, and do not add them together.
+In every recommendation type except idle,
+`effective_recommendation_preferences.savingsEstimationMode.source` names the source Compute
+Optimizer used to calculate the savings figures: CostOptimizationHub, CostExplorerRightsizing
+or PublicPricing.
 
 EC2, Auto Scaling group, and RDS recommendations rank options within the current CPU
 architecture by default (cpuVendorArchitectures CURRENT). To get Graviton options, pass
