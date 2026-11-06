@@ -1,5 +1,5 @@
 ---
-title: AWS IAM MCP Server
+title: AWS IAM MCP Server (Deprecated)
 ---
 
 import ReadmeContent from "../../../src/iam-mcp-server/README.md";

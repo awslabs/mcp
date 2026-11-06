@@ -81,7 +81,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit 
   "mcpServers": {
     "awslabs.amazon_qindex_mcp_server": {
       "command": "uvx",
-      "args": ["awslabs.amazon_qindex_mcp_server"],
+      "args": ["awslabs.amazon-qindex-mcp-server"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1"

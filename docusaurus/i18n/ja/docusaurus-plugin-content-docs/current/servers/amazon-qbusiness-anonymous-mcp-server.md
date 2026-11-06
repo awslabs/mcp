@@ -1,6 +1,8 @@
 ---
-title: "Amazon Q Business 匿名モード MCPサーバー"
+title: "Amazon Q Business 匿名モード MCPサーバー（非推奨）"
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。こちらは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて同じ Amazon Q Business の `ChatSync` 呼び出しを行い、このサーバーが返していなかったソースの引用を含む完全なレスポンスを返します。ツールの対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-qbusiness-anonymous.md) を参照してください。
 
 Amazon Q Business の匿名モードアプリケーション向けの AWS Labs Model Context Protocol (MCP) サーバーです。これは Amazon Q Business 向けのシンプルな MCP サーバーで、[匿名モードアクセス](https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/create-anonymous-application.html)を使用して作成された Amazon Q Business アプリケーションをサポートします。この MCP サーバーを使用して、匿名モードで作成された Amazon Q Business アプリケーションにクエリを実行し、そこに取り込んだコンテンツに基づいた応答を取得します。
 
@@ -35,7 +37,7 @@ Amazon Q Business の匿名モードアプリケーション向けの AWS Labs M
 
 | Kiro | Cursor | VS Code |
 |:----:|:------:|:-------:|
-| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.amazon-qbusiness-anonymous-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-qbusiness-anonymous-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22QBUSINESS_APP_ID%22%3A%22your-qbusiness-app-id%22%2C%22QBUSINESS_USER_ID%22%3A%22your-user-id%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.amazon-qbusiness-anonymous-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLXFidXNpbmVzcy1hbm9ueW1vdXMtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiUUJVU0lORVNTX0FQUF9JRCI6InlvdXItcWJ1c2luZXNzLWFwcC1pZCIsIlFCVVNJTkVTU19VU0VSX0lEIjoieW91ci11c2VyLWlkIiwiQVdTX1BST0ZJTEUiOiJ5b3VyLWF3cy1wcm9maWxlIiwiQVdTX1JFR0lPTiI6InVzLWVhc3QtMSIsIkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Amazon%20Q%20Business%20Anonymous%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-qbusiness-anonymous-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22QBUSINESS_APP_ID%22%3A%22your-qbusiness-app-id%22%2C%22QBUSINESS_USER_ID%22%3A%22your-user-id%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.amazon-qbusiness-anonymous-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-qbusiness-anonymous-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22QBUSINESS_APPLICATION_ID%22%3A%22your-qbusiness-app-id%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.amazon-qbusiness-anonymous-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLXFidXNpbmVzcy1hbm9ueW1vdXMtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiUUJVU0lORVNTX0FQUExJQ0FUSU9OX0lEIjoieW91ci1xYnVzaW5lc3MtYXBwLWlkIiwiQVdTX1BST0ZJTEUiOiJ5b3VyLWF3cy1wcm9maWxlIiwiQVdTX1JFR0lPTiI6InVzLWVhc3QtMSIsIkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Amazon%20Q%20Business%20Anonymous%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-qbusiness-anonymous-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22QBUSINESS_APPLICATION_ID%22%3A%22your-qbusiness-app-id%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
 MCP クライアントの設定で MCP サーバーを構成します（例: Kiro の場合は `~/.kiro/settings/mcp.json` を編集します）。
 
@@ -44,7 +46,7 @@ MCP クライアントの設定で MCP サーバーを構成します（例: Kir
       "mcpServers": {
             "awslabs.amazon-qbusiness-anonymous-mcp-server": {
                   "command": "uvx",
-                  "args": ["awslabs.qbusiness-anonymous-mcp-server"],
+                  "args": ["awslabs.amazon-qbusiness-anonymous-mcp-server@latest"],
                   "env": {
                     "FASTMCP_LOG_LEVEL": "ERROR",
                     "QBUSINESS_APPLICATION_ID": "[Your Amazon Q Business application id]",
@@ -87,7 +89,7 @@ Windows ユーザーの場合、MCP サーバーの設定形式は少し異な�
 }
 ```
 
-または、`docker build -t awslabs/amazon-kendra-index-mcp-server.` が成功した後に docker を使用します。
+または、`docker build -t awslabs/amazon-qbusiness-anonymous-mcp-server .` が成功した後に docker を使用します。
 
 ```file
 # fictitious `.env` file with AWS temporary credentials

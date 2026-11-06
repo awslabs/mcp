@@ -106,7 +106,7 @@ This method uses the published package, suitable for testing the released versio
 
 1. **Install the server globally**:
    ```bash
-   uvx install awslabs.aws-healthomics-mcp-server
+   uv tool install awslabs.aws-healthomics-mcp-server
    ```
 
 2. **Set environment variables**:

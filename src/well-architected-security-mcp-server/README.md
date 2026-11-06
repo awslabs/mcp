@@ -89,7 +89,7 @@ Add the AWS Well-Architected Security Assessment Tool MCP Server to your MCP cli
   "mcpServers": {
     "well-architected-security-mcp-server": {
       "command": "uvx",
-      "args": ["--from", "awslabs.well-architected-security-mcp-server", "well-architected-security-mcp-server"],
+      "args": ["--from", "awslabs.well-architected-security-mcp-server", "awslabs.well-architected-security-mcp-server"],
       "env": {
         "AWS_PROFILE": "your-aws-profile", // Optional - uses your local AWS configuration if not specified
         "AWS_REGION": "your-aws-region", // Optional - uses your local AWS configuration if not specified
