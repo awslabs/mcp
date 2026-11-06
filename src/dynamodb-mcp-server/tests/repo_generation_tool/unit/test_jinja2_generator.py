@@ -111,6 +111,18 @@ class TestJinja2Generator:
         generator.generate_all(output_dir, generate_usage_examples=True)
         assert (tmp_path / 'output').exists()
 
+    def test_generate_all_usage_examples_with_legacy_default_encoding(
+        self, generator, tmp_path, legacy_default_encoding
+    ):
+        """Usage examples contain non-ASCII characters and must be written as UTF-8, LF."""
+        output_dir = tmp_path / 'output'
+        generator.generate_all(str(output_dir), generate_usage_examples=True)
+
+        usage_examples = (output_dir / 'usage_examples.py').read_bytes()
+        assert '✅' in usage_examples.decode('utf-8')
+        for generated_file in output_dir.iterdir():
+            assert b'\r' not in generated_file.read_bytes(), generated_file.name
+
     def test_generate_repository_with_mapping(
         self, generator, sample_entity_config, sample_table_config
     ):
