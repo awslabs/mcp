@@ -18,6 +18,7 @@ Updated to use shared utility functions.
 """
 
 import botocore.session
+import json
 from ..utilities.aws_service_base import (
     create_aws_client,
     format_response,
@@ -248,6 +249,14 @@ def _filter_item_fields() -> Dict[str, List[str]]:
 SUMMARIES_UNSUPPORTED_FILTERS = frozenset({'recommendationIds', 'resourceIds', 'resourceArns'})
 
 
+def _decodes_to_object(text: str) -> bool:
+    """Whether text is itself a JSON object, as a double-encoded filters value is."""
+    try:
+        return isinstance(json.loads(text), dict)
+    except ValueError:
+        return False
+
+
 def _normalize_filters(operation: str, filters: Any) -> Tuple[Any, Optional[Dict[str, Any]]]:
     """Fold filter keys and enum values onto the spelling the API expects.
 
@@ -260,11 +269,16 @@ def _normalize_filters(operation: str, filters: Any) -> Tuple[Any, Optional[Dict
     valid.
 
     Returns:
-        (normalized filters, None), or (original filters, error response) when a list
-        filter is empty, which the API rejects.
+        (normalized filters, None), or (original filters, error response) when filters is
+        not a JSON object or a list filter is empty, which the API rejects.
     """
+    if filters is not None and not isinstance(filters, dict):
+        message = 'filters must be a JSON object, e.g. {"resourceTypes": ["Ec2Instance"]}'
+        if isinstance(filters, str) and _decodes_to_object(filters):
+            message += '; it was JSON-encoded twice, so encode the object once'
+        return filters, _error_response(operation, {'provided_filters': filters}, message + '.')
     model = _filter_model()
-    if not isinstance(filters, dict) or not model:
+    if filters is None or not model:
         return filters, None
 
     members = _filter_members()
