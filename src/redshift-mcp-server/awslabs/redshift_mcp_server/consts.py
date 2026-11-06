@@ -24,6 +24,21 @@ ACCESS_MODE_DEFAULT = ACCESS_MODE_READ_ONLY
 # Skips the per-write confirmation prompt. Ignored in read-only mode.
 UNSAFE_SKIP_WRITE_CONFIRMATION_DEFAULT = 'false'
 
+# How SQL reaches the cluster: through the Redshift Data API, or over a direct connection for
+# credentials that may fetch cluster credentials but not call the Data API. Add new modes here and
+# to CONNECTION_MODES.
+CONNECTION_MODE_DATA_API = 'data-api'
+CONNECTION_MODE_DIRECT = 'direct'
+CONNECTION_MODES = frozenset({CONNECTION_MODE_DATA_API, CONNECTION_MODE_DIRECT})
+CONNECTION_MODE_DEFAULT = CONNECTION_MODE_DATA_API
+# How a direct connection checks the cluster's certificate, unless REDSHIFT_DIRECT_SSLMODE sets
+# another. `verify-full` checks the chain and that it names the endpoint; `verify-ca` checks the
+# chain only. These are the driver's two TLS modes, and the default is its own.
+DIRECT_SSLMODE_VERIFY_FULL = 'verify-full'
+DIRECT_SSLMODE_VERIFY_CA = 'verify-ca'
+DIRECT_SSLMODES = frozenset({DIRECT_SSLMODE_VERIFY_FULL, DIRECT_SSLMODE_VERIFY_CA})
+DIRECT_SSLMODE_DEFAULT = DIRECT_SSLMODE_VERIFY_FULL
+
 CLIENT_CONNECT_TIMEOUT = 60
 CLIENT_READ_TIMEOUT = 600
 CLIENT_RETRIES = {'max_attempts': 5, 'mode': 'adaptive'}
