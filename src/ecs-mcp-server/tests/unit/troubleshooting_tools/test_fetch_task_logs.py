@@ -6,8 +6,10 @@ import datetime
 from unittest import mock
 from unittest.mock import MagicMock
 
+import botocore.session
 import pytest
 from botocore.exceptions import ClientError
+from botocore.validate import validate_parameters
 
 from awslabs.ecs_mcp_server.api.troubleshooting_tools import fetch_task_logs
 
@@ -166,7 +168,7 @@ class TestFetchTaskLogs(TestFetchTaskLogsBase):
             ]
         }
 
-        mock_logs_client.get_log_events.return_value = {
+        mock_logs_client.filter_log_events.return_value = {
             "events": [
                 {
                     "timestamp": int((timestamp + datetime.timedelta(seconds=2)).timestamp())
@@ -192,6 +194,8 @@ class TestFetchTaskLogs(TestFetchTaskLogsBase):
             assert result["error_count"] == 1
             assert result["warning_count"] == 0
             assert result["info_count"] == 0
+            mock_logs_client.get_log_events.assert_not_called()
+            assert mock_logs_client.filter_log_events.call_args.kwargs["filterPattern"] == "ERROR"
 
     # ----------------------------------------------------------------------------
     # Time Window Tests
@@ -419,7 +423,7 @@ class TestFetchTaskLogs(TestFetchTaskLogsBase):
             # Validate the parameters individually for better readability
             call_args = mock_logs_client.describe_log_streams.call_args[1]
             assert call_args["logGroupName"] == "/ecs/test-cluster/test-app"
-            assert call_args["logStreamNamePrefix"] == "123456789abc"  # pragma: allowlist secret
+            assert "logStreamNamePrefix" not in call_args
             assert call_args["orderBy"] == "LastEventTime"
             assert call_args["descending"] is True
 
@@ -760,3 +764,87 @@ class TestFetchTaskLogs(TestFetchTaskLogsBase):
             # Verify the result
             assert result["status"] == "error"
             assert result["error"] == "Unexpected error"
+
+
+class TestFetchTaskLogsRequestsAreValid(TestFetchTaskLogsBase):
+    """Check the requests sent to CloudWatch Logs against the real API model."""
+
+    TASK_ID = "0123456789abcdef0123456789abcdef"  # pragma: allowlist secret
+
+    def logs_client(self):
+        """Return a mock logs client that rejects requests CloudWatch Logs would reject."""
+        service_model = botocore.session.get_session().get_service_model("logs")
+        timestamp = int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000)
+        responses = {
+            "describe_log_groups": {"logGroups": [{"logGroupName": "/ecs/test-cluster"}]},
+            "describe_log_streams": {
+                "logStreams": [
+                    {"logStreamName": f"ecs/web/{self.TASK_ID}"},
+                    {"logStreamName": "ecs/web/fedcba9876543210fedcba9876543210"},
+                ]
+            },
+            "get_log_events": {"events": [{"timestamp": timestamp, "message": "ERROR boom"}]},
+            "filter_log_events": {"events": [{"timestamp": timestamp, "message": "ERROR boom"}]},
+        }
+        operations = {
+            "describe_log_groups": "DescribeLogGroups",
+            "describe_log_streams": "DescribeLogStreams",
+            "get_log_events": "GetLogEvents",
+            "filter_log_events": "FilterLogEvents",
+        }
+        client = MagicMock()
+        for method, operation in operations.items():
+
+            def call(_operation=operation, _response=responses[method], **kwargs):
+                input_shape = service_model.operation_model(_operation).input_shape
+                validate_parameters(kwargs, input_shape)
+                if (
+                    _operation == "DescribeLogStreams"
+                    and kwargs.get("orderBy") == "LastEventTime"
+                    and "logStreamNamePrefix" in kwargs
+                ):
+                    raise ClientError(
+                        {
+                            "Error": {
+                                "Code": "InvalidParameterException",
+                                "Message": (
+                                    "Cannot order by LastEventTime with a logStreamNamePrefix."
+                                ),
+                            }
+                        },
+                        _operation,
+                    )
+                return _response
+
+            getattr(client, method).side_effect = call
+        return client
+
+    @pytest.mark.anyio
+    async def test_task_id_lists_streams_with_a_valid_request(self):
+        """A task ID must not be sent as a stream prefix together with orderBy."""
+        logs_client = self.logs_client()
+
+        with self.mock_aws_clients({"logs": logs_client}):
+            result = await fetch_task_logs("test-cluster", task_id=self.TASK_ID)
+
+        assert result["status"] == "success"
+        assert "error" not in result["log_groups"][0]
+        assert result["log_groups"][0]["log_streams"] == [f"ecs/web/{self.TASK_ID}"]
+        assert len(result["log_entries"]) == 1
+
+    @pytest.mark.anyio
+    async def test_filter_pattern_uses_filter_log_events(self):
+        """GetLogEvents has no filterPattern, so a pattern must go to FilterLogEvents."""
+        logs_client = self.logs_client()
+
+        with self.mock_aws_clients({"logs": logs_client}):
+            result = await fetch_task_logs(
+                "test-cluster", task_id=self.TASK_ID, filter_pattern="ERROR"
+            )
+
+        assert result["status"] == "success"
+        assert len(result["log_entries"]) == 1
+        logs_client.get_log_events.assert_not_called()
+        call_args = logs_client.filter_log_events.call_args.kwargs
+        assert call_args["filterPattern"] == "ERROR"
+        assert call_args["logStreamNames"] == [f"ecs/web/{self.TASK_ID}"]
