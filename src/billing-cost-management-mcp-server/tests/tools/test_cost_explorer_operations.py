@@ -31,6 +31,9 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+REGION_FILTER = {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1']}}
+
+
 @pytest.fixture
 def mock_context():
     """Create a mock MCP context."""
@@ -224,6 +227,33 @@ class TestBillingViewArnSupport:
         assert result['status'] == 'success'
         call_kwargs = mock_ce_client.get_dimension_values.call_args[1]
         assert 'Context' not in call_kwargs
+
+    async def test_get_dimension_values_sends_dimension_key(self, mock_context, mock_ce_client):
+        """dimension_key is sent as DimensionKey, which lists that product attribute's values."""
+        result = await get_dimension_values(
+            mock_context,
+            mock_ce_client,
+            dimension='PRODUCT_ATTRIBUTE',
+            dimension_key='model',
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_dimension_values.call_args[1]
+        assert call_kwargs['Dimension'] == 'PRODUCT_ATTRIBUTE'
+        assert call_kwargs['DimensionKey'] == 'model'
+
+    @pytest.mark.parametrize('dimension_key', [None, ''])
+    async def test_get_dimension_values_omits_empty_dimension_key(
+        self, mock_context, mock_ce_client, dimension_key
+    ):
+        """No or an empty dimension_key sends no DimensionKey, so the service lists the keys."""
+        result = await get_dimension_values(
+            mock_context,
+            mock_ce_client,
+            dimension='PRODUCT_ATTRIBUTE',
+            dimension_key=dimension_key,
+        )
+        assert result['status'] == 'success'
+        assert 'DimensionKey' not in mock_ce_client.get_dimension_values.call_args[1]
 
     async def test_get_cost_forecast_with_billing_view_arn(
         self, mock_context, mock_ce_client, sample_billing_view_arn
@@ -1559,6 +1589,34 @@ class TestGetTags:
         assert 'SearchString' in call_kwargs
         assert call_kwargs['SearchString'] == 'Env'
 
+    @pytest.mark.parametrize('filter_expr', [REGION_FILTER, json.dumps(REGION_FILTER)])
+    @pytest.mark.parametrize('tag_key', [None, 'Environment'], ids=['keys', 'values'])
+    async def test_filter_is_sent(self, mock_context, mock_ce_client, filter_expr, tag_key):
+        """The filter reaches GetTags as Filter, for tag keys and for one key's values.
+
+        Dropping it would return the unfiltered list as if it were filtered.
+        """
+        result = await get_tags(
+            mock_context, mock_ce_client, tag_key=tag_key, filter_expr=filter_expr
+        )
+
+        assert result['status'] == 'success'
+        assert mock_ce_client.get_tags.call_args[1]['Filter'] == REGION_FILTER
+
+    async def test_no_filter_sends_none(self, mock_context, mock_ce_client):
+        """Without a filter, no Filter key is sent."""
+        await get_tags(mock_context, mock_ce_client)
+
+        assert 'Filter' not in mock_ce_client.get_tags.call_args[1]
+
+    async def test_empty_filter_is_rejected_before_aws(self, mock_context, mock_ce_client):
+        """An empty filter is an error, not an unfiltered call."""
+        result = await get_tags(mock_context, mock_ce_client, filter_expr='{}')
+
+        assert result['status'] == 'error'
+        assert 'filter is empty' in result['message']
+        mock_ce_client.get_tags.assert_not_called()
+
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_tags."""
         # Setup error
@@ -1671,6 +1729,34 @@ class TestGetCostCategories:
         call_kwargs = mock_ce_client.get_cost_categories.call_args[1]
         assert 'SearchString' in call_kwargs
         assert call_kwargs['SearchString'] == 'Dep'
+
+    @pytest.mark.parametrize('filter_expr', [REGION_FILTER, json.dumps(REGION_FILTER)])
+    @pytest.mark.parametrize('name', [None, 'Department'], ids=['names', 'values'])
+    async def test_filter_is_sent(self, mock_context, mock_ce_client, filter_expr, name):
+        """The filter reaches GetCostCategories as Filter, for names and for one category's values.
+
+        Dropping it would return the unfiltered list as if it were filtered.
+        """
+        result = await get_cost_categories(
+            mock_context, mock_ce_client, cost_category_name=name, filter_expr=filter_expr
+        )
+
+        assert result['status'] == 'success'
+        assert mock_ce_client.get_cost_categories.call_args[1]['Filter'] == REGION_FILTER
+
+    async def test_no_filter_sends_none(self, mock_context, mock_ce_client):
+        """Without a filter, no Filter key is sent."""
+        await get_cost_categories(mock_context, mock_ce_client)
+
+        assert 'Filter' not in mock_ce_client.get_cost_categories.call_args[1]
+
+    async def test_empty_filter_is_rejected_before_aws(self, mock_context, mock_ce_client):
+        """An empty filter is an error, not an unfiltered call."""
+        result = await get_cost_categories(mock_context, mock_ce_client, filter_expr='{}')
+
+        assert result['status'] == 'error'
+        assert 'filter is empty' in result['message']
+        mock_ce_client.get_cost_categories.assert_not_called()
 
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_cost_categories."""

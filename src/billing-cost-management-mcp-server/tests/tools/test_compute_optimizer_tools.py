@@ -3684,3 +3684,17 @@ class TestComputeOptimizerAppliedRegion:
         assert res['status'] == 'error'
         assert res['error_type'] == 'InternalServerException'
         assert res['aws_region'] == 'sa-east-1'
+
+
+@pytest.mark.asyncio
+async def test_description_states_rds_idle_and_savings_source():
+    """RDS idle is separate from the instance finding; the savings source field is named."""
+    tool = await compute_optimizer_server.get_tool('compute-optimizer')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert '`idle` and `instance_finding` are computed separately' in description
+    assert 'can be Optimized and `idle: True`: check both' in description
+    assert '`idle` is null for Aurora cluster recommendations' in description
+    assert '`effective_recommendation_preferences.savingsEstimationMode.source`' in description
+    assert 'used to calculate the savings figures' in description
+    assert 'CostOptimizationHub, CostExplorerRightsizing or PublicPricing' in description

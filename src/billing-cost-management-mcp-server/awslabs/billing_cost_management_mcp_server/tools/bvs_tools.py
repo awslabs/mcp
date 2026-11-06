@@ -75,6 +75,7 @@ It holds at most one of:
 - dimensions: key LINKED_ACCOUNT and a list of account IDs
 - tags: one tag key and a list of its values
 - cost_categories: one cost category name and a list of its values
+  (a value of "" matches the costs no rule of that cost category assigns a value to)
 plus an optional time_range (begin_date_inclusive, end_date_inclusive; one of them can
 be absent, meaning open-ended on that side). There are no match options and no
 And/Or/Not. An empty or missing expression means the view is unfiltered: it shows all
@@ -157,11 +158,11 @@ passing `pagination.next_token` back as `next_token`, or say in the answer that 
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {}
-Example 2 (filter by type): {"billing_view_types": "[\"PRIMARY\", \"CUSTOM\"]"}
+Example 2 (filter by type): {"billing_view_types": "[\\"PRIMARY\\", \\"CUSTOM\\"]"}
 Example 3 (filter by owner): {"owner_account_id": "123456789012"}
-Example 4 (filter by name): {"names": "[{\"searchOption\": \"STARTS_WITH\", \"searchValue\": \"MyView\"}]"}
+Example 4 (filter by name): {"names": "[{\\"searchOption\\": \\"STARTS_WITH\\", \\"searchValue\\": \\"MyView\\"}]"}
 Example 5 (time range covering all of January 2024): {"active_after_inclusive": "2024-01-01", "active_before_inclusive": "2024-01-31T23:59:59"}
-Example 6 (filter by ARNs): {"arns": "[\"arn:aws:billing::123456789012:billingview/custom-view-abc123\"]"}""",
+Example 6 (filter by ARNs): {"arns": "[\\"arn:aws:billing::123456789012:billingview/custom-view-abc123\\"]"}""",
 )
 async def list_billing_views(
     ctx: Context,

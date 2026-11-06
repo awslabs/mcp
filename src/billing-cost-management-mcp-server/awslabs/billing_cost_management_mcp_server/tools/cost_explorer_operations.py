@@ -330,6 +330,7 @@ async def get_dimension_values(
     max_items: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
     context: Optional[str] = None,
+    dimension_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get available dimension values.
 
@@ -347,6 +348,10 @@ async def get_dimension_values(
             If not provided, defaults to the account's primary billing view.
         context: The context for the call, which can be COST_AND_USAGE, RESERVATIONS, or
             SAVINGS_PLANS. The default is COST_AND_USAGE. The context scopes which values come back.
+        dimension_key: Only used when dimension is PRODUCT_ATTRIBUTE. Without it (or empty),
+            the call lists the product attribute names, such as `model`. With one of those names,
+            it lists that attribute's values instead, such as the model names. Sent to Cost
+            Explorer as DimensionKey.
 
     Returns:
         Dimension values response
@@ -376,6 +381,9 @@ async def get_dimension_values(
 
         if context:
             request_params['Context'] = context
+
+        if dimension_key:
+            request_params['DimensionKey'] = dimension_key
 
         response = await _fetch_pages(
             ctx,
@@ -660,6 +668,7 @@ async def get_tags(
     end_date: Optional[str] = None,
     search_string: Optional[str] = None,
     tag_key: Optional[str] = None,
+    filter_expr: Optional[Union[str, Dict[str, Any]]] = None,
     next_token: Optional[str] = None,
     max_items: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
@@ -673,6 +682,7 @@ async def get_tags(
         end_date: End date in YYYY-MM-DD format (exclusive)
         search_string: Optional string to filter results
         tag_key: Optional specific tag key to get values for
+        filter_expr: Optional filters, as an object or JSON string
         next_token: Continuation token from a previous response
         max_items: Most items to return; None fetches every page
         billing_view_arn: Optional ARN of a billing view to scope the query.
@@ -698,6 +708,10 @@ async def get_tags(
 
         if tag_key:
             request_params['TagKey'] = str(tag_key)
+
+        filters = parse_filter(filter_expr)
+        if filters is not None:
+            request_params['Filter'] = filters
 
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
@@ -731,6 +745,7 @@ async def get_cost_categories(
     end_date: Optional[str] = None,
     search_string: Optional[str] = None,
     cost_category_name: Optional[str] = None,
+    filter_expr: Optional[Union[str, Dict[str, Any]]] = None,
     next_token: Optional[str] = None,
     max_items: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
@@ -744,6 +759,7 @@ async def get_cost_categories(
         end_date: End date in YYYY-MM-DD format (exclusive)
         search_string: Optional string to filter results
         cost_category_name: Optional specific cost category to get values for
+        filter_expr: Optional filters, as an object or JSON string
         next_token: Continuation token from a previous response
         max_items: Most items to return; None fetches every page
         billing_view_arn: Optional ARN of a billing view to scope the query.
@@ -772,6 +788,10 @@ async def get_cost_categories(
         # (the values inside that category) instead of CostCategoryNames.
         if cost_category_name:
             request_params['CostCategoryName'] = str(cost_category_name)
+
+        filters = parse_filter(filter_expr)
+        if filters is not None:
+            request_params['Filter'] = filters
 
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
