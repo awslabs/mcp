@@ -27,7 +27,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     has_readable_text,
     is_html_content,
     parse_recommendation_results,
-    rewrite_markdown_links,
+    to_html_page_url,
     url_matches_allowlist,
 )
 from unittest.mock import MagicMock, patch
@@ -1087,64 +1087,51 @@ class TestWhitespaceOnlyBody:
             extract_content_from_html('<html><body><p> </p><p>  </p></body></html>')
 
 
-class TestRewriteMarkdownLinks:
-    """Tests for rewriting published-Markdown links to readable .html URLs."""
-
-    BASE = 'https://docs.aws.amazon.com/lambda/latest/dg/lambda-invocation.html'
+class TestToHtmlPageUrl:
+    """Tests for mapping a documentation URL to the .html page the tools fetch."""
 
     @pytest.mark.parametrize(
-        'target, expected',
+        'url, expected',
         [
             (
-                'testing-functions.md',
-                'https://docs.aws.amazon.com/lambda/latest/dg/testing-functions.html',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html',
             ),
             (
-                'invocation-async.md#invocation-async-destinations',
-                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.html'
-                '#invocation-async-destinations',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.md',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html',
             ),
             (
-                '../api/API_Invoke.md',
-                'https://docs.aws.amazon.com/lambda/latest/api/API_Invoke.html',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.md#destinations',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.html',
             ),
             (
-                '/AmazonS3/latest/userguide/Welcome.md',
-                'https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html#section',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.md?x=1',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/lambda/latest/dg/README.MD',
+                'https://docs.aws.amazon.com/lambda/latest/dg/README.html',
             ),
         ],
     )
-    def test_same_site_md_links_become_absolute_html(self, target, expected):
-        """Relative and root-relative .md links resolve against the page and swap to .html."""
-        result = rewrite_markdown_links(f'See [the page]({target}).', self.BASE)
-        assert result == f'See [the page]({expected}).'
+    def test_html_and_md_urls_map_to_html_page(self, url, expected):
+        """A .md URL names the .html page at its path; query and fragment are dropped."""
+        assert to_html_page_url(url) == expected
 
     @pytest.mark.parametrize(
-        'target',
+        'url',
         [
-            '#lambda-invocation',
-            'https://docs.aws.amazon.com/lambda/latest/api/API_Invoke.html',
-            'https://github.com/awslabs/mcp/blob/main/README.md',
-            'urls-configuration.html',
+            'https://docs.aws.amazon.com/test.pdf',
+            'https://docs.aws.amazon.com/lambda/latest/dg/',
+            'https://docs.aws.amazon.com/test.md.bak#x',
+            'https://docs.aws.amazon.com/README.markdown',
         ],
     )
-    def test_other_links_unchanged(self, target):
-        """Fragments, .html pages and off-site Markdown are left alone."""
-        markdown = f'See [the page]({target}).'
-        assert rewrite_markdown_links(markdown, self.BASE) == markdown
-
-    def test_link_title_is_preserved(self):
-        """A quoted link title after the destination survives the rewrite."""
-        result = rewrite_markdown_links('[a](invocation-sync.md "Sync")', self.BASE)
-        assert result == (
-            '[a](https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html "Sync")'
-        )
-
-    def test_code_blocks_unchanged(self):
-        """Links inside fenced code blocks are not rewritten."""
-        markdown = '```\n[a](invocation-sync.md)\n```\n[b](invocation-sync.md)'
-        result = rewrite_markdown_links(markdown, self.BASE)
-        assert result.split('\n')[1] == '[a](invocation-sync.md)'
-        assert result.split('\n')[3] == (
-            '[b](https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html)'
-        )
+    def test_other_urls_are_rejected(self, url):
+        """Anything not ending in .html or .md has no page URL."""
+        assert to_html_page_url(url) is None

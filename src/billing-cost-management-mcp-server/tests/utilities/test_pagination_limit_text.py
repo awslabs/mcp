@@ -96,3 +96,54 @@ def test_env_override_renders_in_served_description(reload_against_env, monkeypa
     assert paging, 'representative module served no paging clause'
     assert all('up to 45 seconds (BCM_MCP_PAGINATION_MAX_SECONDS)' in d for d in paging)
     assert all('up to 300 seconds' not in d for d in paging)
+
+
+@pytest.mark.parametrize(
+    'module_name,tool_name',
+    [
+        ('business_support_tools', 'business-support'),
+        ('cost_anomaly_tools', 'cost-anomaly-monitors'),
+        ('ri_performance_tools', 'ri-performance'),
+    ],
+)
+def test_time_bounded_tools_state_the_configured_limit(monkeypatch, module_name, tool_name):
+    """These tools page through the time-bounded pager, so the served text names its limit.
+
+    Omitting max_items (or max_pages) does not fetch without limit: the pager stops at
+    BCM_MCP_PAGINATION_MAX_SECONDS. The text must say so, with the configured value and
+    no hardcoded 300.
+    """
+    module = importlib.import_module(
+        f'awslabs.billing_cost_management_mcp_server.tools.{module_name}'
+    )
+    monkeypatch.setenv(ENV, '45')
+    try:
+        importlib.reload(constants)
+        importlib.reload(module)
+
+        async def describe():
+            for value in vars(module).values():
+                if isinstance(value, fastmcp.FastMCP):
+                    async with fastmcp.Client(value) as client:
+                        for tool in await client.list_tools():
+                            if tool.name == tool_name:
+                                return tool.description or '', tool.input_schema
+            raise AssertionError(f'{tool_name} not served by {module_name}')
+
+        description, schema = asyncio.run(describe())
+        assert 'up to 45 seconds (BCM_MCP_PAGINATION_MAX_SECONDS)' in description
+        assert '(no limit)' not in description
+        assert '300-second' not in description and 'up to 300 seconds' not in description
+        assert 'Omit it to fetch every page.' not in description
+        if tool_name == 'ri-performance':
+            assert 'with the same time limit' in description
+        # The paging arg docs, served in the input schema, point at the limit too.
+        for arg in ('max_items', 'max_pages'):
+            doc = ' '.join((schema['properties'].get(arg) or {}).get('description', '').split())
+            if doc and 'every page' in doc:
+                assert 'within the time limit' in doc, (arg, doc)
+            assert 'None fetches every page' not in doc
+    finally:
+        monkeypatch.delenv(ENV, raising=False)
+        importlib.reload(constants)
+        importlib.reload(module)

@@ -456,7 +456,7 @@ class TestReadDocumentationImpl:
 
     @pytest.mark.asyncio
     async def test_markdown_response_skips_html_conversion(self):
-        """A negotiated Markdown response is used as-is and still gets the cleanup pass."""
+        """Negotiated Markdown is used as-is, links included, with tables truncated."""
         url = 'https://docs.aws.amazon.com/test.html'
         ctx = MagicMock(spec=Context)
         ctx.error = AsyncMock()
@@ -488,8 +488,8 @@ class TestReadDocumentationImpl:
             mock_client.get.assert_called_once()
             assert result.startswith(f'AWS Documentation from {url}:\n\n# Test')
             assert 'Table truncated (showing 5 of 30 rows)' in result
+            assert 'See [other](other.md).' in result
             assert '| row29 |' not in result
-            assert '[other](https://docs.aws.amazon.com/other.html)' in result
 
 
 def _install_mock_transport(monkeypatch, routes, target_module):
@@ -2201,15 +2201,9 @@ class TestReadSectionsOnConvertedHtml:
         assert 'Elsewhere.' not in result
 
     @pytest.mark.asyncio
-    async def test_markdown_section_links_are_rewritten(self):
-        """Section results get the same link rewrite as read_documentation."""
+    async def test_markdown_section_links_are_kept_as_published(self):
+        """Section results keep relative .md links rather than expanding them to full URLs."""
         markdown = '## Quotas\n\nSee [other](other.md).\n\n## Other\n\nElsewhere.\n'
         result = await self._read(markdown, 'text/markdown', ['Quotas'])
-        assert '[other](https://docs.aws.amazon.com/lambda/latest/dg/other.html)' in result
-
-    @pytest.mark.asyncio
-    async def test_unresolvable_link_does_not_fail_the_read(self):
-        """A link the rewrite cannot parse is left as written instead of failing the tool."""
-        markdown = '## Quotas\n\nSee [bad](http://[bad.md).\n'
-        result = await self._read(markdown, 'text/markdown', ['Quotas'])
-        assert '[bad](http://[bad.md)' in result
+        assert '[other](other.md)' in result
+        assert 'https://docs.aws.amazon.com/lambda/latest/dg/other' not in result
