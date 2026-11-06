@@ -32,6 +32,7 @@ from awslabs.document_loader_mcp_server.server import (
     validate_output_dir,
 )
 from fastmcp.utilities.types import Image
+from pathlib import Path
 from tests.test_document_parsing import DocumentTestGenerator, MockContext
 from unittest.mock import MagicMock, patch
 
@@ -145,13 +146,12 @@ async def test_mcp_tool_functions():
     print('✓ read_document (XLSX) tool working')
 
     # Test XLS document using consolidated read_document tool
-    xls_path = (
-        generator.generate_sample_xlsx()
-    )  # Use same generator, just test different file_type
+    xls_path = str(Path(__file__).parent / 'fixtures' / 'test.xls')
     xls_result = await call_mcp_tool('read_document', xls_path, 'xls')
     assert isinstance(xls_result, DocumentReadResponse)
-    assert xls_result.status == 'success'
-    assert len(xls_result.content) > 0
+    assert xls_result.status == 'success', xls_result.error_message
+    assert '## 09060124-b5e7-4717-9d07-3c046eb' in xls_result.content
+    assert '6ff4173b-42a5-4784-9b19-f49caff4d93d' in xls_result.content
     print('✓ read_document (XLS) tool working')
 
     # Test PPTX document using consolidated read_document tool
