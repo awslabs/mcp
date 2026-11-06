@@ -164,11 +164,13 @@ async def check_security_services(
         start_time = datetime.datetime.now()
 
         if debug:
-            print(
+            logger.debug(
                 f"[DEBUG:CheckSecurityServices] Starting security services check for region: {region}"
             )
-            print(f"[DEBUG:CheckSecurityServices] Services to check: {', '.join(services)}")
-            print(f"[DEBUG:CheckSecurityServices] Using AWS profile: {aws_profile or 'default'}")
+            logger.debug(f"[DEBUG:CheckSecurityServices] Services to check: {', '.join(services)}")
+            logger.debug(
+                f"[DEBUG:CheckSecurityServices] Using AWS profile: {aws_profile or 'default'}"
+            )
 
         # Use the provided AWS profile or default to 'default'
         profile_name = aws_profile or "default"
@@ -196,9 +198,9 @@ async def check_security_services(
         for service_name in services:
             # Process status update
             service_start_time = datetime.datetime.now()
-            print(f"Checking {service_name} status in {region}...")
+            logger.info(f"Checking {service_name} status in {region}...")
             if debug:
-                print(f"[DEBUG:CheckSecurityServices] Starting check for {service_name}")
+                logger.debug(f"[DEBUG:CheckSecurityServices] Starting check for {service_name}")
 
             service_result = None
 
@@ -209,18 +211,18 @@ async def check_security_services(
                 service_result = await check_inspector(region, session, ctx)
             elif service_name.lower() == "accessanalyzer":
                 # Call the access analyzer check with additional debugging
-                print(
+                logger.debug(
                     f"[DEBUG:CheckSecurityServices] Calling check_access_analyzer for region {region}"
                 )
                 service_result = await check_access_analyzer(region, session, ctx)
-                print(
+                logger.debug(
                     f"[DEBUG:CheckSecurityServices] check_access_analyzer returned: enabled={service_result.get('enabled', False)}"
                 )
 
                 # If service_result says not enabled but analyzers are present, override the enabled flag
                 analyzers = service_result.get("analyzers", [])
                 if not service_result.get("enabled", False) and analyzers and len(analyzers) > 0:
-                    print(
+                    logger.debug(
                         "[DEBUG:CheckSecurityServices] OVERRIDING: Access Analyzer has analyzers but reported as disabled. Setting enabled=True"
                     )
                     service_result["enabled"] = True
@@ -231,15 +233,17 @@ async def check_security_services(
                 # Always log the analyzers we found
                 analyzers = service_result.get("analyzers", [])
                 if analyzers:
-                    print(
+                    logger.debug(
                         f"[DEBUG:CheckSecurityServices] Access Analyzer check found {len(analyzers)} analyzers:"
                     )
                     for idx, analyzer in enumerate(analyzers):
-                        print(
+                        logger.debug(
                             f"[DEBUG:CheckSecurityServices]   Analyzer {idx + 1}: name={analyzer.get('name')}, status={analyzer.get('status')}"
                         )
                 else:
-                    print("[DEBUG:CheckSecurityServices] Access Analyzer check found no analyzers")
+                    logger.debug(
+                        "[DEBUG:CheckSecurityServices] Access Analyzer check found no analyzers"
+                    )
 
             elif service_name.lower() == "securityhub":
                 service_result = await check_security_hub(region, session, ctx)
@@ -249,7 +253,7 @@ async def check_security_services(
                 service_result = await check_macie(region, session, ctx)
             else:
                 # Log warning
-                print(f"WARNING: Unknown service: {service_name}. Skipping.")
+                logger.warning(f"WARNING: Unknown service: {service_name}. Skipping.")
                 continue
 
             # Add service result to the output
@@ -274,7 +278,7 @@ async def check_security_services(
                         "status": "success" if service_result else "error",
                     }
 
-                print(
+                logger.debug(
                     f"[DEBUG:CheckSecurityServices] {service_name} check completed in {service_duration:.2f} seconds"
                 )
 
@@ -304,13 +308,13 @@ async def check_security_services(
         if store_in_context:
             context_key = f"security_services_{region}"
             context_storage[context_key] = results
-            print(f"Stored security services results in context with key: {context_key}")
+            logger.info(f"Stored security services results in context with key: {context_key}")
 
         return results
 
     except Exception as e:
         # Log error
-        print(f"ERROR: Error checking security services: {e}")
+        logger.error(f"ERROR: Error checking security services: {e}")
         return {
             "region": region,
             "services_checked": services,
@@ -382,7 +386,7 @@ async def get_security_findings(
         if check_enabled:
             # Check if security services data is available in context
             if context_key in context_storage:
-                print(f"Using stored security services data for region: {region}")
+                logger.info(f"Using stored security services data for region: {region}")
                 security_data = context_storage[context_key]
 
                 # Check if the requested service is in the stored data
@@ -401,11 +405,11 @@ async def get_security_findings(
                             ),
                         }
                 else:
-                    print(
+                    logger.info(
                         f"Service {service_name} not found in stored security services data. Will check directly."
                     )
             else:
-                print(
+                logger.info(
                     f"No stored security services data found for region: {region}. Will check service status directly."
                 )
 
@@ -454,33 +458,33 @@ async def get_security_findings(
 
         # Call appropriate service function based on service parameter
         if service_name == "guardduty":
-            print(f"Retrieving GuardDuty findings from {region}...")
+            logger.info(f"Retrieving GuardDuty findings from {region}...")
             result = await get_guardduty_findings(
                 region, session, ctx, max_findings, filter_criteria
             )
         elif service_name == "securityhub":
-            print(f"Retrieving Security Hub findings from {region}...")
+            logger.info(f"Retrieving Security Hub findings from {region}...")
             result = await get_securityhub_findings(
                 region, session, ctx, max_findings, filter_criteria
             )
         elif service_name == "inspector":
-            print(f"Retrieving Inspector findings from {region}...")
+            logger.info(f"Retrieving Inspector findings from {region}...")
             result = await get_inspector_findings(
                 region, session, ctx, max_findings, filter_criteria
             )
         elif service_name == "accessanalyzer":
-            print(f"Retrieving IAM Access Analyzer findings from {region}...")
+            logger.info(f"Retrieving IAM Access Analyzer findings from {region}...")
             result = await get_access_analyzer_findings(region, session, ctx)
         elif service_name == "trustedadvisor":
-            print("Retrieving Trusted Advisor security checks with Error/Warning status...")
+            logger.info("Retrieving Trusted Advisor security checks with Error/Warning status...")
             # For Trusted Advisor, we'll focus on security category checks
             # Use the severity filter if provided, otherwise default to error and warning
             if severity_filter:
                 status_filter = [severity_filter.lower()]
-                print(f"Filtering Trusted Advisor checks by status: {status_filter}")
+                logger.info(f"Filtering Trusted Advisor checks by status: {status_filter}")
             else:
                 status_filter = ["error", "warning"]
-                print(f"Using default status filter for Trusted Advisor: {status_filter}")
+                logger.info(f"Using default status filter for Trusted Advisor: {status_filter}")
             result = await get_trusted_advisor_findings(
                 region,
                 session,
@@ -490,7 +494,7 @@ async def get_security_findings(
                 category_filter="security",
             )
         elif service_name == "macie":
-            print(f"Retrieving Macie findings from {region}...")
+            logger.info(f"Retrieving Macie findings from {region}...")
             result = await get_macie_findings(region, session, ctx, max_findings, filter_criteria)
 
         # Add service info to result
@@ -502,13 +506,13 @@ async def get_security_findings(
             service_statuses = security_data.get("service_statuses", {})
             if service_name not in service_statuses:
                 service_statuses[service_name] = {"enabled": False}
-                print(f"Updated context with status for {service_name}: not enabled")
+                logger.info(f"Updated context with status for {service_name}: not enabled")
 
         return result
 
     except Exception as e:
         # Log error
-        print(f"ERROR: Error retrieving {service} findings: {e}")
+        logger.error(f"ERROR: Error retrieving {service} findings: {e}")
         raise e
 
 
@@ -539,7 +543,7 @@ async def get_stored_security_context(
     context_key = f"security_services_{region}"
 
     if context_key not in context_storage:
-        print(f"No stored security services data found for region: {region}")
+        logger.info(f"No stored security services data found for region: {region}")
         return {
             "region": region,
             "available": False,
@@ -561,7 +565,7 @@ async def get_stored_security_context(
     if detailed:
         response["data"] = stored_data
 
-    print(f"Retrieved stored security services data for region: {region}")
+    logger.info(f"Retrieved stored security services data for region: {region}")
     return response
 
 
@@ -595,9 +599,9 @@ async def check_storage_encryption_tool(
     - Read permissions for each storage service being analyzed (s3:GetEncryptionConfiguration, etc.)
     """
     try:
-        print(f"Starting storage encryption check for region: {region}")
-        print(f"Services to check: {', '.join(services)}")
-        print(f"Using AWS profile: {aws_profile or 'default'}")
+        logger.info(f"Starting storage encryption check for region: {region}")
+        logger.info(f"Services to check: {', '.join(services)}")
+        logger.info(f"Using AWS profile: {aws_profile or 'default'}")
 
         # Use the provided AWS profile or default to 'default'
         profile_name = aws_profile or "default"
@@ -618,7 +622,7 @@ async def check_storage_encryption_tool(
 
     except Exception as e:
         # Log error
-        print(f"ERROR: Error checking storage encryption: {e}")
+        logger.error(f"ERROR: Error checking storage encryption: {e}")
         return {
             "region": region,
             "services_checked": services,
@@ -650,8 +654,8 @@ async def list_services_in_region_tool(
     - resource-explorer-2:Search (if Resource Explorer is set up)
     - Read permissions for various AWS services
     """
-    print(f"Starting service discovery for region: {region}")
-    print(f"Using AWS profile: {aws_profile or 'default'}")
+    logger.info(f"Starting service discovery for region: {region}")
+    logger.info(f"Using AWS profile: {aws_profile or 'default'}")
 
     # Use the provided AWS profile or default to 'default'
     profile_name = aws_profile or "default"
@@ -664,13 +668,13 @@ async def list_services_in_region_tool(
 
     try:
         # First try using Resource Explorer method
-        print(f"Attempting to discover services using Resource Explorer in {region}...")
+        logger.info(f"Attempting to discover services using Resource Explorer in {region}...")
         results = await list_services_in_region(region, session, ctx)
 
     except Exception as e:
         # If Resource Explorer method fails, log the error and try alternative method
-        print(f"Resource Explorer method failed: {e}")
-        print("Falling back to alternative service discovery method...")
+        logger.warning(f"Resource Explorer method failed: {e}")
+        logger.info("Falling back to alternative service discovery method...")
 
         return {
             "region": region,
@@ -718,9 +722,9 @@ async def check_network_security_tool(
     - Read permissions for each network service being analyzed (elb:DescribeLoadBalancers, etc.)
     """
     try:
-        print(f"Starting network security check for region: {region}")
-        print(f"Services to check: {', '.join(services)}")
-        print(f"Using AWS profile: {aws_profile or 'default'}")
+        logger.info(f"Starting network security check for region: {region}")
+        logger.info(f"Services to check: {', '.join(services)}")
+        logger.info(f"Using AWS profile: {aws_profile or 'default'}")
 
         # Use the provided AWS profile or default to 'default'
         profile_name = aws_profile or "default"
@@ -741,7 +745,7 @@ async def check_network_security_tool(
 
     except Exception as e:
         # Log error
-        print(f"ERROR: Error checking network security: {e}")
+        logger.error(f"ERROR: Error checking network security: {e}")
         return {
             "region": region,
             "services_checked": services,
