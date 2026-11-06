@@ -1,5 +1,5 @@
 ---
-title: AWS Lambda MCP Server
+title: AWS Lambda MCP Server (Deprecated)
 ---
 
 import ReadmeContent from "../../../src/lambda-tool-mcp-server/README.md";
