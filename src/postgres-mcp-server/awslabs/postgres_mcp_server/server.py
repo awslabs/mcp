@@ -22,11 +22,16 @@ import threading
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from awslabs.postgres_mcp_server.connection.cp_api_connection import (
     DEFAULT_POSTGRES_PORT,
+    PROXY_LISTEN_PORT,
+    find_proxy_for_cluster,
+    find_proxy_for_instance,
     internal_create_express_cluster,
     internal_create_serverless_cluster,
     internal_get_cluster_properties,
     internal_get_cluster_valid_endpoints,
     internal_get_instance_properties,
+    proxy_supports_connection,
+    select_proxy_endpoint,
     setup_aurora_iam_policy_for_current_user,
 )
 from awslabs.postgres_mcp_server.connection.db_connection_map import (
@@ -96,6 +101,20 @@ PRIVILEGE_CHECK_ENFORCE = 'enforce'
 PRIVILEGE_CHECK_WARN = 'warn'
 PRIVILEGE_CHECK_OFF = 'off'
 privilege_check_policy = PRIVILEGE_CHECK_WARN
+
+# RDS Proxy auto-detection policy, set from --rds_proxy.
+#   'off' (default): never look for a proxy. Behavior is identical to not having
+#       this feature, which is why it is the default -- routing an existing
+#       deployment through a proxy it was not configured for can turn a working
+#       connection into an auth or reachability failure.
+#   'auto': look for a proxy fronting the target and, when one is found that
+#       will accept this connection method and secret, connect through it.
+# Applies to standalone RDS instances (RPG) and to Aurora clusters (APG). For a
+# cluster, only the writer and reader endpoints have proxy equivalents; a custom
+# or member-instance endpoint always connects directly.
+RDS_PROXY_OFF = 'off'
+RDS_PROXY_AUTO = 'auto'
+configured_rds_proxy_mode: str = RDS_PROXY_OFF
 
 # Per-target Secrets Manager ARN overrides configured at server startup via
 # repeatable --secret_arn flags. Lookups are by:
@@ -588,6 +607,16 @@ async def connect_to_database(
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
     database: Annotated[str, Field(description='database name')],
+    rds_proxy: Annotated[
+        Optional[str],
+        Field(
+            description=(
+                "Optional RDS Proxy mode for this connection: 'auto' to connect through "
+                "an RDS Proxy fronting the target when a usable one exists, 'off' to "
+                'connect directly. Omit to use the server default set by --rds_proxy.'
+            )
+        ),
+    ] = None,
 ) -> str:
     """Connect to a specific database save the connection internally.
 
@@ -599,6 +628,12 @@ async def connect_to_database(
         db_endpoint: database endpoint
         port: database port
         database: database name. Required parameter
+        rds_proxy: Optional. 'auto' to connect through an RDS Proxy fronting the
+            target when a usable one exists, 'off' to connect directly. Omit to
+            use the server default. Applies to standalone RDS instances and to
+            Aurora clusters addressed by their writer or reader endpoint; a
+            custom or member-instance endpoint always connects directly, since a
+            proxy chooses its own backend.
 
         Supported scenario:
         1. Aurora Postgres database with RDS_API + Credential Manager:
@@ -651,6 +686,7 @@ async def connect_to_database(
             db_endpoint=db_endpoint,
             port=port,
             database=database,
+            rds_proxy=rds_proxy,
         )
 
         was_cached = any(existing is db_connection for existing in existing_connections)
@@ -980,6 +1016,9 @@ def internal_create_connection(
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
     database: Annotated[str, Field(description='database name')] = 'postgres',
+    rds_proxy: Annotated[
+        Optional[str], Field(description="RDS Proxy mode override: 'off' or 'auto'")
+    ] = None,
 ) -> Tuple:
     """Connect to a specific database save the connection internally.
 
@@ -1011,6 +1050,8 @@ def internal_create_connection(
         db_endpoint: database endpoint
         port: database port
         database: database name
+        rds_proxy: Per-call RDS Proxy mode ('off' or 'auto'), overriding the
+            startup --rds_proxy setting. None means use the startup setting.
     """
     global db_connection_map
     global readonly_query
@@ -1044,17 +1085,20 @@ def internal_create_connection(
         connection_method, cluster_identifier, db_endpoint, database, port
     )
     if existing_conn:
-        llm_response = json.dumps(
-            {
-                'connection_method': connection_method,
-                'cluster_identifier': cluster_identifier,
-                'db_endpoint': db_endpoint,
-                'database': database,
-                'port': port,
-            },
-            indent=2,
-            default=str,
-        )
+        cached_response: Dict[str, Any] = {
+            'connection_method': connection_method,
+            'cluster_identifier': cluster_identifier,
+            'db_endpoint': db_endpoint,
+            'database': database,
+            'port': port,
+        }
+        # This path returns before the proxy lookup, so read proxied-ness off the
+        # cached connection rather than re-deriving it. Omitted when absent, so the
+        # key means the same thing here as on the create path.
+        cached_proxy = getattr(existing_conn, 'proxy_endpoint', None)
+        if isinstance(cached_proxy, str) and cached_proxy:
+            cached_response['proxy_endpoint'] = cached_proxy
+        llm_response = json.dumps(cached_response, indent=2, default=str)
         return (existing_conn, llm_response)
 
     # Resolve the Secrets Manager ARN and master-username candidate from
@@ -1066,6 +1110,18 @@ def internal_create_connection(
     # always populate MasterUsername.
     metadata_secret_arn: str = ''
     metadata_master_username: str = ''
+    # The RDS Proxy endpoint fronting this target, when there is one.
+    # Deliberately kept separate from db_endpoint, which stays the
+    # AWS-resolved instance or cluster endpoint for the whole function, because
+    # db_endpoint serves as the target's identity: it keys the per-target
+    # Secrets Manager override map, keys the connection map, and is echoed back to the caller.
+    proxy_endpoint: Optional[str] = None
+    # Set only on the standalone-RPG path; empty for cluster targets.
+    db_instance_id: str = ''
+    # Set only on the cluster path. eligible is False when the caller asked for a
+    # custom or member-instance endpoint, which a proxy cannot reproduce.
+    cluster_proxy_eligible: bool = False
+    cluster_wants_read_only: bool = False
 
     enable_data_api: bool = False
     cluster_arn: str = ''
@@ -1082,6 +1138,7 @@ def internal_create_connection(
         metadata_master_username = cluster_properties.get('MasterUsername', '') or ''
 
         cluster_writer_endpoint = cluster_properties.get('Endpoint', '')
+        cluster_reader_endpoint = cluster_properties.get('ReaderEndpoint', '') or ''
         try:
             cluster_port = int(cluster_properties.get('Port') or 0)
         except (TypeError, ValueError):
@@ -1123,6 +1180,19 @@ def internal_create_connection(
                 raise ValueError(err)
 
             db_endpoint, port = matched
+
+        # Which role did the caller ask for? Classified after both branches so it
+        # covers the default case too (no endpoint supplied resolves to the
+        # writer). Derived from the AWS-resolved host, never the caller's raw
+        # string. Only the writer and reader cluster endpoints have proxy
+        # equivalents: a custom endpoint or a specific member instance endpoint
+        # names a backend the proxy cannot be asked for, since the proxy chooses
+        # -- those stay direct.
+        if db_endpoint == cluster_writer_endpoint:
+            cluster_proxy_eligible = True
+        elif cluster_reader_endpoint and db_endpoint == cluster_reader_endpoint:
+            cluster_proxy_eligible = True
+            cluster_wants_read_only = True
     else:
         # Must be RPG instance only deployment case (i.e. without cluster).
         # internal_get_instance_properties already verifies that the supplied
@@ -1143,6 +1213,11 @@ def internal_create_connection(
         if resolved_port:
             port = resolved_port
 
+        # The proxy lookup itself happens after the secret is resolved, because
+        # deciding whether a proxy will accept this connection requires knowing
+        # which secret we will authenticate with.
+        db_instance_id = instance_properties.get('DBInstanceIdentifier', '')
+
     # Resolve the Secrets Manager ARN. Per-target override map wins,
     # then the bare default ARN, then the cluster/instance MasterUserSecret.
     # IAM-only clusters (Aurora express) advertise no MasterUserSecret,
@@ -1154,7 +1229,9 @@ def internal_create_connection(
     if cluster_identifier:
         target_key = cluster_identifier
     else:
-        target_key = db_endpoint  # already overwritten with the AWS-resolved host above
+        # The AWS-resolved instance host. Never the RDS Proxy endpoint.
+        target_key = db_endpoint
+
     per_target_secret_arn = configured_secret_arns.get(target_key, '')
     effective_secret_arn = (
         per_target_secret_arn or configured_default_secret_arn or metadata_secret_arn or ''
@@ -1174,6 +1251,117 @@ def internal_create_connection(
                 f'by Secrets Manager (ManageMasterUserPassword=True).'
             )
 
+    # RDS Proxy detection, opt-in via --rds_proxy. Default 'off' keeps upgrades a
+    # no-op: routing a connection through a proxy can turn a working direct
+    # connection into an auth or network failure (unregistered secret, IAMAuth
+    # mismatch, an rds-db:connect policy scoped to the instance, or a security
+    # group that reaches the instance but not the proxy), so the operator has to
+    # ask for it.
+    # Per-call override wins over the startup default. The startup flag sets the
+    # default rather than a ceiling: a caller going through connect_to_database
+    # already chooses the connection method, endpoint and database, and the proxy
+    # itself is discovered from the RDS APIs rather than supplied, so this cannot
+    # redirect the connection to a host the caller names.
+    # Validated, not just compared. --rds_proxy is guarded by argparse choices=;
+    # this parameter has no such guard, so an unrecognized value would fail the
+    # == RDS_PROXY_AUTO test below and silently connect directly -- indistinguishable
+    # from "this target has no proxy". That is the wrong failure mode here in
+    # particular: the parameter exists so a caller that is not the config file can
+    # ask for proxy routing, and a model filling in an enum will produce 'AUTO' or
+    # 'true' some of the time. Normalize case, then reject what cannot be honored.
+    if rds_proxy is not None:
+        effective_rds_proxy_mode = rds_proxy.strip().lower()
+        if effective_rds_proxy_mode not in (RDS_PROXY_OFF, RDS_PROXY_AUTO):
+            raise ValueError(
+                f"rds_proxy must be '{RDS_PROXY_OFF}' or '{RDS_PROXY_AUTO}', got '{rds_proxy}'"
+            )
+    else:
+        effective_rds_proxy_mode = configured_rds_proxy_mode
+
+    # RDS_API is excluded here rather than only in proxy_supports_connection: the
+    # Data API speaks HTTPS to the cluster and can never use a proxy, so running
+    # the lookup first would spend one describe_db_proxies plus N paginated
+    # describe_db_proxy_targets on a result that is then discarded. The check in
+    # proxy_supports_connection stays as the backstop.
+    if (
+        effective_rds_proxy_mode == RDS_PROXY_AUTO
+        and connection_method != ConnectionMethod.RDS_API
+    ):
+        # One lookup per target shape. RDS registers an instance with the proxy;
+        # Aurora registers the cluster, so the match key and the endpoint choice
+        # both differ -- see find_proxy_for_cluster.
+        candidate: Optional[Dict[str, Any]] = None
+        target_desc = ''
+        want_read_only = False
+        if db_instance_id:
+            candidate = find_proxy_for_instance(db_instance_id, region)
+            target_desc = f"instance '{db_instance_id}'"
+        elif cluster_identifier and cluster_proxy_eligible:
+            want_read_only = cluster_wants_read_only
+            candidate = find_proxy_for_cluster(cluster_identifier, region, want_read_only)
+            role = 'read-only' if want_read_only else 'read/write'
+            target_desc = f"cluster '{cluster_identifier}' ({role})"
+        elif cluster_identifier:
+            # A custom or member-instance endpoint. The proxy picks the backend,
+            # so it cannot honor "this specific one"; stay direct and say so.
+            logger.info(
+                f"Not using an RDS Proxy for cluster '{cluster_identifier}': "
+                f"'{db_endpoint}' is not the cluster's writer or reader endpoint, "
+                f'and a proxy cannot be asked for a specific member. Connecting '
+                f'directly.'
+            )
+
+        if candidate:
+            supported, reason = proxy_supports_connection(
+                candidate, connection_method, effective_secret_arn
+            )
+            if not supported:
+                # Found a proxy we would be rejected by. Connecting directly is
+                # what this deployment already does, so prefer that over a
+                # guaranteed failure -- but say why, since the operator asked for
+                # proxy routing and is not getting it.
+                logger.warning(
+                    f"Skipping RDS Proxy '{candidate.get('DBProxyName', '')}' for "
+                    f'{target_desc}: {reason}. Connecting directly to '
+                    f"'{db_endpoint}' instead."
+                )
+            else:
+                selected, how = select_proxy_endpoint(candidate, region, want_read_only)
+                if selected:
+                    proxy_endpoint = selected
+                    logger.info(
+                        f'RDS Proxy fronts {target_desc} and accepts this connection '
+                        f'({reason}); using the {how}, while '
+                        f"'{db_endpoint}' remains the target's identity"
+                    )
+                else:
+                    # The proxy is usable but has no endpoint for the role asked
+                    # for. Using the default would silently serve reads from the
+                    # writer, so go direct instead.
+                    logger.warning(
+                        f"Skipping RDS Proxy '{candidate.get('DBProxyName', '')}' for "
+                        f'{target_desc}: {how}. Connecting directly to '
+                        f"'{db_endpoint}' instead."
+                    )
+        elif db_instance_id or (cluster_identifier and cluster_proxy_eligible):
+            logger.info(
+                f'No usable RDS Proxy detected for {target_desc}; '
+                f"connecting directly to '{db_endpoint}'"
+            )
+
+    # Where the socket actually goes: the selected RDS Proxy endpoint when one
+    # fronts this target, otherwise the target itself. Only the PsycopgPoolConnection
+    # host/port below read these; everything that identifies the target keeps
+    # using db_endpoint and port.
+    #
+    # The port has to move with the host. RDS Proxy for PostgreSQL listens on the
+    # engine default and the DBProxy object carries no port to read, so an
+    # instance on a non-default port would otherwise be dialed on the wrong port
+    # -- and that port also feeds generate_db_auth_token, which would sign the IAM
+    # token for the wrong one.
+    connect_host = proxy_endpoint or db_endpoint
+    connect_port = PROXY_LISTEN_PORT if proxy_endpoint else port
+
     logger.debug(
         f'About to create internal DB connections with:'
         f'enable_data_api:{enable_data_api}\n'
@@ -1181,6 +1369,9 @@ def internal_create_connection(
         f'effective_secret_arn:{effective_secret_arn}\n'
         f'metadata_master_username:{metadata_master_username}\n'
         f'db_endpoint:{db_endpoint}\n'
+        f'connect_host:{connect_host}\n'
+        f'connect_port:{connect_port}\n'
+        f'proxy_endpoint:{proxy_endpoint}\n'
         f'port:{port}\n'
         f'region:{region}\n'
         f'readonly:{readonly_query}'
@@ -1211,8 +1402,8 @@ def internal_create_connection(
             )
 
         db_connection = PsycopgPoolConnection(
-            host=db_endpoint,
-            port=port,
+            host=connect_host,
+            port=connect_port,
             database=database,
             readonly=readonly_query,
             secret_arn='',
@@ -1234,8 +1425,8 @@ def internal_create_connection(
     else:
         # must be connection_method == ConnectionMethod.PG_WIRE_PROTOCOL
         db_connection = PsycopgPoolConnection(
-            host=db_endpoint,
-            port=port,
+            host=connect_host,
+            port=connect_port,
             database=database,
             readonly=readonly_query,
             secret_arn=effective_secret_arn,
@@ -1254,20 +1445,33 @@ def internal_create_connection(
         # key to evict a specific connection — use
         # db_connection_map.remove_connection(conn) instead. Tracked for a
         # broader key-normalization fix (see connection-map follow-up issue).
+        #
+        # It is, however, the *instance* endpoint even when the connection was
+        # opened through an RDS Proxy — the proxy host lives in connect_host and
+        # never reaches this key. Callers therefore look this connection up with
+        # the same endpoint they passed in.
         db_connection_map.set(
             connection_method, cluster_identifier, db_endpoint, database, db_connection
         )
-        llm_response = json.dumps(
-            {
-                'connection_method': connection_method,
-                'cluster_identifier': cluster_identifier,
-                'db_endpoint': db_endpoint,
-                'database': database,
-                'port': port,
-            },
-            indent=2,
-            default=str,
-        )
+        # Record the proxy on the connection itself, so proxied-ness stays visible
+        # on paths that don't re-run the lookup: the cache-hit early return above
+        # and get_database_connection_info.
+        db_connection.proxy_endpoint = proxy_endpoint
+
+        response: Dict[str, Any] = {
+            'connection_method': connection_method,
+            'cluster_identifier': cluster_identifier,
+            'db_endpoint': db_endpoint,
+            'database': database,
+            'port': port,
+        }
+        if proxy_endpoint:
+            # Added only when a proxy is actually in use. Reported so the routing
+            # is visible, but it is NOT the handle for this connection: subsequent
+            # calls keep using db_endpoint. Omitted rather than null so its
+            # presence alone answers "is this proxied?".
+            response['proxy_endpoint'] = proxy_endpoint
+        llm_response = json.dumps(response, indent=2, default=str)
         return (db_connection, llm_response)
 
     raise ValueError("Can't create connection because invalid input parameter combination")
@@ -1443,6 +1647,7 @@ def main():
     global configured_secret_arns
     global configured_default_secret_arn
     global privilege_check_policy
+    global configured_rds_proxy_mode
     global configured_ca_bundle
     global configured_sslmode
     global startup_pg_wire_connection
@@ -1467,6 +1672,28 @@ def main():
     parser.add_argument('--db_type', help='APG for Aurora Postgres or RPG for RDS Postgres')
     parser.add_argument('--db_endpoint', help='Instance endpoint address')
     parser.add_argument('--region', help='AWS region')
+    parser.add_argument(
+        '--rds_proxy',
+        choices=[RDS_PROXY_OFF, RDS_PROXY_AUTO],
+        default=RDS_PROXY_OFF,
+        help=(
+            'RDS Proxy auto-detection for standalone RDS PostgreSQL instances (RPG) '
+            "and Aurora PostgreSQL clusters (APG). 'off' (default) connects directly, "
+            "as before. 'auto' looks for an available RDS Proxy fronting the target and "
+            'connects through it when one is found that accepts the connection method '
+            'and secret in use. For a cluster, the proxy endpoint is chosen to match '
+            'the cluster endpoint supplied: writer to the default endpoint, reader to a '
+            'READ_ONLY proxy endpoint; a custom or member-instance endpoint always '
+            'connects directly. Opt-in because routing through a proxy can turn a '
+            "working direct connection into a failure: the proxy's Auth config may not "
+            'register the secret, its IAMAuth mode may not match the connection method, '
+            'an rds-db:connect policy scoped to the instance will not authorize the '
+            'proxy (prx-*), and the proxy may not be reachable from a host that can '
+            'reach the target. Needs rds:DescribeDBProxies and '
+            'rds:DescribeDBProxyTargets, plus rds:DescribeDBProxyEndpoints for Aurora '
+            'read-only routing.'
+        ),
+    )
     parser.add_argument(
         '--privilege_check',
         choices=[PRIVILEGE_CHECK_ENFORCE, PRIVILEGE_CHECK_WARN, PRIVILEGE_CHECK_OFF],
@@ -1588,6 +1815,7 @@ def main():
 
     readonly_query = not args.allow_write_query
     privilege_check_policy = args.privilege_check
+    configured_rds_proxy_mode = args.rds_proxy
     configured_ca_bundle = args.ca_bundle
     configured_sslmode = args.sslmode
     # Surface a reduced TLS posture so operators/auditors can see it in logs.

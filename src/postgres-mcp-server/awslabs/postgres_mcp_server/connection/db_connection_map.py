@@ -156,6 +156,10 @@ class DBConnectionMap:
                 # Optional[bool], but be defensive against test doubles whose
                 # attribute access auto-creates non-serializable objects.
                 raw = getattr(conn, 'effective_is_over_privileged', None)
+                # Same defensiveness for the proxy endpoint: the key is always the
+                # instance endpoint, so this is the only place the map reveals that
+                # a connection is actually routed through a proxy.
+                raw_proxy = getattr(conn, 'proxy_endpoint', None)
                 entry = {
                     'connection_method': key[0],
                     'cluster_identifier': key[1],
@@ -163,6 +167,7 @@ class DBConnectionMap:
                     'database': key[3],
                     'port': key[4],
                     'effective_is_over_privileged': raw if isinstance(raw, bool) else None,
+                    'proxy_endpoint': raw_proxy if isinstance(raw_proxy, str) else None,
                 }
                 entries.append(entry)
         return json.dumps(entries, indent=2)
