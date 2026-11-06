@@ -371,10 +371,9 @@ All tools return structured error responses:
 
 ### Debug Mode
 
-Set environment variable for detailed logging:
+The server already writes detailed logs to stderr: it uses loguru's default handler, which logs at DEBUG level, so no extra setting is needed:
 ```bash
 export PYTHONPATH=.
-export AWS_LOG_LEVEL=DEBUG
 awslabs.healthimaging-mcp-server
 ```
 
