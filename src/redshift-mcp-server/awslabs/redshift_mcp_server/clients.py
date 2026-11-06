@@ -14,6 +14,7 @@
 
 """AWS clients for the Redshift MCP Server, and the error codes their calls answer with."""
 
+import atexit
 import boto3
 import os
 import threading
@@ -22,9 +23,13 @@ from awslabs.redshift_mcp_server.consts import (
     CLIENT_CONNECT_TIMEOUT,
     CLIENT_READ_TIMEOUT,
     CLIENT_RETRIES,
+    CONNECTION_MODE_DIRECT,
 )
+from awslabs.redshift_mcp_server.direct import DirectConnectionClient
+from awslabs.redshift_mcp_server.settings import connection_mode
 from botocore.config import Config
 from loguru import logger
+from typing import Any
 
 
 # ClientError codes that indicate missing IAM permissions.
@@ -56,6 +61,9 @@ class RedshiftClientManager:
         self._redshift_client = None
         self._redshift_serverless_client = None
         self._redshift_data_client = None
+        # Held while the data client is built on first use. Not _ENVIRONMENT_LOCK, which
+        # building the client takes.
+        self._data_client_lock = threading.Lock()
         self._config = config
 
     def redshift_client(self):
@@ -71,10 +79,24 @@ class RedshiftClientManager:
         return self._redshift_serverless_client
 
     def redshift_data_client(self):
-        """Get or create the Redshift Data API client."""
+        """Get or create the client statements run through: the Data API's, or a direct one."""
+        # Checked again under the lock, so two first uses at once build one client and register
+        # one closer at exit.
         if self._redshift_data_client is None:
-            self._redshift_data_client = self._client('redshift-data')
+            with self._data_client_lock:
+                if self._redshift_data_client is None:
+                    self._redshift_data_client = self._new_data_client()
         return self._redshift_data_client
+
+    def _new_data_client(self) -> Any:
+        """Build the Data API client, or with REDSHIFT_CONNECTION_MODE=direct its stand-in."""
+        if connection_mode() != CONNECTION_MODE_DIRECT:
+            return self._client('redshift-data')
+        # The region this manager's clients resolve, so both modes honour the same precedence.
+        direct = DirectConnectionClient(region=lambda: self.redshift_client().meta.region_name)
+        # Closed at exit, so an open transaction ends then rather than when the cluster notices.
+        atexit.register(direct.close)
+        return direct
 
     def _client(self, service: str):
         """Build one client, reading the environment as it stands.
