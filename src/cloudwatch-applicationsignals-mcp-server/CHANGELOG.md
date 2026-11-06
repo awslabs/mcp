@@ -16,6 +16,12 @@
   - Calls the public `application-signals` dynamic instrumentation operations
     (`boto3` >= 1.43.35).
 
+### Fixed
+- `get_enablement_guide` reads the bundled guides as UTF-8 instead of the host's default
+  encoding. On a host whose default is not UTF-8 (for example Windows with cp1252) it
+  returned garbled characters for most guides and a "Fatal error: Cannot read enablement
+  guide" message for the `eks` / `python` guide.
+
 ## [0.1.0] - 2025-01-18
 
 ### Added
