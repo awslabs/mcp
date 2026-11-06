@@ -19,6 +19,7 @@ __version__ = '1.1.6'
 
 
 import inspect
+import os
 import sys
 
 from loguru import logger as logger
@@ -31,12 +32,25 @@ def get_format():
     return '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>'
 
 
+LOG_LEVELS = ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
+DEFAULT_LOG_LEVEL = 'INFO'
+
+
+def get_log_level_from_env() -> str:
+    """Return the log level named by the LOG_LEVEL environment variable.
+
+    The value is case-insensitive. An unset, empty or unrecognized value falls back to INFO.
+    """
+    level = os.environ.get('LOG_LEVEL', '').strip().upper()
+    return level if level in LOG_LEVELS else DEFAULT_LOG_LEVEL
+
+
 # Set up enhanced logging format to include function name, line number, and logger name
 # Fixed the whitespace issue after log level by removing padding
 logger.add(
     sys.stderr,
     format=get_format(),
-    level='INFO',
+    level=get_log_level_from_env(),
 )
 
 
@@ -66,4 +80,4 @@ def get_caller_info():
     return f'{caller_info.filename}:{caller_info.function}:{caller_info.lineno}'
 
 
-__all__ = ['__version__', 'logger', 'get_caller_info']
+__all__ = ['__version__', 'logger', 'get_caller_info', 'get_log_level_from_env', 'LOG_LEVELS']
