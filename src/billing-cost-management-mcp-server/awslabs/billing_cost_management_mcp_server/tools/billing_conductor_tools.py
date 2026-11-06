@@ -106,7 +106,7 @@ passing `pagination.next_token` back as `next_token`, or say in the answer that 
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {"billing_period": "2025-01"}
-Example 2 (with filter): {"filters": "{\"Statuses\": [\"ACTIVE\"], \"BillingGroupTypes\": [\"STANDARD\"]}", "billing_period": "2025-01"}""",
+Example 2 (with filter): {"filters": "{\\"Statuses\\": [\\"ACTIVE\\"], \\"BillingGroupTypes\\": [\\"STANDARD\\"]}", "billing_period": "2025-01"}""",
 )
 async def list_billing_groups(
     ctx: Context,
@@ -181,8 +181,8 @@ The service returns up to 100 accounts per page, so a `max_items` below 100 stil
 whole first page.
 
 Example 1: {"billing_period": "2025-01"}
-Example 2 (monitored only): {"filters": "{\"Association\": \"MONITORED\"}", "billing_period": "2025-01"}
-Example 3 (by account IDs): {"filters": "{\"AccountIds\": [\"123456789012\", \"234567890123\"]}"}""",
+Example 2 (monitored only): {"filters": "{\\"Association\\": \\"MONITORED\\"}", "billing_period": "2025-01"}
+Example 3 (by account IDs): {"filters": "{\\"AccountIds\\": [\\"123456789012\\", \\"234567890123\\"]}"}""",
 )
 async def list_account_associations(
     ctx: Context,
@@ -252,7 +252,7 @@ passing `pagination.next_token` back as `next_token`, or say in the answer that 
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {"billing_period": "2025-01"}
-Example 2 (with filter): {"filters": "{\"BillingGroupArns\": [\"arn:aws:billingconductor::123456789012:billinggroup/abc\"]}", "billing_period": "2025-01"}""",
+Example 2 (with filter): {"filters": "{\\"BillingGroupArns\\": [\\"arn:aws:billingconductor::123456789012:billinggroup/abcdef1234\\"]}", "billing_period": "2025-01"}""",
 )
 async def list_billing_group_cost_reports(
     ctx: Context,
@@ -332,8 +332,8 @@ Results come in pages of up to 300; the service returns at least 200 per page, s
 below 200 can return up to 200.
 The next_token expires shortly after the first call; after that, call again without next_token.
 
-Example 1: {"arn": "arn:aws:billingconductor::123456789012:billinggroup/abc", "group_by": "[\"PRODUCT_NAME\"]"}
-Example 2: {"arn": "arn:aws:billingconductor::123456789012:billinggroup/abc", "group_by": "[\"PRODUCT_NAME\", \"BILLING_PERIOD\"]", "billing_period_range": "{\"InclusiveStartBillingPeriod\": \"2025-01\", \"ExclusiveEndBillingPeriod\": \"2025-07\"}"}""",
+Example 1: {"arn": "arn:aws:billingconductor::123456789012:billinggroup/abcdef1234", "group_by": "[\\"PRODUCT_NAME\\"]"}
+Example 2: {"arn": "arn:aws:billingconductor::123456789012:billinggroup/abcdef1234", "group_by": "[\\"PRODUCT_NAME\\", \\"BILLING_PERIOD\\"]", "billing_period_range": "{\\"InclusiveStartBillingPeriod\\": \\"2025-01\\", \\"ExclusiveEndBillingPeriod\\": \\"2025-07\\"}"}""",
 )
 async def get_billing_group_cost_report(
     ctx: Context,
@@ -403,7 +403,7 @@ passing `pagination.next_token` back as `next_token`, or say in the answer that 
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {"billing_period": "2025-01"}
-Example 2 (with filter): {"filters": "{\"Names\": [\"MyCustomLineItem\"]}", "billing_period": "2025-01"}""",
+Example 2 (with filter): {"filters": "{\\"Names\\": [\\"MyCustomLineItem\\"]}", "billing_period": "2025-01"}""",
 )
 async def list_custom_line_items(
     ctx: Context,
@@ -452,7 +452,7 @@ passing `pagination.next_token` back as `next_token`, or say in the answer that 
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {"arn": "arn:aws:billingconductor::123456789012:customlineitem/abcdef1234"}
-Example 2: {"arn": "...", "filters": "{\"BillingPeriodRange\": {\"StartBillingPeriod\": \"2025-01\", \"EndBillingPeriod\": \"2025-06\"}}"}""",
+Example 2: {"arn": "...", "filters": "{\\"BillingPeriodRange\\": {\\"StartBillingPeriod\\": \\"2025-01\\", \\"EndBillingPeriod\\": \\"2025-06\\"}}"}""",
 )
 async def list_custom_line_item_versions(
     ctx: Context,
@@ -508,7 +508,7 @@ passing `pagination.next_token` back as `next_token`, or say in the answer that 
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {"arn": "arn:aws:billingconductor::123456789012:customlineitem/abcdef1234"}
-Example 2: {"arn": "...", "filters": "{\"Relationship\": \"CHILD\"}", "billing_period": "2025-01"}""",
+Example 2: {"arn": "...", "filters": "{\\"Relationship\\": \\"CHILD\\"}", "billing_period": "2025-01"}""",
 )
 async def list_resources_associated_to_custom_line_item(
     ctx: Context,
@@ -569,7 +569,7 @@ passing `pagination.next_token` back as `next_token`, or say in the answer that 
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {"billing_period": "2025-01"}
-Example 2: {"filters": "{\"Arns\": [\"arn:aws:billingconductor::123456789012:pricingrule/abc\"]}", "billing_period": "2025-01"}""",
+Example 2: {"filters": "{\\"Arns\\": [\\"arn:aws:billingconductor::123456789012:pricingrule/abcdef1234\\"]}", "billing_period": "2025-01"}""",
 )
 async def list_pricing_rules(
     ctx: Context,
@@ -622,7 +622,7 @@ passing `pagination.next_token` back as `next_token`, or say in the answer that 
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {"billing_period": "2025-01"}
-Example 2: {"filters": "{\"Arns\": [\"arn:aws:billingconductor::123456789012:pricingplan/abc\"]}", "billing_period": "2025-01"}""",
+Example 2: {"filters": "{\\"Arns\\": [\\"arn:aws:billingconductor::123456789012:pricingplan/abcdef1234\\"]}", "billing_period": "2025-01"}""",
 )
 async def list_pricing_plans(
     ctx: Context,
@@ -675,7 +675,7 @@ with `complete_dataset: false` and a `warning`: call again with a larger `max_it
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
-Example: {"pricing_plan_arn": "arn:aws:billingconductor::123456789012:pricingplan/abc"}""",
+Example: {"pricing_plan_arn": "arn:aws:billingconductor::123456789012:pricingplan/abcdef1234"}""",
 )
 async def list_pricing_rules_associated_to_pricing_plan(
     ctx: Context,
@@ -732,7 +732,7 @@ with `complete_dataset: false` and a `warning`: call again with a larger `max_it
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
-Example: {"pricing_rule_arn": "arn:aws:billingconductor::123456789012:pricingrule/abc"}""",
+Example: {"pricing_rule_arn": "arn:aws:billingconductor::123456789012:pricingrule/abcdef1234"}""",
 )
 async def list_pricing_plans_associated_with_pricing_rule(
     ctx: Context,

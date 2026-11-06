@@ -109,9 +109,16 @@ def _upper_snake(metric: str) -> str:
 def _parse_month(name: str, start: str, end: str) -> Tuple[date, date]:
     """Parse one period and require it to be exactly one calendar month."""
     for value in (start, end):
-        if not isinstance(value, str) or not _DATE_PATTERN.match(value):
+        if not isinstance(value, str) or not _DATE_PATTERN.fullmatch(value):
             raise ValueError(
                 f'{name} period date {value!r} is not in YYYY-MM-DD format. {_WHOLE_MONTHS}'
+            )
+        # A time other than midnight is not a month boundary, and cutting it to the date
+        # would silently move the boundary, so reject it.
+        if len(value) > 10 and value[10:] != 'T00:00:00Z':
+            raise ValueError(
+                f'{name} period date {value!r} is not midnight UTC. Use YYYY-MM-DD. '
+                f'{_WHOLE_MONTHS}'
             )
     try:
         first, last = date.fromisoformat(start[:10]), date.fromisoformat(end[:10])
@@ -406,6 +413,11 @@ async def cost_comparison(
             today,
         )
         validate_comparison_filter(parse_filter(filter))
+        # getCostComparisonDrivers answers 504 Gateway Timeout when any period date has a
+        # time part, even T00:00:00Z (getCostAndUsageComparisons accepts it), so send dates.
+        baseline_start_date, baseline_end_date = baseline_start_date[:10], baseline_end_date[:10]
+        comparison_start_date = comparison_start_date[:10]
+        comparison_end_date = comparison_end_date[:10]
 
         # Initialize Cost Explorer client using shared utility
         ce_client = create_aws_client('ce', region_name='us-east-1')

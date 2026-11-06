@@ -548,8 +548,8 @@ Examples:
 - {"operation": "get_enrollment_configuration"}
 - {"operation": "get_automation_event", "event_id": "abc123"}
 - {"operation": "list_automation_events", "regions": ["us-east-1", "eu-west-1"]}
-- {"operation": "list_automation_events", "filters": "[{\"name\": \"EventStatus\", \"values\": [\"Complete\"]}]"}
-- {"operation": "list_automation_rule_preview", "rule_type": "AccountRule", "recommended_action_types": "[\"UpgradeEbsVolumeType\"]"}""",
+- {"operation": "list_automation_events", "filters": "[{\\"name\\": \\"EventStatus\\", \\"values\\": [\\"Complete\\"]}]"}
+- {"operation": "list_automation_rule_preview", "rule_type": "AccountRule", "recommended_action_types": "[\\"UpgradeEbsVolumeType\\"]"}""",
 )
 async def compute_optimizer_automation(
     ctx: Context,
