@@ -492,10 +492,10 @@ Example configuration for Kiro MCP settings (`~/.kiro/settings/mcp.json`):
 ```json
 {
   "mcpServers": {
-    "awslabs-core-mcp-server": {
+    "awslabs.aws-documentation-mcp-server": {
       "command": "uvx",
       "args": [
-        "awslabs.core-mcp-server@latest"
+        "awslabs.aws-documentation-mcp-server@latest"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -514,7 +514,7 @@ When configuring MCP servers on Windows, you'll need to use a slightly different
 ```json
 {
   "mcpServers": {
-    "awslabs-core-mcp-server": {
+    "awslabs.aws-documentation-mcp-server": {
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
@@ -523,8 +523,8 @@ When configuring MCP servers on Windows, you'll need to use a slightly different
         "tool",
         "run",
         "--from",
-        "awslabs.core-mcp-server@latest",
-        "awslabs.core-mcp-server.exe"
+        "awslabs.aws-documentation-mcp-server@latest",
+        "awslabs.aws-documentation-mcp-server.exe"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -627,9 +627,9 @@ For macOS/Linux:
 ```json
 {
   "mcpServers": {
-    "awslabs-core-mcp-server": {
+    "awslabs.aws-documentation-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.core-mcp-server@latest"],
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
@@ -643,7 +643,7 @@ For Windows:
 ```json
 {
   "mcpServers": {
-    "awslabs-core-mcp-server": {
+    "awslabs.aws-documentation-mcp-server": {
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
@@ -652,8 +652,8 @@ For Windows:
         "tool",
         "run",
         "--from",
-        "awslabs.core-mcp-server@latest",
-        "awslabs.core-mcp-server.exe"
+        "awslabs.aws-documentation-mcp-server@latest",
+        "awslabs.aws-documentation-mcp-server.exe"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -701,12 +701,11 @@ For macOS/Linux:
  ```json
  {
    "mcpServers": {
-     "awslabs-core-mcp-server": {
+     "awslabs.aws-documentation-mcp-server": {
        "command": "uvx",
-       "args": ["awslabs.core-mcp-server@latest"],
+       "args": ["awslabs.aws-documentation-mcp-server@latest"],
        "env": {
-         "FASTMCP_LOG_LEVEL": "ERROR",
-         "MCP_SETTINGS_PATH": "path to your mcp settings file"
+         "FASTMCP_LOG_LEVEL": "ERROR"
        }
      }
     }
@@ -718,7 +717,7 @@ For Windows:
 ```json
 {
   "mcpServers": {
-    "awslabs-core-mcp-server": {
+    "awslabs.aws-documentation-mcp-server": {
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
@@ -727,12 +726,11 @@ For Windows:
         "tool",
         "run",
         "--from",
-        "awslabs.core-mcp-server@latest",
-        "awslabs.core-mcp-server.exe"
+        "awslabs.aws-documentation-mcp-server@latest",
+        "awslabs.aws-documentation-mcp-server.exe"
       ],
       "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "MCP_SETTINGS_PATH": "path to your mcp settings file"
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
   }
@@ -767,10 +765,10 @@ For Windows:
   <img src="./docs/images/root-readme/cline-api-provider-filled.png" width="500" height="800"  />
 <p>
 
-10. Next, scroll down on the settings page until you reach the text box that says Custom Instructions. Paste in the following snippet to ensure the `mcp-core` server is used as the starting point for every prompt:
+10. Next, scroll down on the settings page until you reach the text box that says Custom Instructions. Paste in the following snippet so Cline checks your MCP servers before each task:
 
 ```
-For every new project, always look at your MCP servers and use mcp-core as the starting point every time. Also after a task completion include the list of MCP servers used in the operation.
+For every new project, always look at your MCP servers and use the ones that fit the task. Also after a task completion include the list of MCP servers used in the operation.
 ```
 
 <p align="center">
@@ -808,9 +806,9 @@ For macOS/Linux:
 ```json
  {
   "mcpServers": {
-    "awslabs-core-mcp-server": {
+    "awslabs.aws-documentation-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.core-mcp-server@latest"],
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
@@ -824,7 +822,7 @@ For Windows:
 ```json
 {
   "mcpServers": {
-    "awslabs-core-mcp-server": {
+    "awslabs.aws-documentation-mcp-server": {
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
@@ -833,8 +831,8 @@ For Windows:
         "tool",
         "run",
         "--from",
-        "awslabs.core-mcp-server@latest",
-        "awslabs.core-mcp-server.exe"
+        "awslabs.aws-documentation-mcp-server@latest",
+        "awslabs.aws-documentation-mcp-server.exe"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -876,12 +874,11 @@ For macOS/Linux:
  ```json
  {
    "mcpServers": {
-     "awslabs-core-mcp-server": {
+     "awslabs.aws-documentation-mcp-server": {
        "command": "uvx",
-       "args": ["awslabs.core-mcp-server@latest"],
+       "args": ["awslabs.aws-documentation-mcp-server@latest"],
        "env": {
-         "FASTMCP_LOG_LEVEL": "ERROR",
-         "MCP_SETTINGS_PATH": "path to your mcp settings file"
+         "FASTMCP_LOG_LEVEL": "ERROR"
        }
      }
     }
@@ -893,7 +890,7 @@ For Windows:
 ```json
 {
   "mcpServers": {
-    "awslabs-core-mcp-server": {
+    "awslabs.aws-documentation-mcp-server": {
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
@@ -902,12 +899,11 @@ For Windows:
         "tool",
         "run",
         "--from",
-        "awslabs.core-mcp-server@latest",
-        "awslabs.core-mcp-server.exe"
+        "awslabs.aws-documentation-mcp-server@latest",
+        "awslabs.aws-documentation-mcp-server.exe"
       ],
       "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "MCP_SETTINGS_PATH": "path to your mcp settings file"
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
   }
@@ -930,9 +926,9 @@ For macOS/Linux:
 ```json
 {
   "mcpServers": {
-    "awslabs-core-mcp-server": {
+    "awslabs.aws-documentation-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.core-mcp-server@latest"],
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
@@ -946,7 +942,7 @@ For Windows:
 ```json
 {
   "mcpServers": {
-    "awslabs-core-mcp-server": {
+    "awslabs.aws-documentation-mcp-server": {
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
@@ -955,8 +951,8 @@ For Windows:
         "tool",
         "run",
         "--from",
-        "awslabs.core-mcp-server@latest",
-        "awslabs.core-mcp-server.exe"
+        "awslabs.aws-documentation-mcp-server@latest",
+        "awslabs.aws-documentation-mcp-server.exe"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
