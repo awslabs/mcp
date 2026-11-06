@@ -677,11 +677,12 @@ async def list_subscription_history(
 ) -> Dict[str, Any]:
     """List the Business Support subscription contract history.
 
-    Returns the subscription contracts that governed Business Support over the
-    requested window: each contract's account, plan name, and the start and end
+    Returns the subscription contracts that governed Business Support in one
+    billing month: each contract's account, plan name, and the start and end
     dates of the contract term. Every input is optional. When billing_month is
-    omitted the API defaults to the current month, so pass start_date/end_date
-    to cover more than one month.
+    omitted the API defaults to the current month; to cover several months, make
+    one call per billing_month. start_date/end_date only filter that month's
+    contracts.
 
     Pagination goes through the shared paginator, which follows ``nextToken``
     until the results are exhausted or ``max_items`` is reached, and reports what
