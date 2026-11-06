@@ -1034,3 +1034,37 @@ async def test_descriptions_state_past_month_with_nothing_in_effect():
         description = ' '.join((tools[name].description or '').split())
         assert 'returns an empty list' not in description, name
         assert 'returns no results, not an error' not in description, name
+
+
+def test_example_arns_match_the_api_arn_patterns():
+    """Placeholder ARNs in the descriptions match the API's ARN patterns.
+
+    An example with a well-formed ARN fails as not found; a 3-character ID such as
+    billinggroup/abc fails on the pattern instead.
+    """
+    import botocore.session
+    import re
+
+    model = botocore.session.get_session().get_service_model('billingconductor')
+    patterns = {
+        kind: re.compile(model.shape_for(shape).metadata['pattern'])
+        for kind, shape in {
+            'billinggroup': 'BillingGroupFullArn',
+            'pricingplan': 'PricingPlanFullArn',
+            'pricingrule': 'PricingRuleArn',
+            'customlineitem': 'CustomLineItemArn',
+        }.items()
+    }
+
+    async def descriptions():
+        async with fastmcp.Client(billing_conductor_server) as client:
+            return ' '.join(t.description or '' for t in await client.list_tools())
+
+    arns = re.findall(r'arn:aws:billingconductor::\d{12}:(\w+)/(\w+)', asyncio.run(descriptions()))
+    assert len(arns) >= 10
+    bad = [
+        f'{kind}/{rid}'
+        for kind, rid in arns
+        if not patterns[kind].fullmatch(f'arn:aws:billingconductor::123456789012:{kind}/{rid}')
+    ]
+    assert not bad, bad
