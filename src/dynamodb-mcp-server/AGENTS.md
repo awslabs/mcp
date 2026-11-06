@@ -8,7 +8,7 @@ This is the **AWS DynamoDB MCP Server** - an official AWS Labs Model Context Pro
 
 **Project URLs**:
 - Homepage: https://awslabs.github.io/mcp/
-- Documentation: https://awslabs.github.io/mcp/servers/dynamodb-mcp-server/
+- Documentation: https://awslabs.github.io/mcp/servers/dynamodb-mcp-server
 - Repository: https://github.com/awslabs/mcp.git
 - Changelog: https://github.com/awslabs/mcp/blob/main/src/dynamodb-mcp-server/CHANGELOG.md
 

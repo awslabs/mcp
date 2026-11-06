@@ -703,10 +703,9 @@ The server includes comprehensive data protection mechanisms:
 ## Links
 
 - [Homepage](https://awslabs.github.io/mcp/)
-- [Documentation](https://awslabs.github.io/mcp/servers/aws-serverless-mcp-server/)
+- [Documentation](https://awslabs.github.io/mcp/servers/aws-serverless-mcp-server)
 - [Source Code](https://github.com/awslabs/mcp.git)
 - [Bug Tracker](https://github.com/awslabs/mcp/issues)
-- [Changelog](https://github.com/awslabs/mcp/blob/main/src/aws-serverless-mcp-server/CHANGELOG.md)
 
 ## License
 
