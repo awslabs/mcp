@@ -146,7 +146,7 @@ async def create_workflow(
     ),
     definition_source: Optional[str] = Field(
         None,
-        description='Workflow definition content: a local ZIP file path, S3 URI (s3://bucket/key.zip), or base64-encoded ZIP content. Cannot be used together with definition_uri or definition_repository.',
+        description='Workflow definition content: a local ZIP file path, S3 URI (s3://bucket/key.zip), or base64-encoded ZIP content. Cannot be used together with definition_uri or definition_repository. Local file paths are supported only when the server runs over stdio.',
     ),
     description: Optional[str] = Field(
         None,
@@ -176,7 +176,7 @@ async def create_workflow(
     ] = None,
     readme: Optional[str] = Field(
         None,
-        description='README documentation: markdown content, local .md file path, or S3 URI (s3://bucket/key)',
+        description='README documentation: markdown content, local .md file path, or S3 URI (s3://bucket/key). Local file paths are supported only when the server runs over stdio.',
     ),
     definition_repository: Optional[Dict[str, Any]] = Field(
         None,
@@ -604,7 +604,7 @@ async def create_workflow_version(
     ),
     definition_source: Optional[str] = Field(
         None,
-        description='Workflow definition content: a local ZIP file path, S3 URI (s3://bucket/key.zip), or base64-encoded ZIP content. Cannot be used together with definition_uri or definition_repository.',
+        description='Workflow definition content: a local ZIP file path, S3 URI (s3://bucket/key.zip), or base64-encoded ZIP content. Cannot be used together with definition_uri or definition_repository. Local file paths are supported only when the server runs over stdio.',
     ),
     description: Optional[str] = Field(
         None,
@@ -643,7 +643,7 @@ async def create_workflow_version(
     ] = None,
     readme: Optional[str] = Field(
         None,
-        description='README documentation: markdown content, local .md file path, or S3 URI (s3://bucket/key)',
+        description='README documentation: markdown content, local .md file path, or S3 URI (s3://bucket/key). Local file paths are supported only when the server runs over stdio.',
     ),
     definition_repository: Optional[Dict[str, Any]] = Field(
         None,

@@ -147,6 +147,7 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     RequestScopedCredentialResolver,
     set_active_resolver,
 )
+from awslabs.aws_healthomics_mcp_server.utils.local_file_access import configure_local_file_access
 from awslabs.aws_healthomics_mcp_server.utils.pagination import paginating
 from loguru import logger
 from mcp.server.mcpserver import MCPServer
@@ -609,6 +610,10 @@ def main():
         # Covers UnsupportedTransportError as well as invalid host/port errors.
         logger.error(str(exc))
         sys.exit(1)
+
+    # Before any transport serves a request: tool arguments may name local file
+    # paths only over stdio. Every network transport is disabled (the default).
+    configure_local_file_access(config.transport)
 
     if config.multi_tenant:
         try:

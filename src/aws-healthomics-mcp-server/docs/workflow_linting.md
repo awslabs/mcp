@@ -10,6 +10,10 @@ Workflow linting helps catch common issues early in the development process:
 - Runtime requirement validation
 - Best practice recommendations
 
+## Availability
+
+The lint tools work only when the server runs over `stdio`. Over a network transport (`streamable-http` or `sse`) both tools return `{"status": "error", "format": ..., "message": ...}` without linting, because miniwdl and cwltool resolve workflow imports from the local filesystem or the network. Run the server locally over `stdio` to lint.
+
 ## Supported Formats
 
 ### WDL (Workflow Description Language)

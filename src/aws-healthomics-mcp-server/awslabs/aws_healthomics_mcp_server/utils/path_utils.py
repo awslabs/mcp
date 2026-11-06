@@ -21,6 +21,7 @@ so it can be reused by both content resolution and timeline output features.
 from __future__ import annotations
 
 import os
+from awslabs.aws_healthomics_mcp_server.utils.local_file_access import require_local_file_access
 from pathlib import Path
 from typing import Tuple
 
@@ -114,10 +115,12 @@ def write_svg_to_local(svg_content: str, path: str) -> str:
         The resolved absolute path where the file was written.
 
     Raises:
+        LocalFileAccessDisabledError: If local file access is disabled.
         ValueError: If path sanitization fails.
         FileExistsError: If a file already exists at the path.
         OSError: If the write fails (permissions, disk full, etc.).
     """
+    require_local_file_access()
     resolved = sanitize_local_path(path)
     resolved_path = Path(resolved)
 
@@ -141,10 +144,12 @@ def write_zip_to_local(zip_data: bytes, path: str) -> str:
         The resolved absolute path where the file was written.
 
     Raises:
+        LocalFileAccessDisabledError: If local file access is disabled.
         ValueError: If path sanitization fails.
         FileExistsError: If a file already exists at the path.
         OSError: If the write fails (permissions, disk full, etc.).
     """
+    require_local_file_access()
     resolved = sanitize_local_path(path)
     resolved_path = Path(resolved)
 

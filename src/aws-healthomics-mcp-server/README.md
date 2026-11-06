@@ -41,13 +41,13 @@ This MCP server provides tools for:
 ### Workflow Management Tools
 
 1. **ListAHOWorkflows** - List available HealthOmics workflows with pagination support
-2. **CreateAHOWorkflow** - Create new workflows with WDL, CWL, or Nextflow definitions from local ZIP files, S3 URIs, or base64-encoded content, with optional container registry mappings
+2. **CreateAHOWorkflow** - Create new workflows with WDL, CWL, or Nextflow definitions from local ZIP files (stdio only), S3 URIs, or base64-encoded content, with optional container registry mappings
 3. **GetAHOWorkflow** - Retrieve detailed workflow information and export definitions
-4. **CreateAHOWorkflowVersion** - Create new versions of existing workflows from local ZIP files, S3 URIs, or base64-encoded content, with optional container registry mappings
+4. **CreateAHOWorkflowVersion** - Create new versions of existing workflows from local ZIP files (stdio only), S3 URIs, or base64-encoded content, with optional container registry mappings
 5. **ListAHOWorkflowVersions** - List all versions of a specific workflow
-6. **LintAHOWorkflowDefinition** - Lint single WDL or CWL workflow files using miniwdl and cwltool, accepting local file paths, S3 URIs, or inline content
-7. **LintAHOWorkflowBundle** - Lint multi-file WDL or CWL workflow bundles with import/dependency support, accepting local directories, ZIP files, S3 prefixes, or inline dictionaries
-8. **PackageAHOWorkflow** - Package workflow files into base64-encoded ZIP format, accepting local file paths, S3 URIs, or inline content
+6. **LintAHOWorkflowDefinition** - Lint single WDL or CWL workflow files using miniwdl and cwltool, accepting local file paths, S3 URIs, or inline content (stdio only; see [Local file paths](#local-file-paths))
+7. **LintAHOWorkflowBundle** - Lint multi-file WDL or CWL workflow bundles with import/dependency support, accepting local directories, ZIP files, S3 prefixes, or inline dictionaries (stdio only)
+8. **PackageAHOWorkflow** - Package workflow files into base64-encoded ZIP format, accepting local file paths (stdio only), S3 URIs, or inline content
 
 ### Workflow Execution Tools
 
@@ -152,7 +152,7 @@ AWS HealthOmics is designed for genomic data analysis workflows. Key concepts:
 ### Workflow Management Best Practices
 
 1. **Creating Workflows**:
-   - **From local files**: Use `PackageAHOWorkflow` to bundle workflow files, then use the base64-encoded ZIP with `CreateAHOWorkflow`
+   - **From local files** (stdio only; see [Local file paths](#local-file-paths)): Use `PackageAHOWorkflow` to bundle workflow files, then use the base64-encoded ZIP with `CreateAHOWorkflow`. Over `streamable-http` or `sse`, pass inline content or S3 URIs instead
    - **From S3**: Store your workflow definition ZIP file in S3 and reference it using the `definition_uri` parameter
    - Validate workflows with appropriate language syntax (WDL, CWL, Nextflow)
    - Include parameter templates to guide users on required inputs
@@ -169,7 +169,7 @@ AWS HealthOmics is designed for genomic data analysis workflows. Key concepts:
      - S3 URI must start with `s3://`
      - The S3 bucket must be in the same region as the HealthOmics service
      - Appropriate S3 permissions must be configured for the HealthOmics service
-   - **Usage**: Specify either `definition_source` (local ZIP path, S3 URI, or base64 content) OR `definition_uri`, but not both. The legacy `definition_zip_base64` parameter is still accepted as a deprecated alias.
+   - **Usage**: Specify either `definition_source` (local ZIP path over stdio only, S3 URI, or base64 content) OR `definition_uri`, but not both. The legacy `definition_zip_base64` parameter is still accepted as a deprecated alias.
 
 3. **Version Management**:
    - Create new versions for workflow updates rather than modifying existing ones
@@ -236,6 +236,9 @@ The MCP server includes built-in workflow linting capabilities for validating WD
 
 3. **No Additional Installation Required**:
    Both miniwdl and cwltool are included as dependencies and available immediately after installing the MCP server.
+
+4. **stdio only**:
+   Linting is available only when the server runs over `stdio`. Over `streamable-http` or `sse` both lint tools return `{"status": "error", "format": ..., "message": ...}` without linting, because the linters resolve workflow imports from the local filesystem or the network. See [Local file paths](#local-file-paths).
 
 ### Genomics File Discovery
 
@@ -686,6 +689,17 @@ uv run -m awslabs.aws_healthomics_mcp_server.server
 MCP_TRANSPORT=sse uv run -m awslabs.aws_healthomics_mcp_server.server
 ```
 
+### Local file paths
+
+Some tool arguments accept a path on the server host: `main_file_content`, `additional_files`, and `output_path` (`PackageAHOWorkflow`), `definition_source` and `readme` (`CreateAHOWorkflow`, `CreateAHOWorkflowVersion`), `output_path` (`GenerateAHORunTimeline`), and the inputs of the lint tools. Local paths are supported only over `stdio`, where the caller is the local user who launched the server; `stdio` behavior is unchanged.
+
+Over `streamable-http` and `sse`, single- or multi-tenant, tools never read or write a caller-selected local path:
+
+- **Input:** send inline content (workflow text, base64 ZIP, or markdown) or an S3 URI (`s3://bucket/key`).
+- **Output:** use an S3 `output_path`, or omit `output_path` to receive the result in the response.
+- **Path attempts are rejected, not probed:** a single-line absolute path, or a single-line relative path without whitespace ending in `.md`, `.wdl`, `.nf`, `.cwl`, `.zip`, `.json`, `.yml`, or `.yaml` (for example `main.wdl` or `docs/README.md`), returns an error. The server does not look at its filesystem to decide. Any other string, including multi-line workflow text and base64, is treated as inline content.
+- **Linting is unavailable:** `LintAHOWorkflowDefinition` and `LintAHOWorkflowBundle` return an error without linting.
+
 ### Network bind configuration
 
 When a network transport (`streamable-http` or `sse`) is selected, the bind address, port, and request path are configured with the following flags and environment variables. When both a flag and its environment variable are supplied, the command-line flag wins. These values are ignored when the transport is `stdio`.
@@ -1023,14 +1037,16 @@ To reach the server from outside the container you must do two things:
 
 1. Bind a non-loopback host inside the container (for example `MCP_HOST=0.0.0.0`).
    The default `127.0.0.1` is only reachable from within the container.
-2. Publish the configured port to the host with `-p`/`--publish`.
+2. Publish the configured port to the host with `-p`/`--publish`. Prefix the host
+   side with `127.0.0.1` so the port is reachable only from the host itself; a bare
+   `-p 8000:8000` publishes on every host interface.
 
 ```bash
 docker run \
   -e MCP_TRANSPORT=streamable-http \
   -e MCP_HOST=0.0.0.0 \
   -e MCP_PORT=8000 \
-  -p 8000:8000 \
+  -p 127.0.0.1:8000:8000 \
   -e AWS_REGION=us-east-1 \
   aws-healthomics-mcp-server
 ```

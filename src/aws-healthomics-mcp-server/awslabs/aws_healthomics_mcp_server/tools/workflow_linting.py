@@ -17,11 +17,15 @@
 import os
 import tempfile
 from abc import ABC, abstractmethod
+from awslabs.aws_healthomics_mcp_server.consts import ERROR_LINT_UNAVAILABLE_OVER_NETWORK
 from awslabs.aws_healthomics_mcp_server.utils.content_resolver import (
     resolve_bundle_content,
     resolve_single_content,
 )
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
+from awslabs.aws_healthomics_mcp_server.utils.local_file_access import (
+    is_local_file_access_allowed,
+)
 from loguru import logger
 from mcp.server.mcpserver import Context
 from pathlib import Path
@@ -370,6 +374,17 @@ _linters = {
 }
 
 
+async def _lint_unavailable(ctx: Context, workflow_format: str) -> Dict[str, Any]:
+    """Return the network-transport lint error in the linter error response schema."""
+    logger.warning('Workflow linting rejected: local file access is disabled')
+    await ctx.error(ERROR_LINT_UNAVAILABLE_OVER_NETWORK)
+    return {
+        'status': 'error',
+        'format': str(workflow_format).lower(),
+        'message': ERROR_LINT_UNAVAILABLE_OVER_NETWORK,
+    }
+
+
 def get_linter(workflow_format: str) -> WorkflowLinter:
     """Get the appropriate linter for the given workflow format.
 
@@ -394,7 +409,7 @@ def get_linter(workflow_format: str) -> WorkflowLinter:
 async def lint_workflow_definition(
     ctx: Context,
     workflow_content: str = Field(
-        description='The workflow definition content to lint. Accepts inline content, a local file path, or an S3 URI (s3://bucket/key).'
+        description='The workflow definition content to lint. Accepts inline content, a local file path, or an S3 URI (s3://bucket/key). Linting is available only when the server runs over stdio.'
     ),
     workflow_format: str = Field(description="The workflow format: 'wdl' or 'cwl'"),
     filename: Optional[str] = Field(default=None, description='Optional filename for context'),
@@ -427,6 +442,10 @@ async def lint_workflow_definition(
         - raw_output: Raw output from the linter command execution
     """
     try:
+        # Fail closed before content resolution, temp files, or a subprocess:
+        # miniwdl and cwltool resolve imports (local paths, HTTP URLs) themselves.
+        if not is_local_file_access_allowed():
+            return await _lint_unavailable(ctx, workflow_format)
         try:
             resolved = await resolve_single_content(workflow_content, mode='text')
         except (ValueError, FileNotFoundError, PermissionError) as e:
@@ -448,7 +467,7 @@ async def lint_workflow_definition(
 async def lint_workflow_bundle(
     ctx: Context,
     workflow_files: Union[str, Dict[str, str]] = Field(
-        description='Dictionary mapping file paths to their content, a local directory path, a ZIP file path, or an S3 URI (s3://bucket/prefix/ or s3://bucket/file.zip).'
+        description='Dictionary mapping file paths to their content, a local directory path, a ZIP file path, or an S3 URI (s3://bucket/prefix/ or s3://bucket/file.zip). Linting is available only when the server runs over stdio.'
     ),
     workflow_format: str = Field(description="The workflow format: 'wdl' or 'cwl'"),
     main_workflow_file: str = Field(
@@ -489,6 +508,9 @@ async def lint_workflow_bundle(
         - raw_output: Raw output from the linter command execution
     """
     try:
+        # Fail closed before any resolution or subprocess (see lint_workflow_definition).
+        if not is_local_file_access_allowed():
+            return await _lint_unavailable(ctx, workflow_format)
         try:
             resolved = await resolve_bundle_content(workflow_files)
         except (ValueError, FileNotFoundError, PermissionError) as e:

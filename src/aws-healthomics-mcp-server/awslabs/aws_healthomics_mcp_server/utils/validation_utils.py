@@ -21,6 +21,12 @@ from awslabs.aws_healthomics_mcp_server.consts import (
 )
 from awslabs.aws_healthomics_mcp_server.models import ContainerRegistryMap, DefinitionRepository
 from awslabs.aws_healthomics_mcp_server.utils.content_resolver import resolve_single_content
+from awslabs.aws_healthomics_mcp_server.utils.local_file_access import (
+    LocalFileAccessDisabledError,
+    is_local_file_access_allowed,
+    looks_like_local_path,
+    require_local_file_access,
+)
 from enum import Enum
 from loguru import logger
 from mcp.server.mcpserver import Context
@@ -54,6 +60,12 @@ def detect_readme_input_type(readme: str) -> ReadmeInputType:
     2. If path exists and ends with '.md' -> LOCAL_FILE
     3. Otherwise -> MARKDOWN_CONTENT
 
+    When local file access is disabled (network transports), rule 2 is instead a
+    pure string check (``looks_like_local_path``) that never touches the
+    filesystem and has no ``.md`` precondition, so any obvious path attempt such
+    as ``/etc/passwd`` is classified LOCAL_FILE and validate_readme_input rejects
+    it. Multi-line markdown stays MARKDOWN_CONTENT.
+
     Args:
         readme: The README input string
 
@@ -66,8 +78,11 @@ def detect_readme_input_type(readme: str) -> ReadmeInputType:
     if readme.startswith('s3://'):
         return ReadmeInputType.S3_URI
 
-    # Rule 2: Check for existing local file with .md extension
-    if readme.lower().endswith('.md') and os.path.isfile(readme):
+    # Rule 2: Check for a local file (an obvious path attempt when access is disabled)
+    if not is_local_file_access_allowed():
+        if looks_like_local_path(readme):
+            return ReadmeInputType.LOCAL_FILE
+    elif readme.lower().endswith('.md') and os.path.isfile(readme):
         return ReadmeInputType.LOCAL_FILE
 
     # Rule 3: Default to markdown content
@@ -551,6 +566,12 @@ async def validate_readme_input(
         return (None, readme)
 
     elif input_type == ReadmeInputType.LOCAL_FILE:
+        try:
+            require_local_file_access()
+        except LocalFileAccessDisabledError as e:
+            logger.error(str(e))
+            await ctx.error(str(e))
+            raise
         # Read file contents with proper error handling
         try:
             with open(readme, 'r', encoding='utf-8') as f:

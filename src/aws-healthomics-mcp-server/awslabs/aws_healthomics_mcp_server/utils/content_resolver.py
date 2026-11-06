@@ -20,6 +20,11 @@ import base64
 import io
 import os
 import zipfile
+from awslabs.aws_healthomics_mcp_server.utils.local_file_access import (
+    is_local_file_access_allowed,
+    looks_like_local_path,
+    require_local_file_access,
+)
 from awslabs.aws_healthomics_mcp_server.utils.path_utils import (
     validate_local_path,
     validate_s3_uri_format,
@@ -92,6 +97,10 @@ def detect_content_input_type(value: str) -> ContentInputType:
     2. If path passes security checks and exists on filesystem -> LOCAL_FILE
     3. Otherwise -> INLINE_CONTENT
 
+    When local file access is disabled (network transports), step 2 is a pure
+    string check (``looks_like_local_path``) that never touches the filesystem;
+    a match is classified LOCAL_FILE so the reader rejects it.
+
     Args:
         value: The input string to classify.
 
@@ -101,6 +110,12 @@ def detect_content_input_type(value: str) -> ContentInputType:
     # 1. S3 URI check
     if value.startswith('s3://'):
         return ContentInputType.S3_URI
+
+    # Network transports: never probe the filesystem based on caller input.
+    if not is_local_file_access_allowed():
+        if looks_like_local_path(value):
+            return ContentInputType.LOCAL_FILE
+        return ContentInputType.INLINE_CONTENT
 
     # 2. Local file/directory check (with path traversal guard)
     try:
@@ -128,8 +143,10 @@ def _read_local_file(path: str, mode: str, max_size_bytes: Optional[int]) -> Uni
     Raises:
         FileNotFoundError: If the file does not exist.
         PermissionError: If the file cannot be read due to permissions.
+        LocalFileAccessDisabledError: If local file access is disabled.
         ValueError: If path traversal is detected or size limit exceeded.
     """
+    require_local_file_access()
     validate_local_path(path)
 
     if not os.path.exists(path):
@@ -255,8 +272,10 @@ def _read_local_directory(path: str, max_size_bytes: Optional[int]) -> Dict[str,
 
     Raises:
         FileNotFoundError: If the directory does not exist.
+        LocalFileAccessDisabledError: If local file access is disabled.
         ValueError: If path traversal is detected or size limit exceeded.
     """
+    require_local_file_access()
     validate_local_path(path)
 
     if not os.path.exists(path):
