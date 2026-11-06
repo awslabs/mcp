@@ -180,7 +180,7 @@ PAGINATION (applies only when group_by is set; an item is one group of the queri
   Top-N: sort_by + max_items=N.
 - get_reservation_utilization takes max_pages (pages of 500 groups) instead of max_items, because
   its next_token only works with the same page size. Continue with next_token; if max_pages is
-  omitted, the tool fetches every page, with the same 300-second limit.
+  omitted, the tool fetches every page, with the same time limit.
 - If the response has complete_dataset: false, call again with a larger max_items or max_pages,
   continue with next_token, or state in the answer that the result is partial.
 - With group_by, the API's period `total` sums only the groups on its own page, so `total` is
@@ -210,16 +210,16 @@ async def ri_performance(
         start_date: Start date in YYYY-MM-DD format (inclusive). Defaults to 30 days ago if not provided.
         end_date: End date in YYYY-MM-DD format (exclusive). Defaults to today if not provided.
         granularity: Time granularity of the data (DAILY or MONTHLY). Defaults to DAILY. Ignored when group_by is provided (granularity and group_by are mutually exclusive).
-        metrics: List of metrics to retrieve for coverage as a JSON string (e.g., '["Hour", "Cost"]'). Valid values are Hour, Unit and Cost; Unit is EC2 only. Defaults to Hour only.
+        metrics: get_reservation_coverage only. List of metrics to retrieve as a JSON string (e.g., '["Hour", "Cost"]'). Valid values are Hour, Unit and Cost; Unit is EC2 only. Defaults to Hour only. get_reservation_utilization rejects it: it has no metric selection and returns all of its utilization figures.
         group_by: Optional grouping as a JSON string. For coverage: AZ, CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION, INSTANCE_TYPE, INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PLATFORM, REGION, or TENANCY, depending on the service (see the tool description) (SERVICE is NOT valid — filter on it instead). For utilization: SUBSCRIPTION_ID only.
         filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE defaults to EC2 when omitted; valid coverage SERVICE values are "Amazon Elastic Compute Cloud - Compute", "Amazon Relational Database Service", "Amazon ElastiCache", "Amazon MemoryDB", "Amazon Redshift", "Amazon OpenSearch Service", and "Amazon Elasticsearch Service" (use the full display name, not "EC2"/"RDS"); coverage takes one SERVICE value per call and rejects more. SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
         sort_by: Optional sort as a JSON string: '{"Key": "<key>", "SortOrder": "DESCENDING"}'. SortOrder is required: ASCENDING or DESCENDING, upper case only. Valid keys differ per operation (see SORTING in the tool description). get_reservation_utilization ignores sort_by without group_by (the response then carries a sort_by_note).
         max_items: Total number of groups to return across all pages. Omit it to fetch every
-            page. Applies only to get_reservation_coverage with group_by set.
+            page within the time limit. Applies only to get_reservation_coverage with group_by set.
         next_token: The pagination.next_token from a previous response; continue with otherwise
             identical parameters. Applies only when group_by is set.
-        max_pages: Number of pages of 500 groups to return. Omit it to fetch every page.
-            Applies only to get_reservation_utilization with group_by set.
+        max_pages: Number of pages of 500 groups to return. Omit it to fetch every page
+            within the time limit. Applies only to get_reservation_utilization with group_by set.
 
     Returns:
         Dict containing the reservation coverage/utilization information
@@ -258,6 +258,7 @@ async def ri_performance(
                 max_items,
                 next_token,
                 max_pages,
+                metrics=metrics,
             )
         else:
             return format_response(
@@ -336,6 +337,23 @@ CE_GET_RESERVATION_COVERAGE = PageSpec(
 )
 
 
+def _parse_list(value: Optional[str], name: str) -> Any:
+    """Parse a JSON array parameter. Omitted or an empty list ('[]') returns None.
+
+    The API rejects an empty Metrics or GroupBy list, so '[]' means the same as omitting the
+    parameter. Any other value must be a JSON array.
+
+    Raises:
+        ValueError: If the value is not valid JSON or not a JSON array
+    """
+    if not value:
+        return None
+    parsed = parse_json(value, name)
+    if not isinstance(parsed, list):
+        raise ValueError(f'{name} must be a JSON array, or omitted. Got: {value}')
+    return parsed or None
+
+
 async def get_reservation_coverage(
     ctx: Context,
     ce_client: Any,
@@ -388,16 +406,20 @@ async def get_reservation_coverage(
             'TimePeriod': {'Start': start, 'End': end},
         }
 
-        # Add optional parameters if provided
-        if metrics:
-            request_params['Metrics'] = parse_json(metrics, 'metrics')
+        # Add optional parameters if provided; an empty list means the API default.
+        parsed_metrics = _parse_list(metrics, 'metrics')
+        if parsed_metrics:
+            request_params['Metrics'] = parsed_metrics
+
+        # An empty group_by ('[]') is no grouping; the API rejects an empty GroupBy.
+        group_by = _parse_list(group_by, 'group_by')
 
         # GetReservationCoverage treats Granularity and GroupBy as mutually
         # exclusive: "Granularity is not supported when specifying groupBy".
         # Construct exactly one of them so a grouped request cannot include
         # Granularity, which the API rejects with a ValidationException.
         if group_by:
-            request_params['GroupBy'] = parse_json(group_by, 'group_by')
+            request_params['GroupBy'] = group_by
         else:
             request_params['Granularity'] = granularity
 
@@ -519,6 +541,7 @@ async def get_reservation_utilization(
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
     max_pages: Optional[int] = None,
+    metrics: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Retrieves reservation utilization data using the AWS Cost Explorer API.
 
@@ -536,11 +559,19 @@ async def get_reservation_utilization(
         next_token: The token from a previous response. Ignored without group_by.
         max_pages: Number of pages of 500 groups to return. None fetches every page. Ignored
             without group_by.
+        metrics: Not supported; set only to report a validation error.
 
     Returns:
         Dict containing utilization data
     """
     try:
+        if metrics:
+            raise ValueError(
+                'metrics applies only to get_reservation_coverage. '
+                'get_reservation_utilization has no metric selection: it returns all of its '
+                'utilization figures. Remove metrics.'
+            )
+
         # Get date range using shared utility
         start, end = get_date_range(start_date, end_date)
 
@@ -554,9 +585,11 @@ async def get_reservation_utilization(
             'TimePeriod': {'Start': start, 'End': end},
         }
 
-        # Add optional parameters if provided
+        # Add optional parameters if provided. An empty group_by ('[]') is no grouping;
+        # the API rejects an empty GroupBy.
+        group_by = _parse_list(group_by, 'group_by')
         if group_by:
-            request_params['GroupBy'] = parse_json(group_by, 'group_by')
+            request_params['GroupBy'] = group_by
 
         # GetReservationUtilization treats Granularity and GroupBy as mutually
         # exclusive: "If GroupBy is set, Granularity can't be set". Only send

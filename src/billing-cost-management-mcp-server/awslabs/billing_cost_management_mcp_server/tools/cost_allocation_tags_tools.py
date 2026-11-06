@@ -188,7 +188,7 @@ Limits: 500 active cost allocation tag keys per payer account (adjustable via Se
 up to 1,000). Max 20 tags per UpdateCostAllocationTagsStatus request.
 
 Example 1 - List active user-defined tags: {"status": "Active", "tag_type": "UserDefined"}
-Example 2 - Check specific tag keys: {"tag_keys": "[\"Environment\", \"Team\"]"}
+Example 2 - Check specific tag keys: {"tag_keys": "[\\"Environment\\", \\"Team\\"]"}
 Example 3 - List all tags with no filters: {}""",
 )
 async def list_cost_allocation_tags(

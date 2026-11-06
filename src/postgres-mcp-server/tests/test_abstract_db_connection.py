@@ -58,3 +58,34 @@ class TestAbstractDBConnection:
         """Test initialization with readonly=False."""
         conn = ConcreteDBConnection(readonly=False)
         assert conn.readonly_query is False
+
+    def test_proxy_endpoint_defaults_to_none(self):
+        """A connection is direct until told otherwise.
+
+        Defaulting to None rather than '' matters: callers distinguish "not
+        proxied" from "proxied" by presence, and the connect response omits the
+        field entirely when this is unset.
+        """
+        conn = ConcreteDBConnection(readonly=True)
+        assert conn.proxy_endpoint is None
+
+    def test_proxy_endpoint_round_trips(self):
+        """The proxy endpoint must survive being recorded.
+
+        This is the only place proxied-ness is visible on paths that do not re-run
+        the proxy lookup -- a connection-map cache hit, and
+        get_database_connection_info -- so it has to be readable back off the
+        connection object.
+        """
+        conn = ConcreteDBConnection(readonly=True)
+        conn.proxy_endpoint = 'p.proxy-abc.us-east-1.rds.amazonaws.com'
+        assert conn.proxy_endpoint == 'p.proxy-abc.us-east-1.rds.amazonaws.com'
+
+        conn.proxy_endpoint = None
+        assert conn.proxy_endpoint is None
+
+    def test_proxy_endpoint_is_per_instance(self):
+        """Two connections must not share proxy state."""
+        first, second = ConcreteDBConnection(readonly=True), ConcreteDBConnection(readonly=True)
+        first.proxy_endpoint = 'p.proxy-abc.us-east-1.rds.amazonaws.com'
+        assert second.proxy_endpoint is None

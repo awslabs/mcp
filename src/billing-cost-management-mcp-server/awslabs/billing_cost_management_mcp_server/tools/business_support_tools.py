@@ -23,6 +23,7 @@ about every request parameter and response field.
 """
 
 from ..utilities.aws_service_base import format_response
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .business_support_operations import list_account_charges as _list_account_charges
 from .business_support_operations import list_subscription_history as _list_subscription_history
 from fastmcp import Context, FastMCP
@@ -57,8 +58,10 @@ async def _business_support(
         billing_month: Single calendar month in ``YYYY-MM`` format. Required for
             list_account_charges, optional for list_subscription_history.
         account_id: 12-digit account id to filter to (both operations).
-        start_date: Lower timestamp bound (list_subscription_history only).
-        end_date: Upper timestamp bound (list_subscription_history only).
+        start_date: Keeps the selected month's contracts that end on or after this date
+            (list_subscription_history only).
+        end_date: Keeps the selected month's contracts that start on or before this date
+            (list_subscription_history only).
         max_items: Most items to return across pages.
         next_token: Pagination token from a previous response.
 
@@ -113,7 +116,9 @@ async def _business_support(
    billing_month is a single calendar month "YYYY-MM" (e.g. "2026-06") and it selects the billing period the answer covers. It cannot be earlier than 2024-01, the oldest month with Business Support data. You can request the current month, in which case the charges will be estimated (isEstimated=true in the response). Future months (after the current month) are rejected. Both bounds are rejected locally without spending a call.
    Optional:
      - account_id: a 12-digit AWS account number that filters to ONE account inside the payer's Support profile. Omit it to get every account, which is what "break down my Business Support charge by account" asks for. Omitting it sends no account filter at all and the tool never infers one from the caller credentials, so never report that a filter was applied when you left it out. An account id that appears in an error message is the caller's payer account, not a filter that was used.
-     - max_items: total rows to return across pages. Omit it to fetch every page (no limit). next_token: resume from a previous response.
+     - max_items: total rows to return across pages. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. next_token: resume from a previous response.
    Paginated: the tool follows nextToken for you.
    Returns: `data.account_charges`, a list where each item contains:
      - accountId: the 12-digit AWS account number this charge row belongs to.
@@ -128,9 +133,9 @@ async def _business_support(
 2) list_subscription_history - the Business Support subscription contract history
    Required: operation="list_subscription_history". Everything else is optional.
    Optional:
-     - billing_month: a single calendar month "YYYY-MM" to scope the history to contracts in effect that month. When omitted, the API defaults to the CURRENT month (UTC), not the full history; to cover several months pass start_date/end_date. A month with no Business Support data returns a not_found error, not an empty list. Same 2024-01 and future-month bounds as above, applied only when supplied.
+     - billing_month: a single calendar month "YYYY-MM" to scope the history to contracts in effect that month. When omitted, the API defaults to the CURRENT month (UTC), not the full history; to cover several months, make one call per billing_month. A month with no Business Support data returns a not_found error, not an empty list. Same 2024-01 and future-month bounds as above, applied only when supplied.
      - account_id: a 12-digit AWS account number to filter to one account. Same omit-means-no-filter rule as above.
-     - start_date, end_date: ISO-8601 dates or timestamps bounding the contract window (e.g. "2025-01-01" or "2025-01-01T00:00:00Z"). They are validated locally (format, and start_date on or before end_date) and then sent as given.
+     - start_date, end_date: ISO-8601 dates or timestamps (e.g. "2025-01-01" or "2025-01-01T00:00:00Z") that filter the selected month's contracts and never add other months. start_date keeps contracts ending on or after it; end_date keeps contracts starting on or before it. They are validated locally (format, and start_date on or before end_date) and then sent as given.
      - max_items, next_token: paging, as above.
    Paginated: the tool follows nextToken for you.
    Returns: `data.subscription_contracts`, a list where each item contains:
@@ -147,7 +152,7 @@ async def _business_support(
 - THE SPEND BREAKDOWN DECOMPOSES THE BASIS, it does not add to it. supportEligibleSpendByService sums to totalUsageBasis for that account; totalSupportEligibleSpend is the profile-wide equivalent.
 - TIER CHARGES ARE INCREMENTAL, not a flat rate on total spend. Report each tier charge as returned rather than multiplying a single rate across the whole eligible spend.
 - THIS TOOL NEVER RESOLVES AN ACCOUNT ID FROM CREDENTIALS, unlike some other billing tools. When account_id is omitted no account filter is sent and the results cover every account in the Support profile. NEVER state that the tool auto-detected, inferred or looked up the caller's account. An account id inside an error message is the payer the credentials belong to, reported by AWS, not a filter this tool applied.
-- CHECK `data.pagination` BEFORE TOTALLING ROWS. When `has_more` is true the walk stopped early, usually because max_items was reached, so any sum over the returned rows is partial. Report the total AND say it covers `items_returned` rows with more available. `complete_dataset` true means every row was fetched.
+- CHECK `data.pagination` BEFORE TOTALLING ROWS. When `has_more` is true the walk stopped early (max_items or the time limit), so any sum over the returned rows is partial. Report the total AND say it covers `items_returned` rows with more available. `complete_dataset` true means every row was fetched.
 - ONE BILLING PERIOD PER list_account_charges CALL. There is no date range on it. Answering "how did my Business Support charge change since March" means one call per billing period, then comparing the results. Only list_subscription_history takes a start_date/end_date window, and that window describes contract terms, not charges.
 - An access_denied error means the caller's IAM policy is missing the named permission, or the caller is not the payer account authorized for the Support profile. It does NOT mean the account has no Business Support charges, and a linked account cannot read these operations at all.
 
@@ -159,7 +164,6 @@ EXAMPLES
 - {"operation": "list_account_charges", "billing_month": "2026-06"}
 - {"operation": "list_account_charges", "billing_month": "2026-06", "account_id": "111122223333"}
 - {"operation": "list_subscription_history"}  (current month only)
-- {"operation": "list_subscription_history", "start_date": "2025-01-01", "end_date": "2026-06-30"}
 - {"operation": "list_subscription_history", "account_id": "111122223333", "billing_month": "2026-06"}""",
 )
 async def business_support(
@@ -184,8 +188,10 @@ async def business_support(
         billing_month: Single calendar month in ``YYYY-MM`` format. Required for
             list_account_charges, optional for list_subscription_history.
         account_id: 12-digit account id to filter to (both operations).
-        start_date: Lower timestamp bound (list_subscription_history only).
-        end_date: Upper timestamp bound (list_subscription_history only).
+        start_date: Keeps the selected month's contracts that end on or after this date
+            (list_subscription_history only).
+        end_date: Keeps the selected month's contracts that start on or before this date
+            (list_subscription_history only).
         max_items: Most items to return across pages.
         next_token: Pagination token from a previous response.
 

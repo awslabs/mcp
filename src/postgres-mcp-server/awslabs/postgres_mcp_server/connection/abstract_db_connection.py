@@ -40,6 +40,14 @@ class AbstractDBConnection(ABC):
         # and must never be used to make a security decision — that logic
         # lives in server.validate_connection.
         self._effective_is_over_privileged: Optional[bool] = None
+        # Diagnostic only: the RDS Proxy endpoint this connection was opened
+        # against, when proxy routing selected one, else None. The proxy is not
+        # the target's identity -- the connection map and the connect response
+        # both key on the instance endpoint -- so this exists purely so that
+        # "is this connection proxied?" stays answerable on paths that do not
+        # re-run the proxy lookup (a connection-map cache hit, or
+        # get_database_connection_info).
+        self._proxy_endpoint: Optional[str] = None
 
     @property
     def readonly_query(self) -> bool:
@@ -66,6 +74,21 @@ class AbstractDBConnection(ABC):
     def effective_is_over_privileged(self, value: Optional[bool]) -> None:
         """Record the privilege-probe result (diagnostic use only)."""
         self._effective_is_over_privileged = value
+
+    @property
+    def proxy_endpoint(self) -> Optional[str]:
+        """Diagnostic flag: the RDS Proxy endpoint this connection was opened against.
+
+        Returns:
+            Optional[str]: The proxy endpoint when proxy routing selected one,
+            else None for a direct connection.
+        """
+        return self._proxy_endpoint
+
+    @proxy_endpoint.setter
+    def proxy_endpoint(self, value: Optional[str]) -> None:
+        """Record the proxy endpoint in use (diagnostic use only)."""
+        self._proxy_endpoint = value
 
     @abstractmethod
     async def execute_query(
