@@ -218,3 +218,174 @@ class TestErrorSignalingEndToEnd:
         content = result.content[0]
         assert isinstance(content, TextContent)
         assert json.loads(content.text) == result.structured_content
+
+
+class TestArgumentValidationErrors:
+    """Arguments that fail a tool's schema get the standard validation_error response."""
+
+    @pytest.fixture
+    def served(self):
+        """A server with the middleware and one tool taking lists, an object and an int."""
+        from fastmcp import FastMCP
+        from typing import Any, Dict, List, Optional, Union
+
+        mcp = FastMCP('argument-errors')
+        mcp.add_middleware(ErrorSignalingMiddleware())
+
+        @mcp.tool
+        def probe(
+            metrics: Optional[List[str]] = None,
+            filter: Optional[Dict[str, Any]] = None,
+            max_items: Optional[int] = None,
+            ids: Optional[Union[List[str], str]] = None,
+            operation: Optional[str] = None,
+        ) -> dict:
+            return {'status': 'success'}
+
+        return mcp
+
+    async def _call(self, served, args):
+        from fastmcp import Client
+
+        async with Client(served) as client:
+            return await client.call_tool('probe', args, raise_on_error=False)
+
+    @staticmethod
+    def _body(result):
+        """The structured content of a client result, which must be present."""
+        assert result.structured_content is not None
+        return result.structured_content
+
+    @pytest.mark.asyncio
+    async def test_a_wrong_type_is_a_structured_validation_error(self, served):
+        """A wrong type gets error_type, retry_strategy and the parameter that failed."""
+        result = await self._call(served, {'filter': '{"a": 1}'})
+
+        assert result.is_error
+        body = self._body(result)
+        assert body['status'] == 'error'
+        assert body['error_type'] == 'validation_error'
+        assert body['retry_strategy'] == 'modify_request'
+        assert body['operation'] == 'probe'
+        assert body['data']['invalid_parameters'] == [
+            {'parameter': 'filter', 'message': 'Input should be a valid dictionary'}
+        ]
+        assert body['message'] == 'Invalid arguments: filter: Input should be a valid dictionary'
+        content = result.content[0]
+        assert isinstance(content, TextContent)
+        assert json.loads(content.text) == body
+
+    @pytest.mark.asyncio
+    async def test_every_failing_parameter_is_listed(self, served):
+        """Several bad arguments are all named, with the list index for a list item."""
+        result = await self._call(
+            served, {'metrics': ['Hour', 5], 'filter': '["x"]', 'max_items': 'many'}
+        )
+
+        body = self._body(result)
+        params = [p['parameter'] for p in body['data']['invalid_parameters']]
+        assert params == ['metrics.1', 'filter', 'max_items']
+        assert 'filter: Input should be a valid dictionary' in body['message']
+
+    @pytest.mark.asyncio
+    async def test_a_long_bad_list_is_capped_and_counted(self, served):
+        """Past _MAX_ARGUMENT_PROBLEMS the problems are counted, not all listed."""
+        from awslabs.billing_cost_management_mcp_server.server import _MAX_ARGUMENT_PROBLEMS
+
+        result = await self._call(served, {'metrics': list(range(_MAX_ARGUMENT_PROBLEMS + 15))})
+
+        body = self._body(result)
+        data = body['data']
+        assert len(data['invalid_parameters']) == _MAX_ARGUMENT_PROBLEMS
+        assert data['omitted_count'] == 15
+        assert body['message'].endswith('; and 15 more')
+
+    @pytest.mark.asyncio
+    async def test_a_very_long_bad_list_is_handled_in_linear_time(self, served):
+        """20,000 bad items (one pydantic error each) are counted quickly, not compared pairwise."""
+        import time
+
+        started = time.monotonic()
+        result = await self._call(served, {'metrics': list(range(20_000))})
+
+        assert self._body(result)['data']['omitted_count'] == 20_000 - 10
+        assert time.monotonic() - started < 5
+
+    @pytest.mark.asyncio
+    async def test_a_union_reports_the_list_item_not_every_branch(self, served):
+        """A bad list item in a list-or-string union is reported once, at the item."""
+        result = await self._call(served, {'ids': [True]})
+
+        assert self._body(result)['data']['invalid_parameters'] == [
+            {'parameter': 'ids.0', 'message': 'Input should be a valid string'}
+        ]
+
+    @pytest.mark.asyncio
+    async def test_an_unknown_argument_keeps_its_name(self, served):
+        """The argument name is never dropped, even one that looks like a union branch tag."""
+        result = await self._call(served, {'list': 1})
+
+        assert self._body(result)['data']['invalid_parameters'] == [
+            {'parameter': 'list', 'message': 'Unexpected keyword argument'}
+        ]
+
+    @pytest.mark.asyncio
+    async def test_operation_is_the_requested_operation(self, served):
+        """The response names the operation argument when the call has one, else the tool."""
+        result = await self._call(served, {'operation': 'getCostAndUsage', 'max_items': 'x'})
+
+        assert self._body(result)['operation'] == 'getCostAndUsage'
+
+    @pytest.mark.asyncio
+    async def test_an_echoed_operation_is_truncated(self, served):
+        """A very long operation value is cut before it is echoed back."""
+        result = await self._call(served, {'operation': 'o' * 5000, 'max_items': 'x'})
+
+        assert self._body(result)['operation'] == 'o' * 100 + '...'
+
+    @pytest.mark.asyncio
+    async def test_valid_arguments_are_untouched(self, served):
+        """A call that passes validation returns the tool's own result."""
+        result = await self._call(served, {'metrics': ['Hour'], 'filter': {'a': 1}})
+
+        assert not result.is_error
+        assert result.structured_content == {'status': 'success'}
+
+    @pytest.mark.asyncio
+    async def test_a_validation_error_without_a_pydantic_cause_keeps_its_text(
+        self, middleware, mock_context
+    ):
+        """An ArgumentValidationError raised without a pydantic cause still gets the contract."""
+        from fastmcp.exceptions import ValidationError as ArgumentValidationError
+
+        mock_context.message.name = 'probe'
+        call_next = AsyncMock(side_effect=ArgumentValidationError('bad arguments'))
+
+        result = await middleware.on_call_tool(mock_context, call_next)
+
+        body = result.to_mcp_result().structured_content
+        assert body['error_type'] == 'validation_error'
+        assert body['data']['invalid_parameters'] == [
+            {'parameter': None, 'message': 'bad arguments'}
+        ]
+        assert body['message'] == 'Invalid arguments: bad arguments'
+
+        call_next = AsyncMock(side_effect=ArgumentValidationError('x' * 5000))
+        result = await middleware.on_call_tool(mock_context, call_next)
+        problem = result.to_mcp_result().structured_content['data']['invalid_parameters'][0]
+        assert problem['message'] == 'x' * 100 + '...'
+
+
+def test_parameter_path_keeps_the_argument_and_list_indexes():
+    """Union branch tags (of any type) are dropped; the argument and list indexes are kept."""
+    from awslabs.billing_cost_management_mcp_server.server import _parameter_path
+
+    assert _parameter_path(('account_ids', 'list[function-before[f(), str]]', 0)) == (
+        'account_ids.0'
+    )
+    assert _parameter_path(('account_ids', 'str')) == 'account_ids'
+    assert _parameter_path(('names', 0, 'searchValue')) == 'names.0'
+    assert _parameter_path(('when', 'datetime')) == 'when'
+    assert _parameter_path(('x' * 500,)) == 'x' * 100 + '...'
+    assert _parameter_path(('list',)) == 'list'
+    assert _parameter_path(('a[0]', 'str')) == 'a[0]'
