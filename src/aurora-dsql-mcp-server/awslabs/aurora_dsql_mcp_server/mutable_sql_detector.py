@@ -16,11 +16,12 @@ import re
 
 
 # -- Mutating keyword set for quick string matching --
+# REPLACE is not listed: PostgreSQL has no REPLACE statement, replace() is a
+# read-only string function, and CREATE OR REPLACE is already caught by CREATE.
 MUTATING_KEYWORDS = {
     'INSERT',
     'UPDATE',
     'DELETE',
-    'REPLACE',
     'TRUNCATE',
     'CREATE',
     'DROP',

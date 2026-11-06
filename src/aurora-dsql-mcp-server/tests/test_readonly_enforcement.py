@@ -316,6 +316,17 @@ class TestReadonlyEnforcement:
                 f"Legitimate read wrongly flagged as statement mutation: {sql}"
             )
 
+    def test_replace_function_not_flagged(self):
+        """replace() is a read-only string function; PostgreSQL has no REPLACE statement."""
+        for sql in [
+            "SELECT replace(name, ' ', '_') FROM users",
+            "SELECT REPLACE(email, '@old.example', '@new.example') AS email FROM users",
+        ]:
+            assert detect_mutating_keywords(sql) == []
+            assert check_sql_injection_risk(sql) == []
+
+        assert 'CREATE' in detect_mutating_keywords('CREATE OR REPLACE VIEW v AS SELECT 1')
+
     def test_set_transaction_read_only_still_allowed(self):
         """SET TRANSACTION READ ONLY / isolation-only remain allowed."""
         for sql in [
@@ -983,6 +994,7 @@ class TestReadonlyEnforcement:
                 "SELECT COUNT(*) FROM orders",
                 "SELECT u.name, o.total FROM users u JOIN orders o ON u.id = o.user_id",
                 "WITH recent_orders AS (SELECT * FROM orders WHERE created_at > '2023-01-01') SELECT * FROM recent_orders",
+                "SELECT replace(name, ' ', '_') FROM users",
             ]
 
             for sql in safe_queries:
