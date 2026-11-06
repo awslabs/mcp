@@ -19,6 +19,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 import boto3
+from loguru import logger
 from mcp.server.mcpserver import Context
 
 from awslabs.well_architected_security_mcp_server.consts import USER_AGENT_CONFIG
@@ -334,7 +335,7 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
             try:
                 # First try using get_status API
                 status_response = inspector_client.get_status()
-                print(
+                logger.debug(
                     f"[DEBUG:Inspector] get_status() successful, raw response: {status_response}"
                 )
 
@@ -370,7 +371,7 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
                             if key not in status:
                                 status[key] = value
 
-                print(f"[DEBUG:Inspector] Extracted status fields: {status}")
+                logger.debug(f"[DEBUG:Inspector] Extracted status fields: {status}")
 
                 # Check for enabled scan types
                 scan_types = ["EC2", "ECR", "LAMBDA"]
@@ -392,7 +393,7 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
                         # Try direct key in status dictionary
                         if status_key in status:
                             status_value = status[status_key]
-                            print(
+                            logger.debug(
                                 f"[DEBUG:Inspector] Found status for {scan_type} via key {status_key}: {status_value}"
                             )
 
@@ -403,7 +404,7 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
                         ):
                             enabled_scans.append(scan_type)
                             found_enabled = True
-                            print(f"[DEBUG:Inspector] {scan_type} scan type is ENABLED")
+                            logger.debug(f"[DEBUG:Inspector] {scan_type} scan type is ENABLED")
                             break
 
                     if not found_enabled:
@@ -416,12 +417,12 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
                                 and "enable" in status_value.lower()
                             ):
                                 enabled_scans.append(scan_type)
-                                print(
+                                logger.debug(
                                     f"[DEBUG:Inspector] {scan_type} scan type is potentially enabled via fuzzy match"
                                 )
                                 break
 
-                print(f"[DEBUG:Inspector] Final enabled scan types: {enabled_scans}")
+                logger.debug(f"[DEBUG:Inspector] Final enabled scan types: {enabled_scans}")
 
                 # Build the scan status dictionary
                 scan_status = {}
@@ -450,7 +451,7 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
 
             except Exception as status_error:
                 # log the error but continue with the alternative checks
-                print(f"[DEBUG:Inspector] get_status() error: {status_error}")
+                logger.debug(f"[DEBUG:Inspector] get_status() error: {status_error}")
                 await ctx.warning(f"Error calling Inspector2 get_status(): {status_error}")
 
             # If get_status failed or didn't find scan types, try another approach
@@ -476,7 +477,7 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
                     if lambda_enabled:
                         enabled_scans.append("LAMBDA")
 
-                    print(
+                    logger.debug(
                         f"[DEBUG:Inspector] From batch_get_account_status, enabled scans: {enabled_scans}"
                     )
 
@@ -491,7 +492,9 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
                         "message": f"Amazon Inspector is enabled with the following scan types: {', '.join(enabled_scans) if enabled_scans else 'none'}",
                     }
             except Exception as account_error:
-                print(f"[DEBUG:Inspector] batch_get_account_status() error: {account_error}")
+                logger.debug(
+                    f"[DEBUG:Inspector] batch_get_account_status() error: {account_error}"
+                )
 
             # As a last resort, try listing findings
             # If this works, it means Inspector is enabled
@@ -512,10 +515,10 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
                     "message": "Amazon Inspector is enabled, but specific scan types could not be determined.",
                 }
             except Exception as findings_error:
-                print(f"[DEBUG:Inspector] list_findings() error: {findings_error}")
+                logger.debug(f"[DEBUG:Inspector] list_findings() error: {findings_error}")
 
             # If we get here, we've tried multiple methods but can't confirm Inspector is enabled
-            print("[DEBUG:Inspector] All detection methods failed, treating as not enabled")
+            logger.debug("[DEBUG:Inspector] All detection methods failed, treating as not enabled")
             return {
                 "enabled": False,
                 "scan_status": {
@@ -581,10 +584,10 @@ async def get_guardduty_findings(
     """
     try:
         # First check if GuardDuty is enabled
-        print(f"[DEBUG:GuardDuty] Checking if GuardDuty is enabled in {region}")
+        logger.debug(f"[DEBUG:GuardDuty] Checking if GuardDuty is enabled in {region}")
         guardduty_status = await check_guard_duty(region, session, ctx)
         if not guardduty_status.get("enabled", False):
-            print(f"[DEBUG:GuardDuty] GuardDuty is not enabled in {region}")
+            logger.debug(f"[DEBUG:GuardDuty] GuardDuty is not enabled in {region}")
             return {
                 "enabled": False,
                 "message": "Amazon GuardDuty is not enabled in this region",
@@ -593,10 +596,10 @@ async def get_guardduty_findings(
             }
 
         # Get detector ID
-        print("[DEBUG:GuardDuty] GuardDuty is enabled, retrieving detector ID")
+        logger.debug("[DEBUG:GuardDuty] GuardDuty is enabled, retrieving detector ID")
         detector_id = guardduty_status.get("detector_details", {}).get("id")
         if not detector_id:
-            print("[DEBUG:GuardDuty] ERROR: No GuardDuty detector ID found")
+            logger.debug("[DEBUG:GuardDuty] ERROR: No GuardDuty detector ID found")
             await ctx.error("No GuardDuty detector ID found")
             return {
                 "enabled": True,
@@ -605,7 +608,7 @@ async def get_guardduty_findings(
                 "debug_info": "GuardDuty is enabled but no detector ID was found",
             }
 
-        print(f"[DEBUG:GuardDuty] Using detector ID: {detector_id}")
+        logger.debug(f"[DEBUG:GuardDuty] Using detector ID: {detector_id}")
 
         # Create GuardDuty client
         guardduty_client = session.client(
@@ -614,7 +617,9 @@ async def get_guardduty_findings(
 
         # Set up default finding criteria if none provided
         if filter_criteria is None:
-            print("[DEBUG:GuardDuty] No filter criteria provided, creating default criteria")
+            logger.debug(
+                "[DEBUG:GuardDuty] No filter criteria provided, creating default criteria"
+            )
             # By default, get findings from the last 30 days with high or medium severity
             # Calculate timestamp in milliseconds (GuardDuty expects integer timestamp)
             thirty_days_ago = int(
@@ -629,25 +634,25 @@ async def get_guardduty_findings(
                     "updatedAt": {"GreaterThanOrEqual": thirty_days_ago},
                 }
             }
-            print(
+            logger.debug(
                 f"[DEBUG:GuardDuty] Created default filter criteria with timestamp: {thirty_days_ago} ({datetime.datetime.fromtimestamp(thirty_days_ago / 1000).isoformat()})"
             )
         else:
-            print(
+            logger.debug(
                 f"[DEBUG:GuardDuty] Using provided filter criteria: {json.dumps(filter_criteria)}"
             )
 
         # List findings with the filter criteria
-        print(f"[DEBUG:GuardDuty] Calling list_findings with max results: {max_findings}")
+        logger.debug(f"[DEBUG:GuardDuty] Calling list_findings with max results: {max_findings}")
         findings_response = guardduty_client.list_findings(
             DetectorId=detector_id, FindingCriteria=filter_criteria, MaxResults=max_findings
         )
 
         finding_ids = findings_response.get("FindingIds", [])
-        print(f"[DEBUG:GuardDuty] Retrieved {len(finding_ids)} finding IDs")
+        logger.debug(f"[DEBUG:GuardDuty] Retrieved {len(finding_ids)} finding IDs")
 
         if not finding_ids:
-            print("[DEBUG:GuardDuty] No findings match the filter criteria")
+            logger.debug("[DEBUG:GuardDuty] No findings match the filter criteria")
             return {
                 "enabled": True,
                 "message": "No GuardDuty findings match the filter criteria",
@@ -656,7 +661,7 @@ async def get_guardduty_findings(
             }
 
         # Get finding details
-        print(f"[DEBUG:GuardDuty] Retrieving details for {len(finding_ids)} findings")
+        logger.debug(f"[DEBUG:GuardDuty] Retrieving details for {len(finding_ids)} findings")
         findings_details = guardduty_client.get_findings(
             DetectorId=detector_id, FindingIds=finding_ids
         )
@@ -664,7 +669,7 @@ async def get_guardduty_findings(
         # Process findings to clean up non-serializable objects (like datetime)
         findings = []
         raw_findings_count = len(findings_details.get("Findings", []))
-        print(
+        logger.debug(
             f"[DEBUG:GuardDuty] Processing {raw_findings_count} findings from get_findings response"
         )
 
@@ -673,12 +678,12 @@ async def get_guardduty_findings(
             finding = _clean_datetime_objects(finding)
             findings.append(finding)
 
-        print(f"[DEBUG:GuardDuty] Successfully processed {len(findings)} findings")
+        logger.debug(f"[DEBUG:GuardDuty] Successfully processed {len(findings)} findings")
 
         # Generate summary
         summary = _summarize_guardduty_findings(findings)
-        print(f"[DEBUG:GuardDuty] Generated summary with {summary['total_count']} findings")
-        print(
+        logger.debug(f"[DEBUG:GuardDuty] Generated summary with {summary['total_count']} findings")
+        logger.debug(
             f"[DEBUG:GuardDuty] Severity breakdown: High={summary['severity_counts']['high']}, Medium={summary['severity_counts']['medium']}, Low={summary['severity_counts']['low']}"
         )
 
@@ -1168,7 +1173,7 @@ async def check_trusted_advisor(region: str, session: boto3.Session, ctx: Contex
         Full Trusted Advisor functionality requires Business or Enterprise Support plan.
     """
     try:
-        print("[DEBUG:TrustedAdvisor] Starting Trusted Advisor check")
+        logger.debug("[DEBUG:TrustedAdvisor] Starting Trusted Advisor check")
 
         # Trusted Advisor API is only available in us-east-1
         support_client = session.client(
@@ -1177,12 +1182,12 @@ async def check_trusted_advisor(region: str, session: boto3.Session, ctx: Contex
 
         try:
             # Try to describe Trusted Advisor checks to see if we have access
-            print("[DEBUG:TrustedAdvisor] Calling describe_trusted_advisor_checks API")
+            logger.debug("[DEBUG:TrustedAdvisor] Calling describe_trusted_advisor_checks API")
             checks_response = support_client.describe_trusted_advisor_checks(language="en")
 
             # If we get here, we have access to Trusted Advisor
             checks = checks_response.get("checks", [])
-            print(
+            logger.debug(
                 f"[DEBUG:TrustedAdvisor] Successfully retrieved {len(checks)} Trusted Advisor checks"
             )
 
@@ -1197,7 +1202,9 @@ async def check_trusted_advisor(region: str, session: boto3.Session, ctx: Contex
 
             # Count security checks specifically
             security_checks = [check for check in checks if check.get("category") == "security"]
-            print(f"[DEBUG:TrustedAdvisor] Found {len(security_checks)} security-related checks")
+            logger.debug(
+                f"[DEBUG:TrustedAdvisor] Found {len(security_checks)} security-related checks"
+            )
 
             # Determine support tier based on number of checks
             # Basic support typically has 7 core checks, Business/Enterprise has 100+
@@ -1266,7 +1273,7 @@ async def get_trusted_advisor_findings(
         Dictionary containing Trusted Advisor check results
     """
     try:
-        print("[DEBUG:TrustedAdvisor] Starting findings retrieval")
+        logger.debug("[DEBUG:TrustedAdvisor] Starting findings retrieval")
 
         # Set default status filter if not provided
         if status_filter is None:
@@ -1275,7 +1282,7 @@ async def get_trusted_advisor_findings(
         # First check if Trusted Advisor is accessible
         ta_status = await check_trusted_advisor(region, session, ctx)
         if not ta_status.get("enabled", False):
-            print("[DEBUG:TrustedAdvisor] Trusted Advisor is not fully accessible")
+            logger.debug("[DEBUG:TrustedAdvisor] Trusted Advisor is not fully accessible")
             return {
                 "enabled": False,
                 "message": ta_status.get("message", "AWS Trusted Advisor is not accessible"),
@@ -1289,7 +1296,7 @@ async def get_trusted_advisor_findings(
         )
 
         # Get all available checks
-        print("[DEBUG:TrustedAdvisor] Getting all available checks")
+        logger.debug("[DEBUG:TrustedAdvisor] Getting all available checks")
         checks_response = support_client.describe_trusted_advisor_checks(language="en")
         all_checks = checks_response.get("checks", [])
 
@@ -1301,7 +1308,7 @@ async def get_trusted_advisor_findings(
                 for check in all_checks
                 if check.get("category", "").lower() == category_filter.lower()
             ]
-            print(
+            logger.debug(
                 f"[DEBUG:TrustedAdvisor] Filtered to {len(filtered_checks)} {category_filter} checks"
             )
 
@@ -1353,7 +1360,7 @@ async def get_trusted_advisor_findings(
                     finding["flagged_resources"].append(resource_data)
 
                 findings.append(finding)
-                print(
+                logger.debug(
                     f"[DEBUG:TrustedAdvisor] Added finding: {finding['name']} (status: {finding['status']}, resources: {finding['resources_flagged']})"
                 )
 
@@ -1432,15 +1439,17 @@ async def check_macie(region: str, session: boto3.Session, ctx: Context) -> Dict
         Dictionary with status information about Amazon Macie
     """
     try:
-        print(f"[DEBUG:Macie] Starting Macie check for region: {region}")
+        logger.debug(f"[DEBUG:Macie] Starting Macie check for region: {region}")
         # Create Macie client
         macie_client = session.client("macie2", region_name=region, config=USER_AGENT_CONFIG)
 
         # Check if Macie is enabled
         try:
-            print("[DEBUG:Macie] Calling get_macie_session() API")
+            logger.debug("[DEBUG:Macie] Calling get_macie_session() API")
             status = macie_client.get_macie_session()
-            print(f"[DEBUG:Macie] get_macie_session() successful, status: {status.get('status')}")
+            logger.debug(
+                f"[DEBUG:Macie] get_macie_session() successful, status: {status.get('status')}"
+            )
 
             # If we get here without exception, Macie is enabled
             return {
@@ -1499,11 +1508,11 @@ async def get_macie_findings(
         Dictionary containing Macie findings
     """
     try:
-        print(f"[DEBUG:Macie] Starting findings retrieval for region: {region}")
+        logger.debug(f"[DEBUG:Macie] Starting findings retrieval for region: {region}")
         # First check if Macie is enabled
         macie_status = await check_macie(region, session, ctx)
         if not macie_status.get("enabled", False):
-            print(f"[DEBUG:Macie] Macie is not enabled in {region}")
+            logger.debug(f"[DEBUG:Macie] Macie is not enabled in {region}")
             return {
                 "enabled": False,
                 "message": "Amazon Macie is not enabled in this region",
@@ -1523,7 +1532,7 @@ async def get_macie_findings(
         )
 
         finding_ids = findings_response.get("findingIds", [])
-        print(f"[DEBUG:Macie] Retrieved {len(finding_ids)} finding IDs")
+        logger.debug(f"[DEBUG:Macie] Retrieved {len(finding_ids)} finding IDs")
 
         if not finding_ids:
             return {
@@ -1533,24 +1542,26 @@ async def get_macie_findings(
             }
 
         # Get finding details
-        print(f"[DEBUG:Macie] Retrieving details for {len(finding_ids)} findings")
+        logger.debug(f"[DEBUG:Macie] Retrieving details for {len(finding_ids)} findings")
         findings_details = macie_client.get_findings(findingIds=finding_ids)
 
         # Process findings to clean up non-serializable objects (like datetime)
         findings = []
         raw_findings_count = len(findings_details.get("findings", []))
-        print(f"[DEBUG:Macie] Processing {raw_findings_count} findings from get_findings response")
+        logger.debug(
+            f"[DEBUG:Macie] Processing {raw_findings_count} findings from get_findings response"
+        )
 
         for finding in findings_details.get("findings", []):
             # Convert datetime objects to strings
             finding = _clean_datetime_objects(finding)
             findings.append(finding)
 
-        print(f"[DEBUG:Macie] Successfully processed {len(findings)} findings")
+        logger.debug(f"[DEBUG:Macie] Successfully processed {len(findings)} findings")
 
         # Generate summary
         summary = _summarize_macie_findings(findings)
-        print(f"[DEBUG:Macie] Generated summary with {summary['total_count']} findings")
+        logger.debug(f"[DEBUG:Macie] Generated summary with {summary['total_count']} findings")
 
         return {
             "enabled": True,
