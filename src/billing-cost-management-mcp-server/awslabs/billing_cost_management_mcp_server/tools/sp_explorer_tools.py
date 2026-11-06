@@ -172,7 +172,7 @@ async def sp_explorer(
             numbers included. A well-formed value that matches no plan returns []. Text values
             match exactly (case-sensitive). Malformed values are a ValidationException: term must
             be whole seconds, upfront and commitment numbers, start and end
-            yyyy-MM-ddTHH:mm:ss.SSS. savings-plan-type is Compute,
+            yyyy-MM-ddTHH:mm:ss.SSSZ in UTC, with the trailing Z. savings-plan-type is Compute,
             EC2Instance, SageMaker, or Database; payment-option is 'All Upfront', 'Partial
             Upfront', or 'No Upfront', with the spaces; term is the duration in seconds as a
             string, "31536000" or "94608000"; upfront and commitment are decimal strings such as
