@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- `get_alarm_history` built its default 24 hour window from the host's local wall clock as a naive datetime, which boto3 sends as UTC, so on a host west of UTC the most recent hours of history were left out and on a host east of UTC the window reached into the future. The default window now starts from the current UTC time.
+
 ## [0.3.0] - 2026-09-15
 
 ### Security

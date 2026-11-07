@@ -24,7 +24,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.models import (
     TimeRangeSuggestion,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools import CloudWatchAlarmsTools
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, Mock, patch
 
 
@@ -141,6 +141,35 @@ class TestGetAlarmHistory:
             # Verify API calls
             mock_client.get_paginator.assert_called_once_with('describe_alarm_history')
             mock_client.describe_alarms.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_alarm_history_default_window_is_utc(
+        self, mock_context, sample_alarm_history_response, sample_metric_alarm
+    ):
+        """Test that the default 24 hour window is built from the current UTC time."""
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
+            mock_client = Mock()
+            mock_session.return_value.client.return_value = mock_client
+
+            mock_paginator = Mock()
+            mock_paginator.paginate.return_value = [sample_alarm_history_response]
+            mock_client.get_paginator.return_value = mock_paginator
+            mock_client.describe_alarms.return_value = {
+                'MetricAlarms': [sample_metric_alarm],
+                'CompositeAlarms': [],
+            }
+
+            alarms_tools = CloudWatchAlarmsTools()
+
+            before = datetime.now(timezone.utc)
+            await alarms_tools.get_alarm_history(ctx=mock_context, alarm_name='test-alarm')
+            after = datetime.now(timezone.utc)
+
+            call_args = mock_paginator.paginate.call_args[1]
+            end_date = call_args['EndDate']
+            assert end_date.tzinfo is not None
+            assert before <= end_date <= after
+            assert call_args['StartDate'] == end_date - timedelta(days=1)
 
     @pytest.mark.asyncio
     async def test_get_alarm_history_with_custom_parameters(
