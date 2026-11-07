@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- `get_recommended_metric_alarms` passed `statistic` into `analyze_metric`'s `profile_name` slot when it fell back to metric analysis, so the analysis always ran with `AVG` and the caller's `profile_name` was dropped. `analyze_metric` now also forwards `profile_name` to `get_metric_data`.
+
 ## [0.3.0] - 2026-09-15
 
 ### Security
