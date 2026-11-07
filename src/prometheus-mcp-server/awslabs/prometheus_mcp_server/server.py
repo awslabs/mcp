@@ -15,12 +15,12 @@
 """Prometheus MCP Server implementation."""
 
 import argparse
+import asyncio
 import boto3
 import json
 import os
 import requests
 import sys
-import time
 from awslabs.prometheus_mcp_server import __version__
 from awslabs.prometheus_mcp_server.consts import (
     API_VERSION_PATH,
@@ -301,6 +301,17 @@ class PrometheusClient:
                         f'Making request to {url} (attempt {retry_count + 1}/{max_retries})'
                     )
                     response = req_session.send(prepared_request)
+                    if response.status_code in (400, 422):
+                        # Client errors are not transient: surface the Prometheus error
+                        # message instead of retrying.
+                        try:
+                            error_body = response.json()
+                        except ValueError:
+                            error_body = None
+                        if isinstance(error_body, dict) and error_body.get('status') == 'error':
+                            error_msg = error_body.get('error', 'Unknown error')
+                            logger.error(f'Prometheus API request failed: {error_msg}')
+                            raise RuntimeError(f'Prometheus API request failed: {error_msg}')
                     response.raise_for_status()
                     data = response.json()
 
@@ -318,7 +329,7 @@ class PrometheusClient:
                         2 ** (retry_count - 1)
                     )  # Exponential backoff
                     logger.warning(f'Request failed: {e}. Retrying in {retry_delay_seconds}s...')
-                    time.sleep(retry_delay_seconds)
+                    await asyncio.sleep(retry_delay_seconds)
                 else:
                     logger.error(f'Request failed after {max_retries} attempts: {e}')
                     raise
