@@ -27,6 +27,7 @@ from .models import (
     ListEventsResponse,
     ListSessionsResponse,
 )
+from datetime import datetime, timezone
 from loguru import logger
 from mcp.server.mcpserver import Context
 from pydantic import Field
@@ -83,7 +84,11 @@ class EventTools:
         ] = None,
         event_timestamp: Annotated[
             float | None,
-            Field(description='Event timestamp (epoch seconds). Defaults to now.'),
+            Field(
+                description=(
+                    'Event timestamp (epoch seconds). Defaults to the current UTC time when omitted.'
+                )
+            ),
         ] = None,
         branch: Annotated[
             dict[str, str] | None,
@@ -115,11 +120,14 @@ class EventTools:
                 'memoryId': memory_id,
                 'actorId': actor_id,
                 'payload': payload,
+                # CreateEvent requires eventTimestamp; botocore accepts either
+                # epoch seconds or a datetime for timestamp members.
+                'eventTimestamp': (
+                    event_timestamp if event_timestamp is not None else datetime.now(timezone.utc)
+                ),
             }
             if session_id is not None:
                 kwargs['sessionId'] = session_id
-            if event_timestamp is not None:
-                kwargs['eventTimestamp'] = event_timestamp
             if branch is not None:
                 kwargs['branch'] = branch
             if metadata is not None:

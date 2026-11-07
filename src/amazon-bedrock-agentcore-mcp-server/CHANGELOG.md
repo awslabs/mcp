@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Memory `memory_create_event`** — always send `eventTimestamp`, defaulting to the current UTC time when `event_timestamp` is omitted. `CreateEvent` requires the field, so calls without it previously failed with `ParamValidationError: Missing required parameter in input: "eventTimestamp"` despite the parameter being documented as defaulting to now
 - **Browser `browser_evaluate`** — preserve non-ASCII text (CJK, emoji) in object/array results instead of emitting `\uXXXX` escapes, matching the scalar-string return path (`ensure_ascii=False`)
 - Server crash on startup when the configured `llms.txt` documentation source is unreachable (#4138). The hardcoded default URL (`aws.github.io/bedrock-agentcore-starter-toolkit/llms.txt`) was deprecated and returns HTTP 404, causing an unhandled `HTTPError` to propagate out of `main()` and kill the process before MCP initialization. `load_links_only()` now isolates each source and logs a warning on fetch failure so the server starts with all other tool groups functional. The default source was also updated to the official AWS AgentCore Developer Guide index (`docs.aws.amazon.com/bedrock-agentcore/latest/devguide/llms.txt`), restoring documentation search
 
