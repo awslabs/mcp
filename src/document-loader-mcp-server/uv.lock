@@ -108,7 +108,7 @@ source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },
     { name = "loguru" },
-    { name = "markitdown", extra = ["docx", "pptx", "xlsx"] },
+    { name = "markitdown", extra = ["docx", "pptx", "xls", "xlsx"] },
     { name = "pdf2image" },
     { name = "pdfplumber" },
 ]
@@ -139,7 +139,7 @@ dev = [
 requires-dist = [
     { name = "fastmcp", specifier = ">=3.2.0" },
     { name = "loguru", specifier = ">=0.7.0" },
-    { name = "markitdown", extras = ["docx", "xlsx", "pptx"], specifier = ">=0.1.2" },
+    { name = "markitdown", extras = ["docx", "xls", "xlsx", "pptx"], specifier = ">=0.1.2" },
     { name = "pdf2image", specifier = ">=1.16.0" },
     { name = "pdfplumber", specifier = ">=0.10.0" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.398" },
@@ -1272,6 +1272,10 @@ docx = [
 ]
 pptx = [
     { name = "python-pptx" },
+]
+xls = [
+    { name = "pandas" },
+    { name = "xlrd" },
 ]
 xlsx = [
     { name = "openpyxl" },
@@ -3211,6 +3215,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/79/d9/7cfd5a312760ac4dd8bf0184a6ee9e43c33e47f3dadc303032ce012b8fa3/wrapt-1.17.3-cp314-cp314t-win_amd64.whl", hash = "sha256:73d496de46cd2cdbdbcce4ae4bcdb4afb6a11234a1df9c085249d55166b95116", size = 41334, upload-time = "2025-08-12T05:53:14.178Z" },
     { url = "https://files.pythonhosted.org/packages/46/78/10ad9781128ed2f99dbc474f43283b13fea8ba58723e98844367531c18e9/wrapt-1.17.3-cp314-cp314t-win_arm64.whl", hash = "sha256:f38e60678850c42461d4202739f9bf1e3a737c7ad283638251e79cc49effb6b6", size = 38471, upload-time = "2025-08-12T05:52:57.784Z" },
     { url = "https://files.pythonhosted.org/packages/1f/f6/a933bd70f98e9cf3e08167fc5cd7aaaca49147e48411c0bd5ae701bb2194/wrapt-1.17.3-py3-none-any.whl", hash = "sha256:7171ae35d2c33d326ac19dd8facb1e82e5fd04ef8c6c0e394d7af55a55051c22", size = 23591, upload-time = "2025-08-12T05:53:20.674Z" },
+]
+
+[[package]]
+name = "xlrd"
+version = "2.0.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/07/5a/377161c2d3538d1990d7af382c79f3b2372e880b65de21b01b1a2b78691e/xlrd-2.0.2.tar.gz", hash = "sha256:08b5e25de58f21ce71dc7db3b3b8106c1fa776f3024c54e45b45b374e89234c9", size = 100167, upload-time = "2025-06-14T08:46:39.039Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1a/62/c8d562e7766786ba6587d09c5a8ba9f718ed3fa8af7f4553e8f91c36f302/xlrd-2.0.2-py2.py3-none-any.whl", hash = "sha256:ea762c3d29f4cca48d82df517b6d89fbce4db3107f9d78713e48cd321d5c9aa9", size = 96555, upload-time = "2025-06-14T08:46:37.766Z" },
 ]
 
 [[package]]
