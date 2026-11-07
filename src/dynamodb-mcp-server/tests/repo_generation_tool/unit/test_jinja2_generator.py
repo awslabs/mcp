@@ -1,6 +1,7 @@
 """Unit tests for Jinja2Generator class."""
 
 import json
+import logging
 import pytest
 from awslabs.dynamodb_mcp_server.repo_generation_tool.generators.jinja2_generator import (
     Jinja2Generator,
@@ -135,19 +136,22 @@ class TestJinja2Generator:
         with pytest.raises(FileNotFoundError, match='repository_template.j2'):
             Jinja2Generator(str(schema_file), templates_dir=str(templates_dir), language='python')
 
-    def test_missing_optional_templates_print_warnings(self, mock_schema_data, tmp_path, capsys):
-        """Test missing optional templates print warnings."""
+    def test_missing_optional_templates_log_warnings(
+        self, mock_schema_data, tmp_path, caplog, capsys
+    ):
+        """Test missing optional templates log warnings and leave stdout untouched."""
         schema_file = tmp_path / 'schema.json'
         schema_file.write_text(json.dumps(mock_schema_data))
         templates_dir = tmp_path / 'templates'
         templates_dir.mkdir()
         (templates_dir / 'entity_template.j2').write_text('{{ entity_name }}')
         (templates_dir / 'repository_template.j2').write_text('{{ entity_name }}Repository')
-        Jinja2Generator(str(schema_file), templates_dir=str(templates_dir), language='python')
-        captured = capsys.readouterr()
+        with caplog.at_level(logging.WARNING):
+            Jinja2Generator(str(schema_file), templates_dir=str(templates_dir), language='python')
         assert any(
-            x in captured.out for x in ['entities header', 'repositories header', 'usage examples']
+            x in caplog.text for x in ['entities header', 'repositories header', 'usage examples']
         )
+        assert capsys.readouterr().out == ''
 
     def test_repository_without_table_config_raises_error(self, generator, sample_entity_config):
         """Test generate_repository raises ValueError without table_config."""
