@@ -100,13 +100,17 @@ from awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools im
 )
 from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import storage_lens_server
 from awslabs.billing_cost_management_mcp_server.tools.unified_sql_tools import unified_sql_server
+from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base import format_response
 from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
     add_retry_guidance,
 )
 from awslabs.billing_cost_management_mcp_server.utilities.logging_utils import get_logger
 from fastmcp import FastMCP
+from fastmcp.exceptions import ValidationError as ArgumentValidationError
 from fastmcp.server.middleware import Middleware
 from fastmcp.tools import ToolResult
+from pydantic import ValidationError as PydanticValidationError
+from typing import Any, Dict, List
 
 
 # Configure logger for server
@@ -125,6 +129,83 @@ class _ErrorToolResult(ToolResult):
         )
 
 
+# Most argument problems listed in one error response; the rest are counted.
+_MAX_ARGUMENT_PROBLEMS = 10
+
+# Longest argument name or operation echoed back in an error response.
+_MAX_ECHOED_TEXT = 100
+
+
+def _echo(text: str) -> str:
+    """Text from the caller, cut to _MAX_ECHOED_TEXT characters."""
+    return text if len(text) <= _MAX_ECHOED_TEXT else text[:_MAX_ECHOED_TEXT] + '...'
+
+
+def _parameter_path(loc) -> str:
+    """The argument and list index an error is at, e.g. ``metrics.1``.
+
+    Only the argument name and list indexes are kept: pydantic also puts a tag for each
+    union branch in the location (``str``, ``list[...]``), and no tool parameter is a typed
+    object whose keys would need to be named.
+    """
+    head, *rest = loc or ('',)
+    return '.'.join([_echo(str(head)), *(str(part) for part in rest if isinstance(part, int))])
+
+
+def _argument_problems(error: ArgumentValidationError) -> List[Dict[str, Any]]:
+    """Each failure as {parameter, message}, without the union branches that add nothing.
+
+    A union reports every branch it tried. A failure on the whole parameter is dropped when a
+    more specific failure inside it (a list item) gives the same message.
+    """
+    cause = error.__cause__
+    if not isinstance(cause, PydanticValidationError):
+        return [{'parameter': None, 'message': _echo(str(error))}]
+    # Keyed (parameter, message) in first-seen order; linear in the number of errors, since
+    # a long bad list makes pydantic report every item.
+    unique = dict.fromkeys(
+        (_parameter_path(e['loc']), e['msg'])
+        for e in cause.errors(include_url=False, include_input=False)
+    )
+    covered = {
+        ('.'.join(parts[:depth]), message)
+        for parameter, message in unique
+        for parts in [parameter.split('.')]
+        for depth in range(1, len(parts))
+    }
+    return [
+        {'parameter': parameter, 'message': message}
+        for parameter, message in unique
+        if (parameter, message) not in covered
+    ]
+
+
+def _argument_error(tool: str, arguments: Any, error: ArgumentValidationError) -> Dict[str, Any]:
+    """The standard validation_error response for arguments that failed the tool's schema.
+
+    FastMCP raises ArgumentValidationError, caused by pydantic's ValidationError, before the
+    tool runs. Each failure names its parameter and pydantic's reason; past
+    _MAX_ARGUMENT_PROBLEMS the rest are counted, so a long bad list cannot flood the response.
+    """
+    problems = _argument_problems(error)
+    shown = problems[:_MAX_ARGUMENT_PROBLEMS]
+    data: Dict[str, Any] = {'invalid_parameters': shown}
+    message = 'Invalid arguments: ' + '; '.join(
+        f'{p["parameter"]}: {p["message"]}' if p['parameter'] else p['message'] for p in shown
+    )
+    if len(problems) > len(shown):
+        data['omitted_count'] = len(problems) - len(shown)
+        message += f'; and {data["omitted_count"]} more'
+    operation = arguments.get('operation') if isinstance(arguments, dict) else None
+    return format_response(
+        'error',
+        data,
+        message,
+        error_type='validation_error',
+        operation=_echo(operation) if isinstance(operation, str) and operation else tool,
+    )
+
+
 class ErrorSignalingMiddleware(Middleware):
     """Middleware that sets is_error=True when a tool returns an error response.
 
@@ -134,12 +215,20 @@ class ErrorSignalingMiddleware(Middleware):
     content and structured_content for backward compatibility.
 
     It also adds retry_strategy (and hint, when one applies) derived from error_type,
-    unless the tool already set them (see utilities/error_contract.py).
+    unless the tool already set them (see utilities/error_contract.py). Arguments that
+    fail the tool's schema get the same validation_error response.
     """
 
     async def on_call_tool(self, context, call_next):
         """Intercept tool results and set is_error for error responses."""
-        result = await call_next(context)
+        try:
+            result = await call_next(context)
+        except ArgumentValidationError as e:
+            result = ToolResult(
+                structured_content=_argument_error(
+                    context.message.name, context.message.arguments, e
+                )
+            )
         if (
             isinstance(result, ToolResult)
             and isinstance(result.structured_content, dict)
@@ -168,7 +257,7 @@ mcp = FastMCP(
     instructions="""AWS Billing and Cost Management MCP Server - Provides AWS cost optimization tools and prompts through MCP.
 
 Unless the user or the host's instructions specify otherwise:
-1. Use the UnblendedCost metric. If `metrics` is omitted, the tool returns UnblendedCost
+1. Use the UnblendedCost metric. If `metrics` is omitted, cost-explorer returns UnblendedCost. sp-performance and ri-performance coverage reject UnblendedCost and use their own metrics
 2. Report net cost, with credits and refunds included
 3. Be concise and focus on essential information first
 4. For optimization queries, lead with the highest-impact recommendations; when truncating, state how many were omitted and their combined savings
