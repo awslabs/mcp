@@ -42,17 +42,104 @@ from typing import Any, Dict, List, Optional, Union
 
 COST_EXPLORER_SERVICE_NAME = 'Cost Explorer'
 
-# Operations whose AWS API has no GroupBy. The handlers never send group_by, so a caller who
-# passes it would get one ungrouped result that reads as if it were split by the dimension.
-OPERATIONS_WITHOUT_GROUP_BY = frozenset(
-    {
-        'getDimensionValues',
-        'getCostForecast',
-        'getUsageForecast',
-        'getTagsOrValues',
-        'getCostCategories',
-        'getSavingsPlansUtilization',
-    }
+# Arguments every operation but getSavingsPlansUtilization sends.
+_COMMON = frozenset({'start_date', 'end_date', 'filter', 'billing_view_arn'})
+_PAGED = frozenset({'max_items', 'next_token'})
+_COST_AND_USAGE = _COMMON | _PAGED | {'granularity', 'metrics', 'group_by'}
+_FORECAST = _COMMON | {'metric', 'granularity', 'prediction_interval_level'}
+_DIMENSION_VALUES = _COMMON | _PAGED | {'dimension', 'dimension_key', 'context', 'search_string'}
+
+# The arguments each operation sends to its AWS API. Any other argument a caller sets is
+# rejected (except UNCHECKED_ARGUMENTS): the handler would drop it, and the result would read as if it had applied (a
+# search_string that did not narrow, a metric that was not used, a context that was ignored).
+OPERATION_ARGUMENTS: Dict[str, frozenset] = {
+    'getCostAndUsage': _COST_AND_USAGE,
+    'getCostAndUsageWithResources': _COST_AND_USAGE,
+    'getDimensionValues': _DIMENSION_VALUES,
+    'getCostForecast': _FORECAST,
+    'getUsageForecast': _FORECAST,
+    'getTagsOrValues': _COMMON | _PAGED | {'tag_key', 'search_string'},
+    'getCostCategories': _COMMON | _PAGED | {'cost_category_name', 'search_string'},
+    'getSavingsPlansUtilization': frozenset({'start_date', 'end_date', 'granularity', 'filter'}),
+}
+
+# Arguments that are not checked: an operation that does not list them ignores them, as its
+# result has no periods or prediction interval that could be misread.
+UNCHECKED_ARGUMENTS = frozenset({'granularity', 'prediction_interval_level'})
+
+_VALUE_LISTS = 'getDimensionValues, getTagsOrValues and getCostCategories'
+_PAGINATED = (
+    'getCostAndUsage, getCostAndUsageWithResources, getDimensionValues, getTagsOrValues and '
+    'getCostCategories'
+)
+_PAGINATION = (
+    'its public AWS API takes no page size or page token, so the whole result comes back in one '
+    f'response. max_items and next_token work only with {_PAGINATED}.'
+)
+
+# Why an operation that does not list an argument would drop it, and what to use instead.
+UNUSED_ARGUMENT_REASONS: Dict[str, str] = {
+    'group_by': (
+        'its public AWS API has no GroupBy, so the result would not be grouped. group_by works only '
+        'with getCostAndUsage and getCostAndUsageWithResources: use getCostAndUsage with '
+        "group_by for cost per dimension value, getDimensionValues to list a dimension's "
+        'values, or one forecast or utilization call per value with that value in filter.'
+    ),
+    'search_string': (
+        f'it searches the value lists of {_VALUE_LISTS} only, so the result would not be '
+        'narrowed. To narrow costs, put exact values in filter; to find those values, call one '
+        'of those operations with search_string.'
+    ),
+    'tag_key': (
+        'it selects the tag key whose values getTagsOrValues lists. To list them, use '
+        'operation=getTagsOrValues with tag_key; to narrow costs to a tag, use a Tags leaf in '
+        'filter.'
+    ),
+    'cost_category_name': (
+        'it selects the cost category whose values getCostCategories lists. To list them, use '
+        'operation=getCostCategories with cost_category_name; to narrow costs to a category, '
+        'use a CostCategories leaf in filter.'
+    ),
+    'dimension': (
+        'it names the dimension whose values getDimensionValues lists. To split costs by a '
+        'dimension, use getCostAndUsage with group_by; to narrow them, use a Dimensions leaf '
+        'in filter (a tag, cost category or PRODUCT_ATTRIBUTE key takes a Tags, CostCategories '
+        'or ProductAttributes leaf, and the matching group_by Type); to list its values, use '
+        'operation=getDimensionValues.'
+    ),
+    'dimension_key': (
+        'it selects the PRODUCT_ATTRIBUTE key whose values getDimensionValues lists. To list '
+        'them, use operation=getDimensionValues with dimension=PRODUCT_ATTRIBUTE and '
+        'dimension_key; to split costs by it, use getCostAndUsage with group_by Type '
+        'PRODUCT_ATTRIBUTE; to narrow them, use a ProductAttributes leaf in filter.'
+    ),
+    'context': (
+        'it selects the getDimensionValues context (COST_AND_USAGE, RESERVATIONS or '
+        'SAVINGS_PLANS). To list values in a context, use operation=getDimensionValues with '
+        'dimension and context.'
+    ),
+    'max_items': _PAGINATION,
+    'next_token': _PAGINATION,
+    'metric': (
+        'it is the single metric of getCostForecast and getUsageForecast. getCostAndUsage and '
+        'getCostAndUsageWithResources take metrics instead (e.g. ["AmortizedCost"]).'
+    ),
+    'metrics': (
+        'it is the metric list of getCostAndUsage and getCostAndUsageWithResources. '
+        'getCostForecast and getUsageForecast take metric instead (e.g. AMORTIZED_COST for '
+        'getCostForecast, USAGE_QUANTITY for getUsageForecast).'
+    ),
+    'billing_view_arn': (
+        "its public AWS API has no billing view parameter, so it reports the calling account's own "
+        'data (its primary billing view). Without billing_view_arn, say that the result is '
+        'not scoped to the requested view: it can cover more accounts than the view (the '
+        'whole organization when called from a management account).'
+    ),
+}
+
+UNUSED_ARGUMENT_HINT = (
+    'Remove every argument the message names; the message says which operation or argument '
+    'does what was asked. Do **NOT** retry with those arguments.'
 )
 
 cost_explorer_server = FastMCP(
@@ -98,6 +185,10 @@ IMPORTANT USAGE GUIDELINES:
   what the account paid: a commitment fee refunded in the same month
   is counted once with no offsetting refund. Group by RECORD_TYPE to see which charge types
   (usage, fees, credits, refunds, tax) make up a total
+- UnblendedCost records Savings Plans upfront fees (RECORD_TYPE SavingsPlanUpfrontFee) and
+  Reserved Instance upfront fees (Upfront) in the month they are charged, so a month with a
+  purchase shows a one-time increase. AmortizedCost spreads upfront and recurring commitment fees
+  over the commitment term
 - Use MONTHLY granularity for totals or rankings over whole months; use DAILY only when a daily
   trend is asked for or the window is shorter than a month
 - If granularity is omitted, every operation that takes it uses DAILY
@@ -108,6 +199,10 @@ IMPORTANT USAGE GUIDELINES:
 - group_by works only with getCostAndUsage and getCostAndUsageWithResources; the other
   operations reject it. Forecasts return one total per period: for a forecast per Region (or
   any other value), run one forecast per value with that value in the filter
+- Each operation takes only the arguments in its Required and Optional lists below; any other
+  argument is rejected with a validation_error rather than ignored (e.g. search_string on
+  getCostAndUsage, tag_key on getCostCategories, metric on getCostAndUsage). The exceptions are
+  granularity and prediction_interval_level, which an operation that does not list them ignores
 
 REPORTING $0:
 An empty result is indistinguishable from a genuine zero, so a wrong filter value or a wrong
@@ -127,7 +222,7 @@ nothing when filtered on LEGAL_ENTITY_NAME because the key for it is BILLING_ENT
    costs without a tag or cost category key, use `ABSENT` instead (see FILTER EXPRESSION
    GRAMMAR).
 
-PAGINATION (max_items, next_token: getCostAndUsage, getCostAndUsageWithResources, getDimensionValues, getTagsOrValues, getCostCategories only; the other operations take neither):
+PAGINATION (max_items, next_token: getCostAndUsage, getCostAndUsageWithResources, getDimensionValues, getTagsOrValues, getCostCategories only; the other operations reject both):
 - max_items is the total number of items returned (getCostAndUsage: one item per group per period, or per period without group_by). If it is omitted, the tool fetches every page for """
     + PAGINATION_LIMIT_TEXT
     + """, then returns a partial result. Pass it, or narrow the time range, filter or group_by, for queries that can be large (e.g. daily data grouped by RESOURCE_ID, USAGE_TYPE or LINKED_ACCOUNT).
@@ -286,7 +381,7 @@ Limits by operation (a filter outside them returns ValidationException):
    Defaults: If granularity is omitted, the tool uses DAILY.
    Example 1 (default window): {"operation": "getCostForecast", "metric": "UNBLENDED_COST", "granularity": "MONTHLY"}
    Example 2 (next three months): {"operation": "getCostForecast", "metric": "UNBLENDED_COST", "granularity": "MONTHLY", "start_date": "__NEXT_MONTH_START__", "end_date": "__FOUR_MONTHS_AHEAD_START__"}
-   Notes: `metric` must be ALL CAPS and one of UNBLENDED_COST, BLENDED_COST, AMORTIZED_COST, NET_UNBLENDED_COST, NET_AMORTIZED_COST (not the getCostAndUsage spelling `UnblendedCost`). `start_date` defaults to tomorrow and `end_date` to 90 days after `start_date`; a `start_date` you pass must be today or later. The horizon is up to 3 months (DAILY) or 18 months (MONTHLY). HOURLY is not supported. With MONTHLY granularity each period is a whole calendar month: Cost Explorer moves a `start_date` that isn't a 1st back to the 1st, and an `end_date` that isn't a 1st forward to the next 1st. So a MONTHLY forecast that starts this month on any day but the 1st (as the default start, tomorrow, does unless tomorrow is a 1st) returns the whole current month, and that period and `Total` include its actual costs to date. The response's `period_note` says when the period was widened. For part of a month, such as the rest of this month, use DAILY and sum the days. In `filter`, LINKED_ACCOUNT values must be 12-digit account IDs (not account names), and RESOURCE_ID is not allowed. Filter values must match exactly, including case: MatchOptions such as STARTS_WITH, CONTAINS or CASE_INSENSITIVE are accepted but not applied. A filter that matches no past costs returns the same DataUnavailableException as too little history, so check the values with getDimensionValues before reporting that no forecast is possible.
+   Notes: `metric` must be ALL CAPS and one of UNBLENDED_COST, BLENDED_COST, AMORTIZED_COST, NET_UNBLENDED_COST, NET_AMORTIZED_COST (not the getCostAndUsage spelling `UnblendedCost`). `start_date` defaults to tomorrow and `end_date` to 90 days after `start_date`; a `start_date` you pass must be today or later. The horizon is up to 3 months (DAILY) or 18 months (MONTHLY). HOURLY is not supported. With MONTHLY granularity each period is a whole calendar month: Cost Explorer moves a `start_date` that isn't a 1st back to the 1st, and an `end_date` that isn't a 1st forward to the next 1st. So a MONTHLY forecast that starts this month on any day but the 1st (as the default start, tomorrow, does unless tomorrow is a 1st) returns the whole current month, and that period and `Total` include its actual costs to date. The response's `period_note` says when the period was widened. For part of a month, such as the rest of this month, use DAILY and sum the days. In `filter`, LINKED_ACCOUNT values must be 12-digit account IDs (not account names), and RESOURCE_ID is not allowed. Filter values must match exactly, including case: MatchOptions such as STARTS_WITH, CONTAINS or CASE_INSENSITIVE are accepted but not applied. A filter that matches no past costs returns the same DataUnavailableException as too little history, so check the values with getDimensionValues before reporting that no forecast is possible. Forecasts made in the first days of a month are less accurate: some services bill a large amount at once on or near the 1st, which skews the early-month average daily cost; accuracy improves as the month goes on. Volatile spend makes forecasts less accurate. Check the prediction interval, and compare the forecast with the last few months of actual cost before quoting it. If large one-time charges (Marketplace contracts, upfront fees) drive the volatility, forecast BILLING_ENTITY=AWS separately and add those charges from recent actuals.
    Returns: Cost forecast for specified time period and granularity
 
 5. getUsageForecast - Future usage projections
@@ -494,19 +589,6 @@ def _tag_filter_hint(filter: Optional[Union[str, Dict[str, Any]]]) -> Optional[s
     return ' '.join(hints) or None
 
 
-def _asks_for_grouping(group_by: Any) -> bool:
-    """Return whether group_by asks for grouping.
-
-    An empty or falsy JSON value ('[]', 'null', '{}') does not, as getCostAndUsage reads
-    it. A group_by that is not JSON still does, so it gets the not-supported error rather
-    than a JSON one.
-    """
-    try:
-        return bool(parse_json(group_by, 'group_by'))
-    except ValueError:
-        return True
-
-
 def _with_hint(result: Dict[str, Any], hint: Optional[str]) -> Dict[str, Any]:
     """Add the hint to a successful response.
 
@@ -515,6 +597,51 @@ def _with_hint(result: Dict[str, Any], hint: Optional[str]) -> Dict[str, Any]:
     if hint and result.get('status') == 'success' and 'hint' not in result:
         result['hint'] = hint
     return result
+
+
+def _is_set(name: str, value: Any) -> bool:
+    """Return whether the caller set an argument.
+
+    None and '' are not set: no handler sends them. An empty JSON group_by or metrics ('[]',
+    'null') is not set either, as getCostAndUsage reads it as no grouping and the default
+    metric. A value that is not JSON is set, so it gets the not-supported error.
+    """
+    if value is None or value == '':
+        return False
+    if name in ('group_by', 'metrics'):
+        try:
+            return bool(parse_json(value, name))
+        except (ValueError, TypeError):
+            return True
+    return True
+
+
+def _unused_arguments(operation: str, arguments: Dict[str, Any]) -> List[str]:
+    """Return the arguments the caller set that the operation does not send, in signature order."""
+    accepted = OPERATION_ARGUMENTS.get(operation)
+    if accepted is None:
+        return []
+    return [
+        name
+        for name, value in arguments.items()
+        if name not in accepted and name not in UNCHECKED_ARGUMENTS and _is_set(name, value)
+    ]
+
+
+def _unused_arguments_error(operation: str, unused: List[str]) -> Dict[str, Any]:
+    """Return the validation_error for arguments the operation would drop."""
+    message = ' '.join(
+        f'{name} is not supported for {operation}: {UNUSED_ARGUMENT_REASONS[name]}'
+        for name in unused
+    )
+    return format_response(
+        'error',
+        {'message': message},
+        error_type='validation_error',
+        operation=operation,
+        service=COST_EXPLORER_SERVICE_NAME,
+        hint=UNUSED_ARGUMENT_HINT,
+    )
 
 
 @cost_explorer_server.tool(
@@ -581,7 +708,17 @@ async def cost_explorer(
     Returns:
         Response from the operation handler
     """
+    # Every argument but ctx and operation, captured before any local is assigned, so a new
+    # parameter is checked against OPERATION_ARGUMENTS without being listed here.
+    arguments = {
+        name: value for name, value in locals().items() if name not in ('ctx', 'operation')
+    }
     await ctx.info(f'Cost Explorer operation: {operation}')
+
+    # Reject an argument the operation would drop, before any AWS work.
+    unused = _unused_arguments(operation, arguments)
+    if unused:
+        return _unused_arguments_error(operation, unused)
 
     # Create Cost Explorer client
     try:
@@ -607,26 +744,6 @@ async def cost_explorer(
         # A Tags filter that cannot match is not an error, so say so in the response.
         tag_hint = _tag_filter_hint(filter)
         await ctx.info(f'Routing to operation: {operation}')
-
-        if operation in OPERATIONS_WITHOUT_GROUP_BY and _asks_for_grouping(group_by):
-            return format_response(
-                'error',
-                {
-                    'message': (
-                        f'group_by is not supported for {operation}: its AWS API has no '
-                        'GroupBy, so the result would not be grouped. group_by works only '
-                        'with getCostAndUsage and getCostAndUsageWithResources.'
-                    )
-                },
-                error_type='validation_error',
-                operation=operation,
-                service=COST_EXPLORER_SERVICE_NAME,
-                hint=(
-                    'Remove group_by. For cost per dimension value, use getCostAndUsage with '
-                    'group_by; for a forecast or utilization per value (e.g. per Region), call '
-                    'once per value with that value in filter. Do **NOT** retry with group_by.'
-                ),
-            )
 
         if operation == 'getCostAndUsage':
             return _with_hint(
@@ -825,32 +942,6 @@ async def cost_explorer(
             )
 
         elif operation == 'getSavingsPlansUtilization':
-            # GetSavingsPlansUtilization has no BillingViewArn, so the ARN cannot be sent.
-            # Refuse it: dropping it would return primary-view data the caller believes is
-            # scoped to their view.
-            if billing_view_arn:
-                return format_response(
-                    'error',
-                    {
-                        'message': (
-                            'billing_view_arn is not supported for getSavingsPlansUtilization: '
-                            'the GetSavingsPlansUtilization API has no billing view parameter, '
-                            "so it always reports the calling account's own data (its primary "
-                            'billing view).'
-                        )
-                    },
-                    error_type='validation_error',
-                    operation=operation,
-                    service=COST_EXPLORER_SERVICE_NAME,
-                    hint=(
-                        'Remove billing_view_arn to get Savings Plans utilization for the calling '
-                        "account's own data, and say that it is not scoped to the requested view: "
-                        'it can cover more accounts than the view (the whole organization when '
-                        'called from a management account). Do **NOT** retry with the same '
-                        'billing_view_arn.'
-                    ),
-                )
-
             return await get_savings_plans_utilization(
                 ctx, ce_client, start_date, end_date, granularity, filter
             )

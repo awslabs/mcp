@@ -548,6 +548,10 @@ class PageSpec:
         caller_token_message_required: Require the error message to name the token before
             a ``caller_token_error_codes`` code is treated as a rejected token. Set False
             only for a service whose token errors do not name the token.
+        caller_token_empty_message_codes: Codes that mean a rejected token on the first
+            request of a continuation only when the error has no message. For services
+            that report a bad token with a code that, with a message, means something
+            else (e.g. an ``AccessDeniedException`` that is a real permission error).
     """
 
     result_key: Union[str, Tuple[str, ...]]
@@ -562,6 +566,7 @@ class PageSpec:
     token_error_codes: FrozenSet[str] = field(default=TOKEN_ERROR_CODES)
     caller_token_error_codes: FrozenSet[str] = frozenset()
     caller_token_message_required: bool = True
+    caller_token_empty_message_codes: FrozenSet[str] = frozenset()
 
 
 def partial_data_warning(items_returned: int, limit_param: str = 'max_items') -> str:
@@ -620,13 +625,15 @@ def _error_code(error: Exception) -> str:
 
 def _is_caller_token_error(error: Exception, code: str, spec: PageSpec) -> bool:
     """Whether a generic error code on the first request means the caller's token was rejected."""
+    message = (
+        error.response.get('Error', {}).get('Message') if isinstance(error, ClientError) else ''
+    )
+    if code in spec.caller_token_empty_message_codes and not (message or '').strip():
+        return True
     if code not in spec.caller_token_error_codes:
         return False
     if not spec.caller_token_message_required:
         return True
-    message = (
-        error.response.get('Error', {}).get('Message') if isinstance(error, ClientError) else ''
-    )
     return 'token' in (message or '').lower()
 
 

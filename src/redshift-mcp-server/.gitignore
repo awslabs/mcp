@@ -57,3 +57,8 @@ target/
 
 # PyPI
 .pypirc
+
+# E2E harness: local config and per-run output
+e2e_tests/config.toml
+e2e_tests/.kiro/
+e2e_tests/.logs/
