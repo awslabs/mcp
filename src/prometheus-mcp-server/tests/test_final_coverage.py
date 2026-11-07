@@ -36,8 +36,9 @@ class TestFinalCoverage:
                 )
 
     @pytest.mark.asyncio
-    async def test_make_request_bad_request_not_retried(self):
-        """A 400 with a Prometheus error body raises RuntimeError after one request."""
+    @pytest.mark.parametrize('status_code', [400, 422])
+    async def test_make_request_bad_request_not_retried(self, status_code):
+        """A 400/422 with a Prometheus error body raises RuntimeError after one request."""
         with (
             patch('boto3.Session') as mock_session,
             patch('requests.Session') as mock_req_session,
@@ -45,8 +46,10 @@ class TestFinalCoverage:
         ):
             mock_session.return_value.get_credentials.return_value = MagicMock()
             mock_response = MagicMock()
-            mock_response.status_code = 400
-            mock_response.raise_for_status.side_effect = requests.HTTPError('400 Client Error')
+            mock_response.status_code = status_code
+            mock_response.raise_for_status.side_effect = requests.HTTPError(
+                f'{status_code} Client Error'
+            )
             mock_response.json.return_value = {
                 'status': 'error',
                 'errorType': 'bad_data',
