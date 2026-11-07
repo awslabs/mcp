@@ -44,6 +44,7 @@ from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
     DEFAULT_SSLMODE,
     PsycopgPoolConnection,
     get_credentials_from_secret,
+    get_username_from_secret,
 )
 from awslabs.postgres_mcp_server.connection.rds_api_connection import RDSDataAPIConnection
 from awslabs.postgres_mcp_server.sql_guard import SqlPolicyError, assert_executable
@@ -1331,9 +1332,7 @@ def internal_create_connection(
         #      This is the only path that works for Aurora express
         #      clusters, which never have a Secrets Manager secret.
         if effective_secret_arn:
-            iam_username, _ = get_credentials_from_secret(
-                secret_arn=effective_secret_arn, region=region
-            )
+            iam_username = get_username_from_secret(secret_arn=effective_secret_arn, region=region)
         elif metadata_master_username:
             iam_username = metadata_master_username
         else:
@@ -1545,7 +1544,9 @@ def validate_table_name(table_name: str | None) -> bool:
     return True
 
 
-def validate_secret_arn_at_startup(secret_arn: str, region: str) -> None:
+def validate_secret_arn_at_startup(
+    secret_arn: str, region: str, require_password: bool = True
+) -> None:
     """Verify the configured Secrets Manager ARN is readable at startup.
 
     Calls Secrets Manager once with GetSecretValue against the given ARN.
@@ -1560,12 +1561,18 @@ def validate_secret_arn_at_startup(secret_arn: str, region: str) -> None:
     Args:
         secret_arn: The ARN from --secret_arn.
         region: AWS region for Secrets Manager.
+        require_password: Whether the secret must contain a password. Set to
+            False for PG_WIRE_IAM_PROTOCOL or lazy startup with no connection
+            method selected, where only a username is needed for the probe.
 
     Raises:
         SystemExit: If the secret cannot be read. Exit code 1.
     """
     try:
-        get_credentials_from_secret(secret_arn, region)
+        if require_password:
+            get_credentials_from_secret(secret_arn, region)
+        else:
+            get_username_from_secret(secret_arn, region)
     except Exception as e:
         logger.error(
             f'MCP server cannot start: unable to read Secrets Manager ARN '
@@ -1604,7 +1611,8 @@ def main():
 
     parser.add_argument(
         '--connection_method',
-        help='Connection method to the database. It can be RDS_API, PG_WIRE_PROTOCOL OR PG_WIRE_IAM_PROTOCOL)',
+        choices=[method.name for method in ConnectionMethod],
+        help='Connection method to the database: RDS_API, PG_WIRE_PROTOCOL, or PG_WIRE_IAM_PROTOCOL',
     )
     parser.add_argument('--db_cluster_arn', help='ARN of the RDS or Aurora Postgres cluster')
     parser.add_argument('--db_type', help='APG for Aurora Postgres or RPG for RDS Postgres')
@@ -1780,15 +1788,27 @@ def main():
     # before any query is attempted. The probe is skipped only when no
     # ARNs are configured at all — the cluster's managed secret will be
     # discovered (and validated) lazily on the first connection attempt.
+    # Only password-based methods require a password at startup. IAM uses a
+    # generated token, and lazy startup has not selected an auth method yet.
+    secret_requires_password = args.connection_method in {
+        ConnectionMethod.PG_WIRE_PROTOCOL.name,
+        ConnectionMethod.RDS_API.name,
+    }
     for target, arn in configured_secret_arns.items():
         try:
-            validate_secret_arn_at_startup(arn, args.region)
+            validate_secret_arn_at_startup(
+                arn, args.region, require_password=secret_requires_password
+            )
         except SystemExit:
             logger.error(f'Configured --secret_arn entry for target {target!r} is unreadable.')
             raise
     if configured_default_secret_arn:
         try:
-            validate_secret_arn_at_startup(configured_default_secret_arn, args.region)
+            validate_secret_arn_at_startup(
+                configured_default_secret_arn,
+                args.region,
+                require_password=secret_requires_password,
+            )
         except SystemExit:
             logger.error('Configured default --secret_arn is unreadable.')
             raise
