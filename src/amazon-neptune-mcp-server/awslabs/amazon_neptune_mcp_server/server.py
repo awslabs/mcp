@@ -25,7 +25,7 @@ from typing import Optional
 
 # Remove all default handlers then add our own
 logger.remove()
-logger.add(sys.stderr, level='INFO')
+logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
 # Initialize MCPServer
 mcp = MCPServer(
