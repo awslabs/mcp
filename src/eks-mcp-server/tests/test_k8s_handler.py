@@ -928,6 +928,90 @@ metadata:
                 'Failed to list Pod resources: Failed to list resources' in result.content[0].text
             )
 
+    @staticmethod
+    def _mock_secret_list_client():
+        """Return a mock K8sApis whose list_resources returns one kubectl-applied Secret."""
+        mock_k8s_apis = MagicMock()
+        mock_item = MagicMock()
+        mock_item.to_dict.return_value = {
+            'metadata': {
+                'name': 'app-key-secret',
+                'namespace': 'my-application',
+                'annotations': {
+                    'kubectl.kubernetes.io/last-applied-configuration': (
+                        '{"apiVersion":"v1","data":{"api-key":"c3VwZXItc2VjcmV0"},'
+                        '"kind":"Secret","metadata":{"name":"app-key-secret"}}'
+                    )
+                },
+            }
+        }
+        mock_response = MagicMock()
+        mock_response.items = [mock_item]
+        mock_k8s_apis.list_resources.return_value = mock_response
+        return mock_k8s_apis
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('kind', ['Secret', 'secret', 'SECRET'])
+    async def test_list_k8s_resources_secret_sensitive_data_access_disabled(
+        self, kind, mock_context, mock_mcp, mock_client_cache
+    ):
+        """Test list_k8s_resources rejects Secrets when sensitive data access is disabled."""
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_sensitive_data_access=False)
+
+        mock_k8s_apis = self._mock_secret_list_client()
+
+        with patch.object(handler, 'get_client', return_value=mock_k8s_apis) as mock_client:
+            result = await handler.list_k8s_resources(
+                mock_context,
+                cluster_name='test-cluster',
+                kind=kind,
+                api_version='v1',
+                namespace='my-application',
+            )
+
+            # The cluster must not be queried and nothing from the Secret may be returned
+            mock_client.assert_not_called()
+            mock_k8s_apis.list_resources.assert_not_called()
+            assert result.is_error
+            assert len(result.content) == 1
+            assert isinstance(result.content[0], TextContent)
+            assert (
+                'Access to Kubernetes Secrets requires --allow-sensitive-data-access flag'
+                in result.content[0].text
+            )
+            assert 'c3VwZXItc2VjcmV0' not in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_list_k8s_resources_secret_sensitive_data_access_enabled(
+        self, mock_context, mock_mcp, mock_client_cache
+    ):
+        """Test list_k8s_resources lists Secrets when sensitive data access is enabled."""
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_sensitive_data_access=True)
+
+        mock_k8s_apis = self._mock_secret_list_client()
+
+        with patch.object(handler, 'get_client', return_value=mock_k8s_apis):
+            result = await handler.list_k8s_resources(
+                mock_context,
+                cluster_name='test-cluster',
+                kind='Secret',
+                api_version='v1',
+                namespace='my-application',
+            )
+
+            mock_k8s_apis.list_resources.assert_called_once()
+            assert not result.is_error
+            data = json.loads(result.content[1].text)
+            assert data['kind'] == 'Secret'
+            assert data['count'] == 1
+            assert data['items'][0]['name'] == 'app-key-secret'
+
     @pytest.mark.asyncio
     async def test_generate_app_manifest_write_access_disabled(
         self, mock_context, mock_mcp, mock_client_cache
