@@ -135,7 +135,7 @@ async def test_create_serverless_cache_all_params():
             'ECPUPerSecond': {'Maximum': 100, 'Minimum': 1},
         }
         assert call_args['UserGroupId'] == 'group-1'
-        assert call_args['SnapshotRetentionLimit'] == '7'
+        assert call_args['SnapshotRetentionLimit'] == 7
         assert call_args['DailySnapshotTime'] == '04:00-05:00'
         assert result['ServerlessCache']['ServerlessCacheName'] == 'test-cache'
 
