@@ -185,6 +185,10 @@ IMPORTANT USAGE GUIDELINES:
   what the account paid: a commitment fee refunded in the same month
   is counted once with no offsetting refund. Group by RECORD_TYPE to see which charge types
   (usage, fees, credits, refunds, tax) make up a total
+- UnblendedCost records Savings Plans upfront fees (RECORD_TYPE SavingsPlanUpfrontFee) and
+  Reserved Instance upfront fees (Upfront) in the month they are charged, so a month with a
+  purchase shows a one-time increase. AmortizedCost spreads upfront and recurring commitment fees
+  over the commitment term
 - Use MONTHLY granularity for totals or rankings over whole months; use DAILY only when a daily
   trend is asked for or the window is shorter than a month
 - If granularity is omitted, every operation that takes it uses DAILY
