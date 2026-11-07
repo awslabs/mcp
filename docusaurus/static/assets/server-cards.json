@@ -975,6 +975,29 @@
     },
     {
       "category": "Cost & Operations",
+      "description": "Estimate, budget, and compare LLM spend per task for AI agents",
+      "icon": "\ud83d\udcb0",
+      "id": "agent-cost-mcp-server",
+      "name": "Agent Cost MCP Server",
+      "source_path": "src/agent-cost-mcp-server/",
+      "subcategory": "Cost Analysis",
+      "tags": [
+        "llm",
+        "agents",
+        "cost-operations",
+        "cost-analysis",
+        "tokens",
+        "budgeting",
+        "estimation",
+        "conversational",
+        "business-services"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
       "description": "Pre-deployment cost estimation and optimization",
       "icon": "\ud83d\udcb0",
       "id": "aws-pricing-mcp-server",
