@@ -264,6 +264,7 @@ class TestSearchHasMoreIdiom:
         assert 'SearchGenomicsFiles' in result['pagination']['instruction']
         # Property 3: the real parameter name for *this* tool, never next_token.
         assert 'continuation_token="search-token-2"' in result['pagination']['instruction']
+        assert 'recover the missing results' not in result['pagination']['instruction']
         assert 'next_token=' not in result['pagination']['instruction']
 
     @pytest.mark.asyncio
@@ -272,6 +273,7 @@ class TestSearchHasMoreIdiom:
         result = await wrapped(continuation_token='search-token-2')
 
         assert result['pagination']['has_more'] is False  # untouched existing field
+        assert 'recover the missing results' not in result['pagination']['instruction']
         assert result['pagination']['isComplete'] is True
         assert result['pagination']['returnedCount'] == 1
         assert 'nextToken' not in result['pagination']
@@ -295,6 +297,10 @@ class TestSearchHasMoreIdiom:
         assert 'nextToken' not in result['pagination']
         assert 'None' not in result['pagination']['instruction']
         assert 'did not return a usable continuation_token' in result['pagination']['instruction']
+        instruction = result['pagination']['instruction']
+        assert 'different filters or pagination parameters' in instruction
+        assert 'recover the missing results or yield a usable token' in instruction
+        assert 'smaller page' not in instruction
 
 
 # ---------------------------------------------------------------------------
