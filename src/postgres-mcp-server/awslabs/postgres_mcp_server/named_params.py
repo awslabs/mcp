@@ -69,10 +69,15 @@ def to_parse_placeholders(sql: str) -> str:
 def to_psycopg_placeholders(sql: str) -> str:
     """Rewrite ``:name`` to psycopg's ``%(name)s`` binding syntax.
 
+    Once parameters are passed, psycopg treats every ``%`` in the query text as
+    the start of a placeholder, including one inside a string literal. So a
+    literal ``%`` (``LIKE 'a%'``, the modulo operator) is doubled first, and
+    psycopg turns ``%%`` back into ``%`` before sending the query.
+
     Args:
         sql: The statement text as supplied by the caller.
 
     Returns:
         str: The statement with named placeholders in psycopg form.
     """
-    return NAMED_PARAM_PATTERN.sub(r'%(\1)s', sql)
+    return NAMED_PARAM_PATTERN.sub(r'%(\1)s', sql.replace('%', '%%'))
