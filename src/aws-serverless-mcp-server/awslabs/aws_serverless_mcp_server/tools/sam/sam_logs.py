@@ -108,9 +108,8 @@ class SamLogsTool(BaseTool):
                 cmd.extend(['--config-file', config_file])
 
             if cw_log_group:
-                cmd.extend(['--cw-log-group'])
                 for group in cw_log_group:
-                    cmd.append(group)
+                    cmd.extend(['--cw-log-group', group])
 
             if start_time:
                 cmd.extend(['--start-time', start_time])
