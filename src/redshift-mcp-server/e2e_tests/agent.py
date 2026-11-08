@@ -29,7 +29,7 @@ confirmation is checked before the fallback is consulted: at any configuration t
 a write is refused for want of a confirmation and the fallback's own explanation of why writes
 cannot be served never surfaces.
 
-Every server exposes the same seven tool names, and an agent shown five servers offering
+Every server exposes the same tool names, and an agent shown five servers offering
 `execute_query` is shown one `execute_query`, with no say in which server answers. So each is
 aliased to a distinct name, `ro_execute_query` against `nb_execute_query` and so on. Without
 that a scenario cannot tell the configurations apart, and reports comparing them are not
@@ -39,6 +39,9 @@ The file is generated rather than committed: it holds live session credentials, 
 absolute paths that are true only on the machine that wrote it. `.kiro/agents/` under the
 harness is where kiro-cli looks when invoked from the harness directory, which keeps it out of
 the workspace's own agent directory.
+
+A second config, for the guide scenario, carries the default server alone and no builtins, so the
+guide reaches its agent only through the server.
 """
 
 import asyncio
@@ -58,6 +61,13 @@ from pathlib import Path
 # Where the server writes its own log. Not committed: it is a debugging aid for the run that
 # just happened, and it holds every statement the agent sent.
 LOGS_DIR = AGENTS_DIR.parent.parent / '.logs'
+
+# The guide scenario's server log, which the harness grades that scenario from.
+GUIDE_LOG = LOGS_DIR / 'guide.log'
+
+# Where kiro-cli finds skills for every agent. A redshift-guide here reaches the guide scenario's
+# agent other than through the server.
+GLOBAL_SKILL = Path.home() / '.kiro' / 'skills' / 'redshift-guide'
 
 READ_ONLY = 'awslabs.redshift-mcp-server'
 READ_WRITE = 'awslabs.redshift-mcp-server-read-write'
@@ -234,6 +244,35 @@ def render(config: Config, sts) -> dict:
     }
 
 
+def guide_name(config: Config) -> str:
+    """Return the name of the guide scenario's agent."""
+    return f'{config.agent_name}-guide'
+
+
+def render_guide(config: Config) -> dict:
+    """Build the guide scenario's agent config: the default server alone, and no builtins.
+
+    Args:
+        config: The harness config.
+
+    Returns:
+        The agent config, ready to serialize.
+    """
+    env = {'AWS_PROFILE': config.profile, 'AWS_REGION': config.region}
+    tools = [f'@{READ_ONLY}']
+
+    return {
+        'name': guide_name(config),
+        'description': 'Asks the Redshift MCP server in this tree a question, as a user would',
+        'includeMcpJson': False,
+        'mcpServers': {READ_ONLY: _server(require_executable('uv'), GUIDE_LOG.stem, env)},
+        'tools': tools,
+        'toolAliases': {k: v for k, v in aliases().items() if k.startswith(f'@{READ_ONLY}/')},
+        'allowedTools': tools,
+        'model': config.model,
+    }
+
+
 def write(config: Config, sts) -> tuple[Path, set[str]]:
     """Generate the agent config and put it where kiro-cli will find it.
 
@@ -256,6 +295,9 @@ def write(config: Config, sts) -> tuple[Path, set[str]]:
     # the agent, which runs as this user and can read its own config.
     path.chmod(0o600)
 
+    guide = AGENTS_DIR / f'{guide_name(config)}.json'
+    guide.write_text(json.dumps(render_guide(config), indent=2) + '\n')
+
     secret_values = {
         value
         for server in rendered['mcpServers'].values()
@@ -266,14 +308,19 @@ def write(config: Config, sts) -> tuple[Path, set[str]]:
     return path, secret_values
 
 
-def trust_argument() -> str:
+def trust_argument(guide: bool = False) -> str:
     """Return the value for kiro-cli's --trust-tools.
 
     Names each server rather than each alias: permission is matched against the tool the
     server registered, so a list of aliases matches nothing and every call is refused for want
     of a confirmation there is no terminal to give.
 
+    Args:
+        guide: For the guide scenario's agent, which has the default server alone.
+
     Returns:
         A comma-separated tool list.
     """
+    if guide:
+        return f'@{{{READ_ONLY}}}/*'
     return ','.join([*_BUILTIN_TOOLS, *(f'@{{{name}}}/*' for name in SERVERS)])

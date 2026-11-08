@@ -82,7 +82,9 @@ payment_option, and lookback_period_in_days. None of them has a default — each
 recommended commitment, so the caller must choose. Recommendations are precomputed and may be
 stale; the response carries the generation timestamp. DATABASE_SP is sold only as ONE_YEAR with
 NO_UPFRONT. An empty recommendation (an unsold combination, or no eligible usage) comes with a
-message and does not mean potential savings are zero.
+message and does not mean potential savings are zero. Each call returns recommendations for one
+savings_plans_type. Cost Optimization Hub shows one deduplicated commitment option per covered
+usage, so plan types returned here can be absent there.
 
 PAGINATION (get_savings_plans_purchase_recommendation, where the items are the recommendation
 details, and list_savings_plans_purchase_recommendation_generation; the other operations take
