@@ -565,7 +565,8 @@ Deduplication (list_recommendations, 'include_all_recommendations'):
   organization-wide options (summary ends "(Payer account level)") and hides the
   options sized for one account ("(Linked account level)"). Filter 'accountIds' to
   member accounts, without the management account, to see those for member
-  accounts; include_all_recommendations=true lists all of them.
+  accounts; include_all_recommendations=true lists all of them. The sp-recommendation
+  tool returns Cost Explorer's recommendations for each Savings Plans type.
 - Which option is kept depends on 'filters': filtering resourceTypes to options the
   default hid (e.g. ["Ec2ReservedInstances"]) returns those, still deduplicated
   among the filtered types. It does not mean they save more than the option the

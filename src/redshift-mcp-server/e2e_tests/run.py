@@ -16,7 +16,7 @@
 
     python -m e2e_tests.run status
     python -m e2e_tests.run up
-    python -m e2e_tests.run test [branch|tools|all]
+    python -m e2e_tests.run test [branch|tools|guide|all]
     python -m e2e_tests.run pause
     python -m e2e_tests.run down
 
@@ -114,7 +114,7 @@ def _revision() -> str:
     return f'`{branch}` at `{commit}`{dirty}'
 
 
-def _invoke(config: Config, prompt: str) -> tuple[int, str, float]:
+def _invoke(config: Config, prompt: str, guide: bool = False) -> tuple[int, str, float]:
     """Run one scenario through the agent and collect everything it said.
 
     Invoked from the harness directory, because that is where kiro-cli looks for the agent the
@@ -123,6 +123,7 @@ def _invoke(config: Config, prompt: str) -> tuple[int, str, float]:
     Args:
         config: The harness config.
         prompt: The scenario prompt.
+        guide: Run the guide scenario's agent instead of the testing agent.
 
     Returns:
         Exit status, the transcript with control sequences stripped, and elapsed seconds.
@@ -134,10 +135,11 @@ def _invoke(config: Config, prompt: str) -> tuple[int, str, float]:
         config.agent_command,
         'chat',
         '--agent',
-        config.agent_name,
+        agent.guide_name(config) if guide else config.agent_name,
         '--no-interactive',
+        '--require-mcp-startup',
         '--trust-tools',
-        agent.trust_argument(),
+        agent.trust_argument(guide),
         prompt,
     ]
 
@@ -163,21 +165,32 @@ def _invoke(config: Config, prompt: str) -> tuple[int, str, float]:
 
 
 def _redact(text: str, secret_values: set[str]) -> str:
-    """Replace the generated config's credential values wherever they appear.
+    """Replace the generated config's credential values and the operator's local paths.
 
     The agent can read its own config, which carries an assumed role's session keys, and the
     transcript it produces is committed. Scrubbed here rather than trusted not to be echoed,
     because one shell command is enough and the report is the artifact that outlives the run.
+    The package root becomes `[package root]` and the home directory `~`, each as given and
+    resolved, since home can be a symlink.
 
     Args:
-        text: The transcript.
+        text: The report.
         secret_values: The credential values the generated config carries.
 
     Returns:
-        The transcript with each of them replaced.
+        The report with each of them replaced.
     """
-    for value in sorted(secret_values, key=len, reverse=True):
-        text = text.replace(value, '[redacted]')
+    home, real_home, root = str(Path.home()), str(Path.home().resolve()), str(PACKAGE_ROOT)
+    labels = dict.fromkeys(secret_values, '[redacted]') | {
+        root: '[package root]',
+        root.replace(real_home, home): '[package root]',
+        real_home: '~',
+        home: '~',
+    }
+    # Longest first: replacing a shorter value first, such as home inside the package root, leaves
+    # the rest of the longer one readable.
+    for value in sorted(labels, key=len, reverse=True):
+        text = text.replace(value, labels[value])
     return text
 
 
@@ -322,7 +335,14 @@ def _report(
         'Sample data': f'`{config.schema}` in `{config.database}`, {seeded_rows:,} rows each',
     }
 
-    summary, remainder = _split_summary(_redact(transcript, secret_values))
+    if scenario.grade is None:
+        summary, remainder = _split_summary(transcript)
+    else:
+        facts['Target'] = (
+            f'`{config.guide_workgroup_name}`, Serverless, {config.base_capacity} RPU, unseeded'
+        )
+        log = agent.GUIDE_LOG.read_text() if agent.GUIDE_LOG.exists() else ''
+        summary, remainder = scenario.grade(log, config), _as_paragraphs(transcript)
     failed = _failed_scenarios(summary, scenario.min_rows)
     if summary is None:
         summary = (
@@ -330,19 +350,19 @@ def _report(
             'transcript before citing this run.'
         )
 
-    path.write_text(
+    report = (
         f'# End-to-end test: {scenario.title}\n\n'
         f'{now:%Y-%m-%d %H:%M} UTC\n\n'
         + '\n'.join(f'- **{key}**: {value}' for key, value in facts.items())
         + '\n\n'
         f'## Summary\n\n{summary}\n\n'
         '## Prompt\n\n'
-        "Written by the harness, not by hand. The agent derives the cases from the package's "
-        'unit tests, and is told where to look rather than what to expect.\n\n'
+        'Written by the harness, not by hand, and never says what to expect.\n\n'
         f'{prompt.strip()}\n\n'
         '## Transcript\n\n'
         f'{remainder.strip()}\n'
     )
+    path.write_text(_redact(report, secret_values))
 
     return path, failed
 
@@ -366,9 +386,9 @@ def test(config: Config, keys: list[str], keep_up: bool) -> int:
     # anything is created, so there is nothing of this run's to tear down.
     deploy.check_ownership(session, config)
 
-    # Everything after `up` runs under `finally`, because by then the cluster, the workgroup and
-    # two IAM roles exist and are billing. A crash in the agent, the report or the harness itself
-    # must not be the reason someone finds them still running tomorrow.
+    # Everything after `up` runs under `finally`, because by then the cluster, the workgroups
+    # and two IAM roles exist and are billing. A crash in the agent, the report or the harness
+    # itself must not be the reason someone finds them still running tomorrow.
     try:
         deploy.up(session, config)
 
@@ -380,9 +400,21 @@ def test(config: Config, keys: list[str], keep_up: bool) -> int:
         for key in keys:
             scenario = scenarios.ALL[key]
             prompt = scenario.prompt(config)
+            guide = scenario.grade is not None
+
+            if guide and agent.GLOBAL_SKILL.exists():
+                failures += 1
+                print(
+                    f'scenario   {key} FAILED, not run: {agent.GLOBAL_SKILL} would hand the agent '
+                    'the guide without the server'
+                )
+                continue
+            if guide:
+                agent.GUIDE_LOG.unlink(missing_ok=True)
+
             print(f'scenario   {key} running, up to {config.timeout_seconds / 60:.0f} min')
 
-            status, transcript, seconds = _invoke(config, prompt)
+            status, transcript, seconds = _invoke(config, prompt, guide)
             path, failed = _report(
                 config, scenario, prompt, status, transcript, seconds, seeded_rows, secret_values
             )
