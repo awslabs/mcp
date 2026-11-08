@@ -1,6 +1,8 @@
 ---
-title: "AWS Labs Amazon Kendra Index MCPサーバー"
+title: "AWS Labs Amazon Kendra Index MCPサーバー（非推奨）"
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。こちらは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて同じ Amazon Kendra の `ListIndices` および `Query` 呼び出しを行い、このサーバーが返していなかった結果フィールドを含む完全なレスポンスを返します。ツールの対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-kendra-index.md) を参照してください。
 
 Amazon Kendra 向けの AWS Labs Model Context Protocol (MCP) サーバーです。この MCP サーバーを使用すると、Kendra インデックスを RAG の追加コンテキストとして利用できます。
 

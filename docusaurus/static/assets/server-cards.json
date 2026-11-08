@@ -338,7 +338,7 @@
       "description": "Enterprise search and RAG enhancement",
       "icon": "\ud83e\udd16",
       "id": "amazon-kendra-index-mcp-server",
-      "name": "Amazon Kendra Index MCP Server",
+      "name": "Amazon Kendra Index MCP Server (Deprecated)",
       "source_path": "src/amazon-kendra-index-mcp-server/",
       "subcategory": "Knowledge & Search",
       "tags": [

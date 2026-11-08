@@ -1,5 +1,5 @@
 ---
-title: Amazon Kendra Index MCP Server
+title: Amazon Kendra Index MCP Server (Deprecated)
 ---
 
 import ReadmeContent from "../../../src/amazon-kendra-index-mcp-server/README.md";
