@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- A 4xx response other than 408 or 429, such as a 400 for invalid PromQL, is no longer retried, and its Prometheus error message is kept in the raised error
+- The wait between retries no longer blocks the event loop
+
 ## [0.2.0] - 2024-06-01
 
 ### Changed
