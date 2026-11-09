@@ -750,7 +750,7 @@ The driver is an optional extra, `direct`, so the default install does not carry
 
 Without the extra, every statement in direct mode is refused with a message naming it.
 
-The Docker image does not include the `direct` extra. To build one that does, add `--extra direct` to both `uv sync` lines in the `Dockerfile`.
+The Docker image includes the `direct` extra. The driver is loaded only when `REDSHIFT_CONNECTION_MODE=direct`, so the default `data-api` mode behaves as before.
 
 It needs no `redshift-data:*` action, only these two:
 
