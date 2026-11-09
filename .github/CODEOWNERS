@@ -31,7 +31,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/aws-api-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @awslabs/aws-api-mcp @rshevchuk-git @PCManticore @iddv @arnewouters @bidesh
 /src/aws-appsync-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @phani-srikar @maxi114 @neelmurt
 /src/aws-bedrock-custom-model-import-mcp-server                @awslabs/mcp-admins @awslabs/mcp-maintainers  @saidrhs
-/src/aws-dataprocessing-mcp-server                             @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @wetang6677 @yuxiaorun
+/src/aws-dataprocessing-mcp-server                             @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @wetang6677
 /src/aws-documentation-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @JonLim @AadityaBhoota @artb30 @alexisareyn @zjerath @mc5672 @riaagnes @kstich
 /src/aws-for-sap-management-mcp-server                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @conradkchan @jyothihassanramesh
 /src/aws-healthomics-mcp-server                                @awslabs/mcp-admins @awslabs/mcp-maintainers  @markjschreiber @WIIASD @a-li @alxawan @MaisiLi @sren0509
@@ -74,8 +74,8 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/roda-mcp-server                                           @awslabs/mcp-admins @awslabs/mcp-maintainers  @guyu-ye @cstner
 /src/s3-tables-mcp-server                                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @gsoundar @gregorywright @Kurtiscwright @ananthaksr @okhomin @Zh111602
 /src/sagemaker-ai-mcp-server                                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @dparkar @githuboston @jade710 @JunqiYe
-/src/sagemaker-unified-studio-spark-upgrade-mcp-server         @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @wetang6677 @yuxiaorun
-/src/sagemaker-unified-studio-spark-troubleshooting-mcp-server @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @wetang6677 @yuxiaorun
+/src/sagemaker-unified-studio-spark-upgrade-mcp-server         @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @wetang6677
+/src/sagemaker-unified-studio-spark-troubleshooting-mcp-server @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @wetang6677
 /src/security-agent-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @ljainiaz @jigar-lab @jzgithub28 @awsbyron
 /src/stepfunctions-tool-mcp-server                             @awslabs/mcp-admins @awslabs/mcp-maintainers  @mmouniro
 /src/timestream-for-influxdb-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @lokendrp-aws @mhchengaws @sandeep94pr
