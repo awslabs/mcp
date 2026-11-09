@@ -33,7 +33,8 @@ CONNECTION_MODES = frozenset({CONNECTION_MODE_DATA_API, CONNECTION_MODE_DIRECT})
 CONNECTION_MODE_DEFAULT = CONNECTION_MODE_DATA_API
 # How a direct connection checks the cluster's certificate, unless REDSHIFT_DIRECT_SSLMODE sets
 # another. `verify-full` checks the chain and that it names the endpoint; `verify-ca` checks the
-# chain only. These are the driver's two TLS modes, and the default is its own.
+# chain only. The server always passes the mode to the driver explicitly, `verify-full` unless
+# set otherwise, so the driver's own default (which differs between versions) never applies.
 DIRECT_SSLMODE_VERIFY_FULL = 'verify-full'
 DIRECT_SSLMODE_VERIFY_CA = 'verify-ca'
 DIRECT_SSLMODES = frozenset({DIRECT_SSLMODE_VERIFY_FULL, DIRECT_SSLMODE_VERIFY_CA})

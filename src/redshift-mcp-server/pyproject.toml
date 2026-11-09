@@ -38,7 +38,7 @@ classifiers = [
 [project.optional-dependencies]
 # The driver behind REDSHIFT_CONNECTION_MODE=direct; imported only in that mode.
 direct = [
-    "redshift-connector>=2.1.0",
+    "redshift-connector>=2.2.0",
 ]
 
 [project.urls]
