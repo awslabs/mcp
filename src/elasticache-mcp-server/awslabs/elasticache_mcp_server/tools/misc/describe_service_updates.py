@@ -17,7 +17,7 @@
 from ...common.connection import ElastiCacheConnectionManager
 from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 @mcp.tool(name='describe-service-updates')
@@ -41,7 +41,7 @@ async def describe_service_updates(
         page_size (Optional[int]): The maximum number of records to include in each page
             of results.
         max_items (Optional[int]): The maximum number of records to include in the response.
-            If more records exist than the specified MaxItems value, a marker is included
+            If more records exist than the specified MaxItems value, a NextToken is included
             in the response so that the remaining results can be retrieved.
 
     Returns:
@@ -60,12 +60,23 @@ async def describe_service_updates(
         describe_request['ServiceUpdateName'] = service_update_name
     if service_update_status:
         describe_request['ServiceUpdateStatus'] = service_update_status
+
+    # MaxItems is a paginator setting, not an API parameter
+    if max_items:
+        pagination_config: Dict[str, Any] = {'MaxItems': max_items}
+        if page_size:
+            pagination_config['PageSize'] = page_size
+        if starting_token:
+            pagination_config['StartingToken'] = starting_token
+        paginator = elasticache_client.get_paginator('describe_service_updates')
+        return paginator.paginate(
+            **describe_request, PaginationConfig=pagination_config
+        ).build_full_result()
+
     if starting_token:
         describe_request['Marker'] = starting_token
     if page_size:
         describe_request['MaxRecords'] = page_size
-    if max_items:
-        describe_request['MaxItems'] = max_items
 
     # Describe the service updates
     response = elasticache_client.describe_service_updates(**describe_request)
