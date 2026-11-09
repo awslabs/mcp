@@ -670,3 +670,48 @@ async def test_get_security_findings_updates_context_when_service_disabled(
                 ]
                 is False
             )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "severity_filter,expected_levels",
+    [
+        ("LOW", ["1", "2", "3"]),
+        ("MEDIUM", ["4", "5", "6"]),
+        ("HIGH", ["7", "8"]),
+        ("CRITICAL", ["9", "10"]),
+    ],
+)
+async def test_get_security_findings_guardduty_severity_levels(
+    mock_ctx, mock_boto3_session, severity_filter, expected_levels
+):
+    """Each severity filter maps to the GuardDuty severity values of that level."""
+    context_storage["security_services_us-east-1"] = {
+        "service_statuses": {
+            "guardduty": {"enabled": True},
+        }
+    }
+
+    with mock.patch(
+        "awslabs.well_architected_security_mcp_server.server.get_guardduty_findings"
+    ) as mock_get_findings:
+        mock_get_findings.return_value = {
+            "service": "guardduty",
+            "enabled": True,
+            "findings": [],
+            "summary": {"total_count": 0},
+            "message": "Retrieved 0 GuardDuty findings",
+        }
+
+        await get_security_findings(
+            mock_ctx,
+            region="us-east-1",
+            service="guardduty",
+            max_findings=100,
+            severity_filter=severity_filter,
+            aws_profile=None,
+            check_enabled=True,
+        )
+
+        filter_criteria = mock_get_findings.call_args.args[4]
+        assert filter_criteria == {"Criterion": {"severity": {"Eq": expected_levels}}}

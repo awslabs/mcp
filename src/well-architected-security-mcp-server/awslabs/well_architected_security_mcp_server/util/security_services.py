@@ -615,7 +615,7 @@ async def get_guardduty_findings(
         # Set up default finding criteria if none provided
         if filter_criteria is None:
             print("[DEBUG:GuardDuty] No filter criteria provided, creating default criteria")
-            # By default, get findings from the last 30 days with high or medium severity
+            # By default, get findings from the last 30 days with medium, high or critical severity
             # Calculate timestamp in milliseconds (GuardDuty expects integer timestamp)
             thirty_days_ago = int(
                 (datetime.datetime.now() - datetime.timedelta(days=30)).timestamp() * 1000
@@ -624,7 +624,13 @@ async def get_guardduty_findings(
             filter_criteria = {
                 "Criterion": {
                     "severity": {
-                        "Eq": ["7", "5", "8"]  # High (7), Medium (5), and Critical (8) findings
+                        "Eq": [
+                            "5",
+                            "7",
+                            "8",
+                            "9",
+                            "10",
+                        ]  # Medium (5), High (7, 8) and Critical (9, 10)
                     },
                     "updatedAt": {"GreaterThanOrEqual": thirty_days_ago},
                 }
