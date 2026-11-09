@@ -150,8 +150,33 @@ class DummyCtx(Context):
         pass
 
 
+_ARRAY_LEAF_KEYS = ('stringValues', 'longValues', 'doubleValues', 'booleanValues')
+
+
+def _unwrap_array_value(array: Any) -> Any:
+    """Turn a Data API ``ArrayValue`` (``{'stringValues': [...]}``) into a plain list.
+
+    Nested arrays (``arrayValues``) become nested lists. A value that is already
+    a plain list is returned unchanged.
+    """
+    if not isinstance(array, dict):
+        return array
+    for key in _ARRAY_LEAF_KEYS:
+        if key in array:
+            return list(array[key])
+    if 'arrayValues' in array:
+        return [_unwrap_array_value(inner) for inner in array['arrayValues']]
+    return []
+
+
 def extract_cell(cell: dict):
-    """Extracts the scalar or array value from a single cell."""
+    """Extracts the scalar or array value from a single cell.
+
+    The result is JSON-safe and identical on both connection methods:
+    ``blobValue`` (bytea) becomes a hex string in PostgreSQL's default
+    ``bytea_output`` format (a backslash, ``x``, then the hex digits), and
+    ``arrayValue`` becomes a plain list.
+    """
     if cell.get('isNull'):
         return None
     for key in (
@@ -163,7 +188,12 @@ def extract_cell(cell: dict):
         'arrayValue',
     ):
         if key in cell:
-            return cell[key]
+            value = cell[key]
+            if key == 'blobValue' and isinstance(value, (bytes, bytearray, memoryview)):
+                return '\\x' + bytes(value).hex()
+            if key == 'arrayValue':
+                return _unwrap_array_value(value)
+            return value
     return None
 
 

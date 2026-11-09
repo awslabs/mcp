@@ -13,6 +13,8 @@
 # limitations under the License.
 """Tests for server helper functions."""
 
+import json
+import pytest
 from awslabs.postgres_mcp_server.server import extract_cell, parse_execute_response
 
 
@@ -45,14 +47,44 @@ class TestExtractCell:
         assert extract_cell(cell) is True
 
     def test_extract_blob_value(self):
-        """Test extracting a blob value."""
+        """Test that a blob (bytea) is returned as a hex string, not raw bytes."""
         cell = {'blobValue': b'binary_data'}
-        assert extract_cell(cell) == b'binary_data'
+        assert extract_cell(cell) == '\\x62696e6172795f64617461'
+
+    def test_extract_blob_value_that_is_not_utf8(self):
+        """Test that a blob that is not valid UTF-8 is still JSON-safe."""
+        cell = {'blobValue': b'\x89PNG\x00\xff'}
+        result = extract_cell(cell)
+        assert result == '\\x89504e4700ff'
+        json.dumps(result)
+
+    def test_extract_empty_blob_value(self):
+        """Test that an empty blob is an empty hex string."""
+        assert extract_cell({'blobValue': b''}) == '\\x'
 
     def test_extract_array_value(self):
-        """Test extracting an array value."""
+        """Test extracting an array value that is already a plain list."""
         cell = {'arrayValue': [1, 2, 3]}
         assert extract_cell(cell) == [1, 2, 3]
+
+    @pytest.mark.parametrize(
+        'array, expected',
+        [
+            ({'stringValues': ['red', 'blue']}, ['red', 'blue']),
+            ({'longValues': [1, 2, 3]}, [1, 2, 3]),
+            ({'doubleValues': [1.5, 2.5]}, [1.5, 2.5]),
+            ({'booleanValues': [True, False]}, [True, False]),
+            ({'stringValues': []}, []),
+            ({}, []),
+            (
+                {'arrayValues': [{'longValues': [1, 2]}, {'longValues': [3, 4]}]},
+                [[1, 2], [3, 4]],
+            ),
+        ],
+    )
+    def test_extract_array_value_unwraps_data_api_arrays(self, array, expected):
+        """Test that a Data API ArrayValue becomes a plain list, nested ones included."""
+        assert extract_cell({'arrayValue': array}) == expected
 
     def test_extract_empty_cell(self):
         """Test extracting an empty cell."""
@@ -135,7 +167,7 @@ class TestParseExecuteResponse:
             'int_col': 100,
             'float_col': 99.99,
             'bool_col': True,
-            'blob_col': b'data',
+            'blob_col': '\\x64617461',
             'array_col': [1, 2, 3],
         }
 

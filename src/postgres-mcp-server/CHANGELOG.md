@@ -40,6 +40,17 @@ not always obvious from the entries below.
 
 ### Fixed
 
+- `run_query` no longer fails on `bytea` columns, and `json`/`jsonb` and array
+  columns now come back in the same shape on both `PG_WIRE_PROTOCOL` and
+  `RDS_API`. A `bytea` value reached the tool result as raw bytes, so any value
+  that is not valid UTF-8 failed the whole query with a serialization error
+  (and one that happened to be valid UTF-8 came back as plain text). It is now
+  a hex string in PostgreSQL's default `bytea_output` format: a backslash, `x`,
+  then the hex digits. On the direct path `json`/`jsonb` came back as a Python
+  repr (`{'a': True, 'b': None}`); it is now JSON text (`{"a": true, "b": null}`),
+  as `RDS_API` already returned it. Arrays came back as a Python repr on the
+  direct path and as a raw `{"stringValues": [...]}` object on `RDS_API`; both
+  now return a JSON list (nested for multi-dimensional arrays).
 - A query using both an array slice and `query_parameters` no longer fails at
   execution on the direct (psycopg / PG Wire) path. The SQL policy guard and the
   psycopg executor each carried their own rule for deciding which `:name`

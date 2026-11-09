@@ -76,6 +76,72 @@ _SYSTEM_TRUST_STORE = 'system'
 _MIN_LIBPQ_VERSION_FOR_SYSTEM = 160000
 
 
+# PostgreSQL type OIDs for json and jsonb. psycopg decodes both into Python
+# dicts/lists/scalars, which can no longer be told apart from array columns.
+_JSON_TYPE_OIDS = frozenset({114, 3802})
+
+
+def _column_type_code(desc: Any) -> Optional[int]:
+    """Return the type OID of a ``cursor.description`` entry, or None if absent."""
+    type_code = getattr(desc, 'type_code', None)
+    if type_code is None and isinstance(desc, (tuple, list)) and len(desc) > 1:
+        type_code = desc[1]
+    return type_code if isinstance(type_code, int) else None
+
+
+def _array_element(value: Any) -> Any:
+    """Make one array element JSON-safe (NULL stays None)."""
+    if value is None or isinstance(value, str):
+        return value
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return '\\x' + bytes(value).hex()
+    if isinstance(value, (dict, list)):
+        # json[]/jsonb[] elements: keep them as JSON text, like a json column
+        return json.dumps(value)
+    return str(value)
+
+
+def _to_array_value(values: List[Any]) -> Dict[str, Any]:
+    """Build an RDS Data API ``ArrayValue`` (``*Values`` key) from a Python list."""
+    present = [v for v in values if v is not None]
+    if present and all(isinstance(v, list) for v in present):
+        return {'arrayValues': [_to_array_value(v) for v in present]}
+    if present and all(isinstance(v, bool) for v in present):
+        return {'booleanValues': values}
+    if present and all(isinstance(v, int) and not isinstance(v, bool) for v in present):
+        return {'longValues': values}
+    if present and all(isinstance(v, float) for v in present):
+        return {'doubleValues': values}
+    return {'stringValues': [_array_element(v) for v in values]}
+
+
+def _to_data_api_cell(value: Any, type_code: Optional[int] = None) -> Dict[str, Any]:
+    """Convert one psycopg value into an RDS Data API style cell.
+
+    This gives the PG wire path the same cell shapes the Data API returns, so
+    ``extract_cell`` in server.py yields identical results on both paths:
+    json/jsonb as JSON text in ``stringValue`` and arrays as ``arrayValue``.
+    """
+    if value is None:
+        return {'isNull': True}
+    if type_code in _JSON_TYPE_OIDS:
+        return {'stringValue': json.dumps(value)}
+    if isinstance(value, str):
+        return {'stringValue': value}
+    if isinstance(value, bool):
+        return {'booleanValue': value}
+    if isinstance(value, int):
+        return {'longValue': value}
+    if isinstance(value, float):
+        return {'doubleValue': value}
+    if isinstance(value, bytes):
+        return {'blobValue': value}
+    if isinstance(value, list):
+        return {'arrayValue': _to_array_value(value)}
+    # Convert other types to string
+    return {'stringValue': str(value)}
+
+
 def _bundled_ca_file() -> Optional[str]:
     """Return the bundled AWS CA path if present on disk, else None.
 
@@ -605,26 +671,18 @@ class PsycopgPoolConnection(AbstractDBConnection):
                             column_metadata = [{'name': col} for col in columns]
                             records = []
 
+                            # The type OIDs tell json/jsonb apart from arrays: psycopg
+                            # decodes both to Python lists/dicts.
+                            type_codes = [_column_type_code(desc) for desc in cursor.description]
+
                             # Convert each row to the expected format
                             for row in rows:
-                                record = []
-                                for value in row:
-                                    if value is None:
-                                        record.append({'isNull': True})
-                                    elif isinstance(value, str):
-                                        record.append({'stringValue': value})
-                                    elif isinstance(value, bool):
-                                        record.append({'booleanValue': value})
-                                    elif isinstance(value, int):
-                                        record.append({'longValue': value})
-                                    elif isinstance(value, float):
-                                        record.append({'doubleValue': value})
-                                    elif isinstance(value, bytes):
-                                        record.append({'blobValue': value})
-                                    else:
-                                        # Convert other types to string
-                                        record.append({'stringValue': str(value)})
-                                records.append(record)
+                                records.append(
+                                    [
+                                        _to_data_api_cell(value, type_code)
+                                        for value, type_code in zip(row, type_codes)
+                                    ]
+                                )
 
                             return {'columnMetadata': column_metadata, 'records': records}
                         else:
