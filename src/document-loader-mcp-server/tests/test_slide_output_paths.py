@@ -56,7 +56,7 @@ def _require_symlinks(tmp_path):
     """Skip the test if this OS or user cannot create symlinks."""
     probe = tmp_path / 'symlink_probe'
     try:
-        os.symlink(tmp_path, probe)
+        os.symlink(tmp_path, probe, target_is_directory=True)
     except (OSError, NotImplementedError, AttributeError):
         pytest.skip('symlinks are not supported here')
     probe.unlink()
@@ -368,3 +368,22 @@ def test_output_dir_component_is_a_file_raises_os_error(sandbox, write_mode):
             _extract_slides_sync('/docs/deck.pdf', str(blocker / 'out'), 72, 'png')
     assert not isinstance(excinfo.value, UnsafeOutputPathError)
     assert blocker.read_bytes() == ORIGINAL
+
+
+def test_fallback_rechecks_dir_before_each_write(sandbox):
+    """In the path fallback, a folder swapped to a link after preparation is refused."""
+    _require_symlinks(sandbox.root)
+    out = sandbox.base / 'out'
+    real_prepare = server._prepare_output_dir_path
+
+    def prepare_then_swap(base_dir, resolved_dir):
+        real_prepare(base_dir, resolved_dir)
+        resolved_dir.rmdir()
+        resolved_dir.symlink_to(sandbox.outside, target_is_directory=True)
+
+    with patch.object(server, '_supports_fd_relative_writes', return_value=False):
+        with patch.object(server, '_prepare_output_dir_path', side_effect=prepare_then_swap):
+            with patch.object(server, 'convert_from_path', return_value=_pages(2)):
+                with pytest.raises(UnsafeOutputPathError):
+                    _extract_slides_sync('/docs/deck.pdf', str(out), 72, 'png')
+    assert list(sandbox.outside.iterdir()) == []

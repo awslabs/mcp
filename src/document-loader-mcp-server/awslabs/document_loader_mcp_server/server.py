@@ -544,6 +544,8 @@ def _is_link_or_reparse_point(st: os.stat_result) -> bool:
 
 def _supports_fd_relative_writes() -> bool:
     """Return True if the OS supports no-follow, directory-relative file operations."""
+    # os.replace shares its implementation with os.rename, but CPython lists only
+    # os.rename in os.supports_dir_fd. Checking os.replace here would always fail.
     return (
         hasattr(os, 'O_NOFOLLOW')
         and hasattr(os, 'O_DIRECTORY')
@@ -609,6 +611,16 @@ def _prepare_output_dir_path(base_dir: Path, resolved_dir: Path) -> None:
     (for example Windows).
     """
     os.makedirs(resolved_dir, exist_ok=True)
+    _verify_output_dir_path(base_dir, resolved_dir)
+
+
+def _verify_output_dir_path(base_dir: Path, resolved_dir: Path) -> None:
+    """Portable fallback: check that no component of the output directory is a link.
+
+    Run when the directory is prepared and again before each slide write, to
+    narrow the window in which a component could be swapped. Path-based APIs
+    cannot close that window fully.
+    """
     current = base_dir
     for part in resolved_dir.relative_to(base_dir).parts:
         current = current / part
@@ -635,13 +647,22 @@ def _check_slide_target(name: str, dir_fd: Optional[int], dir_path: Path) -> Non
         )
 
 
-def _write_slide(page, name: str, image_format: str, dir_fd: Optional[int], dir_path: Path):
+def _write_slide(
+    page,
+    name: str,
+    image_format: str,
+    dir_fd: Optional[int],
+    dir_path: Path,
+    base_dir: Optional[Path] = None,
+):
     """Write one slide image safely.
 
     The image is saved to a new, exclusively created temporary file in the
     output directory and then atomically moved onto the final name. A link
     placed at the final name after the check is replaced, not followed.
     """
+    if dir_fd is None and base_dir is not None:
+        _verify_output_dir_path(base_dir, dir_path)
     _check_slide_target(name, dir_fd, dir_path)
     temp_name = f'{_SLIDE_TEMP_PREFIX}{secrets.token_hex(8)}.tmp'
     flags = (
@@ -662,6 +683,8 @@ def _write_slide(page, name: str, image_format: str, dir_fd: Optional[int], dir_
         if dir_fd is not None:
             os.replace(temp_name, name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
         else:
+            if base_dir is not None:
+                _verify_output_dir_path(base_dir, dir_path)
             os.replace(dir_path / temp_name, dir_path / name)
     except BaseException:
         with contextlib.suppress(OSError):
@@ -714,7 +737,7 @@ def _extract_slides_sync(
 
         output_files = []
         for page, name in zip(pages, names):
-            _write_slide(page, name, output_format.upper(), dir_fd, resolved_dir)
+            _write_slide(page, name, output_format.upper(), dir_fd, resolved_dir, base_dir)
             output_files.append(os.path.join(output_dir, name))
         return output_files
     finally:
