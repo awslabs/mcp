@@ -346,7 +346,13 @@ class PsycopgPoolConnection(AbstractDBConnection):
     - Self-hosted PostgreSQL
 
     It uses AWS Secrets Manager (secret_arn and region) for authentication.
+
+    ``requires_serving_loop`` is set because the pool and its aiorwlock bind to
+    the loop that first acquires the lock. Startup validation therefore has to
+    run on MCP's serving loop, not on a temporary ``asyncio.run`` loop.
     """
+
+    requires_serving_loop = True
 
     def __init__(
         self,

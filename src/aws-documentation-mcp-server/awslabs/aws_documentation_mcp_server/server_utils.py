@@ -24,9 +24,9 @@ from awslabs.aws_documentation_mcp_server.util import (
     UnreadablePageError,
     enforce_redirect_allowlist,
     extract_content_from_html,
-    extract_sections_from_markdown,
     format_documentation_result,
     is_html_content,
+    select_sections,
     truncate_large_tables,
 )
 from collections import deque
@@ -69,6 +69,9 @@ DEFAULT_USER_AGENT = (
 
 
 _USE_SEARCH = 'Use search_documentation.'
+
+# read_documentation's default page size, also used to page a whole-page read_sections match.
+DEFAULT_MAX_LENGTH = 5000
 
 
 # Pages with a published Markdown variant serve it directly; the rest fall back to HTML.
@@ -315,7 +318,7 @@ async def read_sections_impl(
     )
 
     try:
-        markdown = extract_sections_from_markdown(content, section_titles)
+        selection = select_sections(content, section_titles)
     except UnreadablePageError as e:
         error_msg = page.message(
             f'{page.served} could not be read: {e}',
@@ -330,7 +333,15 @@ async def read_sections_impl(
         await ctx.error(error_msg)
         raise DocumentationToolError(error_msg) from e
 
-    markdown = f'AWS Documentation from {page.served}:\n\n{markdown}'
+    if selection.whole_page:
+        # The page is the same Markdown read_documentation serves, so its start_index hint holds.
+        markdown = format_documentation_result(page.served, content, 0, DEFAULT_MAX_LENGTH)
+        if selection.notes:
+            markdown = f'{selection.notes.lstrip()}\n\n{markdown}'
+    else:
+        markdown = (
+            f'AWS Documentation from {page.served}:\n\n{selection.markdown}{selection.notes}'
+        )
     if note := page.message():
         markdown = f'<e>{note}</e>\n\n{markdown}'
 

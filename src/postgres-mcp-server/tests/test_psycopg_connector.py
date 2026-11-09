@@ -54,6 +54,8 @@ class TestPsycopgConnector:
             is_test=True,
         )
 
+        assert conn.requires_serving_loop is True
+
         # Manually set the pool attribute since is_test=True skips pool initialization
         conn.pool = mock_pool
 
