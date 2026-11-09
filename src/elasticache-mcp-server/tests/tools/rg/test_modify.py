@@ -7,6 +7,7 @@ from awslabs.elasticache_mcp_server.tools.rg import (
     modify_replication_group_shard_configuration,
 )
 from awslabs.elasticache_mcp_server.tools.rg.modify import ModifyReplicationGroupRequest
+from awslabs.elasticache_mcp_server.tools.rg.processors import process_log_delivery_configurations
 from unittest.mock import MagicMock, patch
 
 
@@ -430,3 +431,25 @@ async def test_modify_replication_group_invalid_params():
         )
         result = await modify_replication_group(request)
         assert 'error' in result
+
+
+@pytest.mark.asyncio
+async def test_modify_replication_group_invalid_log_delivery_configurations():
+    """An invalid log delivery configuration returns the validation error without calling the API."""
+    invalid_configs = [{}]
+    with pytest.raises(ValueError) as expected:
+        process_log_delivery_configurations(invalid_configs)
+
+    mock_client = MagicMock()
+    with patch(
+        'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+        return_value=mock_client,
+    ):
+        request = ModifyReplicationGroupRequest(
+            replication_group_id='test-group',
+            log_delivery_configurations=invalid_configs,
+        )
+        result = await modify_replication_group(request)
+
+    assert result == {'error': str(expected.value)}
+    mock_client.modify_replication_group.assert_not_called()
