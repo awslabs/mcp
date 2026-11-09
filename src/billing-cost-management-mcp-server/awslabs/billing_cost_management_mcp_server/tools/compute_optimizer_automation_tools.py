@@ -488,7 +488,10 @@ Supported operations (pass via the `operation` parameter):
 11. list_automation_rule_preview: Preview the recommended actions a rule config would
     match, without creating the rule. Params: rule_type (required),
     recommended_action_types (required), organization_scope, criteria, max_items,
-    next_token
+    next_token. A preview with rule_type AccountRule covers only the calling account.
+    OrganizationRule, available only to the management account or a delegated
+    administrator, covers member accounts that have Automation enabled and allow
+    organization rules; organization_scope limits it to specific accounts.
 12. list_automation_rule_preview_summaries: Aggregated summary of a rule preview.
     Params: same as list_automation_rule_preview
 13. list_tags_for_resource: Tags for a resource (e.g. an automation rule).
@@ -548,8 +551,8 @@ Examples:
 - {"operation": "get_enrollment_configuration"}
 - {"operation": "get_automation_event", "event_id": "abc123"}
 - {"operation": "list_automation_events", "regions": ["us-east-1", "eu-west-1"]}
-- {"operation": "list_automation_events", "filters": "[{\"name\": \"EventStatus\", \"values\": [\"Complete\"]}]"}
-- {"operation": "list_automation_rule_preview", "rule_type": "AccountRule", "recommended_action_types": "[\"UpgradeEbsVolumeType\"]"}""",
+- {"operation": "list_automation_events", "filters": "[{\\"name\\": \\"EventStatus\\", \\"values\\": [\\"Complete\\"]}]"}
+- {"operation": "list_automation_rule_preview", "rule_type": "AccountRule", "recommended_action_types": "[\\"UpgradeEbsVolumeType\\"]"}""",
 )
 async def compute_optimizer_automation(
     ctx: Context,

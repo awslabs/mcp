@@ -1342,7 +1342,20 @@ class TestDescribeSavingsPlansFilterValues:
         description = ' '.join((await self._filters_description()).split())
 
         assert re.search(r'case-sensitive', description, re.I)
-        assert re.search(r'empty list, not an error', description)
+        assert 'A well-formed value that matches no plan returns [].' in description
+        assert 'Text values match exactly (case-sensitive).' in description
+        # Malformed numeric and timestamp values are rejected, not matched as empty.
+        assert (
+            'Malformed values are a ValidationException: term must be whole seconds, upfront '
+            'and commitment numbers, start and end yyyy-MM-ddTHH:mm:ss.SSSZ in UTC, with the '
+            'trailing Z.'
+        ) in description
+        # DescribeSavingsPlans rejects a start or end with no zone, and drops an offset's
+        # minutes, so only Z is named.
+        assert 'start and end yyyy-MM-ddTHH:mm:ss.SSS.' not in description
+        assert 'offset' not in description
+        assert re.search(r'compared as numbers', description)
+        assert 'and a value that matches no plan returns an empty list' not in description
         for value in ('Compute', 'EC2Instance', 'SageMaker', 'Database'):
             assert value in description
         for value in ("'All Upfront'", "'Partial Upfront'", "'No Upfront'"):
@@ -1363,7 +1376,7 @@ class TestDescribeSavingsPlansFilterValues:
         description = ' '.join((await self._filters_description()).split())
 
         assert re.search(r'rate operations use the pricing vocabulary', description)
-        assert re.search(r'tenancy is lower case, shared or dedicated', description)
+        assert re.search(r'tenancy is lower case, shared, dedicated or host', description)
         assert re.search(r"Cost Explorer's Shared matches nothing", description)
         assert 'Linux/UNIX' in description
         assert re.search(r'Linux alone matches nothing', description)
@@ -1383,6 +1396,8 @@ class TestDescribeSavingsPlansFilterValues:
         message = result['data']['message']
         assert re.search(r'narrowed by filters', message)
         assert re.search(r'case-sensitive', message)
+        # upfront and commitment compare as numbers, so only text values match exactly.
+        assert re.search(r'Text values match exactly and are case-sensitive', message)
         assert "payment-option 'Partial Upfront'" in message
         assert re.search(r'does not mean the organization owns none', message, re.I)
         assert result['status'] == 'success'

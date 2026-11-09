@@ -56,13 +56,20 @@ COH_RECOMMENDATION_FIELDS = {
     'estimated_monthly_savings',
     'implementation_effort',
 }
-RESPONSE_FIELDS = COH_RECOMMENDATION_FIELDS | {
-    'complete_dataset',
-    'data_stored',
-    'table_name',
-    'query_tool',
-    'sample_queries',
-}
+# Compute Optimizer reports effort per recommendation option as migration_effort (its
+# formatter is covered in test_compute_optimizer_tools); it has no implementation_effort.
+CO_RECOMMENDATION_OPTION_FIELDS = {'migration_effort'}
+RESPONSE_FIELDS = (
+    COH_RECOMMENDATION_FIELDS
+    | CO_RECOMMENDATION_OPTION_FIELDS
+    | {
+        'complete_dataset',
+        'data_stored',
+        'table_name',
+        'query_tool',
+        'sample_queries',
+    }
+)
 
 # Hyphenated English words in the guidance that are not tool names.
 _ENGLISH_COMPOUNDS = {
@@ -188,6 +195,23 @@ async def test_defaults_yield_to_user_and_host_instructions():
         )
 
 
+async def test_metrics_default_is_scoped_to_cost_explorer():
+    """Only cost-explorer returns UnblendedCost when metrics is omitted.
+
+    sp-performance coverage defaults to SpendCoveredBySavingsPlans and ri-performance sends
+    no Metrics (the API then returns hours only), so the instructions must not say every
+    tool returns UnblendedCost.
+    """
+    async with _served() as served:
+        text = served.instructions
+        assert 'If `metrics` is omitted, the tool returns UnblendedCost' not in text
+        assert 'If `metrics` is omitted, cost-explorer returns UnblendedCost' in text
+        assert (
+            'sp-performance and ri-performance coverage reject UnblendedCost and use their own '
+            'metrics'
+        ) in text
+
+
 async def test_rec_details_routing():
     """One COH recommendation routes to get_recommendation, enrichment to rec-details."""
     async with _served() as served:
@@ -311,6 +335,13 @@ def test_graviton_prompt_requests_arm_options_and_tool_effort():
     assert json.loads(_group(r"`cpu_vendor_architectures` '([^']+)'", text)) == ['AWS_ARM64']
     assert 'implementation_effort' in text and 'do not grade effort yourself' in text
     assert 'Easy, Medium, Complex' not in text
+    # The Compute Optimizer fallback reports migration_effort, on its own scale.
+    flat = ' '.join(text.split())
+    assert 'Compute Optimizer has no `implementation_effort`' in flat
+    assert "use the rank 1 option's `migration_effort` (VeryLow to High) and savings" in flat
+    assert "Cost Optimization Hub's (VeryLow to VeryHigh)" in flat
+    assert 'never mixing the two scales; name the scale used' in flat
+    assert 'grouped by the `implementation_effort` each one reports' not in flat
     assert 'Lookback' not in text
 
 

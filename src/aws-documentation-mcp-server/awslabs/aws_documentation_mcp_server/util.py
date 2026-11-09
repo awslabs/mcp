@@ -18,8 +18,8 @@ import markdownify
 import re
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
 from mcp.server.mcpserver.exceptions import ToolError
-from typing import Any, Dict, List, Sequence
-from urllib.parse import quote_plus, urljoin
+from typing import Any, Dict, List, Optional, Sequence
+from urllib.parse import quote_plus, urljoin, urlsplit, urlunsplit
 
 
 # An unresolved cross-reference leaves an href with no filename, e.g. './.html#anchor'.
@@ -287,54 +287,68 @@ def format_documentation_result(url: str, content: str, start_index: int, max_le
     return result
 
 
-def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
-    """Extract requested sections from HTML.
+# ATX headings; four or more leading spaces make an indented code block instead.
+_MARKDOWN_HEADING = re.compile(r'^ {0,3}(#{1,6})[ \t]+(.*?)[ \t]*$')
+
+
+def _heading_text(title: str) -> str:
+    """Reduce a Markdown heading title to the text a reader sees."""
+    text = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', title)  # links keep their text
+    return ' '.join(re.sub(r'[*`\\\u00b6]', '', text).split())  # markers, escapes, pilcrow
+
+
+def extract_sections_from_markdown(markdown: str, section_titles: List[str]) -> str:
+    """Extract requested level-2 sections from Markdown.
 
     Args:
-        html: Raw HTML content
+        markdown: Markdown content of the whole page
         section_titles: List of section titles to extract
 
     Returns:
-        Filtered HTML content containing only the requested sections
+        Markdown content containing only the requested sections
     """
-    if not html or not section_titles:
-        return 'No content or section titles provided'
-
-    from bs4 import BeautifulSoup, Tag
-
-    soup = BeautifulSoup(html, 'html.parser')
-
-    if not has_readable_text(soup):
+    if not markdown.strip():
         raise UnreadablePageError('The page carries no readable content.')
+
+    if not section_titles:
+        return 'No content or section titles provided'
 
     normalized_titles = {}
     for title in section_titles:
-        normalized_key = ' '.join(title.strip().lower().split())
-        normalized_titles[normalized_key] = title.strip()
+        # Normalize like page headings, so a title copied with its markup still matches
+        normalized_titles[_heading_text(title).lower()] = title.strip()
 
-    h2_tags = soup.find_all('h2')
     available_level2_sections = []
-    matched_sections_html = []
+    matched_sections = []
     found_sections = set()
+    current = None  # lines of the matched section being collected
+    in_code_block = False
 
-    for h2 in h2_tags:
-        h2_text = ' '.join(h2.get_text().split())
-        available_level2_sections.append(h2_text)
+    for line in markdown.split('\n'):
+        stripped = line.strip()
+        # Track fenced code blocks — '#' lines inside them are not headings
+        if stripped.startswith('```') or stripped.startswith('~~~'):
+            in_code_block = not in_code_block
+        heading = None if in_code_block else _MARKDOWN_HEADING.match(line)
 
-        normalized_h2 = h2_text.lower()
+        # A section runs until the next level-2 heading. A level-1 line does not end it:
+        # converted HTML leaves a paragraph such as '# of hosts' unescaped.
+        if heading and len(heading.group(1)) == 2:
+            if current is not None:
+                matched_sections.append('\n'.join(current).strip())
+                current = None
+            h2_text = _heading_text(heading.group(2))
+            available_level2_sections.append(h2_text)
+            normalized_h2 = h2_text.lower()
+            if normalized_h2 in normalized_titles:
+                current = []
+                found_sections.add(normalized_titles[normalized_h2])
 
-        if normalized_h2 in normalized_titles:
-            section_content = [h2]
+        if current is not None:
+            current.append(line)
 
-            for sibling in h2.find_next_siblings():
-                # Only Tag elements have name attribute; skip NavigableStrings
-                if isinstance(sibling, Tag) and sibling.name in ['h1', 'h2']:
-                    break
-                section_content.append(sibling)
-
-            section_html_str = ''.join(str(elem) for elem in section_content)
-            matched_sections_html.append(section_html_str)
-            found_sections.add(normalized_titles[normalized_h2])
+    if current is not None:
+        matched_sections.append('\n'.join(current).strip())
 
     if not found_sections:
         section_list = ', '.join(f'"{title}"' for title in section_titles)
@@ -346,16 +360,18 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
             error_msg = 'This document does not contain subsections. Please use the read_documentation tool instead to get the full document content.'
             raise DocumentationToolError(error_msg)
 
-    result_html = ''.join(matched_sections_html)
+    result = '\n\n'.join(matched_sections)
 
     if len(found_sections) < len(section_titles):
         missing_sections = [
             title.strip() for title in section_titles if title.strip() not in found_sections
         ]
         missing_list = ', '.join(f'"{title}"' for title in missing_sections)
-        result_html += f'\n\n<blockquote><strong>Note</strong>: The following requested sections were not found: {missing_list}</blockquote>'
+        result += (
+            f'\n\n> **Note**: The following requested sections were not found: {missing_list}'
+        )
 
-    return result_html
+    return result
 
 
 def truncate_large_tables(
@@ -432,49 +448,29 @@ def truncate_large_tables(
     return '\n'.join(result)
 
 
-# Inline link destinations, up to the closing paren or an optional "title".
-_MARKDOWN_LINK_TARGET = re.compile(r'(\]\()([^)\s]+)')
+def to_html_page_url(url: str) -> Optional[str]:
+    """Return the '.html' page URL for a documentation page given as '.html' or '.md'.
 
-
-def rewrite_markdown_links(markdown: str, base_url: str) -> str:
-    """Point same-site links at a published .md page to its absolute .html URL.
-
-    Published Markdown links its sibling pages as relative '.md' files, which the read tools
-    reject; the '.html' page at the same path is the one they accept.
+    Published Markdown links its sibling pages as relative '.md' files, often with a section
+    fragment. Accepting those URLs lets agents follow links as published, without the read tools
+    expanding every link to an absolute URL. Fetches still target the bare '.html' page: it
+    negotiates Markdown or HTML, which search_table needs, and search results key their query
+    IDs by the '.html' URL.
 
     Args:
-        markdown: Markdown content that may contain links
-        base_url: The URL the content was served from, used to resolve relative links
+        url: Documentation page URL, optionally with a query or fragment
 
     Returns:
-        Markdown with same-site '.md' links rewritten to absolute '.html' URLs
+        The '.html' page URL without query or fragment, or None when the path ends with
+        neither '.html' nor '.md'
     """
-    if not markdown:
-        return markdown
-
-    base_host = httpx.URL(base_url).host
-
-    def _rewrite(match: re.Match) -> str:
-        target = match.group(2)
-        path, sep, fragment = target.partition('#')
-        if not path.casefold().endswith('.md'):
-            return match.group(0)
-        resolved = urljoin(base_url, path)
-        if httpx.URL(resolved).host != base_host:
-            return match.group(0)
-        return f'{match.group(1)}{resolved[: -len(".md")]}.html{sep}{fragment}'
-
-    lines = markdown.split('\n')
-    in_code_block = False
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        # Track fenced code blocks — never rewrite inside them
-        if stripped.startswith('```') or stripped.startswith('~~~'):
-            in_code_block = not in_code_block
-        elif not in_code_block:
-            lines[i] = _MARKDOWN_LINK_TARGET.sub(_rewrite, line)
-
-    return '\n'.join(lines)
+    parts = urlsplit(url)._replace(query='', fragment='')
+    path = parts.path.casefold()
+    if path.endswith('.html'):
+        return urlunsplit(parts)
+    if path.endswith('.md'):
+        return urlunsplit(parts._replace(path=parts.path[: -len('.md')] + '.html'))
+    return None
 
 
 def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationResult]:

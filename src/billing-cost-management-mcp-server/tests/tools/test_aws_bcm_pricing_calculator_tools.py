@@ -245,6 +245,139 @@ class TestGetPreferences:
         mock_context.error.assert_called()
 
 
+_CREATE_CLIENT = 'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+
+
+@pytest.mark.asyncio
+class TestGetPreferencesRateTypeSelections:
+    """get_preferences returns each account type's selected rate types, not only its name."""
+
+    @staticmethod
+    def _client(response):
+        client = MagicMock()
+        client.get_preferences.return_value = response
+        return client
+
+    @patch(_CREATE_CLIENT)
+    async def test_full_response_returns_every_selection(self, mock_create_client):
+        """A response with all three account types returns all three lists unchanged.
+
+        The model allows all three keys; the service returns at most two for one account.
+        """
+        mock_create_client.return_value = self._client(
+            {
+                'managementAccountRateTypeSelections': ['AFTER_DISCOUNTS_AND_COMMITMENTS'],
+                'memberAccountRateTypeSelections': ['BEFORE_DISCOUNTS', 'AFTER_DISCOUNTS'],
+                'standaloneAccountRateTypeSelections': ['AFTER_DISCOUNTS'],
+                'ResponseMetadata': {'HTTPStatusCode': 200},
+            }
+        )
+
+        result = await bcm_pricing_calc_core(AsyncMock(), 'get_preferences')
+
+        assert result['status'] == 'success'
+        assert result['data'] == {
+            'message': 'Preferences are properly configured',
+            'account_types': ['management account', 'member account', 'standalone account'],
+            'rate_type_selections': {
+                'management_account': ['AFTER_DISCOUNTS_AND_COMMITMENTS'],
+                'member_account': ['BEFORE_DISCOUNTS', 'AFTER_DISCOUNTS'],
+                'standalone_account': ['AFTER_DISCOUNTS'],
+            },
+        }
+
+    @patch(_CREATE_CLIENT)
+    async def test_partial_response_has_only_returned_account_types(self, mock_create_client):
+        """An account type the response leaves out is absent from rate_type_selections."""
+        mock_create_client.return_value = self._client(
+            {
+                'managementAccountRateTypeSelections': ['BEFORE_DISCOUNTS'],
+                'memberAccountRateTypeSelections': ['AFTER_DISCOUNTS'],
+            }
+        )
+
+        result = await bcm_pricing_calc_core(AsyncMock(), 'get_preferences')
+
+        assert result['status'] == 'success'
+        assert result['data']['account_types'] == ['management account', 'member account']
+        assert result['data']['rate_type_selections'] == {
+            'management_account': ['BEFORE_DISCOUNTS'],
+            'member_account': ['AFTER_DISCOUNTS'],
+        }
+
+    @patch(_CREATE_CLIENT)
+    async def test_empty_list_is_kept_as_returned(self, mock_create_client):
+        """A returned empty list stays an empty list, as account_types already counts it.
+
+        The API reference documents a minimum of 1 item, so this is a defensive case only.
+        """
+        mock_create_client.return_value = self._client(
+            {
+                'standaloneAccountRateTypeSelections': [],
+            }
+        )
+
+        result = await bcm_pricing_calc_core(AsyncMock(), 'get_preferences')
+
+        assert result['status'] == 'success'
+        assert result['data']['account_types'] == ['standalone account']
+        assert result['data']['rate_type_selections'] == {'standalone_account': []}
+
+    @patch(_CREATE_CLIENT)
+    async def test_get_preferences_returns_selections(self, mock_create_client):
+        """The helper returns the selections next to account_types."""
+        mock_create_client.return_value = self._client(
+            {'memberAccountRateTypeSelections': ['AFTER_DISCOUNTS']}
+        )
+
+        result = await get_preferences(AsyncMock())
+
+        assert result == {
+            'account_types': ['member account'],
+            'rate_type_selections': {'member_account': ['AFTER_DISCOUNTS']},
+        }
+
+    @patch(_CREATE_CLIENT)
+    async def test_not_configured_is_unchanged(self, mock_create_client):
+        """A response with no selections is still the not-configured error, with no selections."""
+        mock_create_client.return_value = self._client({'ResponseMetadata': {}})
+
+        result = await bcm_pricing_calc_core(AsyncMock(), 'get_preferences')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'PREFERENCES_NOT_CONFIGURED'
+        assert result['data']['error_code'] == 'PREFERENCES_NOT_CONFIGURED'
+        assert 'rate_type_selections' not in result['data']
+
+    @patch(_CREATE_CLIENT)
+    async def test_error_has_no_selections(self, mock_create_client):
+        """A failed GetPreferences call returns the error shape with no selections."""
+        mock_create_client.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'denied'}}, 'GetPreferences'
+        )
+
+        result = await bcm_pricing_calc_core(AsyncMock(), 'get_preferences')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'AccessDeniedException'
+        assert 'rate_type_selections' not in result['data']
+
+    async def test_description_explains_selections_and_values(self):
+        """The served description names the field, each rate type, and the estimate's rate_type."""
+        tool = await bcm_pricing_calculator_server.get_tool('bcm-pricing-calc')
+        assert tool is not None
+        text = ' '.join((tool.description or '').split())
+        assert 'rate_type_selections' in text
+        for value in ('BEFORE_DISCOUNTS', 'AFTER_DISCOUNTS', 'AFTER_DISCOUNTS_AND_COMMITMENTS'):
+            assert f'{value}:' in text
+        assert "estimate's own rate_type" in text
+        assert 'list_workload_estimates can return it as null' in text
+        # The old text named list_workload_estimates as a source of an estimate's rate type.
+        assert 'from get_workload_estimate or list_workload_estimates' not in text
+        # The old text described the response only as "the current preferences".
+        assert 'Retrieves the current preferences for' not in text
+
+
 @pytest.mark.asyncio
 class TestListWorkloadEstimates:
     """Tests for list_workload_estimates function."""

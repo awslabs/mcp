@@ -15,6 +15,7 @@
 """Redshift MCP Server implementation."""
 
 import os
+import re
 import sys
 from awslabs.redshift_mcp_server.catalog import (
     discover_columns,
@@ -55,8 +56,9 @@ from loguru import logger
 from mcp.server.mcpserver import Context, Elicit, MCPServer, Resolve
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ClientCapabilities, ElicitationCapability, ToolAnnotations
+from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import Annotated, Literal, NoReturn, TextIO
+from typing import Annotated, Any, Callable, Literal, NoReturn, TextIO, TypeVar
 
 
 # Remove default handler and add custom configuration
@@ -117,9 +119,9 @@ SKIP_WRITE_CONFIRMATION = resolve_skip_write_confirmation(ACCESS_MODE)
 def _current_settings() -> str:
     """Report the settings this server resolved at startup.
 
-    Appended to the prose that names these settings, since the caller cannot read the
-    server's environment and would otherwise have to guess which branch of that prose
-    applies.
+    Listed in the instructions right after GUIDE_POINTER, since the caller cannot read the
+    server's environment and would otherwise have to guess which branch of the prose naming
+    these settings applies.
 
     Returns:
         A markdown section listing each setting and its resolved value.
@@ -142,56 +144,41 @@ def _current_settings() -> str:
     return f'\n## Current Settings\n\nFixed for the life of this server process:\n\n{settings}'
 
 
+# First in the instructions and in every tool description but retrieve_skill_file's own, since a
+# client may show the model only one of them: some never show the instructions, and some show a
+# tool's description only once the model loads that tool.
+GUIDE_POINTER = (
+    'Once per conversation, before answering or acting on any Redshift request, call '
+    'retrieve_skill_file with no argument and follow the guide it returns.'
+)
+
+
 mcp = MCPServer(
     'awslabs.redshift-mcp-server',
-    instructions="""
-# Amazon Redshift MCP Server
-
-Discovers, explores and queries Amazon Redshift clusters and serverless workgroups over the
-Redshift, Redshift Serverless and Redshift Data APIs.
-
-## Tools
-
-- `list_clusters` — provisioned clusters and serverless workgroups.
-- `list_databases`, `list_schemas`, `list_tables`, `list_columns` — metadata discovery.
-- `execute_query` — run one SQL statement. Read-only by default; read-write is opt-in via
-  `ACCESS_MODE`. Supports named transactions across calls.
-- `review_cluster` — diagnostic review of a cluster or workgroup. Needs the `sys:monitor`
-  role, or a superuser.
-
-## Discovery order
-
-Work down the hierarchy: `list_clusters` for an identifier and its type, then `list_databases`
-for that cluster, then `list_schemas`, `list_tables` and `list_columns`. Every tool but
-`list_clusters` takes both, as `cluster_identifier` and `cluster_type`, and only a cluster whose
-status is `available` can be queried.
+    # Some clients keep only the first 2,048 characters, so the pointer and the settings lead,
+    # and the sections after them run from the costliest to lose to the cheapest.
+    instructions=GUIDE_POINTER
+    + '\n'
+    + _current_settings()
+    + """
+## Cluster identifiers
 
 A provisioned cluster and a serverless workgroup can share an identifier, and are separate
 warehouses holding their own data. When the user names one that `list_clusters` shows under both
 types, ask which they mean.
 
-A database is connected to, while a schema and a table are filtered for. So an unknown schema
-or table comes back as an empty list, but a database that does not exist or cannot be connected
-to is an error, and it is the same error on every tool that names one — including the three
-below `list_databases`, not only `list_schemas`.
-
 ## Result size
 
-Every tool but `list_clusters` refuses a result of more than `MAX_RESULT_ROWS` rows, listed
-below, rather than returning part of it. With `execute_query`, a `LIMIT`, a narrower predicate or
-an aggregate keeps a result within it. The limit counts rows, not bytes: wide rows within it can
-still make a result of tens of megabytes, so name only the columns you need.
+Every tool that runs SQL refuses a result of more than `MAX_RESULT_ROWS` rows rather than
+returning part of it. The limit counts rows, not bytes: wide rows within it can still make a
+result of tens of megabytes, so name only the columns you need.
 
 ## Concurrency
 
 Without a transaction parameter, each statement runs on its own connection: statements
-against the same `cluster:database` run concurrently, including behind a long-running one,
-and no session state carries between calls: in read-write mode a temporary table or a `SET` is
-gone by the next, though the statement that made it reports success.
-
-To carry state across calls, name a transaction with `execute_query`'s `begin_transaction`,
-`in_transaction`, `commit_transaction` and `rollback_transaction` parameters. Its statements
-share one connection and are serialized against each other, but not against anything else.
+against the same `cluster:database` run concurrently, including behind a long-running one. A
+named transaction's statements share one connection and are serialized against each other, but
+not against anything else.
 
 ## Credentials and region
 
@@ -202,17 +189,7 @@ precedence over keys in the environment. Region precedence is
 Report AWS client errors in full — they name the misconfiguration. For a region error point
 at `AWS_REGION`, `AWS_DEFAULT_REGION` or the profile; for a credentials error, at the
 credentials setup and its permissions.
-
-## Query guidelines
-
-- Qualify objects with database and schema to avoid ambiguity.
-- Filter on the distribution key and join on it where possible; order by the sort key.
-- `LIMIT` exploratory queries.
-- Name the columns you need rather than selecting every column.
-- Check whether statistics are current before drawing conclusions from a plan.
-- Prefer IAM authentication over database passwords.
-"""
-    + _current_settings(),
+""",
     dependencies=['boto3', 'loguru', 'pydantic', 'sqlglot'],
 )
 
@@ -222,15 +199,24 @@ _ClusterType = Literal['provisioned', 'serverless']
 _CLUSTER_TYPE_DESCRIPTION = 'The type list_clusters reports for the cluster.'
 
 
-def _read_only_annotations(title: str) -> ToolAnnotations:
-    """Return annotations for tools that only read the caller's AWS environment."""
+def _read_only_annotations(title: str, open_world: bool = True) -> ToolAnnotations:
+    """Return read-only tool annotations; open_world means it reads the caller's AWS account."""
     return ToolAnnotations(
         title=title,
         read_only_hint=True,
         destructive_hint=False,
         idempotent_hint=True,
-        open_world_hint=True,
+        open_world_hint=open_world,
     )
+
+
+_Tool = TypeVar('_Tool', bound=Callable[..., Any])
+
+
+def _guided(fn: _Tool) -> _Tool:
+    """Put GUIDE_POINTER first in a tool's description, which the SDK reads from `__doc__`."""
+    fn.__doc__ = f'{GUIDE_POINTER}\n\n{fn.__doc__}'
+    return fn
 
 
 class ConfirmWrite(BaseModel):
@@ -418,10 +404,97 @@ def _tool_failed(tool: str, error: Exception) -> NoReturn:
     raise error
 
 
+# Kiro IDE cuts a tool result of more than 30,000 chars down to its two ends, so each file is
+# served in chunks of this many chars.
+_CHUNK_CHARS = 25_000
+
+
+def _chunks(text: str) -> list[str]:
+    """Split `text` into consecutive chunks of `_CHUNK_CHARS` chars."""
+    return [text[at : at + _CHUNK_CHARS] for at in range(0, len(text), _CHUNK_CHARS)]
+
+
+# The guide is SKILL.md without its frontmatter, which addresses skill loaders, not the model.
+# Read once, at import; the unpacking fails the import if SKILL.md has no frontmatter block.
+_SKILL_DIR = Path(__file__).parent / 'skills' / 'redshift-guide'
+_, _guide = re.split(
+    r'\A---\n.*?\n---\n',
+    (_SKILL_DIR / 'SKILL.md').read_text(encoding='utf-8'),
+    maxsplit=1,
+    flags=re.DOTALL,
+)
+_GUIDE = _chunks(_guide)
+
+# Keyed by the path the guide cites each file by, sorted. A lookup reaches only these.
+_REFERENCES = {
+    f'references/{path.name}': _chunks(path.read_text(encoding='utf-8'))
+    for path in sorted((_SKILL_DIR / 'references').glob('*.md'))
+}
+
+_SKILL_USAGE = (
+    'Once per conversation, before answering or acting on any Redshift request, call this tool '
+    'with no argument. The text it returns is the Redshift guide, and applies to every request '
+    'to this server. The guide cites reference files as `references/<file>.md`; when it says to '
+    'load one, call this tool with `file` set to that path, exactly as cited. To load a file of '
+    'more than one chunk, request all its chunks in parallel: '
+    + ', '.join(
+        f'`{file}` ({len(chunks)} chunks)'
+        for file, chunks in _REFERENCES.items()
+        if len(chunks) > 1
+    )
+    + '. Call it again with no argument only if the guide is no longer in the conversation.'
+)
+
+
+@mcp.tool(
+    name='retrieve_skill_file',
+    description=_SKILL_USAGE,
+    annotations=_read_only_annotations('Retrieve Redshift guide', open_world=False),
+    # Without this a str return also goes out as structured content, so each file crosses twice.
+    structured_output=False,
+)
+async def retrieve_skill_file_tool(
+    file: Annotated[
+        str | None,
+        Field(
+            description=(
+                "A reference file's path, exactly as the guide cites it, such as "
+                '`references/<file>.md`. Omit for the guide itself.'
+            )
+        ),
+    ] = None,
+    chunk: Annotated[int, Field(ge=1, description='The chunk to return, from 1.')] = 1,
+) -> str:
+    """Return chunk `chunk` of the guide, or of the reference file at the path `file` names.
+
+    Clients get `_SKILL_USAGE` as this tool's description.
+
+    Raises:
+        ToolError: If `file` is not the path of a file under `references/`, or the file has no
+            chunk `chunk`.
+    """
+    chunks = _GUIDE if file is None else _REFERENCES.get(file)
+    if chunks is None:
+        raise ToolError(
+            f'Skill file not found: {file!r}. Available files: {", ".join(_REFERENCES)}'
+        )
+
+    name = file or 'SKILL.md'
+    if chunk > len(chunks):
+        raise ToolError(f'Chunk {chunk} not found: {name} ends at chunk {len(chunks)}.')
+
+    logger.info(f'Serving skill file {name} chunk {chunk} of {len(chunks)}')
+    text = chunks[chunk - 1]
+    if chunk < len(chunks):
+        text += f'\n\n[Continued in chunk {chunk + 1} of {len(chunks)}.]'
+    return text
+
+
 @mcp.tool(
     name='list_clusters',
     annotations=_read_only_annotations('List Redshift clusters and workgroups'),
 )
+@_guided
 async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
     """List Redshift clusters and serverless workgroups.
 
@@ -430,7 +503,7 @@ async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
     master_username, publicly_accessible, encrypted and tags.
 
     Only a cluster whose status is 'available' can be queried, and its identifier and type are
-    what every other tool takes as its first two arguments.
+    what every tool that runs SQL takes as its first two arguments.
 
     Requires redshift:DescribeClusters and redshift-serverless:ListWorkgroups. Whichever of
     provisioned or serverless discovery is denied is skipped, so a partial list is normal; both
@@ -468,6 +541,7 @@ async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
     name='list_databases',
     annotations=_read_only_annotations('List Redshift databases'),
 )
+@_guided
 async def list_databases_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -520,6 +594,7 @@ async def list_databases_tool(
     name='list_schemas',
     annotations=_read_only_annotations('List Redshift schemas'),
 )
+@_guided
 async def list_schemas_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -570,6 +645,7 @@ async def list_schemas_tool(
     name='list_tables',
     annotations=_read_only_annotations('List Redshift tables'),
 )
+@_guided
 async def list_tables_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -622,6 +698,7 @@ async def list_tables_tool(
     name='list_columns',
     annotations=_read_only_annotations('List Redshift columns'),
 )
+@_guided
 async def list_columns_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -680,6 +757,7 @@ async def list_columns_tool(
     name='execute_query',
     annotations=_execute_query_annotations(ACCESS_MODE),
 )
+@_guided
 async def execute_query_tool(
     ctx: Context,
     confirmation: Annotated[ConfirmWrite, Resolve(_write_confirmation)],
@@ -735,13 +813,13 @@ async def execute_query_tool(
 
     A result set is read to its end however many pages the service splits it into, so `row_count`
     is the whole result and there is no second call that continues one. A result of more than
-    MAX_RESULT_ROWS rows, listed at the end of the instructions, is refused rather than cut
-    short, so add a LIMIT or an aggregate to a query that may match more.
+    MAX_RESULT_ROWS rows, listed under Current Settings in the instructions, is refused rather
+    than cut short, so add a LIMIT or an aggregate to a query that may match more.
 
     ## Execution Mode
 
     Fixed at server startup by the ACCESS_MODE environment variable, not per call. This
-    server's resolved settings are listed at the end of its instructions.
+    server's resolved settings are listed under Current Settings in its instructions.
 
     - Read-only (default): the statement runs inside `BEGIN READ ONLY ... ROLLBACK`, so
       nothing is persisted, and statement types the transaction cannot neutralize
@@ -854,6 +932,7 @@ async def execute_query_tool(
     name='review_cluster',
     annotations=_read_only_annotations('Review Redshift cluster'),
 )
+@_guided
 async def review_cluster_tool(
     ctx: Context,
     cluster_identifier: str = Field(

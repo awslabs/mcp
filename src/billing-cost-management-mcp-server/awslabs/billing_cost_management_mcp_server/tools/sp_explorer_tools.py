@@ -168,17 +168,21 @@ async def sp_explorer(
             productDescription, tenancy, productType, serviceCode, usageType, and operation;
             describe_savings_plans_offerings takes region and instanceFamily; and
             describe_savings_plans_offering_rates takes region, instanceFamily, instanceType,
-            productDescription, and tenancy. For describe_savings_plans the values are strings, numbers included, matched exactly and case-sensitively, and a value that
-            matches no plan returns an empty list, not an error: savings-plan-type is Compute,
+            productDescription, and tenancy. For describe_savings_plans the values are strings,
+            numbers included. A well-formed value that matches no plan returns []. Text values
+            match exactly (case-sensitive). Malformed values are a ValidationException: term must
+            be whole seconds, upfront and commitment numbers, start and end
+            yyyy-MM-ddTHH:mm:ss.SSSZ in UTC, with the trailing Z. savings-plan-type is Compute,
             EC2Instance, SageMaker, or Database; payment-option is 'All Upfront', 'Partial
             Upfront', or 'No Upfront', with the spaces; term is the duration in seconds as a
             string, "31536000" or "94608000"; upfront and commitment are decimal strings such as
-            "4.38", with no currency sign; start and end are exact timestamps such as
+            "4.38", with no currency sign, compared as numbers;
+            start and end are exact timestamps such as
             "2025-01-01T00:00:00.000Z", matched to the millisecond rather than as a range; region
             is a region code such as us-east-1; and ec2-instance-family and instance-family are an
             instance family such as m5. The two rate operations use the pricing vocabulary, not
             Cost Explorer's, and a value in another spelling also returns an empty list: tenancy
-            is lower case, shared or dedicated (Cost Explorer's Shared matches nothing); and
+            is lower case, shared, dedicated or host (Cost Explorer's Shared matches nothing); and
             productDescription is the full operating system name such as Linux/UNIX, Windows, or
             Red Hat Enterprise Linux (Linux alone matches nothing).
         max_items: Total number of items to return across all pages. Omit it to fetch every
@@ -336,9 +340,9 @@ async def describe_savings_plans(
             filter_note = (
                 (
                     'The request was narrowed by filters, and a filter value that matches no '
-                    'plan returns this same empty list rather than an error. Values are matched '
+                    'plan returns this same empty list rather than an error. Text values match '
                     'exactly and are case-sensitive (for example savings-plan-type Compute, '
-                    'payment-option \'Partial Upfront\', term "31536000"), so check them against '
+                    "payment-option 'Partial Upfront'), so check them against "
                     'the filters parameter description. An unfiltered call tells the two causes '
                     'apart. '
                 )
