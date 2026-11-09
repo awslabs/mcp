@@ -1942,12 +1942,17 @@ def test_main_iam_with_apg_preserves_username_only_authentication(monkeypatch):
     ):
         client = session.return_value.client.return_value
         client.get_secret_value.return_value = {'SecretString': '{"username": "app_reader"}'}
+        # PG-wire validation is deferred to the MCP lifespan, so capture the
+        # connection main() hands to it while mcp.run() is active.
+        deferred = []
+        run.side_effect = lambda: deferred.append(server_module.startup_pg_wire_connection)
 
         main()
 
         run.assert_called_once_with()
-        validate.assert_awaited_once()
-        conn = validate.call_args.args[0]
+        validate.assert_not_awaited()
+        assert len(deferred) == 1
+        conn = deferred[0]
         assert isinstance(conn, PsycopgPoolConnection)
         assert conn.is_iam_auth is True
         assert conn.user == 'app_reader'
