@@ -100,7 +100,7 @@ result
 | Old tool | What it did | Replacement |
 |----------|-------------|-------------|
 | `CheckSecurityServices(region, services, account_id, aws_profile, store_in_context, debug)` | For each service in `services` (all six by default): GuardDuty `ListDetectors` and `GetDetector` on the first detector; Inspector `BatchGetAccountStatus`, after a `get_status` call that always failed because the Inspector client has no such operation; IAM Access Analyzer `ListAnalyzers` and one `ListFindings` page per analyzer for a count; Security Hub `DescribeHub` and `GetEnabledStandards`; Trusted Advisor `DescribeTrustedAdvisorChecks` in `us-east-1`; Macie `GetMacieSession`. Returned an `enabled` flag per service and a summary line, plus timings while `debug` was on (the default). Ignored `account_id`. With `store_in_context` on (the default), kept the result in server memory. | `run_script` with the same calls, as in the example above. Inspector's status is `accounts[0].state.status` in the `BatchGetAccountStatus` response, and each scan type's is under `resourceState`. |
-| `GetSecurityFindings(service="guardduty")` | Ran the GuardDuty status check, then called `ListFindings` with `MaxResults` set to `max_findings` (default 100) and, with no `severity_filter`, the criteria severity equal to 5, 7, or 8 and updated in the last 30 days. Then `GetFindings` on the IDs, with counts by severity, type, and resource type. A `severity_filter` replaced those criteria with severity equal to 1, 2, or 3 (`LOW`), 4, 5, or 6 (`MEDIUM`), 7 or 8 (`HIGH`), or 8 (`CRITICAL`), and dropped the 30-day window. GuardDuty's `ListFindings` takes at most 50 results, so the call failed with `BadRequestException` unless you passed `max_findings` of 50 or less. | `ListFindings` with a `GreaterThanOrEqual` severity criterion and `MaxResults` up to 50, then `GetFindings`, as in the example below |
+| `GetSecurityFindings(service="guardduty")` | Ran the GuardDuty status check, then called `ListFindings` with `MaxResults` set to `max_findings` (default 100) and, with no `severity_filter`, the criteria severity equal to 5, 7, or 8 and updated in the last 30 days. Then `GetFindings` on the IDs, with counts by severity, type, and resource type. A `severity_filter` replaced those criteria with severity equal to 1, 2, or 3 (`LOW`), 4, 5, or 6 (`MEDIUM`), 7 or 8 (`HIGH`), or 8 (`CRITICAL`), and dropped the 30-day window. GuardDuty's `ListFindings` takes at most 50 results, so the call failed with `BadRequestException` unless you passed `max_findings` of 50 or less. | `ListFindings` with a `GreaterThanOrEqual` severity criterion, `service.archived` set to `false`, and `MaxResults` up to 50, then `GetFindings`, as in the example below |
 | `GetSecurityFindings(service="securityhub")` | Ran the Security Hub status check, then called `GetFindings` with `MaxResults` set to `max_findings` and, with no `severity_filter`, the filters `RecordState` `ACTIVE`, `WorkflowStatus` `NEW`, `UpdatedAt` in the last 30 days, and `SeverityLabel` `HIGH` or `CRITICAL`. A `severity_filter` replaced all four with one `SeverityLabel` filter. Added counts by severity, product, and resource type. | `call_boto3(service_name="securityhub", operation_name="GetFindings", params={"Filters": {"RecordState": [...], "WorkflowStatus": [...], "SeverityLabel": [...]}, "MaxResults": 100})` |
 | `GetSecurityFindings(service="inspector")` | Ran the Inspector status check, then called `ListFindings` with a `filterCriteria` key named `severities`. The API's key is `severity`, so botocore rejected every call with a parameter validation error. | `call_boto3(service_name="inspector2", operation_name="ListFindings", params={"filterCriteria": {"severity": [{"comparison": "EQUALS", "value": "HIGH"}, {"comparison": "EQUALS", "value": "CRITICAL"}], "findingStatus": [{"comparison": "EQUALS", "value": "ACTIVE"}]}, "maxResults": 100})` |
 | `GetSecurityFindings(service="accessanalyzer")` | Ran the Access Analyzer status check, then looked up each analyzer's ARN in the status summary it had just built. That summary doesn't keep ARNs, so the tool skipped every analyzer and returned "No IAM Access Analyzer findings found" whether or not findings existed. Ignored `max_findings` and `severity_filter`. | `call_boto3(service_name="accessanalyzer", operation_name="ListFindingsV2", params={"analyzerArn": ..., "filter": {"status": {"eq": ["ACTIVE"]}}})` for each analyzer from `ListAnalyzers` |
@@ -110,12 +110,9 @@ result
 
 Before querying, `GetSecurityFindings` read the stored `CheckSecurityServices` result (`check_enabled`, on by default) and answered "not enabled" for a service marked disabled there. Each finding path then ran its service's status check again.
 
-To list High and Critical GuardDuty findings from the last 30 days, the agent might run:
+To list active High and Critical GuardDuty findings, most severe first, the agent might run:
 
 ```python
-import datetime
-
-since = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=30)
 detector = (await call_boto3(service_name="guardduty", operation_name="ListDetectors", region_name="us-east-1"))["DetectorIds"][0]
 listed = await call_boto3(
     service_name="guardduty",
@@ -125,7 +122,7 @@ listed = await call_boto3(
         "DetectorId": detector,
         "FindingCriteria": {"Criterion": {
             "severity": {"GreaterThanOrEqual": 7},
-            "updatedAt": {"GreaterThanOrEqual": int(since.timestamp() * 1000)},
+            "service.archived": {"Eq": ["false"]},
         }},
         "SortCriteria": {"AttributeName": "severity", "OrderBy": "DESC"},
         "MaxResults": 50,
@@ -137,14 +134,20 @@ if listed["FindingIds"]:
         service_name="guardduty",
         operation_name="GetFindings",
         region_name="us-east-1",
-        params={"DetectorId": detector, "FindingIds": listed["FindingIds"][:50]},
+        params={
+            "DetectorId": detector,
+            "FindingIds": listed["FindingIds"][:50],
+            "SortCriteria": {"AttributeName": "severity", "OrderBy": "DESC"},
+        },
     )
-    findings = [{"severity": f["Severity"], "type": f["Type"], "resource": f["Resource"]["ResourceType"]} for f in got["Findings"]]
+    findings = [{"severity": f["Severity"], "type": f["Type"], "resource": f["Resource"]["ResourceType"], "updated": f["UpdatedAt"]} for f in got["Findings"]]
 result = findings
 result
 ```
 
-GuardDuty's Critical range is 9.0 to 10.0 and its High range starts at 7.0 (see [Severity levels of GuardDuty findings](https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_findings-severity.html)), so a range criterion catches both.
+GuardDuty's Critical range is 9.0 to 10.0 and its High range starts at 7.0 (see [Severity levels of GuardDuty findings](https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_findings-severity.html)), so a range criterion catches both. The `service.archived` criterion keeps only active findings, as the `aws-security` skill's GuardDuty findings procedure does.
+
+The example has no `updatedAt` window. The old tool's 30-day window hides active findings that haven't been updated in that time. In testing, this query returned 9 findings with the 9.0 `AttackSequence:EC2/CompromisedInstanceGroup` finding first, and with a 30-day `updatedAt` criterion it returned 8 and missed that finding, which was last updated 53 days earlier.
 
 ### Storage encryption
 
@@ -278,6 +281,7 @@ The server's instructions also described `GetResourceComplianceStatus` and `Expl
 
 ## What Improves
 
+- **A configuration that starts.** The server README's JSON configuration runs `uvx --from awslabs.well-architected-security-mcp-server well-architected-security-mcp-server`, and the package's only executable is `awslabs.well-architected-security-mcp-server`, so the server never started from that block. In testing, the client reported "Connection closed" and no tools. The proxy configuration above runs `mcp-proxy-for-aws-cli`, the executable its package provides.
 - **Credentials from the default chain.** Every tool opened its AWS session with the profile named `default` when `aws_profile` wasn't set, including when it was passed as `null`. With no `[default]` profile, as on an EC2 instance role, in a container, or with only named profiles, every AWS call failed with "The config profile (default) could not be found". The proxy uses the standard AWS credential chain, or the profile in `AWS_MCP_PROXY_PROFILES`.
 - **Storage and network checks in Regions with a Resource Explorer view.** `CheckStorageEncryption` and `CheckNetworkSecurity` failed with `'str' object has no attribute 'get'` in any Region with a Resource Explorer view. In testing, `us-east-1` had one, so neither tool returned a result there, and `CheckNetworkSecurity` reads CloudFront only from `us-east-1`. `run_script` reads each service's own API and doesn't need Resource Explorer.
 - **GuardDuty findings, including Critical ones.** With the default `max_findings` of 100, every GuardDuty request failed with `BadRequestException` ("The request is rejected because the parameter maxResults is out-of-bounds."). The severity filters matched exact values (5, 7, or 8 by default, and 8 for `CRITICAL`), so no filter matched a Critical finding. In testing, `severity_filter="HIGH"` returned 8 findings and missed a 9.0 `AttackSequence:EC2/CompromisedInstanceGroup` finding that a `GreaterThanOrEqual: 7` criterion returned.
