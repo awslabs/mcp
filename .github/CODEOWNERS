@@ -24,7 +24,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/amazon-mq-mcp-server                                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @hashimsharkh @BenAtAmazon
 /src/amazon-neptune-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @cornerwings @krlawrence @thompsonbry
 /src/amazon-qbusiness-anonymous-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @abhjaw
-/src/amazon-qindex-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @tkoba-aws @akhileshamara
+/src/amazon-qindex-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @akhileshamara
 /src/amazon-translate-mcp-server                               @awslabs/mcp-admins @awslabs/mcp-maintainers  @goviha01 @rahullks
 /src/amazon-sns-sqs-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @hashimsharkh @BenAtAmazon
 /src/aurora-dsql-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @anwesham-lab @benjscho @pkale @amaksimo @praba2210 @spencercorwin
