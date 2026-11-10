@@ -488,7 +488,10 @@ Supported operations (pass via the `operation` parameter):
 11. list_automation_rule_preview: Preview the recommended actions a rule config would
     match, without creating the rule. Params: rule_type (required),
     recommended_action_types (required), organization_scope, criteria, max_items,
-    next_token
+    next_token. A preview with rule_type AccountRule covers only the calling account.
+    OrganizationRule, available only to the management account or a delegated
+    administrator, covers member accounts that have Automation enabled and allow
+    organization rules; organization_scope limits it to specific accounts.
 12. list_automation_rule_preview_summaries: Aggregated summary of a rule preview.
     Params: same as list_automation_rule_preview
 13. list_tags_for_resource: Tags for a resource (e.g. an automation rule).
