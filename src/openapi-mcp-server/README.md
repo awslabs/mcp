@@ -243,10 +243,6 @@ uvx --refresh --from . awslabs.openapi-mcp-server --api-url https://petstore3.sw
 
 ```bash
 # Server configuration
-export SERVER_DEBUG=true
-export SERVER_MESSAGE_TIMEOUT=60
-export SERVER_HOST="0.0.0.0"
-export SERVER_PORT=8000
 export SERVER_TRANSPORT="stdio"  # Option: stdio
 export LOG_LEVEL="INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
 
@@ -345,10 +341,10 @@ The project includes a Dockerfile for containerized deployment. To build and run
 docker build -t openapi-mcp-server:latest .
 
 # Run with default settings
-docker run -p 8000:8000 openapi-mcp-server:latest
+docker run -i openapi-mcp-server:latest
 
 # Run with custom configuration
-docker run -p 8000:8000 \
+docker run -i \
   -e API_NAME=myapi \
   -e API_BASE_URL=https://api.example.com \
   -e API_SPEC_URL=https://api.example.com/openapi.json \

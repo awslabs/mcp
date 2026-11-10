@@ -49,7 +49,6 @@ You can customize the container behavior using environment variables:
 
 ```bash
 # Server configuration
--e SERVER_NAME="My API Server" \
 -e SERVER_DEBUG=true \
 -e SERVER_MESSAGE_TIMEOUT=60 \
 -e SERVER_HOST="0.0.0.0" \
@@ -87,18 +86,6 @@ When the server receives a termination signal (SIGINT from Ctrl+C or SIGTERM fro
 3. For SIGINT (Ctrl+C), the server chains to the original handler after logging
 4. Uvicorn's built-in graceful shutdown process handles the actual shutdown
 5. Active connections are allowed to complete before the server exits
-
-#### Configuration Options
-
-The server's graceful shutdown can be configured through uvicorn options:
-
-```bash
-# Set a custom timeout for graceful shutdown (in seconds)
--e UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=5.0
-
-# Enable/disable graceful shutdown (default: true)
--e UVICORN_GRACEFUL_SHUTDOWN=true
-```
 
 #### Best Practices for Container Environments
 
