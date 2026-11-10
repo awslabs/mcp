@@ -237,7 +237,7 @@
       "description": "Local container building with ECR integration",
       "icon": "\ud83c\udfd7\ufe0f",
       "id": "finch-mcp-server",
-      "name": "Finch MCP Server",
+      "name": "Finch MCP Server (Deprecated)",
       "source_path": "src/finch-mcp-server/",
       "subcategory": "Container Platforms",
       "tags": [
