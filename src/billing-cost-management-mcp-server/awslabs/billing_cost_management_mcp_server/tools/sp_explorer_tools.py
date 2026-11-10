@@ -170,15 +170,14 @@ async def sp_explorer(
             describe_savings_plans_offering_rates takes region, instanceFamily, instanceType,
             productDescription, and tenancy. For describe_savings_plans the values are strings,
             numbers included. A well-formed value that matches no plan returns []. Text values
-            match exactly (case-sensitive). Malformed values are a ValidationException: term must
-            be whole seconds, upfront and commitment numbers, start and end
-            yyyy-MM-ddTHH:mm:ss.SSSZ in UTC, with the trailing Z. savings-plan-type is Compute,
+            match exactly (case-sensitive). savings-plan-type is Compute,
             EC2Instance, SageMaker, or Database; payment-option is 'All Upfront', 'Partial
             Upfront', or 'No Upfront', with the spaces; term is the duration in seconds as a
             string, "31536000" or "94608000"; upfront and commitment are decimal strings such as
             "4.38", with no currency sign, compared as numbers;
-            start and end are exact timestamps such as
-            "2025-01-01T00:00:00.000Z", matched to the millisecond rather than as a range; region
+            start and end are exact timestamps matched to the millisecond rather than as a range,
+            written as a plan returns them: yyyy-MM-ddTHH:mm:ss.SSSZ with exactly three fraction
+            digits and Z, such as "2025-01-01T00:00:00.000Z"; region
             is a region code such as us-east-1; and ec2-instance-family and instance-family are an
             instance family such as m5. The two rate operations use the pricing vocabulary, not
             Cost Explorer's, and a value in another spelling also returns an empty list: tenancy
