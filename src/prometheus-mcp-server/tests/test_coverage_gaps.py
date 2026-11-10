@@ -21,7 +21,7 @@ class TestPrometheusClientSuccess:
             mock_session.return_value.get_credentials.return_value = mock_creds
 
             # Mock successful response
-            mock_response = MagicMock()
+            mock_response = MagicMock(status_code=200)
             mock_response.json.return_value = {'status': 'success', 'data': {'result': []}}
             mock_req_session.return_value.__enter__.return_value.send.return_value = mock_response
 
@@ -44,7 +44,7 @@ class TestPrometheusClientSuccess:
             mock_session.return_value.get_credentials.return_value = mock_creds
 
             # Mock API error response
-            mock_response = MagicMock()
+            mock_response = MagicMock(status_code=200)
             mock_response.json.return_value = {'status': 'error', 'error': 'test error'}
             mock_req_session.return_value.__enter__.return_value.send.return_value = mock_response
 
