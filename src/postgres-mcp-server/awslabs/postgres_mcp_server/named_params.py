@@ -76,6 +76,10 @@ def to_psycopg_placeholders(sql: str) -> str:
     operator) is doubled first, and psycopg turns ``%%`` back into ``%`` before
     sending the query.
 
+    The result is only meant to be passed once to ``cursor.execute(sql, params)``.
+    Don't execute it without parameters or run it through this function again:
+    only psycopg's binding step turns ``%%`` back into ``%``.
+
     Args:
         sql: The statement text as supplied by the caller.
 
