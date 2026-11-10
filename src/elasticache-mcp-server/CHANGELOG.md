@@ -16,3 +16,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `modify-replication-group-shard-configuration` now always sends `ApplyImmediately` as a boolean. The API requires the parameter and rejected the string value the tool sent before.
+- `modify-replication-group-shard-configuration` now accepts `node_groups_to_remove` and `node_groups_to_retain`. The API requires one of them when `node_group_count` is lower than the current number of shards, so reducing the shard count was not possible before.

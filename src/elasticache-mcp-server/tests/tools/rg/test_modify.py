@@ -483,3 +483,55 @@ async def test_modify_replication_group_shard_configuration_apply_immediately_de
         ApplyImmediately=True,
     )
     _validate_shard_request(mock_client.modify_replication_group_shard_configuration.call_args[1])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'kwarg, api_name',
+    [
+        ('node_groups_to_remove', 'NodeGroupsToRemove'),
+        ('node_groups_to_retain', 'NodeGroupsToRetain'),
+    ],
+)
+async def test_modify_replication_group_shard_configuration_scale_in(kwarg, api_name):
+    """Reducing the shard count sends the shards to remove or retain, as the API requires."""
+    mock_client = MagicMock()
+    mock_client.modify_replication_group_shard_configuration.return_value = {}
+
+    with patch(
+        'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+        return_value=mock_client,
+    ):
+        await modify_replication_group_shard_configuration(
+            replication_group_id='test-group',
+            node_group_count=2,
+            **{kwarg: ['0003']},
+        )
+
+    mock_client.modify_replication_group_shard_configuration.assert_called_once_with(
+        ReplicationGroupId='test-group',
+        NodeGroupCount=2,
+        ApplyImmediately=True,
+        **{api_name: ['0003']},
+    )
+    _validate_shard_request(mock_client.modify_replication_group_shard_configuration.call_args[1])
+
+
+@pytest.mark.asyncio
+async def test_modify_replication_group_shard_configuration_remove_and_retain():
+    """Passing both node_groups_to_remove and node_groups_to_retain returns an error."""
+    mock_client = MagicMock()
+
+    with patch(
+        'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+        return_value=mock_client,
+    ):
+        result = await modify_replication_group_shard_configuration(
+            replication_group_id='test-group',
+            node_group_count=2,
+            node_groups_to_remove=['0003'],
+            node_groups_to_retain=['0001', '0002'],
+        )
+
+    assert 'error' in result
+    mock_client.modify_replication_group_shard_configuration.assert_not_called()
