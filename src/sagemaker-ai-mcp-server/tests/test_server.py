@@ -80,7 +80,8 @@ async def test_command_line_args():
                     'awslabs.sagemaker_ai_mcp_server.server.HyperPodStackHandler'
                 ) as mock_hyperpod_stack_handler:
                     # Call the main function
-                    main()
+                    with pytest.warns(FutureWarning, match='is deprecated'):
+                        main()
 
                     # Verify that parse_args was called
                     mock_parse_args.assert_called_once()
@@ -113,7 +114,8 @@ async def test_command_line_args():
                     'awslabs.sagemaker_ai_mcp_server.server.HyperPodStackHandler'
                 ) as mock_hyperpod_stack_handler:
                     # Call the main function
-                    main()
+                    with pytest.warns(FutureWarning, match='is deprecated'):
+                        main()
 
                     # Verify that parse_args was called
                     mock_parse_args.assert_called_once()
@@ -146,7 +148,8 @@ async def test_command_line_args():
                     'awslabs.sagemaker_ai_mcp_server.server.HyperPodStackHandler'
                 ) as mock_hyperpod_stack_handler:
                     # Call the main function
-                    main()
+                    with pytest.warns(FutureWarning, match='is deprecated'):
+                        main()
 
                     # Verify that parse_args was called
                     mock_parse_args.assert_called_once()
@@ -179,7 +182,8 @@ async def test_command_line_args():
                     'awslabs.sagemaker_ai_mcp_server.server.HyperPodStackHandler'
                 ) as mock_hyperpod_stack_handler:
                     # Call the main function
-                    main()
+                    with pytest.warns(FutureWarning, match='is deprecated'):
+                        main()
 
                     # Verify that parse_args was called
                     mock_parse_args.assert_called_once()
