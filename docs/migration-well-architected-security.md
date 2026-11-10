@@ -316,7 +316,14 @@ The server's instructions also described `GetResourceComplianceStatus` and `Expl
 | Default finding filters (30 days, High and Critical, and `ACTIVE` and `NEW` for Security Hub) | Changed | The agent sets the filters in each call; the tables above list the old defaults |
 | Counts by severity, finding type, and resource type | Changed | Ask the agent to count in the same `run_script` |
 | Setup instructions for services that aren't enabled | Not available | The `aws-security` skill and each service's documentation |
-| Trusted Advisor security checks | Changed | No Agent Skill covers Trusted Advisor; the agent calls the same AWS Support API operations through `run_script`, and they still need a Business Support plan or higher |
+| Trusted Advisor security checks | Changed | Neither the `aws-security` nor the `aws-well-architected-review` skill covers Trusted Advisor; the agent calls the same AWS Support API operations through `run_script`, and they still need a Business Support plan or higher |
+
+## What Deprecation Means
+
+- The final release keeps working. It prints a `FutureWarning` to standard error at startup, and its server instructions and tool descriptions are marked deprecated.
+- The package stays on PyPI and gets no further updates.
+- Configurations that use `awslabs.well-architected-security-mcp-server@latest` get that final release.
+- The `src/well-architected-security-mcp-server` folder may later be removed from this repository, as the folders of earlier deprecated servers were.
 
 ## Removing the Old Server
 
@@ -324,4 +331,3 @@ Once you've verified the replacement meets your needs:
 
 1. Remove `awslabs.well-architected-security-mcp-server` from your MCP configuration
 2. Uninstall the package: `pip uninstall awslabs.well-architected-security-mcp-server`
-3. The old package will remain on PyPI but won't receive updates
