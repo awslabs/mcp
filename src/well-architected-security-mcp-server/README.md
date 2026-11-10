@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [AWS MCP Server](https://github.com/aws/agent-toolkit-for-aws), part of the Agent Toolkit for AWS, which makes the same read calls to GuardDuty, Security Hub, Inspector, IAM Access Analyzer, Macie, Trusted Advisor, and the storage and network services through its `run_script` tool (sandboxed Python that calls AWS APIs with your own IAM credentials). The `aws-security` and `aws-well-architected-review` Agent Skills cover security service findings and Well-Architected reviews. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-well-architected-security.md) for the tool mapping.
+
 # AWS Well-Architected Security Assessment Tool MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.well-architected-security-mcp-server.svg)](https://pypi.org/project/awslabs.well-architected-security-mcp-server/)
