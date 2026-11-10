@@ -70,9 +70,11 @@ def to_psycopg_placeholders(sql: str) -> str:
     """Rewrite ``:name`` to psycopg's ``%(name)s`` binding syntax.
 
     Once parameters are passed, psycopg treats every ``%`` in the query text as
-    the start of a placeholder, including one inside a string literal. So a
-    literal ``%`` (``LIKE 'a%'``, the modulo operator) is doubled first, and
-    psycopg turns ``%%`` back into ``%`` before sending the query.
+    the start of a placeholder. It doesn't parse SQL, so that includes a ``%``
+    inside a string literal, a comment or a dollar-quoted body, and the escape
+    can't be made literal-aware. So every ``%`` (``LIKE 'a%'``, the modulo
+    operator) is doubled first, and psycopg turns ``%%`` back into ``%`` before
+    sending the query.
 
     Args:
         sql: The statement text as supplied by the caller.

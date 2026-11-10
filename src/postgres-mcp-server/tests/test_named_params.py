@@ -155,6 +155,8 @@ def test_array_slice_regression_end_to_end():
         ('SELECT 7 % 2, :x', 'SELECT 7 %% 2, %(x)s'),
         ('SELECT :a % :b', 'SELECT %(a)s %% %(b)s'),
         ("SELECT '100%'", "SELECT '100%%'"),
+        # Already-doubled %% now means the same with and without parameters.
+        ("SELECT '50%%' AS x, :id", "SELECT '50%%%%' AS x, %(id)s"),
     ],
 )
 def test_psycopg_conversion_escapes_literal_percent(sql, expected):
