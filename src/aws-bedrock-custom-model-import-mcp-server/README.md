@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [AWS MCP Server](https://github.com/aws/agent-toolkit-for-aws), part of the Agent Toolkit for AWS, which makes the same Amazon Bedrock Custom Model Import API calls (`CreateModelImportJob`, `GetModelImportJob`, `ListImportedModels` and the others) through its `run_script` tool (sandboxed Python that calls AWS APIs with your own IAM credentials) and returns the full responses. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-bedrock-custom-model-import.md) for the tool mapping.
+
 # AWS Bedrock Custom Model Import MCP Server
 
 ## Overview
