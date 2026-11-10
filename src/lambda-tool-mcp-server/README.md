@@ -94,7 +94,7 @@ For Windows users, the MCP server configuration format is slightly different:
 }
 ```
 
-or docker after a successful `docker build -t awslabs/bedrock-kb-retrieval-mcp-server .`:
+or docker after a successful `docker build -t awslabs/lambda-tool-mcp-server .`:
 
 ```file
 # fictitious `.env` file with AWS temporary credentials

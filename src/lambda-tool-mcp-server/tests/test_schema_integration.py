@@ -228,10 +228,10 @@ class TestToolCreationWithSchema:
                 # Verify schema was attempted to be fetched
                 mock_get_schema.assert_called_once_with(schema_arn)
 
-                # Verify tool was created with original description
+                # Verify tool was created with original description, marked deprecated
                 mock_mcp.tool.assert_called_once_with(name='test_function')
                 decorated_function = mock_decorator.call_args[0][0]
-                assert decorated_function.__doc__ == description
+                assert decorated_function.__doc__ == f'[DEPRECATED] {description}'
 
     @patch('awslabs.lambda_tool_mcp_server.server.mcp')
     def test_create_tool_without_schema(self, mock_mcp):
@@ -245,7 +245,7 @@ class TestToolCreationWithSchema:
         description = 'Test function description'
         create_lambda_tool(function_name, description)
 
-        # Verify tool was created with original description
+        # Verify tool was created with original description, marked deprecated
         mock_mcp.tool.assert_called_once_with(name='test_function')
         decorated_function = mock_decorator.call_args[0][0]
-        assert decorated_function.__doc__ == description
+        assert decorated_function.__doc__ == f'[DEPRECATED] {description}'

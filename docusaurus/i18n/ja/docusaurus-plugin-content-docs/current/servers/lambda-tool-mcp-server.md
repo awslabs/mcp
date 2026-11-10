@@ -96,7 +96,7 @@ Windows ユーザーの場合、MCP サーバーの設定形式が若干異な�
 }
 ```
 
-または、`docker build -t awslabs/bedrock-kb-retrieval-mcp-server .` が成功した後に docker を使用します:
+または、`docker build -t awslabs/lambda-tool-mcp-server .` が成功した後に docker を使用します:
 
 ```file
 # fictitious `.env` file with AWS temporary credentials

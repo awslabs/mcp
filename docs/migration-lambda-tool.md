@@ -4,7 +4,7 @@ This guide helps you migrate from `awslabs.lambda-tool-mcp-server` to the [AWS M
 
 ## Why We're Deprecating
 
-The Lambda Tool MCP Server turned your AWS Lambda functions into MCP tools. At startup, it listed the functions in one Region and kept the ones that matched a name prefix, a list of names, or a tag. It then registered one tool for each function it kept. Each tool's description was the function's description, followed by an input schema from the Amazon EventBridge Schema Registry when the function had a schema tag. Calling a tool invoked the function and waited for its response, with the tool's `parameters` object as the event.
+The Lambda Tool MCP Server turned your AWS Lambda functions into MCP tools. At startup, it listed the functions in one Region and kept the ones that matched a name prefix or a list of names and, if a tag was set, had that tag. It then registered one tool for each function it kept. Each tool's description was the function's description, followed by an input schema from the Amazon EventBridge Schema Registry when the function had a schema tag. Calling a tool invoked the function and waited for its response, with the tool's `parameters` object as the event.
 
 There are two replacements, depending on how you used the server:
 
@@ -187,7 +187,7 @@ result
 | Keep functions that have a tag (`FUNCTION_TAG_KEY` and `FUNCTION_TAG_VALUE`) | `ListTags` once for each function that passed the name filter | `run_script` with `call_boto3(service_name="resourcegroupstaggingapi", operation_name="GetResources", params={"ResourceTypeFilters": ["lambda:function"], "TagFilters": [{"Key": ..., "Values": [...]}]})`, which returns every tagged function in one call | Add a target only for the functions you want to publish |
 | Use the function's description as the tool description | `Description` from `ListFunctions`. A function without a description gave the tool an empty description. | Read `Description` from the `ListFunctions` results | `description` in the tool definition, which is required |
 | Add the input schema to the tool description (`FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY`) | `ListTags`, then EventBridge Schemas `DescribeSchema` for the latest version | `run_script` that reads the schema ARN from the tag, splits it into the registry name and the schema name, and calls `call_boto3(service_name="schemas", operation_name="DescribeSchema", params={"RegistryName": ..., "SchemaName": ...})`. The schema is in the `Content` field. | Copy the schema into `inputSchema`. A tool schema accepts only `type`, `properties`, `required`, `items`, and `description`, so remove `$schema`, `title`, and keywords such as `format`, `pattern`, `enum`, and `additionalProperties`. |
-| Return the function's response | `Payload`, returned as `Function <name> returned: <JSON>`, or as raw bytes when it wasn't JSON | `json.loads(resp["Payload"])` | The function's JSON response is the tool result |
+| Return the function's response | `Payload`, returned as `Function <name> returned: <JSON>`, or as `Function <name> returned payload: b'<bytes>'` when it wasn't JSON | `json.loads(resp["Payload"])` | The function's JSON response is the tool result |
 | Report a function error | Returned `Function <name> returned with error: Unhandled` as a normal tool result, without the error payload | `FunctionError` is set, and `Payload` holds the error message, type, and stack trace | The tool result is an error with a generic message. To return the function's error payload instead, set the gateway's `exceptionLevel` to `DEBUG` ([CreateGateway](https://docs.aws.amazon.com/bedrock-agentcore-control/latest/APIReference/API_CreateGateway.html)), or catch errors in the function and return them as JSON. |
 
 ### Environment variables
@@ -241,6 +241,13 @@ result
 | Tool names without a prefix | Changed | Gateway tool names start with the target name and three underscores. A function that reads the tool name from its context needs to remove that prefix. |
 | Function errors returned as tool text | Changed | In `run_script`, the `Invoke` call succeeds even when the function fails, and `api_calls` reports it as `success`. Check `FunctionError` before you read `Payload` as a result. A gateway marks the tool result as an error. |
 
+## What Deprecation Means
+
+- The final release keeps working. It prints a `FutureWarning` at startup, and its server instructions and tool descriptions are marked deprecated.
+- The package stays on PyPI and gets no further updates.
+- Configurations that use `awslabs.lambda-tool-mcp-server@latest` get that final release.
+- The `src/lambda-tool-mcp-server` folder may later be removed from this repository, as the folders of earlier deprecated servers were.
+
 ## Removing the Old Server
 
 Once you've verified the replacement meets your needs:
@@ -248,4 +255,3 @@ Once you've verified the replacement meets your needs:
 1. Remove `awslabs.lambda-tool-mcp-server` from your MCP configuration
 2. Uninstall the package: `pip uninstall awslabs.lambda-tool-mcp-server`
 3. If you built the Docker image, remove it: `docker rmi awslabs/lambda-tool-mcp-server`
-4. The old package will remain on PyPI but won't receive updates
