@@ -104,7 +104,8 @@ class TestOwnershipIsCheckedBeforeAnythingIsCreated:
     def _session(self, mocker, foreign=None):
         """Wire a session where every resource exists and is the harness's, except `foreign`.
 
-        A role is named by its config name, since the config names two.
+        A role is named by its config name, and a namespace or workgroup by `<kind>/<name>`, since
+        the config names two of each.
         """
         iam, redshift, serverless = mocker.Mock(), mocker.Mock(), mocker.Mock()
 
@@ -115,8 +116,12 @@ class TestOwnershipIsCheckedBeforeAnythingIsCreated:
             'Role': {'Arn': f'arn:{RoleName}', 'Tags': tags(RoleName)}
         }
         redshift.describe_clusters.return_value = {'Clusters': [_cluster(tags('cluster'))]}
-        serverless.get_namespace.return_value = {'namespace': {'namespaceArn': 'arn:namespace'}}
-        serverless.get_workgroup.return_value = {'workgroup': {'workgroupArn': 'arn:workgroup'}}
+        serverless.get_namespace.side_effect = lambda namespaceName: {
+            'namespace': {'namespaceArn': f'arn:namespace/{namespaceName}'}
+        }
+        serverless.get_workgroup.side_effect = lambda workgroupName: {
+            'workgroup': {'workgroupArn': f'arn:workgroup/{workgroupName}'}
+        }
         serverless.list_tags_for_resource.side_effect = lambda resourceArn: {
             'tags': [
                 {'key': tag['Key'], 'value': tag['Value']}
@@ -136,15 +141,21 @@ class TestOwnershipIsCheckedBeforeAnythingIsCreated:
             ('s3-read-role', 'role'),
             ('denied-batch-role', 'role'),
             ('cluster', 'cluster'),
-            ('namespace', 'namespace'),
-            ('workgroup', 'workgroup'),
+            ('namespace/namespace', 'namespace'),
+            ('workgroup/workgroup', 'workgroup'),
+            ('namespace/guide', 'namespace'),
+            ('workgroup/guide', 'workgroup'),
         ],
     )
     def test_a_name_that_belongs_to_something_else_is_refused(self, mocker, foreign, kind):
         """Each resource the config names is refused alike, and nothing is changed."""
         session, clients = self._session(mocker, foreign)
         config = mocker.Mock(
-            s3_read_role_name='s3-read-role', denied_batch_role_name='denied-batch-role'
+            s3_read_role_name='s3-read-role',
+            denied_batch_role_name='denied-batch-role',
+            namespace_name='namespace',
+            workgroup_name='workgroup',
+            guide_workgroup_name='guide',
         )
 
         with pytest.raises(deploy.DeployError, match=f'{kind} .* did not create it'):
@@ -212,3 +223,41 @@ class TestARefusedRunTearsNothingDown:
             run.test(mocker.Mock(), [], keep_up=False)
 
         teardown.assert_called_once()
+
+
+class TestDownDeletesEveryWarehouse:
+    """`down` deletes every Serverless namespace and workgroup the harness owns."""
+
+    def test_the_guide_pair_is_deleted_with_the_seeded_one(self, mocker):
+        """A run reaches `down` only with `destroy_after_run` set, so this is what covers it."""
+        live = {'workgroup', 'guide'}
+
+        def get_workgroup(workgroupName):
+            if workgroupName not in live:
+                raise _client_error('ResourceNotFoundException', 'not found')
+            return {'workgroup': {'workgroupArn': 'arn'}}
+
+        serverless = mocker.Mock()
+        serverless.get_workgroup.side_effect = get_workgroup
+        serverless.delete_workgroup.side_effect = lambda workgroupName: live.remove(workgroupName)
+        serverless.get_namespace.return_value = {'namespace': {'namespaceArn': 'arn'}}
+        serverless.list_tags_for_resource.return_value = {'tags': deploy._TAGS_LOWER}
+        redshift, iam = mocker.Mock(), mocker.Mock()
+        redshift.describe_clusters.side_effect = _client_error(
+            'ClusterNotFound', 'not found', operation='DescribeClusters'
+        )
+        iam.get_role.side_effect = _client_error('NoSuchEntity', 'not found', operation='GetRole')
+        aws = {'redshift': redshift, 'serverless': serverless, 'iam': iam}
+        mocker.patch('e2e_tests.deploy.clients', return_value=aws)
+        config = mocker.Mock(
+            namespace_name='namespace', workgroup_name='workgroup', guide_workgroup_name='guide'
+        )
+
+        deploy.down(mocker.Mock(), config, log=mocker.Mock())
+
+        assert [c for c in serverless.method_calls if c[0].startswith('delete_')] == [
+            mocker.call.delete_workgroup(workgroupName='workgroup'),
+            mocker.call.delete_namespace(namespaceName='namespace'),
+            mocker.call.delete_workgroup(workgroupName='guide'),
+            mocker.call.delete_namespace(namespaceName='guide'),
+        ]

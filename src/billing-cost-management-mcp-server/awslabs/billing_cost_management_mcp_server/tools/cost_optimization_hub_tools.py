@@ -209,29 +209,13 @@ def _filter_members() -> Dict[str, Any]:
         return {}
 
 
-# Values the API accepts and returns that the installed botocore model does not list yet.
-# They are merged into the botocore enum so they normalize and appear in valid_filter_values.
-# Remove an entry once the botocore cost-optimization-hub model includes it.
-_SUPPLEMENTAL_FILTER_VALUES: Dict[str, Tuple[str, ...]] = {
-    'resourceTypes': ('DatabaseSavingsPlans',),
-}
-
-
 def _filter_model() -> Dict[str, Optional[List[str]]]:
-    """Return {filter key: enum values, or None} for the list-valued filter keys.
-
-    The botocore enum is extended with _SUPPLEMENTAL_FILTER_VALUES.
-    """
-    model: Dict[str, Optional[List[str]]] = {
+    """Return {filter key: enum values, or None} for the list-valued filter keys."""
+    return {
         name: (list(shape.member.enum) if getattr(shape.member, 'enum', None) else None)
         for name, shape in _filter_members().items()
         if shape.type_name == 'list'
     }
-    for name, extra in _SUPPLEMENTAL_FILTER_VALUES.items():
-        known = model.get(name)
-        if known:
-            model[name] = [*known, *(value for value in extra if value not in known)]
-    return model
 
 
 def _filter_item_fields() -> Dict[str, List[str]]:
@@ -497,9 +481,6 @@ SAVINGS TOTALS:
 - Filters other than accountIds and regions (actionTypes, resourceTypes, implementationEfforts,
   restartNeeded, rollbackPossible) change how overlap is netted out, so a filtered total is
   not that slice's share of the portfolio total, and filtered totals do not sum to it.
-- list_recommendation_summaries totals and groups do not include DatabaseSavingsPlans
-  recommendations. list_recommendations returns them, so add their estimated_monthly_savings
-  to the summary total and say that the total was built that way.
 - Commitment (Savings Plans/Reserved Instance) savings assume current usage; implementing
   rightsizing or idle recommendations reduces them.
 - With include_all_recommendations=true, the same purchase appears once per term, payment
@@ -559,13 +540,12 @@ Deduplication (list_recommendations, 'include_all_recommendations'):
   commitment preference (term and payment option, see get_preferences), then the one
   with the highest savings, so a hidden term or payment option can save more. For
   example, unless 'filters' rule them out, it shows Compute Savings Plans and hides
-  EC2 Instance Savings Plans and EC2 Reserved Instances, and in accounts that get
-  Database Savings Plans recommendations it hides the RDS, ElastiCache and OpenSearch
-  Reserved Instances and DynamoDB reserved capacity they cover. In a management (payer) account it keeps the
+  EC2 Instance Savings Plans and EC2 Reserved Instances. In a management (payer) account it keeps the
   organization-wide options (summary ends "(Payer account level)") and hides the
   options sized for one account ("(Linked account level)"). Filter 'accountIds' to
   member accounts, without the management account, to see those for member
-  accounts; include_all_recommendations=true lists all of them.
+  accounts; include_all_recommendations=true lists all of them. The sp-recommendation
+  tool returns Cost Explorer's recommendations for each Savings Plans type.
 - Which option is kept depends on 'filters': filtering resourceTypes to options the
   default hid (e.g. ["Ec2ReservedInstances"]) returns those, still deduplicated
   among the filtered types. It does not mean they save more than the option the
@@ -580,15 +560,16 @@ Deduplication (list_recommendations, 'include_all_recommendations'):
   so its per-type counts and savings need not match list_recommendations.
 
 Available Filter Parameters (pass as JSON string):
-- resourceTypes: ['Ec2Instance', 'LambdaFunction', 'EbsVolume', 'EcsService', 'Ec2AutoScalingGroup', 'Ec2InstanceSavingsPlans', 'ComputeSavingsPlans', 'SageMakerSavingsPlans', 'Ec2ReservedInstances', 'RdsReservedInstances', 'OpenSearchReservedInstances', 'RedshiftReservedInstances', 'ElastiCacheReservedInstances', 'RdsDbInstanceStorage', 'RdsDbInstance', 'AuroraDbClusterStorage', 'DynamoDbReservedCapacity', 'MemoryDbReservedInstances', 'NatGateway', 'DynamoDBTable', 'ElastiCacheCluster', 'MemoryDBCluster', 'DocumentDBCluster', 'WorkSpaces', 'SageMakerEndpoint', 'DatabaseSavingsPlans']
-  DatabaseSavingsPlans: list_recommendations returns these recommendations.
-  list_recommendation_summaries accepts the filter but returns nothing for it and leaves them
-  out of its totals and groups, so list and summary totals differ by those savings.
+- resourceTypes: ['Ec2Instance', 'LambdaFunction', 'EbsVolume', 'EcsService', 'Ec2AutoScalingGroup', 'Ec2InstanceSavingsPlans', 'ComputeSavingsPlans', 'SageMakerSavingsPlans', 'Ec2ReservedInstances', 'RdsReservedInstances', 'OpenSearchReservedInstances', 'RedshiftReservedInstances', 'ElastiCacheReservedInstances', 'RdsDbInstanceStorage', 'RdsDbInstance', 'AuroraDbClusterStorage', 'DynamoDbReservedCapacity', 'MemoryDbReservedInstances', 'NatGateway', 'DynamoDBTable', 'ElastiCacheCluster', 'MemoryDBCluster', 'DocumentDBCluster', 'WorkSpaces', 'SageMakerEndpoint']
+  For Database Savings Plans purchase recommendations, use sp-recommendation with
+  savings_plans_type DATABASE_SP. One rejected value fails the whole request. For a value
+  that matches no documented type (case and underscores aside, see below), the error's
+  'fields' lists every type in the service's model, including types the account cannot
+  use; choose from valid_filter_values (the documented types).
   The service can return types not listed here; list_recommendations shows them. There is
   no per-service filter: to cover a service, list each of its types (e.g. RDS:
   'RdsDbInstance', 'RdsDbInstanceStorage', 'AuroraDbClusterStorage',
-  'RdsReservedInstances'). 'DatabaseSavingsPlans' covers several database services,
-  including RDS.
+  'RdsReservedInstances').
 - actionTypes: ['Rightsize', 'Stop', 'Upgrade', 'PurchaseSavingsPlans', 'PurchaseReservedInstances', 'MigrateToGraviton', 'Delete', 'ScaleIn']
 - implementationEfforts: ['VeryLow', 'Low', 'Medium', 'High', 'VeryHigh']
 - regions: AWS region codes (e.g., ["us-east-1", "us-west-2"]).
