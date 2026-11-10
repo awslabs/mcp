@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Web Search primitive** — `web_search` tool backed by the AgentCore Web Search API (`InvokeWebSearch`), with domain include/exclude and publication-date filters. Requests are SigV4-signed with the standard boto3 credential chain. Enable it alone with `AGENTCORE_ENABLE_TOOLS=web_search`. Raises the `boto3` floor to 1.43.127, which includes `InvokeWebSearch`
+
 - **Code Interpreter `list_files`** — list files and directories in a sandbox session, so an agent can discover what a previous step wrote instead of guessing paths. Accepts an optional `directory_path` and returns structured file paths alongside the raw listing text
 
 ### Fixed
