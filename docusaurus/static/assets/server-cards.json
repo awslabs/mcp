@@ -1148,7 +1148,7 @@
       "description": "AWS API Activity, User or Resource analysis using CloudTrail Logs",
       "icon": "\ud83d\udcb0",
       "id": "cloudtrail-mcp-server",
-      "name": "AWS CloudTrail MCP Server",
+      "name": "AWS CloudTrail MCP Server (Deprecated)",
       "source_path": "src/cloutrail-mcp-server/",
       "subcategory": "Monitoring & Logging",
       "tags": [
