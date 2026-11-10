@@ -1940,6 +1940,52 @@ def test_filter_item_fields_unavailable():
 
 
 @pytest.mark.asyncio
+async def test_description_scopes_global_region_to_compute_and_sagemaker_savings_plans():
+    """Only Compute and SageMaker Savings Plans are reported with the region "Global".
+
+    EC2 Instance Savings Plans and Reserved Instances carry a region code, so a region code
+    does not drop them on its own. The default deduplicated list keeps one of Compute
+    Savings Plans, EC2 Instance Savings Plans and EC2 Reserved Instances by type, whatever
+    the region filter, so a region code can still return none of the three.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    # Other tests reload the module with an identity decorator, which leaves no tool registered.
+    importlib.reload(coh_mod)
+    tool = await coh_mod.cost_optimization_hub_server.get_tool('cost-optimization')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert 'drops every Savings Plans recommendation' not in description
+    assert 'list_recommendations reports them with the region "Global"' not in description
+    global_types = (
+        'list_recommendations and get_recommendation report Compute and SageMaker Savings Plans '
+        'with the region "Global", so "us-east-1" drops them and regions=["Global"] returns them.'
+    )
+    regional_types = (
+        'EC2 Instance Savings Plans and every Reserved Instances type have a region code, so '
+        '"us-east-1" returns them and "Global" drops them.'
+    )
+    assert f'{global_types} {regional_types}' in description
+    assert (
+        'hides the other two in every region; the region filter does not change which is kept. '
+        'So "us-east-1" can return none of them.'
+    ) in description
+    assert (
+        'set include_all_recommendations=true or pass resourceTypes with only one of the three'
+    ) in description
+    assert (
+        'A rollbackPossible filter also changes which are kept: it can hide all three or show '
+        'more than one.'
+    ) in description
+    assert 'a misspelled or unknown region returns no results rather than an error' in (
+        description
+    )
+
+
+@pytest.mark.asyncio
 async def test_description_documents_region_and_database_savings_plans_behavior():
     """The description covers regions in list vs summaries, and Database Savings Plans.
 
