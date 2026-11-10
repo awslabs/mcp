@@ -6,7 +6,7 @@ This guide helps you migrate from `awslabs.aws-bedrock-custom-model-import-mcp-s
 
 The AWS Bedrock Custom Model Import MCP Server registered 6 tools and 6 prompts. Each tool wrapped one Amazon Bedrock Custom Model Import API operation: `CreateModelImportJob`, `GetModelImportJob`, `ListModelImportJobs`, `GetImportedModel`, `ListImportedModels`, or `DeleteImportedModel`. Around those calls it added a search of one S3 bucket for the model files, a fallback to the IAM role behind your own credentials, a timestamp on every new job and model name, and approximate name matching in the two get tools. Each prompt only told the agent to use the tool of the same name. The AWS MCP Server makes the same calls through its `run_script` tool, which executes sandboxed Python that calls AWS APIs through its built-in `call_boto3` helper, using your own IAM credentials. It also reaches the rest of the Amazon Bedrock API.
 
-The `aws-ai-ml` Agent Skill covers one Custom Model Import path: deploying a model you fine-tuned with SageMaker Serverless Model Customization to Amazon Bedrock, through the SageMaker Python SDK's `BedrockModelBuilder`. It lists importing other weights, such as a Hugging Face model in your own S3 bucket, as out of scope, and the `amazon-bedrock` skill doesn't cover Custom Model Import, so for those imports there's no skill to install.
+The [`aws-ai-ml`](https://github.com/aws/agent-toolkit-for-aws/tree/main/skills/core-skills/aws-ai-ml) Agent Skill covers one Custom Model Import path: deploying a model you fine-tuned with SageMaker Serverless Model Customization to Amazon Bedrock, through the SageMaker Python SDK's `BedrockModelBuilder`. It lists importing other weights, such as a Hugging Face model in your own S3 bucket, as out of scope, and the `amazon-bedrock` skill doesn't cover Custom Model Import, so for those imports there's no skill to install.
 
 ## Installing the Replacement
 
@@ -171,7 +171,7 @@ Because `run_script` exposes the full Amazon Bedrock API, operations the old ser
 
 ### Before (AWS Bedrock Custom Model Import Server)
 
-1. Set `BEDROCK_MODEL_IMPORT_S3_BUCKET`, and optionally `BEDROCK_MODEL_IMPORT_ROLE_ARN`, then start the server with `--allow-write`, or `create_model_import_job` and `delete_imported_model` fail.
+1. Start the server with `--allow-write`, which `create_model_import_job` and `delete_imported_model` require, and set `BEDROCK_MODEL_IMPORT_S3_BUCKET`, which `create_model_import_job` requires. Optionally set `BEDROCK_MODEL_IMPORT_ROLE_ARN`.
 2. Ask to import a model by name. The server searches the bucket for a matching folder, picks a role, adds a timestamp to both names, and starts the job.
 3. Ask for a job or model by name. If the name doesn't exist, the server returns a near match.
 
@@ -196,10 +196,16 @@ Because `run_script` exposes the full Amazon Bedrock API, operations the old ser
 | Fixed background text about Bedrock and Custom Model Import in each response | Not available | See [Custom Model Import in the Amazon Bedrock User Guide](https://docs.aws.amazon.com/bedrock/latest/userguide/model-customization-import-model.html) |
 | Six prompts that pointed at the tools | Not needed | Ask the agent for the operation directly |
 
+## What Deprecation Means
+
+- The final release keeps working. It prints a `FutureWarning` at startup, and its server instructions and tool descriptions are marked deprecated.
+- The package stays on PyPI and gets no further updates.
+- Configurations that use `awslabs.aws-bedrock-custom-model-import-mcp-server@latest` get that final release.
+- The source folder may later be removed from this repository, as earlier deprecated servers were.
+
 ## Removing the Old Server
 
 Once you've verified the replacement meets your needs:
 
 1. Remove `awslabs.aws-bedrock-custom-model-import-mcp-server` from your MCP configuration
 2. Uninstall the package: `pip uninstall awslabs.aws-bedrock-custom-model-import-mcp-server`
-3. The old package will remain on PyPI but won't receive updates

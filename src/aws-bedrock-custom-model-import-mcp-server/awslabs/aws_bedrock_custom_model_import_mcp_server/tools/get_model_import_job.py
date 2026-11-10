@@ -59,7 +59,7 @@ class GetModelImportJob:
         ctx: Optional[Context],
         job_identifier: Annotated[str, Field(description='Name or ARN of the job')],
     ) -> str:
-        """Get model import job details from Amazon Bedrock.
+        """[DEPRECATED] Get model import job details from Amazon Bedrock.
 
         This tool retrieves detailed information about a model import job in Amazon Bedrock.
         If the exact job name is not found, it will attempt to find a close match.

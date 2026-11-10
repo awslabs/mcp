@@ -33,6 +33,7 @@ during initialization.
 import argparse
 import os
 import sys
+import warnings
 from awslabs.aws_bedrock_custom_model_import_mcp_server import __version__
 from awslabs.aws_bedrock_custom_model_import_mcp_server.client import (
     BedrockModelImportClient,
@@ -69,11 +70,18 @@ from fastmcp import FastMCP
 from loguru import logger
 
 
+DEPRECATION_NOTICE = (
+    'awslabs.aws-bedrock-custom-model-import-mcp-server is deprecated and will not receive '
+    'further updates. Use the AWS MCP Server (https://github.com/aws/agent-toolkit-for-aws) '
+    'instead. Migration guide: '
+    'https://github.com/awslabs/mcp/blob/main/docs/migration-bedrock-custom-model-import.md'
+)
+
 # Initialize MCP server
 mcp = FastMCP(
     name=SERVER_NAME,
     version=__version__,
-    instructions=MCP_INSTRUCTIONS,
+    instructions=f'{DEPRECATION_NOTICE}\n\n{MCP_INSTRUCTIONS}',
 )
 
 
@@ -83,6 +91,8 @@ def main() -> None:
     This function initializes and runs the Bedrock Custom Model Import MCP server.
     The server provides tools for managing custom model imports in Amazon Bedrock.
     """
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
+
     # Parse the cli arguments
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for EKS'

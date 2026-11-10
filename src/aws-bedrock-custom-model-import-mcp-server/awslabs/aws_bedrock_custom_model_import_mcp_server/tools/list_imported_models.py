@@ -60,7 +60,7 @@ class ListImportedModels:
     async def list_imported_models(
         self, ctx: Optional[Context], request: Optional[ListImportedModelsRequest] = None
     ) -> str:
-        """List imported models in Amazon Bedrock.
+        """[DEPRECATED] List imported models in Amazon Bedrock.
 
         This tool retrieves a list of models that have already been imported into Amazon Bedrock.
         The results can be filtered and sorted using the optional request parameters.

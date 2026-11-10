@@ -58,7 +58,7 @@ class GetImportedModel:
         ctx: Optional[Context],
         model_identifier: Annotated[str, Field(description='Name or ARN of the model')],
     ) -> str:
-        """Get imported model details from Amazon Bedrock.
+        """[DEPRECATED] Get imported model details from Amazon Bedrock.
 
         This tool retrieves detailed information about a custom model that was previously
         imported into Amazon Bedrock. If the exact model name is not found, it will attempt
