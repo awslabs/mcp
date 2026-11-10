@@ -15,14 +15,23 @@
 """awslabs amazon-kendra-index-mcp-server MCP Server implementation."""
 
 import os
+import warnings
 from awslabs.amazon_kendra_index_mcp_server.util import get_kendra_client
 from mcp.server.mcpserver import MCPServer
 from typing import Any, Dict, Optional
 
 
+DEPRECATION_NOTICE = (
+    'awslabs.amazon-kendra-index-mcp-server is deprecated and will not receive further updates. '
+    'Use the AWS MCP Server (https://github.com/aws/agent-toolkit-for-aws) instead. '
+    'Migration guide: https://github.com/awslabs/mcp/blob/main/docs/migration-kendra-index.md'
+)
+
 mcp = MCPServer(
     'awslabs.amazon-kendra-index-mcp-server',
-    instructions='Using the users kendra index id as a parameter, query Amazon Kendra with the provided search query',
+    instructions=DEPRECATION_NOTICE
+    + '\n\n'
+    + 'Using the users kendra index id as a parameter, query Amazon Kendra with the provided search query',
     dependencies=[
         'pydantic',
         'loguru',
@@ -35,7 +44,7 @@ mcp = MCPServer(
 async def kendra_list_indexes_tool(
     region: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """List all Amazon Kendra indexes in the specified region.
+    """[DEPRECATED] List all Amazon Kendra indexes in the specified region.
 
     This tool lists all the Kendra indexes available in the region specified in the mcp configuration.
 
@@ -107,7 +116,7 @@ async def kendra_query_tool(
     region: Optional[str] = None,
     indexId: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Query Amazon Kendra and retrieve content from the response.
+    """[DEPRECATED] Query Amazon Kendra and retrieve content from the response.
 
     This tool queries the specified Amazon Kendra index with the provided query
     and returns the search results. The specified Kendra Index is either provided by the user in the chat, or the default index configured in the environemnt variables
@@ -166,6 +175,7 @@ async def kendra_query_tool(
 
 def main():
     """Run the MCP server with CLI argument support."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     mcp.run()
 
 
