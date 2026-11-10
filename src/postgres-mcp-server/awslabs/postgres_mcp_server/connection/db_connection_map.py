@@ -23,6 +23,12 @@ from loguru import logger
 from typing import List
 
 
+# Per-connection bound for close_all_async. psycopg's pool.close() already
+# waits up to 5s for checked-out connections; this is the outer bound so one
+# close that never returns cannot stall MCP shutdown.
+_CLOSE_TIMEOUT_SECONDS = 5.0
+
+
 class DatabaseType(str, Enum):
     """Database type enumeration."""
 
@@ -172,6 +178,39 @@ class DBConnectionMap:
                 entries.append(entry)
         return json.dumps(entries, indent=2)
 
+    async def close_all_async(self) -> None:
+        """Close cached connections on the current event loop.
+
+        MCP's lifespan calls this before its serving loop shuts down. In
+        particular, direct psycopg pools hold asyncio primitives that must be
+        closed on the same loop that initialized them.
+
+        Closes run concurrently, and each one is bounded by
+        ``_CLOSE_TIMEOUT_SECONDS``. A connection leaves the map only after
+        ``close()`` succeeds, so a timed-out or failed pool stays visible.
+        """
+        with self._lock:
+            connections = list(self.map.items())
+
+        timeout = _CLOSE_TIMEOUT_SECONDS
+
+        async def _close_one(key: tuple, conn: AbstractDBConnection) -> None:
+            try:
+                await asyncio.wait_for(conn.close(), timeout)
+            except (asyncio.TimeoutError, TimeoutError):
+                # 3.10 raises asyncio.TimeoutError; 3.11+ aliases the builtin.
+                logger.warning(f'Failed to close connection {key}: timed out after {timeout}s')
+                return
+            except Exception as e:
+                logger.warning(f'Failed to close connection {key}: {e}')
+                return
+
+            with self._lock:
+                if self.map.get(key) is conn:
+                    del self.map[key]
+
+        await asyncio.gather(*(_close_one(key, conn) for key, conn in connections))
+
     def close_all(self) -> None:
         """Close all connections and clear the map.
 
@@ -180,10 +219,11 @@ class DBConnectionMap:
         sync code (e.g. server.main's finally block), we drive each
         coroutine to completion via ``asyncio.run`` so the underlying
         pool workers actually get a chance to shut down. When called
-        from inside a running event loop, we fall back to scheduling
-        the coroutine and waiting on it via ``run_until_complete`` is
-        not possible, so we just drop the coroutine on the floor with a
-        warning — the loop's own teardown will reap the workers.
+        from inside a running event loop, ``asyncio.run`` cannot be nested,
+        so the coroutine is closed without being awaited and a warning is
+        logged. Any other failure while awaiting ``close()``, including a
+        cross-loop ``RuntimeError`` from a lock bound to a dead loop, is
+        logged and is not treated as the nested-loop case.
         """
         with self._lock:
             connections = list(self.map.items())
@@ -196,14 +236,26 @@ class DBConnectionMap:
                 logger.warning(f'Failed to close connection {key}: {e}')
                 continue
 
-            if asyncio.iscoroutine(result):
-                try:
-                    asyncio.run(result)
-                except RuntimeError:
-                    # Already inside a running loop; closing the
-                    # coroutine cancels it cleanly without spawning a
-                    # new event loop. The pool workers will be cleaned
-                    # up when the outer loop tears down.
-                    result.close()
-                except Exception as e:
-                    logger.warning(f'Failed to await close() for {key}: {e}')
+            if not asyncio.iscoroutine(result):
+                continue
+
+            try:
+                asyncio.get_running_loop()
+                in_running_loop = True
+            except RuntimeError:
+                in_running_loop = False
+
+            if in_running_loop:
+                # Closing the un-awaited coroutine cancels it. The outer
+                # loop's teardown reaps pool workers.
+                logger.warning(
+                    f'Cannot await close() for {key} from a running event loop; '
+                    'cancelling the coroutine without awaiting it'
+                )
+                result.close()
+                continue
+
+            try:
+                asyncio.run(result)
+            except Exception as e:
+                logger.warning(f'Failed to await close() for {key}: {e}')

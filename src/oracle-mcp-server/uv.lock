@@ -70,7 +70,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-oracle-mcp-server"
-version = "0.2.2"
+version = "0.2.3"
 source = { editable = "." }
 dependencies = [
     { name = "aiorwlock" },
