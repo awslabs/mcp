@@ -23,7 +23,8 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/amazon-keyspaces-mcp-server                               @awslabs/mcp-admins @awslabs/mcp-maintainers  @jcshepherd
 /src/amazon-mq-mcp-server                                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @hashimsharkh @BenAtAmazon
 /src/amazon-neptune-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @cornerwings @krlawrence @thompsonbry
-/src/amazon-qbusiness-anonymous-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @abhjaw
+# DEPRECATED: use the AWS MCP Server
+/src/amazon-qbusiness-anonymous-mcp-server                     @awslabs/mcp-admins
 /src/amazon-qindex-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @tkoba-aws @akhileshamara
 /src/amazon-translate-mcp-server                               @awslabs/mcp-admins @awslabs/mcp-maintainers  @goviha01 @rahullks
 /src/amazon-sns-sqs-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @hashimsharkh @BenAtAmazon
