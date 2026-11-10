@@ -387,3 +387,17 @@ def test_fallback_rechecks_dir_before_each_write(sandbox):
                 with pytest.raises(UnsafeOutputPathError):
                     _extract_slides_sync('/docs/deck.pdf', str(out), 72, 'png')
     assert list(sandbox.outside.iterdir()) == []
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='POSIX permission bits')
+def test_created_output_dirs_are_not_group_or_world_writable(sandbox, write_mode):
+    """New output directories get mode 0o755 even with a permissive umask."""
+    out = sandbox.base / 'nested' / 'out'
+    old = os.umask(0)
+    try:
+        with patch.object(server, 'convert_from_path', return_value=_pages(1)):
+            _extract_slides_sync('/docs/deck.pdf', str(out), 72, 'png')
+    finally:
+        os.umask(old)
+    for d in (sandbox.base / 'nested', out):
+        assert d.stat().st_mode & 0o777 == 0o755

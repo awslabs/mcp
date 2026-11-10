@@ -574,6 +574,10 @@ def _resolve_output_dir(output_dir: str) -> tuple[Path, Path]:
     return base_dir, resolved
 
 
+# Mode for output directories this tool creates (the umask still applies).
+_OUTPUT_DIR_MODE = 0o755
+
+
 def _open_output_dir_fd(base_dir: Path, resolved_dir: Path) -> int:
     """Create (if needed) and open the output directory without following links.
 
@@ -586,7 +590,7 @@ def _open_output_dir_fd(base_dir: Path, resolved_dir: Path) -> int:
     try:
         for part in resolved_dir.relative_to(base_dir).parts:
             with contextlib.suppress(FileExistsError):
-                os.mkdir(part, 0o777, dir_fd=fd)
+                os.mkdir(part, _OUTPUT_DIR_MODE, dir_fd=fd)
             try:
                 next_fd = os.open(part, flags | os.O_NOFOLLOW, dir_fd=fd)
             except OSError:
@@ -610,7 +614,12 @@ def _prepare_output_dir_path(base_dir: Path, resolved_dir: Path) -> None:
     Used where directory-relative, no-follow operations are not available
     (for example Windows).
     """
-    os.makedirs(resolved_dir, exist_ok=True)
+    # os.makedirs applies `mode` only to the last directory, so create each one.
+    current = base_dir
+    for part in resolved_dir.relative_to(base_dir).parts:
+        current = current / part
+        with contextlib.suppress(FileExistsError):
+            os.mkdir(current, _OUTPUT_DIR_MODE)
     _verify_output_dir_path(base_dir, resolved_dir)
 
 
