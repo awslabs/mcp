@@ -4,7 +4,7 @@ This guide helps you migrate from `awslabs.finch-mcp-server` to two replacements
 
 ## Why We're Deprecating
 
-The Finch MCP Server registered 3 tools. Two of them ran Finch CLI commands on your machine: `finch_build_container_image` ran `finch image build`, and `finch_push_image` ran `finch image inspect`, `finch image tag`, and `finch image push`. On macOS and Windows, both tools also started the Finch VM when it wasn't running, and for ECR images they added the `ecr-login` credential helper to `~/.finch/finch.yaml`. The third tool, `finch_create_ecr_repo`, called the ECR `DescribeRepositories` API and, when the repository didn't exist, `CreateRepository`.
+The Finch MCP Server registered 3 tools. Two of them ran Finch CLI commands on your machine: `finch_build_container_image` ran `finch image build`, and `finch_push_image` ran `finch image inspect`, `finch image tag`, and `finch image push`. On macOS and Windows, both tools also started the Finch VM when it wasn't running, and for ECR images they added the `ecr-login` credential helper to `finch.yaml`. The third tool, `finch_create_ecr_repo`, called the ECR `DescribeRepositories` API and, when the repository didn't exist, `CreateRepository`.
 
 Coding agents can already run shell commands, so your agent can run the same `finch` commands itself and read their full output. The AWS MCP Server makes the ECR calls through its `run_script` tool, which executes sandboxed Python that calls AWS APIs through its built-in `call_boto3` helper, using your own IAM credentials. It also reaches the rest of the ECR API, which this server didn't have.
 
@@ -62,7 +62,7 @@ For setup details, see [Getting started with the AWS MCP Server](https://docs.aw
 
 ### Signing in to Amazon ECR
 
-The old server never called `GetAuthorizationToken` itself. When the image to push, or an image named in the Dockerfile, was in ECR, it added `ecr-login` to `creds_helpers` in `~/.finch/finch.yaml`, force-stopped the Finch VM, and started it again, so the Amazon ECR credential helper fetched tokens with your AWS credentials. On Linux it changed nothing and left sign-in to the `config.json` in `DOCKER_CONFIG`. On macOS, if `~/.finch/finch.yaml` didn't exist yet, the tool failed with `finch yaml file not found in finch.yaml`.
+The old server never called `GetAuthorizationToken` itself. When the image to push, or an image named in the Dockerfile, was in ECR, it added `ecr-login` to `creds_helpers` in `finch.yaml` (`~/.finch/finch.yaml` on macOS, `%LOCALAPPDATA%\.finch\finch.yaml` on Windows) if it wasn't there yet, then force-stopped the Finch VM and started it again, so the Amazon ECR credential helper fetched tokens with your AWS credentials. On Linux it changed nothing and left sign-in to the `config.json` in `DOCKER_CONFIG`. If `finch.yaml` didn't exist yet, the tool failed with `finch yaml file not found in finch.yaml` on macOS, or `finch yaml file not found at <path>` on Windows.
 
 Replace it with either of the two methods in Finch's [Registry Authentication](https://runfinch.com/docs/container-images/authentication/) guide:
 
@@ -83,8 +83,8 @@ The two Finch tools become `finch` commands your agent runs in its shell. The co
 
 | Old tool | What it did | Replacement |
 |----------|-------------|-------------|
-| `finch_build_container_image` | Checked that `finch` was on `PATH` and that `dockerfile_path` and `context_path` existed. On macOS and Windows, made sure the Finch VM was running (see the next table). If the Dockerfile named an ECR image, set up ECR sign-in as described above. Then ran `finch image build -f <dockerfile_path> [-t <tag>]... [--platform <platform>]... [--target <stage>] [--no-cache] [--pull] [--build-context <context>]... [--output <destination>] [--cache-from <source>]... [--quiet] --progress <progress> <context_path>`, where `progress` defaulted to `auto`. Returned `Successfully built image from <dockerfile_path>` or the command's stderr. | Run the same command in the shell, for example `finch image build -f /path/to/Dockerfile -t my-app:latest --platform linux/amd64 /path/to/context`. Every other `finch image build` flag works too, such as `--build-arg`, `--secret`, `--label`, and `--cache-to`. |
-| `finch_push_image` | Ran `finch image inspect <image>`, took the 12 hex digits after `sha256:` in the `Id` field, ran `finch image tag <image> <repository>:<id>`, and then `finch image push <repository>:<id>`. The tag you passed was never pushed. For an ECR image, it refused to run unless the server was in write mode, then set up ECR sign-in and, on macOS and Windows, made sure the VM was running. | `finch image push <image>` pushes the tag you name. To push under the image ID as the old tool did, run `finch image inspect <image>`, copy the 12 hex digits after `sha256:` in the `Id` field, then run `finch image tag <image> <repository>:<id>` and `finch image push <repository>:<id>`. |
+| `finch_build_container_image` | Checked that `finch` was on `PATH` and that `dockerfile_path` and `context_path` existed. On macOS and Windows, made sure the Finch VM was running (see the next table). If the Dockerfile named an ECR image, set up ECR sign-in as described above. Then ran `finch image build -f <dockerfile_path> [-t <tag>]... [--platform <platform>]... [--target <stage>] [--no-cache] [--pull] [--build-context <context>]... [--output <destination>] [--cache-from <source>]... [--quiet] --progress <progress> <context_path>`, where `progress` defaulted to `auto`. Returned `Successfully built image from <dockerfile_path>`, or `Failed to build image: ` followed by the command's stderr. | Run the same command in the shell, for example `finch image build -f /path/to/Dockerfile -t my-app:latest --platform linux/amd64 /path/to/context`. Every other `finch image build` flag works too, such as `--build-arg`, `--secret`, `--label`, and `--cache-to`. |
+| `finch_push_image` | Ran `finch image inspect <image>`, took the 12 hex digits after `sha256:` in the `Id` field, ran `finch image tag <image> <repository>:<id>`, and then `finch image push <repository>:<id>`. The tag you passed was never pushed. Before these commands, it refused an ECR image unless the server was in write mode and set up ECR sign-in for it, and on macOS and Windows it made sure the VM was running for every image. | `finch image push <image>` pushes the tag you name. To push under the image ID as the old tool did, run `finch image inspect <image>`, copy the 12 hex digits after `sha256:` in the `Id` field, then run `finch image tag <image> <repository>:<id>` and `finch image push <repository>:<id>`. |
 
 ### Finch VM (macOS and Windows)
 
@@ -152,7 +152,7 @@ Because `run_script` exposes the full ECR API, operations the old server never h
 - **The tag you asked for gets pushed.** `finch_push_image` always replaced the tag with the first 12 hex digits of the image ID, so asking for `my-app:v1.2` pushed `my-app:<image-id>` and never `v1.2`. `finch image push` pushes the tag you name.
 - **Every Finch command and flag.** The build tool took 12 options. `finch image build` also takes `--build-arg`, `--secret`, `--ssh`, `--label`, `--cache-to`, `--network`, `--sbom`, and `--provenance`, and `finch image push` takes `--platform`, `--all-platforms`, and `--sign`. The agent can also run the image it built with `finch run`, list images with `finch images`, or read logs with `finch logs`, which the server had no tools for.
 - **Full command output.** On success, the build tool returned only `Successfully built image from <path>` and dropped stdout, so the agent never saw the build log or, with `quiet`, the image ID. The shell returns everything Finch prints.
-- **`finch.yaml` stays as you wrote it.** On macOS and Windows, the first ECR push or ECR-based build rewrote `~/.finch/finch.yaml` with PyYAML, which dropped its comments and sorted its keys, and then force-stopped the Finch VM, which stops any containers running in it. With the replacement, you change `finch.yaml` once yourself, or use `finch login` and leave the file alone.
+- **`finch.yaml` stays as you wrote it.** On macOS and Windows, the first ECR push or ECR-based build rewrote `finch.yaml` with PyYAML, which dropped its comments and sorted its keys, and then force-stopped the Finch VM, which stops any containers running in it. With the replacement, you change `finch.yaml` once yourself, or use `finch login` and leave the file alone.
 - **The repository URI on every call, and the rest of the ECR API.** When the repository already existed, `finch_create_ecr_repo` returned only `ECR repository '<name>' already exists.`, because its response model kept just `status` and `message`. `DescribeRepositories` returns the URI along with the tag mutability, scanning, and encryption settings, and `run_script` reaches the rest of ECR.
 
 ## Workflow Change
@@ -183,10 +183,16 @@ Because `run_script` exposes the full ECR API, operations the old server never h
 | `IMMUTABLE` tags on every repository `finch_create_ecr_repo` created | Changed | Pass `"imageTagMutability": "IMMUTABLE"` to `CreateRepository`, as in the example. The `aws-containers` skill recommends it too. |
 | Redaction of access keys, secrets, tokens, and URL credentials in the server's own log | Not available | The agent host shows commands and output as they ran. `finch login --password-stdin` keeps the registry password off the command line and out of the output. |
 
+## What Deprecation Means
+
+- The final release keeps working. It prints a `FutureWarning` at startup, and its server instructions and tool descriptions are marked deprecated.
+- The package stays on PyPI and gets no further updates.
+- Configurations that use `awslabs.finch-mcp-server@latest` get that final release.
+- The source folder may later be removed from this repository, as earlier deprecated servers were.
+
 ## Removing the Old Server
 
 Once you've verified the replacement meets your needs:
 
 1. Remove `awslabs.finch-mcp-server` from your MCP configuration
 2. Uninstall the package: `pip uninstall awslabs.finch-mcp-server`
-3. The old package will remain on PyPI but won't receive updates

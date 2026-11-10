@@ -23,6 +23,7 @@ purposes only and are not meant for production use cases.
 import os
 import re
 import sys
+import warnings
 from awslabs.finch_mcp_server.consts import SERVER_NAME
 
 # Import Pydantic models for input validation
@@ -49,6 +50,14 @@ from mcp.server.mcpserver import MCPServer
 from pathlib import Path
 from pydantic import Field
 from typing import Any, Dict, List, Optional
+
+
+DEPRECATION_NOTICE = (
+    'awslabs.finch-mcp-server is deprecated and will not receive further updates. '
+    'Use the Finch CLI (https://github.com/runfinch/finch) and the AWS MCP Server '
+    '(https://github.com/aws/agent-toolkit-for-aws) instead. '
+    'Migration guide: https://github.com/awslabs/mcp/blob/main/docs/migration-finch.md'
+)
 
 
 def get_default_log_path():
@@ -225,7 +234,7 @@ logger.add(sys.stderr, level='INFO', filter=sensitive_data_filter)
 logger = logger.bind(name=SERVER_NAME)
 
 # Initialize the MCP server
-mcp = MCPServer(SERVER_NAME)
+mcp = MCPServer(SERVER_NAME, instructions=DEPRECATION_NOTICE)
 enable_aws_resource_write = False
 
 
@@ -298,7 +307,7 @@ async def finch_build_container_image(
     quiet: Optional[bool] = Field(default=False, description='Whether to suppress build output'),
     progress: Optional[str] = Field(default='auto', description='Type of progress output'),
 ) -> Result:
-    """Build a container image using Finch.
+    """[DEPRECATED] Build a container image using Finch.
 
     This tool builds a Docker image using the specified Dockerfile and context directory.
     It supports a range of build options including tags, platforms, and more.
@@ -316,7 +325,7 @@ async def finch_build_container_image(
     Example response:
         Result(status="success", message="Successfully built image from /path/to/Dockerfile")
 
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     logger.info('tool-name: finch_build_container_image')
     logger.info(f'tool-args: dockerfile_path={dockerfile_path}, context_path={context_path}')
 
@@ -364,7 +373,7 @@ async def finch_push_image(
         ..., description='The full image name to push, including the repository URL and tag'
     ),
 ) -> Result:
-    """Push a container image to a repository using finch, replacing the tag with the image hash.
+    """[DEPRECATED] Push a container image to a repository using finch, replacing the tag with the image hash.
 
     If the image URL is an ECR repository, it verifies that ECR login cred helper is configured.
     This tool  gets the image hash, creates a new tag using the hash, and pushes the image with
@@ -386,7 +395,7 @@ async def finch_push_image(
     Example response:
         Result(status="success", message="Successfully pushed image 123456789012.dkr.ecr.us-west-2.amazonaws.com/my-repo:abcdef123456 to ECR.")
 
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     logger.info('tool-name: finch_push_image')
     logger.info(f'tool-args: image={image}')
 
@@ -451,7 +460,7 @@ async def finch_create_ecr_repo(
         description='AWS region for the ECR repository. If not provided, uses the default region from AWS configuration',
     ),
 ) -> Result:
-    """Check if an ECR repository exists and create it if it doesn't.
+    """[DEPRECATED] Check if an ECR repository exists and create it if it doesn't.
 
     This tool checks if the specified ECR repository exists using boto3.
     If the repository doesn't exist, it creates a new one with the given name.
@@ -470,7 +479,7 @@ async def finch_create_ecr_repo(
                repository_uri="123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app",
                exists=False)
 
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     logger.info('tool-name: finch_create_ecr_repo')
     logger.info(f'tool-args: repository_name={repository_name}')
 
@@ -502,6 +511,8 @@ def main(enable_aws_resource_write: bool = False):
         enable_aws_resource_write (bool, optional): Whether to enable AWS resource creation/modification. Defaults to False.
 
     """
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
+
     # Set AWS resource write mode
     set_enable_aws_resource_write(enable_aws_resource_write)
 

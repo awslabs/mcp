@@ -198,6 +198,7 @@ class TestEnvironmentVariableHandling:
         assert os.environ.get('FINCH_DISABLE_FILE_LOGGING') == 'true'
 
 
+@pytest.mark.filterwarnings('ignore:awslabs.finch-mcp-server is deprecated:FutureWarning')
 class TestMainFunctionBehavior:
     """Tests for main function behavior with different flag combinations."""
 
