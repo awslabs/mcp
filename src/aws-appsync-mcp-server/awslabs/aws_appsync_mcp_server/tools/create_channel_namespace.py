@@ -28,7 +28,7 @@ def register_create_channel_namespace_tool(mcp):
 
     @mcp.tool(
         name='create_channel_namespace',
-        description="""Creates a ChannelNamespace for an Api.
+        description="""[DEPRECATED] Creates a ChannelNamespace for an Api.
 
         This operation creates a channel namespace for the specified GraphQL API.
         Channel namespaces provide a way to organize and manage real-time subscriptions

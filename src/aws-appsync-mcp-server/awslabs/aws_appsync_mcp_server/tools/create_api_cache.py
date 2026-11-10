@@ -26,7 +26,7 @@ def register_create_api_cache_tool(mcp):
 
     @mcp.tool(
         name='create_api_cache',
-        description="""Creates a cache for the GraphQL API.
+        description="""[DEPRECATED] Creates a cache for the GraphQL API.
 
         This operation creates an API cache for the specified GraphQL API. Caching improves
         performance by storing frequently requested data and reducing the number of requests

@@ -116,7 +116,7 @@ result
 
 | Old tool | What it did | Replacement |
 |----------|-------------|-------------|
-| `create_api` | Called `CreateApi` to create an AppSync Event API with `name` and the optional `ownerContact`, `tags`, and `eventConfig`. AppSync requires `eventConfig`, so a call without it failed with a `ValidationException`. | `run_script` with `call_boto3(service_name="appsync", operation_name="CreateApi", params={"name": ..., "eventConfig": {"authProviders": [...], "connectionAuthModes": [...], "defaultPublishAuthModes": [...], "defaultSubscribeAuthModes": [...]}})` |
+| `create_api` | Called `CreateApi` to create an AppSync Event API with `name` and the optional `ownerContact`, `tags`, and `eventConfig`. The tool marked `eventConfig` optional, but `CreateApi` requires it. botocore 1.42.6 and later, which a new install gets, stop a call without it before it's sent (`Missing required parameter in input: "eventConfig"`); with older botocore, AppSync rejected it with a `ValidationException`. | `run_script` with `call_boto3(service_name="appsync", operation_name="CreateApi", params={"name": ..., "eventConfig": {"authProviders": [...], "connectionAuthModes": [...], "defaultPublishAuthModes": [...], "defaultSubscribeAuthModes": [...]}})` |
 | `create_channel_namespace` | Called `CreateChannelNamespace` with `apiId`, `name`, and the optional auth modes, `codeHandlers`, `handlerConfigs`, and `tags` | `run_script` with `call_boto3(service_name="appsync", operation_name="CreateChannelNamespace", params={"apiId": ..., "name": ..., "publishAuthModes": [...], "subscribeAuthModes": [...]})` |
 
 ### Custom domain names
@@ -137,10 +137,9 @@ Because `run_script` exposes the full AppSync API, operations the old server nev
 
 ## What Improves
 
-- **Schemas the old server refused.** `create_schema` searched the definition for 50 substrings meant to catch shell commands, so it refused ordinary SDL. It refused 7 of 10 sample schemas we tried, including any schema with a `Subscription` type (`su`, `sc`), a `schema { }` block (`sc`), a union (`|`), a field named `description` (`sc`) or `shippingAddress` (`sh`), a `deletePost` mutation (`del`), or a `--` in a comment. AppSync accepted a schema with all of these, and `run_script` passes the definition through unchanged.
+- **Schemas the old server refused.** `create_schema` searched the definition for 50 substrings meant to catch shell commands, so it refused ordinary SDL. It refused 7 of 10 sample schemas we tried, including any schema with a `Subscription` type (`sc`) or an `@aws_subscribe` directive (`su`), a `schema { }` block (`sc`), a union (`|`), a field named `description` (`sc`) or `shippingAddress` (`sh`), a `deletePost` mutation (`del`), or a `--` in a comment. AppSync accepted a schema with all of these, and `run_script` passes the definition through unchanged.
 - **The rest of the AppSync API.** The old server could only create resources. Listing, updating, or deleting them, or testing resolver code with `EvaluateCode`, took another tool. With `run_script`, the same session does all of it.
 - **Service role ARNs in other partitions.** `create_datasource` required `service_role_arn` to start with `arn:aws:iam::`, so it rejected role ARNs in the `aws-cn` and `aws-us-gov` partitions.
-- **Missing parameters caught before the call.** When `eventConfig` is missing, `call_boto3` stops the `CreateApi` call before it reaches AWS and names the required parameters. The old `create_api` marked `event_config` optional and sent the request anyway.
 
 ## Workflow Change
 
@@ -170,10 +169,16 @@ Because `run_script` exposes the full AppSync API, operations the old server nev
 | Value and range checks in `create_graphql_api` (name, authentication type, visibility, API type, introspection, query depth, resolver count, merged API role ARN) | Enforced by AppSync | AppSync returns `BadRequestException` with the reason, for example "Invalid queryDepthLimit given. Must fall within range 0 to 75" |
 | Account IDs, ARNs, and 20-character uppercase strings masked in error messages | Changed | `run_script` returns AppSync's error code and message as AppSync sent them. The old server already returned ARNs and account IDs in its successful responses. |
 
+## What Deprecation Means
+
+- The final release keeps working. It prints a `FutureWarning` at startup, and its server instructions and tool descriptions are marked deprecated.
+- The package stays on PyPI and gets no further updates.
+- Configurations that use `awslabs.aws-appsync-mcp-server@latest` get that final release.
+- The `src/aws-appsync-mcp-server` folder may later be removed from this repository, as the folders of earlier deprecated servers were.
+
 ## Removing the Old Server
 
 Once you've verified the replacement meets your needs:
 
 1. Remove `awslabs.aws-appsync-mcp-server` from your MCP configuration
 2. Uninstall the package: `pip uninstall awslabs.aws-appsync-mcp-server`
-3. The old package will remain on PyPI but will not receive updates
