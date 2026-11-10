@@ -171,7 +171,7 @@ With `maxResults` set, `call_boto3` returns one page and its `nextToken`; pass t
 
 ### Before (Amazon Q Index Server)
 
-1. Install the server with `mypy-boto3-qbusiness` next to it, or it exits at startup. Even then, 0.1.0 uses the `default` profile when `AWS_PROFILE` is unset, so `CreateTokenWithIAM` and `AssumeRoleWithIdentityContext` fail with `ProfileNotFound` on a host that has no `default` profile, and the agent sees every tool error only as `Error executing tool <name>`.
+1. On 0.1.0 and earlier, install `mypy-boto3-qbusiness` next to the server, or it exits at startup. Even then, 0.1.0 uses the `default` profile when `AWS_PROFILE` is unset, so `CreateTokenWithIAM` and `AssumeRoleWithIdentityContext` fail with `ProfileNotFound` on a host that has no `default` profile, and the agent sees every tool error only as `Error executing tool <name>`.
 2. Give the agent the application ID, retriever ID, data accessor application ARN, both Regions, your redirect URL, and your role ARN.
 3. `AuthorizeQIndex` returns the sign-in URL as an error (on 0.1.0 the URL goes only to the server's stderr). The user signs in and pastes the code into the chat.
 4. `CreateTokenWithIAM` returns the tokens, the agent decodes the ID token, and `AssumeRoleWithIdentityContext` returns temporary credentials to the agent.
@@ -195,10 +195,16 @@ With `maxResults` set, `call_boto3` returns one page and its `nextToken`; pass t
 | Substring checks on `query_text` and `application_id` | Not available | Amazon Q Business checks the request itself, for example returning `ResourceNotFoundException` for an application ID it doesn't know. |
 | Errors hidden or rewritten by the server (0.1.0 reports every tool error to the agent as only `Error executing tool <name>` and writes the real message to stderr; 0.0.14 passed messages through, but any `SearchRelevantContent` failure became "Missing AWS credentials" when `aws_session_token` was empty) | Changed | `run_script` returns the error code and message as the service sent them. |
 
+## What Deprecation Means
+
+- The final release keeps working, and unlike 0.1.0 and earlier it starts without `mypy-boto3-qbusiness`. It prints a `FutureWarning` at startup, and its instructions and tool descriptions are marked deprecated.
+- The package stays on PyPI and gets no further updates.
+- Configurations that use `awslabs.amazon-qindex-mcp-server@latest` get that final release.
+- The source folder may later be removed from this repository, as earlier deprecated servers were.
+
 ## Removing the Old Server
 
 Once you've verified the replacement meets your needs:
 
 1. Remove `awslabs.amazon-qindex-mcp-server` from your MCP configuration
 2. Uninstall the package: `pip uninstall awslabs.amazon-qindex-mcp-server`
-3. The old package will remain on PyPI but won't receive updates

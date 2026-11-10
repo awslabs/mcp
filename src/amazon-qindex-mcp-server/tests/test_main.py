@@ -10,6 +10,7 @@
 # and limitations under the License.
 """Tests for the main function in server.py."""
 
+import pytest
 from awslabs.amazon_qindex_mcp_server.server import main
 from unittest.mock import patch
 
@@ -22,7 +23,8 @@ class TestMain:
     def test_main_default(self, mock_run):
         """Test main function with default arguments."""
         # Call the main function
-        main()
+        with pytest.warns(FutureWarning, match='deprecated'):
+            main()
 
         # Check that mcp.run was called with the correct arguments
         mock_run.assert_called_once()
