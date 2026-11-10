@@ -93,7 +93,7 @@ With IAM inbound authorization, MCP clients connect through the [MCP Proxy for A
     "my-tools": {
       "command": "uvx",
       "args": [
-        "mcp-proxy-for-aws@latest",
+        "mcp-proxy-for-aws-cli@latest",
         "https://<gateway-id>.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp",
         "--region",
         "us-east-1"
@@ -126,7 +126,7 @@ Its [`agents-connect`](https://github.com/aws/agent-toolkit-for-aws/tree/main/pl
 | Library concept | What it did | Replacement |
 |-----------------|-------------|-------------|
 | `MCPLambdaHandler(name, version, session_store)` | Held the tools, resources and session store, and answered `initialize` with this name and version and protocol version `2024-11-05` | The gateway. It answers `initialize` with the gateway's name and negotiates the protocol version; the `supportedVersions` field of its MCP protocol configuration sets which versions it accepts |
-| `@mcp.tool()` and type hints | Built `inputSchema` from the hints (`int` to `integer`, `float` to `number`, `bool`, `str`, an `Enum` to a string `enum`, `List` to `array`, `Dict` to `object` with `additionalProperties`, anything else to `string`), took the first docstring paragraph as the description and the `Args:` lines as property descriptions, and marked every parameter required | A tool definition in the target's `toolSchema`: `name`, `description`, `inputSchema` and an optional `outputSchema`, written as JSON. See [Lambda function tool schema](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-add-target-lambda.html) |
+| `@mcp.tool()` and type hints | Built `inputSchema` from the hints (`int` to `integer`, `float` to `number`, `bool`, `str`, an `Enum` to a string `enum`, `List` to `array`, `Dict` to `object` with `additionalProperties`, `Optional` or `Union` to its first non-`None` type, anything else to `string`), took the first docstring paragraph as the description and the `Args:` lines as property descriptions, marked every type-hinted parameter required (even ones with defaults), and left parameters without a type hint out of the schema | A tool definition in the target's `toolSchema`: `name`, `description`, `inputSchema` and an optional `outputSchema`, written as JSON. See [Lambda function tool schema](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-add-target-lambda.html) |
 | `handle_request(event, context)` | Checked that `Content-Type` was exactly `application/json`, parsed the JSON-RPC body, handled `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read` and `ping`, converted string arguments to `Enum` members, and wrapped the return value as text (or `bytes` as a base64 image) | A plain handler. The gateway passes the tool's arguments as `event` and the tool name in `context.client_context.custom["bedrockAgentCoreToolName"]`, prefixed with the target name and three underscores. Dispatch on the name and return a JSON-serializable value; the gateway sends it to the client as a text item |
 | `SessionStore`, `DynamoDBSessionStore`, `NoOpSessionStore`, `get_session()`, `set_session()`, `update_session()` | `initialize` created a session ID (with `DynamoDBSessionStore`, an item with a 24-hour expiry) and returned it in `MCP-Session-Id`; with any store other than `NoOpSessionStore`, later requests had to carry it, and tools read and wrote per-session data | [Gateway sessions](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-sessions.html), turned on with `sessionConfiguration` (900 to 28,800 seconds, 3,600 by default) and bound to the caller's IAM principal or JWT `sub`. The gateway doesn't pass the session ID to the function, so keep tool state in your own table keyed by an ID that a tool returns, or host an MCP server on AgentCore Runtime |
 | `add_resource()`, `@mcp.resource()`, `FileResource`, `StaticResource` | Served resources through `resources/list` and `resources/read` | A Lambda target describes tools only. Return the content from a tool, or serve resources from an MCP server on AgentCore Runtime |
@@ -235,6 +235,13 @@ If your server depends on per-session state, resources, prompts, or image conten
 | Exception text returned to the client | Changed | An uncaught exception comes back as `isError: true` with "An internal error occurred. Please retry later."; catch expected errors and return a value that describes them, and read the full error in the function's Amazon CloudWatch logs |
 | Runs in any Region where Lambda runs | Changed | AgentCore Gateway is offered in fewer Regions; see [Supported AWS Regions](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-regions.html) and put the gateway and function in one of them |
 
+## What Deprecation Means
+
+- The final release keeps working. Importing `awslabs.mcp_lambda_handler` emits a `DeprecationWarning` that names the replacement and this guide. Python shows it by default when the import runs in `__main__`, such as a script you run directly, and pytest lists it in its warnings summary. Code imported as a module, such as a Lambda function handler, shows it only with warnings turned on, for example with `PYTHONWARNINGS=default`.
+- The package stays on PyPI and gets no further updates.
+- Functions that install `awslabs.mcp-lambda-handler` without a version pin get that final release.
+- The `src/mcp-lambda-handler` folder may later be removed from this repository, as the folders of earlier deprecated servers were.
+
 ## Removing the Old Library
 
 Once you've verified the replacement meets your needs:
@@ -242,4 +249,3 @@ Once you've verified the replacement meets your needs:
 1. Remove `awslabs.mcp-lambda-handler` from your function's dependencies and redeploy the plain handler
 2. Uninstall the package: `pip uninstall awslabs.mcp-lambda-handler`
 3. Delete the API Gateway stage or function URL, the Lambda authorizer, and the DynamoDB session table once no client uses them
-4. The old package will remain on PyPI but will not receive updates
