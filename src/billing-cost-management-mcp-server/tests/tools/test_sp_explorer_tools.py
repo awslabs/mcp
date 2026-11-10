@@ -1347,8 +1347,13 @@ class TestDescribeSavingsPlansFilterValues:
         # Malformed numeric and timestamp values are rejected, not matched as empty.
         assert (
             'Malformed values are a ValidationException: term must be whole seconds, upfront '
-            'and commitment numbers, start and end yyyy-MM-ddTHH:mm:ss.SSS.'
+            'and commitment numbers, start and end yyyy-MM-ddTHH:mm:ss.SSSZ in UTC, with the '
+            'trailing Z.'
         ) in description
+        # DescribeSavingsPlans rejects a start or end with no zone, and drops an offset's
+        # minutes, so only Z is named.
+        assert 'start and end yyyy-MM-ddTHH:mm:ss.SSS.' not in description
+        assert 'offset' not in description
         assert re.search(r'compared as numbers', description)
         assert 'and a value that matches no plan returns an empty list' not in description
         for value in ('Compute', 'EC2Instance', 'SageMaker', 'Database'):
