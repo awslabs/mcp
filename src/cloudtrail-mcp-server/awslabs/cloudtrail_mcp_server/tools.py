@@ -124,7 +124,7 @@ class CloudTrailTools:
             Field(description='AWS region to query. Defaults to us-east-1.'),
         ] = 'us-east-1',
     ) -> Dict[str, Any]:
-        """Look up CloudTrail events based on various criteria.
+        """[DEPRECATED] Look up CloudTrail events based on various criteria.
 
         This tool searches CloudTrail events using the LookupEvents API, which provides access to the
         last 90 days of management events. You can filter by time range and search for specific
@@ -242,7 +242,7 @@ class CloudTrailTools:
             Field(description='AWS region to query. Defaults to us-east-1.'),
         ] = 'us-east-1',
     ) -> QueryResult:
-        """Execute a SQL query against CloudTrail Lake for complex analytics and filtering.
+        """[DEPRECATED] Execute a SQL query against CloudTrail Lake for complex analytics and filtering.
 
         CloudTrail Lake allows you to run SQL queries against your CloudTrail events for advanced
         analysis. This is more powerful than the basic lookup functions and allows for complex
@@ -437,7 +437,7 @@ class CloudTrailTools:
             Field(description='AWS region to query. Defaults to us-east-1.'),
         ] = 'us-east-1',
     ) -> QueryStatus:
-        """Get the status of a CloudTrail Lake query.
+        """[DEPRECATED] Get the status of a CloudTrail Lake query.
 
         This tool checks the status of a previously started CloudTrail Lake query. Use this
         when you need to check if a long-running query has completed or if you want to get
@@ -496,7 +496,7 @@ class CloudTrailTools:
             Field(description='AWS region to query. Defaults to us-east-1.'),
         ] = 'us-east-1',
     ) -> QueryResult:
-        """Get the results of a completed CloudTrail Lake query with pagination support.
+        """[DEPRECATED] Get the results of a completed CloudTrail Lake query with pagination support.
 
         This tool retrieves the results of a previously executed CloudTrail Lake query. It supports
         pagination for large result sets, allowing you to fetch results in chunks.
@@ -573,7 +573,7 @@ class CloudTrailTools:
             Field(description='AWS region to query. Defaults to us-east-1.'),
         ] = 'us-east-1',
     ) -> List[Dict[str, Any]]:
-        """List available CloudTrail Lake Event Data Stores with their capabilities and event selectors.
+        """[DEPRECATED] List available CloudTrail Lake Event Data Stores with their capabilities and event selectors.
 
         Event Data Stores are the storage and query engines for CloudTrail Lake. This tool helps you
         understand which Event Data Stores are available and their configurations.

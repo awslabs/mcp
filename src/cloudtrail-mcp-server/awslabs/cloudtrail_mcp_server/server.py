@@ -14,14 +14,23 @@
 
 """awslabs cloudtrail MCP Server implementation."""
 
+import warnings
 from awslabs.cloudtrail_mcp_server.tools import CloudTrailTools
 from loguru import logger
 from mcp.server.mcpserver import MCPServer
 
 
+DEPRECATION_NOTICE = (
+    'awslabs.cloudtrail-mcp-server is deprecated and will not receive further updates. '
+    'Use the AWS MCP Server (https://github.com/aws/agent-toolkit-for-aws) instead. '
+    'Migration guide: https://github.com/awslabs/mcp/blob/main/docs/migration-cloudtrail.md'
+)
+
 mcp = MCPServer(
     'awslabs.cloudtrail-mcp-server',
-    instructions='Use this MCP server to query AWS CloudTrail events for security investigations, compliance auditing, and operational troubleshooting. Supports event lookup by various attributes (username, event name, resource name, etc.), user activity analysis, API call tracking, and advanced CloudTrail Lake SQL queries for complex analytics. Can search the last 90 days of management events and provides detailed event summaries and activity analysis.',
+    instructions=DEPRECATION_NOTICE
+    + '\n\n'
+    + 'Use this MCP server to query AWS CloudTrail events for security investigations, compliance auditing, and operational troubleshooting. Supports event lookup by various attributes (username, event name, resource name, etc.), user activity analysis, API call tracking, and advanced CloudTrail Lake SQL queries for complex analytics. Can search the last 90 days of management events and provides detailed event summaries and activity analysis.',
     dependencies=[
         'boto3',
         'botocore',
@@ -42,6 +51,7 @@ except Exception as e:
 
 def main():
     """Run the MCP server."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     mcp.run()
 
 

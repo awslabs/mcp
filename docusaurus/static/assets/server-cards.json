@@ -1149,7 +1149,7 @@
       "icon": "\ud83d\udcb0",
       "id": "cloudtrail-mcp-server",
       "name": "AWS CloudTrail MCP Server (Deprecated)",
-      "source_path": "src/cloutrail-mcp-server/",
+      "source_path": "src/cloudtrail-mcp-server/",
       "subcategory": "Monitoring & Logging",
       "tags": [
         "cost-operations",
