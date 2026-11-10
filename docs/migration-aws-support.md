@@ -41,7 +41,7 @@ Your identity needs the same permissions the old server needed:
 
 The AWS managed policy `AWSSupportAccess` grants all of them (`support:*`). To let an agent read cases without opening, answering, or resolving them, grant only the `Describe*` actions, or deny `support:CreateCase`, `support:AddCommunicationToCase`, `support:ResolveCase`, and `support:AddAttachmentsToSet`.
 
-The account also needs a support plan that includes the Support API: Business Support+, Enterprise Support, or Unified Operations, or, until the account moves to one of those, Business, Enterprise On-Ramp, or Enterprise Support. On any other plan, every Support API call fails with `SubscriptionRequiredException`, through the old server and through `run_script` alike. See [About the AWS Support API](https://docs.aws.amazon.com/awssupport/latest/user/about-support-api.html).
+The account also needs a support plan that includes the Support API: Business Support+, Enterprise Support, or Unified Operations, or, until the account moves to one of those, Business Support or Enterprise On-Ramp. On any other plan, every Support API call fails with `SubscriptionRequiredException`, through the old server and through `run_script` alike. See [About the AWS Support API](https://docs.aws.amazon.com/awssupport/latest/user/about-support-api.html).
 
 For setup details, see [Getting started with the AWS MCP Server](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/getting-started-aws-mcp-server.html).
 
@@ -226,10 +226,16 @@ We tested on an account with a Basic support plan, which the Support API refuses
 
 `CreateCase`, `AddCommunicationToCase`, and `ResolveCase` reach AWS Support staff, and `AddAttachmentsToSet` stores files for them, so we didn't send any of the four. We recorded the request each old tool built by stopping the call inside botocore, and checked the third example's parameters against the botocore model for the Support API. The behaviors that depend on a response, such as the case status and binary attachment failures, come from running the old server's code against recorded responses.
 
+## What Deprecation Means
+
+- The final release of `awslabs.aws-support-mcp-server` keeps working. It prints a `FutureWarning` at startup, and its server instructions and tool descriptions are marked deprecated.
+- The package stays on PyPI and gets no further updates.
+- Configurations that use `awslabs.aws-support-mcp-server@latest` get that final release.
+- The source folder may later be removed from this repository, as earlier deprecated servers were.
+
 ## Removing the Old Server
 
 Once you've verified the replacement meets your needs:
 
 1. Remove `awslabs.aws-support-mcp-server` from your MCP configuration
 2. Uninstall the package: `pip uninstall awslabs.aws-support-mcp-server`
-3. The old package will remain on PyPI but will not receive updates

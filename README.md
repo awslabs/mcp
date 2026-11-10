@@ -985,7 +985,6 @@ Configure MCP servers in Claude Code through the CLI or in `.mcp.json`
    claude mcp add aws-api uvx awslabs.aws-api-mcp-server@latest
    claude mcp add aws-iac uvx awslabs.aws-iac-mcp-server@latest
    claude mcp add aws-docs uvx awslabs.aws-documentation-mcp-server@latest
-   claude mcp add aws-support uvx awslabs.aws-support-mcp-server@latest
    claude mcp add aws-pricing uvx awslabs.aws-pricing-mcp-server@latest
 
    # Add AI/ML and Bedrock services
