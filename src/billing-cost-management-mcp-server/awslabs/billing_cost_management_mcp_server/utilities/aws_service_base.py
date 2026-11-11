@@ -359,7 +359,7 @@ async def handle_aws_error(
         await ctx_logger.warning(f'DEBUG - Error repr: {repr(error)}')
 
     # Initialize error response
-    error_response = {
+    error_response: Dict[str, Any] = {
         'status': 'error',
         'service': service_name,
         'operation': operation,
@@ -391,6 +391,11 @@ async def handle_aws_error(
                 'full_response': str(getattr(error, 'response', '{}')),
             }
         )
+        # Some services (e.g. Cost Optimization Hub) put the failing field and the
+        # reason only in the response's 'fields'; the message just says to check them.
+        fields = error.response.get('fields')
+        if isinstance(fields, list) and fields:
+            error_response['fields'] = fields
 
         # Log with appropriate severity based on error code
         if error_code in ('AccessDenied', 'UnauthorizedOperation', 'AuthFailure'):
