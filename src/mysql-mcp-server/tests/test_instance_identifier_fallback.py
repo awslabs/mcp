@@ -148,3 +148,71 @@ def test_aurora_does_not_fall_back(rds):
     with pytest.raises(ClientError):
         _connect(DatabaseType.AURORA_MYSQL)
     pool.assert_not_called()
+
+
+def test_rdsapi_does_not_fall_back(rds):
+    """RDS Data API keeps the old behavior: cluster lookup error propagates."""
+    from botocore.exceptions import ClientError
+
+    stubber, pool = rds
+    _no_cluster(stubber, 'mydb')
+    with pytest.raises(ClientError) as exc:
+        internal_connect_to_database(
+            region='us-east-1',
+            database_type=DatabaseType.AURORA_MYSQL,
+            connection_method=ConnectionMethod.RDS_API,
+            cluster_identifier='mydb',
+            db_endpoint='',
+            port=3306,
+            database='app',
+        )
+    assert exc.value.response['Error']['Code'] == 'DBClusterNotFoundFault'
+    # No describe_db_instances was queued; the Stubber would raise if it were called.
+    stubber.assert_no_pending_responses()
+    pool.assert_not_called()
+
+
+def test_neither_cluster_nor_instance_found(rds):
+    """Both lookups missing yields a clear error naming both."""
+    stubber, pool = rds
+    _no_cluster(stubber, 'mydb')
+    stubber.add_client_error(
+        'describe_db_instances',
+        service_error_code='DBInstanceNotFound',
+        service_message='not found',
+        expected_params={'DBInstanceIdentifier': 'mydb'},
+    )
+    with pytest.raises(ValueError, match=r"No DB cluster and no DB instance found.*'mydb'"):
+        _connect(DatabaseType.RDS_MYSQL)
+    pool.assert_not_called()
+
+
+def test_empty_instances_response_uses_identifier_in_message(rds):
+    """An empty DBInstances answer is reported with the identifier."""
+    stubber, pool = rds
+    _no_cluster(stubber, 'mydb')
+    stubber.add_response(
+        'describe_db_instances', {'DBInstances': []}, {'DBInstanceIdentifier': 'mydb'}
+    )
+    with pytest.raises(ValueError, match="'mydb' not found"):
+        _connect(DatabaseType.RDS_MYSQL)
+    pool.assert_not_called()
+
+
+def test_instance_without_address_names_identifier(rds):
+    """Missing address error names the identifier, not the empty endpoint."""
+    stubber, pool = rds
+    _no_cluster(stubber, 'mydb')
+    _instance(stubber, 'mydb', address='')
+    with pytest.raises(ValueError, match="no endpoint address for instance 'mydb'"):
+        _connect(DatabaseType.RDS_MYSQL)
+    pool.assert_not_called()
+
+
+def test_endpoint_trailing_dot_and_whitespace_match(rds):
+    """Trailing dot and surrounding whitespace do not defeat the match."""
+    stubber, pool = rds
+    _no_cluster(stubber, 'mydb')
+    _instance(stubber, 'mydb')
+    _connect(DatabaseType.RDS_MYSQL, endpoint=f'  {HOST}.  ')
+    assert pool.call_args.kwargs['host'] == HOST

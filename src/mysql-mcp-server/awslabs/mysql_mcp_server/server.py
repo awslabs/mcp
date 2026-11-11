@@ -726,16 +726,30 @@ def internal_connect_to_database(
             # For RDS MySQL / MariaDB the identifier may name a standalone DB
             # instance rather than a cluster. Only a "cluster not found" answer
             # triggers the instance lookup; other errors (access denied,
-            # throttling) propagate. Aurora always names a cluster.
+            # throttling) propagate. Aurora always names a cluster, and the
+            # RDS Data API only works against clusters, so the fallback applies
+            # to the MySQL wire-protocol methods only.
             error_code = e.response.get('Error', {}).get('Code')
             if (
-                database_type == DatabaseType.AURORA_MYSQL
+                not is_wire_protocol
+                or database_type == DatabaseType.AURORA_MYSQL
                 or error_code != 'DBClusterNotFoundFault'
             ):
                 raise
-            instance_properties = internal_get_instance_properties_by_identifier(
-                cluster_identifier, region
-            )
+            try:
+                instance_properties = internal_get_instance_properties_by_identifier(
+                    cluster_identifier, region
+                )
+            except ClientError as inst_err:
+                if inst_err.response.get('Error', {}).get('Code') in (
+                    'DBInstanceNotFound',
+                    'DBInstanceNotFoundFault',
+                ):
+                    raise ValueError(
+                        f'No DB cluster and no DB instance found with identifier '
+                        f"'{cluster_identifier}' in region '{region}'."
+                    ) from inst_err
+                raise
 
     if cluster_identifier and instance_properties is None:
         enable_data_api = cluster_properties.get('HttpEndpointEnabled', False)
@@ -795,7 +809,7 @@ def internal_connect_to_database(
         resolved_host = instance_endpoint.get('Address', '')
         if not resolved_host:
             raise ValueError(
-                f"AWS returned no endpoint address for instance '{db_endpoint}'; "
+                f"AWS returned no endpoint address for instance '{cluster_identifier or db_endpoint}'; "
                 'refusing to connect to a caller-supplied host.'
             )
         if requested_endpoint and cluster_identifier:
