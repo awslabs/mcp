@@ -126,7 +126,7 @@ async def _create_server(config, spec=None, extra_spec=None):
     with (
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
-        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch('awslabs.openapi_mcp_server.server.create_http_client') as mock_client,
         patch(
             'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
             return_value=['93.184.216.34'],
@@ -527,7 +527,7 @@ async def test_additional_specs_load_failure_skipped():
     with (
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
-        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch('awslabs.openapi_mcp_server.server.create_http_client') as mock_client,
     ):
 
         def load_side_effect(url='', path='', validated_url=None, **kwargs):
@@ -585,7 +585,7 @@ async def test_additional_specs_validation_failure_continues():
     with (
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec') as mock_validate,
-        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch('awslabs.openapi_mcp_server.server.create_http_client') as mock_client,
         patch(
             'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
             return_value=['93.184.216.34'],

@@ -281,7 +281,7 @@ async def test_additional_specs_do_not_inherit_primary_auth():
     with (
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
-        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch('awslabs.openapi_mcp_server.server.create_http_client') as mock_client,
         patch(
             'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
             return_value=['93.184.216.34'],
@@ -332,7 +332,7 @@ async def test_additional_specs_per_entry_auth():
     with (
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
-        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch('awslabs.openapi_mcp_server.server.create_http_client') as mock_client,
         patch(
             'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
             return_value=['93.184.216.34'],
@@ -420,7 +420,7 @@ async def test_additional_spec_with_private_ip_is_skipped():
     with (
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
-        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch('awslabs.openapi_mcp_server.server.create_http_client') as mock_client,
         patch(
             'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
             return_value=['10.0.0.5'],
@@ -477,7 +477,7 @@ async def test_additional_spec_with_invalid_spec_path_is_skipped():
     with (
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
-        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch('awslabs.openapi_mcp_server.server.create_http_client') as mock_client,
         patch(
             'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
             return_value=['93.184.216.34'],
@@ -517,7 +517,7 @@ async def test_additional_spec_load_failure_is_skipped():
     with (
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
-        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch('awslabs.openapi_mcp_server.server.create_http_client') as mock_client,
         patch(
             'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
             return_value=['93.184.216.34'],
@@ -564,7 +564,7 @@ async def test_additional_spec_with_private_spec_url_is_skipped():
     with (
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
-        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch('awslabs.openapi_mcp_server.server.create_http_client') as mock_client,
         patch(
             'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
             side_effect=mock_resolve,
@@ -598,7 +598,7 @@ async def test_additional_spec_api_key_query_warns():
     with (
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
-        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch('awslabs.openapi_mcp_server.server.create_http_client') as mock_client,
         patch(
             'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
             return_value=['93.184.216.34'],
@@ -643,7 +643,7 @@ async def test_additional_spec_api_key_cookie_is_passed():
     with (
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
-        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch('awslabs.openapi_mcp_server.server.create_http_client') as mock_client,
         patch(
             'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
             return_value=['93.184.216.34'],
@@ -686,7 +686,7 @@ async def test_additional_spec_basic_auth():
     with (
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
-        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch('awslabs.openapi_mcp_server.server.create_http_client') as mock_client,
         patch(
             'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
             return_value=['93.184.216.34'],
@@ -729,7 +729,7 @@ async def test_additional_spec_unrecognized_auth_type_warns():
     with (
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
-        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch('awslabs.openapi_mcp_server.server.create_http_client') as mock_client,
         patch(
             'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
             return_value=['93.184.216.34'],

@@ -43,7 +43,7 @@ def mock_config():
 @patch('awslabs.openapi_mcp_server.server.FastMCP')
 @patch('awslabs.openapi_mcp_server.server.load_openapi_spec')
 @patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True)
-@patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client')
+@patch('awslabs.openapi_mcp_server.server.create_http_client')
 @patch('awslabs.openapi_mcp_server.server.logger')
 @patch('awslabs.openapi_mcp_server.server.httpx')
 def test_create_mcp_server_httpx_version_error(

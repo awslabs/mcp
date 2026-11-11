@@ -20,32 +20,16 @@ import pytest
 from unittest.mock import MagicMock, mock_open, patch
 
 
-# Create a no-op cache decorator function for testing
-def no_cache_decorator(ttl_seconds=None):
-    """No-op cache decorator for testing."""
-
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
 # We need to ensure validate_openapi_spec always returns True by default
 def always_valid_spec(*args, **kwargs):
     """Return True for testing validation."""
     return True
 
 
-# Patch both cache decorator and validation before importing
-with (
-    patch('awslabs.openapi_mcp_server.utils.cache_provider.cached', no_cache_decorator),
-    patch(
-        'awslabs.openapi_mcp_server.utils.openapi_validator.validate_openapi_spec',
-        always_valid_spec,
-    ),
+# Patch validation before importing
+with patch(
+    'awslabs.openapi_mcp_server.utils.openapi_validator.validate_openapi_spec',
+    always_valid_spec,
 ):
     # Now import the function we want to test
     from awslabs.openapi_mcp_server.utils.openapi import load_openapi_spec

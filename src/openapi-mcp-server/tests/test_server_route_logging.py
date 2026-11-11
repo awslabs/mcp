@@ -20,10 +20,10 @@ class TestServerRouteLogging:
     @patch('awslabs.openapi_mcp_server.server.validate_openapi_spec')
     @patch('awslabs.openapi_mcp_server.server.OpenAPIProvider')
     @patch('awslabs.openapi_mcp_server.server.FastMCP')
-    @patch('awslabs.openapi_mcp_server.server.HttpClientFactory')
+    @patch('awslabs.openapi_mcp_server.server.create_http_client')
     def test_create_server_no_debug_logging(
         self,
-        mock_http_factory,
+        mock_create_http_client,
         mock_openapi_provider,
         mock_fastmcp,
         mock_validate,
@@ -51,7 +51,7 @@ class TestServerRouteLogging:
         mock_validate.return_value = True
 
         mock_client = MagicMock()
-        mock_http_factory.create_client.return_value = mock_client
+        mock_create_http_client.return_value = mock_client
         mock_fastmcp.return_value = MagicMock()
 
         config = Config(

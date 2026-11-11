@@ -25,8 +25,7 @@ import sys
 from awslabs.openapi_mcp_server import LOG_LEVELS, get_log_level_from_env, logger
 from awslabs.openapi_mcp_server.api.config import Config, load_config
 from awslabs.openapi_mcp_server.prompts import MCPPromptManager
-from awslabs.openapi_mcp_server.utils.http_client import HttpClientFactory, make_request_with_retry
-from awslabs.openapi_mcp_server.utils.metrics_provider import metrics
+from awslabs.openapi_mcp_server.utils.http_client import create_http_client
 from awslabs.openapi_mcp_server.utils.openapi import load_openapi_spec
 from awslabs.openapi_mcp_server.utils.openapi_validator import validate_openapi_spec
 from fastmcp import FastMCP
@@ -192,7 +191,7 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
             logger.info(f'Using {auth_provider.provider_name} authentication')
 
         # Create the HTTP client with authentication and connection pooling
-        client = HttpClientFactory.create_client(
+        client = create_http_client(
             base_url=config.api_base_url,
             headers=auth_headers,
             auth=httpx_auth,
@@ -395,7 +394,7 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                             f'"{entry_auth_type}", requests will be unauthenticated'
                         )
 
-                    extra_client = HttpClientFactory.create_client(
+                    extra_client = create_http_client(
                         base_url=extra_base_url,
                         headers=extra_headers if extra_headers else None,
                         auth=extra_auth,
@@ -460,10 +459,7 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
 
             # Try to make a simple request to the API
             try:
-                # Use the retry-enabled request function
-                response = await make_request_with_retry(
-                    client=client, method='GET', url='/', max_retries=2, retry_delay=0.5
-                )
+                response = await client.get('/')
                 status_code = response.status_code
                 if status_code >= 400:
                     api_health = False
@@ -471,9 +467,6 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
             except Exception as e:
                 api_health = False
                 api_message = f'Error connecting to API: {str(e)}'
-
-            # Get metrics summary
-            summary = metrics.get_summary()
 
             return {
                 'server': {
@@ -487,7 +480,6 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                     'message': api_message,
                     'base_url': config.api_base_url,
                 },
-                'metrics': summary,
             }
 
     except Exception as e:
@@ -583,12 +575,8 @@ def setup_signal_handlers():
     original_sigint = signal.getsignal(signal.SIGINT)
 
     def signal_handler(sig, frame):
-        """Handle signals by logging metrics then chain to original handler."""
+        """Handle signals gracefully, chaining to the original handler for SIGINT."""
         logger.debug(f'Received signal {sig}, shutting down gracefully...')
-
-        # Log final metrics
-        summary = metrics.get_summary()
-        logger.info(f'Final metrics: {summary}')
 
         # if sig is signal.SIGINT handle gracefully
         if sig == signal.SIGINT:

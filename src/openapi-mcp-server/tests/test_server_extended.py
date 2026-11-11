@@ -53,7 +53,7 @@ def mock_config():
 @patch('awslabs.openapi_mcp_server.server.FastMCP')
 @patch('awslabs.openapi_mcp_server.server.load_openapi_spec')
 @patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True)
-@patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client')
+@patch('awslabs.openapi_mcp_server.server.create_http_client')
 def test_create_mcp_server_with_prompt_generation(
     mock_create_client,
     mock_validate,
@@ -85,12 +85,10 @@ def test_create_mcp_server_with_prompt_generation(
 
 @patch('awslabs.openapi_mcp_server.server.signal')
 @patch('awslabs.openapi_mcp_server.server.logger')
-@patch('awslabs.openapi_mcp_server.server.metrics')
 @patch('awslabs.openapi_mcp_server.server.sys.exit')
-def test_setup_signal_handlers(mock_exit, mock_metrics, mock_logger, mock_signal):
+def test_setup_signal_handlers(mock_exit, mock_logger, mock_signal):
     """Test setting up signal handlers."""
     # Setup mocks
-    mock_metrics.get_summary.return_value = {'api_calls': 10, 'errors': 2}
     mock_original_handler = MagicMock()
     mock_signal.getsignal.return_value = mock_original_handler
 
@@ -109,21 +107,15 @@ def test_setup_signal_handlers(mock_exit, mock_metrics, mock_logger, mock_signal
     # Get the signal handler function
     signal_handler = mock_signal.signal.call_args[0][1]
 
-    # Call the signal handler with SIGTERM
+    # Call the signal handler with SIGTERM (no graceful exit)
     signal_handler(mock_signal.SIGTERM, None)
 
-    # Verify that metrics were logged
-    mock_metrics.get_summary.assert_called_once()
-    mock_logger.info.assert_any_call("Final metrics: {'api_calls': 10, 'errors': 2}")
-
     # Reset mocks
-    mock_metrics.reset_mock()
     mock_logger.reset_mock()
 
     # Call the signal handler with SIGINT
     signal_handler(mock_signal.SIGINT, None)
 
-    # Verify that metrics were logged
-    mock_metrics.get_summary.assert_called_once()
+    # Verify graceful shutdown on SIGINT
     mock_logger.info.assert_any_call('Process Interrupted, Shutting down gracefully...')
     mock_exit.assert_called_once_with(0)

@@ -20,8 +20,7 @@ from unittest.mock import MagicMock, call, patch
 
 @patch('awslabs.openapi_mcp_server.server.signal')
 @patch('awslabs.openapi_mcp_server.server.logger')
-@patch('awslabs.openapi_mcp_server.server.metrics')
-def test_setup_signal_handlers_registration(mock_metrics, mock_logger, mock_signal):
+def test_setup_signal_handlers_registration(mock_logger, mock_signal):
     """Test that signal handlers are properly registered."""
     # Setup mocks
     mock_original_handler = MagicMock()
@@ -42,12 +41,10 @@ def test_setup_signal_handlers_registration(mock_metrics, mock_logger, mock_sign
 
 @patch('awslabs.openapi_mcp_server.server.signal')
 @patch('awslabs.openapi_mcp_server.server.logger')
-@patch('awslabs.openapi_mcp_server.server.metrics')
 @patch('awslabs.openapi_mcp_server.server.sys.exit')
-def test_signal_handler_sigterm(mock_exit, mock_metrics, mock_logger, mock_signal):
+def test_signal_handler_sigterm(mock_exit, mock_logger, mock_signal):
     """Test the signal handler with SIGTERM."""
     # Setup mocks
-    mock_metrics.get_summary.return_value = {'api_calls': 10, 'errors': 2}
     mock_original_handler = MagicMock()
     mock_signal.getsignal.return_value = mock_original_handler
 
@@ -60,10 +57,6 @@ def test_signal_handler_sigterm(mock_exit, mock_metrics, mock_logger, mock_signa
     # Call the signal handler with SIGTERM
     signal_handler(mock_signal.SIGTERM, None)
 
-    # Verify that metrics were logged
-    mock_metrics.get_summary.assert_called_once()
-    mock_logger.info.assert_any_call("Final metrics: {'api_calls': 10, 'errors': 2}")
-
     # Verify that sys.exit was not called for SIGTERM
     mock_exit.assert_not_called()
 
@@ -73,12 +66,10 @@ def test_signal_handler_sigterm(mock_exit, mock_metrics, mock_logger, mock_signa
 
 @patch('awslabs.openapi_mcp_server.server.signal')
 @patch('awslabs.openapi_mcp_server.server.logger')
-@patch('awslabs.openapi_mcp_server.server.metrics')
 @patch('awslabs.openapi_mcp_server.server.sys.exit')
-def test_signal_handler_sigint(mock_exit, mock_metrics, mock_logger, mock_signal):
+def test_signal_handler_sigint(mock_exit, mock_logger, mock_signal):
     """Test the signal handler with SIGINT."""
     # Setup mocks
-    mock_metrics.get_summary.return_value = {'api_calls': 10, 'errors': 2}
     mock_original_handler = MagicMock()
     mock_signal.getsignal.return_value = mock_original_handler
 
@@ -95,9 +86,6 @@ def test_signal_handler_sigint(mock_exit, mock_metrics, mock_logger, mock_signal
     # Call the signal handler with SIGINT
     signal_handler(mock_signal.SIGINT, None)
 
-    # Verify that metrics were logged
-    mock_metrics.get_summary.assert_called_once()
-    mock_logger.info.assert_any_call("Final metrics: {'api_calls': 10, 'errors': 2}")
     mock_logger.info.assert_any_call('Process Interrupted, Shutting down gracefully...')
 
     # Verify that sys.exit was called with 0
@@ -109,12 +97,10 @@ def test_signal_handler_sigint(mock_exit, mock_metrics, mock_logger, mock_signal
 
 @patch('awslabs.openapi_mcp_server.server.signal')
 @patch('awslabs.openapi_mcp_server.server.logger')
-@patch('awslabs.openapi_mcp_server.server.metrics')
 @patch('awslabs.openapi_mcp_server.server.sys.exit')
-def test_signal_handler_sigint_default_handler(mock_exit, mock_metrics, mock_logger, mock_signal):
+def test_signal_handler_sigint_default_handler(mock_exit, mock_logger, mock_signal):
     """Test the signal handler with SIGINT when the original handler is the default."""
     # Setup mocks
-    mock_metrics.get_summary.return_value = {'api_calls': 10, 'errors': 2}
 
     # Set up signal constants
     mock_signal.SIG_DFL = signal.SIG_DFL
@@ -130,9 +116,6 @@ def test_signal_handler_sigint_default_handler(mock_exit, mock_metrics, mock_log
     # Call the signal handler with SIGINT
     signal_handler(mock_signal.SIGINT, None)
 
-    # Verify that metrics were logged
-    mock_metrics.get_summary.assert_called_once()
-    mock_logger.info.assert_any_call("Final metrics: {'api_calls': 10, 'errors': 2}")
     mock_logger.info.assert_any_call('Process Interrupted, Shutting down gracefully...')
 
     # Verify that sys.exit was called with 0
@@ -141,12 +124,10 @@ def test_signal_handler_sigint_default_handler(mock_exit, mock_metrics, mock_log
 
 @patch('awslabs.openapi_mcp_server.server.signal')
 @patch('awslabs.openapi_mcp_server.server.logger')
-@patch('awslabs.openapi_mcp_server.server.metrics')
 @patch('awslabs.openapi_mcp_server.server.sys.exit')
-def test_signal_handler_sigint_ignore_handler(mock_exit, mock_metrics, mock_logger, mock_signal):
+def test_signal_handler_sigint_ignore_handler(mock_exit, mock_logger, mock_signal):
     """Test the signal handler with SIGINT when the original handler is ignore."""
     # Setup mocks
-    mock_metrics.get_summary.return_value = {'api_calls': 10, 'errors': 2}
 
     # Set up signal constants
     mock_signal.SIG_DFL = signal.SIG_DFL
@@ -162,9 +143,6 @@ def test_signal_handler_sigint_ignore_handler(mock_exit, mock_metrics, mock_logg
     # Call the signal handler with SIGINT
     signal_handler(mock_signal.SIGINT, None)
 
-    # Verify that metrics were logged
-    mock_metrics.get_summary.assert_called_once()
-    mock_logger.info.assert_any_call("Final metrics: {'api_calls': 10, 'errors': 2}")
     mock_logger.info.assert_any_call('Process Interrupted, Shutting down gracefully...')
 
     # Verify that sys.exit was called with 0

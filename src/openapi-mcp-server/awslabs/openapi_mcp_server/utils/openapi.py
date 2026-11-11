@@ -19,7 +19,6 @@ import json
 import tempfile
 import time
 from awslabs.openapi_mcp_server import logger
-from awslabs.openapi_mcp_server.utils.cache_provider import cached
 from awslabs.openapi_mcp_server.utils.openapi_validator import validate_openapi_spec
 from fastmcp.server.auth.ssrf import (
     SSRFError,
@@ -36,28 +35,6 @@ from urllib.parse import urlparse
 # unbounded; a 10 MiB cap comfortably fits real-world OpenAPI documents while
 # preventing a hostile endpoint from exhausting memory.
 MAX_SPEC_BYTES = 10 * 1024 * 1024
-
-
-def extract_api_name_from_spec(spec: Dict[str, Any]) -> Optional[str]:
-    """Extract the API name from an OpenAPI specification.
-
-    Args:
-        spec: The OpenAPI specification dictionary
-
-    Returns:
-        Optional[str]: The API name extracted from the specification, or None if not found
-
-    """
-    if not spec or not isinstance(spec, dict):
-        logger.warning('Invalid OpenAPI spec format')
-        return None
-
-    # Extract from info.title
-    if 'info' in spec and isinstance(spec['info'], dict) and 'title' in spec['info']:
-        return spec['info']['title']
-
-    logger.debug('No API name found in OpenAPI spec')
-    return None
 
 
 # Import yaml conditionally to avoid errors if it's not installed
@@ -355,7 +332,6 @@ def _parse_spec_bytes(content: bytes) -> Dict[str, Any]:
     return _require_mapping(basic if basic is not None else _basic_parse(content))
 
 
-@cached(ttl_seconds=3600)  # Cache OpenAPI specs for 1 hour
 def load_openapi_spec(
     url: str = '',
     path: str = '',

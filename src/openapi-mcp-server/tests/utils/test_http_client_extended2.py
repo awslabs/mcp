@@ -14,9 +14,7 @@
 """Extended tests for the HTTP client module."""
 
 import httpx
-from awslabs.openapi_mcp_server.utils.http_client import (
-    HttpClientFactory,
-)
+from awslabs.openapi_mcp_server.utils.http_client import create_http_client
 from unittest.mock import MagicMock, patch
 
 
@@ -28,7 +26,7 @@ def test_http_client_factory_create_client(mock_async_client):
     mock_async_client.return_value = mock_client
 
     # Call the function
-    client = HttpClientFactory.create_client(base_url='https://example.com')
+    client = create_http_client(base_url='https://example.com')
 
     # Verify the result
     assert client == mock_client
@@ -57,7 +55,7 @@ def test_http_client_factory_create_client_with_custom_settings(mock_async_clien
     cookies = {'session': '123456'}
 
     # Call the function
-    client = HttpClientFactory.create_client(
+    client = create_http_client(
         base_url='https://example.com', headers=headers, auth=auth, cookies=cookies, timeout=60.0
     )
 
