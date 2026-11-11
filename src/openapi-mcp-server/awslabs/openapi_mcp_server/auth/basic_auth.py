@@ -17,9 +17,8 @@ import base64
 import httpx
 from awslabs.openapi_mcp_server import logger
 from awslabs.openapi_mcp_server.api.config import Config
-from awslabs.openapi_mcp_server.auth.auth_cache import cached_auth_data
 from awslabs.openapi_mcp_server.auth.auth_errors import MissingCredentialsError
-from awslabs.openapi_mcp_server.auth.base_auth import BaseAuthProvider
+from awslabs.openapi_mcp_server.auth.auth_provider import BaseAuthProvider
 from typing import Dict, Optional
 
 
@@ -41,7 +40,6 @@ class BasicAuthProvider(BaseAuthProvider):
         self._username = config.auth_username
         self._password = config.auth_password
         self._httpx_auth: Optional[httpx.Auth] = None
-        self._credentials_hash = None
 
         # Call parent initializer which will validate and initialize auth
         super().__init__(config)
@@ -72,8 +70,6 @@ class BasicAuthProvider(BaseAuthProvider):
                 },
             )
 
-        # Create a hash of the credentials for caching
-        self._credentials_hash = self._hash_credentials(self._username, self._password)
         return True
 
     def _log_validation_error(self) -> None:
@@ -84,48 +80,20 @@ class BasicAuthProvider(BaseAuthProvider):
 
     def _initialize_auth(self) -> None:
         """Initialize authentication data after validation."""
-        # Use cached methods to generate auth data
-        self._auth_headers = self._generate_auth_headers(self._credentials_hash)
+        self._auth_headers = self._generate_auth_headers(None)
         self._httpx_auth = self._generate_httpx_auth(self._username, self._password)
 
-    @staticmethod
-    def _hash_credentials(username: str, password: str) -> str:
-        """Create a hash of the credentials for caching.
+    def _generate_auth_headers(self, credentials_hash: str = None) -> Dict[str, str]:
+        """Generate the Basic authentication header.
 
         Args:
-            username: Username
-            password: Password
-
-        Returns:
-            str: Hash of the credentials
-
-        """
-        # Create a hash of the credentials to use as a cache key
-        # This avoids storing the actual credentials in the cache key
-        # Using bcrypt for stronger security
-        import bcrypt
-
-        credentials = f'{username}:{password}'
-        # Generate a salt and hash the credentials
-        # We only need a string representation for caching, so we'll use the hexdigest of the hash
-        hashed = bcrypt.hashpw(credentials.encode('utf-8'), bcrypt.gensalt(rounds=10))
-        # Convert to hex string for consistent cache key format
-        return hashed.hex()
-
-    @cached_auth_data(ttl=3600)  # Cache for 1 hour by default
-    def _generate_auth_headers(self, credentials_hash: str) -> Dict[str, str]:
-        """Generate authentication headers.
-
-        This method is cached to avoid regenerating headers for the same credentials.
-
-        Args:
-            credentials_hash: Hash of the credentials
+            credentials_hash: Unused; retained for call-site compatibility.
 
         Returns:
             Dict[str, str]: Authentication headers
 
         """
-        logger.debug(f'Generating new basic auth headers for user: {self._username}')
+        logger.debug(f'Generating basic auth headers for user: {self._username}')
 
         # Create the basic auth header
         auth_string = f'{self._username}:{self._password}'
@@ -134,11 +102,8 @@ class BasicAuthProvider(BaseAuthProvider):
 
         return {'Authorization': f'Basic {encoded_auth}'}
 
-    @cached_auth_data(ttl=3600)  # Cache for 1 hour by default
     def _generate_httpx_auth(self, username: str, password: str) -> httpx.BasicAuth:
         """Generate HTTPX auth object.
-
-        This method is cached to avoid regenerating auth objects for the same credentials.
 
         Args:
             username: Username

@@ -74,22 +74,6 @@ class TestBearerAuthProvider:
         # Check that the token TTL is set correctly
         assert provider._token_ttl == 7200
 
-    @patch('awslabs.openapi_mcp_server.auth.bearer_auth.cached_auth_data')
-    def test_cached_auth_data(self, mock_cached_auth_data):
-        """Test that auth data is cached."""
-        # Create a configuration with valid bearer token settings
-        config = Config()
-        config.auth_token = 'test_bearer_token'
-
-        # Create the provider
-        provider = BearerAuthProvider(config)
-
-        # Mock the cached_auth_data decorator to return a mock function
-        mock_cached_auth_data.return_value = lambda func: func
-
-        # Test that the provider was created successfully
-        assert provider.provider_name == 'bearer'
-
     def test_log_validation_error(self):
         """Test logging of validation error."""
         # Create a configuration

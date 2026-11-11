@@ -20,7 +20,6 @@ from awslabs.openapi_mcp_server.auth.auth_errors import (
     ConfigurationError,
     MissingCredentialsError,
 )
-from unittest.mock import patch
 
 
 class TestApiKeyAuthProvider:
@@ -158,49 +157,6 @@ class TestApiKeyAuthProvider:
         headers = provider.get_auth_headers()
         assert 'api_key' in headers  # Default name
         assert headers['api_key'] == 'test_api_key'
-
-    def test_hash_api_key(self):
-        """Test API key hashing."""
-        # Create a provider
-        config = Config()
-        config.auth_type = 'api_key'
-        config.auth_api_key = 'test_api_key'
-        ApiKeyAuthProvider(config)
-
-        # Get the hash method
-        hash_method = ApiKeyAuthProvider._hash_api_key
-
-        # Test that the hash is not empty and is a valid hex string
-        hash1 = hash_method('test_api_key')
-        assert hash1 is not None
-        assert len(hash1) > 0
-        # Check that it's a valid hex string
-        try:
-            int(hash1, 16)
-        except ValueError:
-            pytest.fail('Hash is not a valid hex string')
-
-        # Test that different keys produce different hashes
-        hash2 = hash_method('different_key')
-        assert hash1 != hash2
-
-    @patch('awslabs.openapi_mcp_server.auth.api_key_auth.cached_auth_data')
-    def test_cached_auth_data(self, mock_cached_auth_data):
-        """Test that auth data is cached."""
-        # Create a configuration with valid API key settings
-        config = Config()
-        config.auth_api_key = 'test_api_key'
-        config.auth_api_key_name = 'X-API-Key'
-        config.auth_api_key_in = 'header'
-
-        # Create the provider
-        provider = ApiKeyAuthProvider(config)
-
-        # Mock the cached_auth_data decorator to return a mock function
-        mock_cached_auth_data.return_value = lambda func: func
-
-        # Test that the provider was created successfully
-        assert provider.provider_name == 'api_key'
 
     def test_handle_validation_error(self):
         """Test handling of validation error."""

@@ -15,9 +15,8 @@
 
 from awslabs.openapi_mcp_server import logger
 from awslabs.openapi_mcp_server.api.config import Config
-from awslabs.openapi_mcp_server.auth.auth_cache import cached_auth_data
 from awslabs.openapi_mcp_server.auth.auth_errors import MissingCredentialsError
-from awslabs.openapi_mcp_server.auth.base_auth import BaseAuthProvider
+from awslabs.openapi_mcp_server.auth.auth_provider import BaseAuthProvider
 from typing import Dict
 
 
@@ -75,11 +74,8 @@ class BearerAuthProvider(BaseAuthProvider):
         # We'll use the cached method to generate headers
         self._auth_headers = self._generate_auth_headers(self._token)
 
-    @cached_auth_data(ttl=3600)  # Cache for 1 hour by default
     def _generate_auth_headers(self, token: str) -> Dict[str, str]:
         """Generate authentication headers.
-
-        This method is cached to avoid regenerating headers for the same token.
 
         Args:
             token: Bearer token

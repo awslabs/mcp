@@ -69,55 +69,6 @@ class TestBasicAuthProvider:
         # Check the error message
         assert 'Basic authentication requires a password' in str(excinfo.value)
 
-    def test_hash_credentials(self):
-        """Test credentials hashing."""
-        # Create a provider
-        config = Config()
-        config.auth_type = 'basic'
-        config.auth_username = 'testuser'
-        config.auth_password = 'testpass'
-        BasicAuthProvider(config)
-
-        # Get the hash method
-        hash_method = BasicAuthProvider._hash_credentials
-
-        # Test that the same credentials produce the same hash
-        # Note: With bcrypt, the hash will be different each time due to the random salt
-        # So we need to verify differently - we'll check that the hash is not empty
-        # and that it's a valid hex string
-        hash1 = hash_method('testuser', 'testpass')
-        assert hash1 is not None
-        assert len(hash1) > 0
-        # Check that it's a valid hex string
-        try:
-            int(hash1, 16)
-        except ValueError:
-            pytest.fail('Hash is not a valid hex string')
-
-        # Test that different credentials produce different hashes
-        hash2 = hash_method('otheruser', 'testpass')
-        hash3 = hash_method('testuser', 'otherpass')
-        assert hash1 != hash2
-        assert hash1 != hash3
-        assert hash2 != hash3
-
-    @patch('awslabs.openapi_mcp_server.auth.basic_auth.cached_auth_data')
-    def test_cached_auth_data(self, mock_cached_auth_data):
-        """Test that auth data is cached."""
-        # Create a configuration with valid basic auth settings
-        config = Config()
-        config.auth_username = 'test_user'
-        config.auth_password = 'test_password'
-
-        # Create the provider
-        provider = BasicAuthProvider(config)
-
-        # Mock the cached_auth_data decorator to return a mock function
-        mock_cached_auth_data.return_value = lambda func: func
-
-        # Test that the provider was created successfully
-        assert provider.provider_name == 'basic'
-
     def test_log_validation_error(self):
         """Test logging of validation error."""
         # Create a configuration
