@@ -23,18 +23,21 @@ These tests verify the functionality of cost comparison tools, including:
 """
 
 import boto3
+import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.cost_comparison_tools import (
     COMPARISON_METRICS,
     DRIVER_METRICS,
     GET_COST_AND_USAGE_COMPARISONS,
     GET_COST_COMPARISON_DRIVERS,
+    MAX_FILTER_DEPTH,
     _months_before,
     _utc_today,
     cost_comparison,
     cost_comparison_server,
     get_cost_and_usage_comparisons,
     get_cost_comparison_drivers,
+    validate_comparison_filter,
     validate_comparison_request,
 )
 from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
@@ -1049,7 +1052,8 @@ def dispatch_ce_client():
 
 
 async def _call(ctx, client, operation, baseline, comparison, **kwargs):
-    with patch(f'{MODULE}.create_aws_client', return_value=client):
+    with patch(f'{MODULE}.create_aws_client', return_value=client) as create:
+        client.created = create
         return await cost_comparison(
             ctx,
             operation=operation,
@@ -1070,6 +1074,9 @@ def _assert_local_validation_error(result, client, *needles):
         assert needle in result['message'], (needle, result['message'])
     client.get_cost_and_usage_comparisons.assert_not_called()
     client.get_cost_comparison_drivers.assert_not_called()
+    created = getattr(client, 'created', None)
+    if created is not None:
+        created.assert_not_called()
 
 
 def _client_error(code, message, request_id='r1'):
@@ -1089,6 +1096,8 @@ MISALIGNED = {
     'comparison_reversed_bounds': (month(2), (month_start(0), month_start(1))),
     'baseline_not_a_date': (('last month', month_start(1)), month(1)),
     'baseline_impossible_date': ((month_start(2)[:8] + '32', month_start(1)), month(1)),
+    'baseline_off_midnight': ((month_start(2) + 'T05:00:00Z', month_start(1)), month(1)),
+    'baseline_trailing_newline': ((month_start(2) + '\n', month_start(1)), month(1)),
 }
 
 
@@ -1159,6 +1168,24 @@ class TestCostComparisonDispatcherValidation:
         )
         assert result['status'] == 'success'
         getattr(dispatch_ce_client, CE_METHOD[operation]).assert_called_once()
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    async def test_midnight_timestamp_is_sent_to_ce_as_a_date(
+        self, mock_context, dispatch_ce_client, operation
+    ):
+        """A T00:00:00Z period is sent as a date (getCostComparisonDrivers answers 504 otherwise)."""
+        (b0, b1), (c0, c1) = month(2), month(1)
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            operation,
+            (b0 + 'T00:00:00Z', b1 + 'T00:00:00Z'),
+            (c0 + 'T00:00:00Z', c1 + 'T00:00:00Z'),
+        )
+        assert result['status'] == 'success'
+        sent = getattr(dispatch_ce_client, CE_METHOD[operation]).call_args.kwargs
+        assert sent['BaselineTimePeriod'] == {'Start': b0, 'End': b1}
+        assert sent['ComparisonTimePeriod'] == {'Start': c0, 'End': c1}
 
     @pytest.mark.parametrize('operation', OPERATIONS)
     async def test_baseline_later_than_comparison_reaches_ce(
@@ -1341,6 +1368,200 @@ class TestCostComparisonDispatcherValidation:
         create.assert_not_called()
 
 
+EC2 = 'Amazon Elastic Compute Cloud - Compute'
+
+
+def _service(values, match_options=None):
+    """A SERVICE Dimensions filter, optionally with MatchOptions."""
+    dimensions = {'Key': 'SERVICE', 'Values': values}
+    if match_options is not None:
+        dimensions['MatchOptions'] = match_options
+    return {'Dimensions': dimensions}
+
+
+def _nest(expression, how):
+    """``expression`` at the top level or inside each logical operator."""
+    other = _service([EC2])
+    return {
+        'top': expression,
+        'not': {'Not': expression},
+        'and': {'And': [other, expression]},
+        'or': {'Or': [other, expression]},
+        'or_not': {'Or': [other, {'Not': expression}]},
+    }[how]
+
+
+NESTINGS = ['top', 'not', 'and', 'or', 'or_not']
+
+
+@pytest.mark.asyncio
+class TestCostComparisonFilterValidation:
+    """Filters the comparison APIs mishandle fail locally with no AWS call."""
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    @pytest.mark.parametrize('how', NESTINGS)
+    @pytest.mark.parametrize(
+        'option', ['CASE_INSENSITIVE', 'STARTS_WITH', 'ENDS_WITH', 'CONTAINS', 'ABSENT']
+    )
+    async def test_ignored_dimension_match_option_rejected(
+        self, mock_context, dispatch_ce_client, operation, how, option
+    ):
+        """CE ignores these MatchOptions and matches values exactly: a silent $0 or total."""
+        flt = _nest(_service([EC2.lower()], ['EQUALS', option]), how)
+        result = await _call(
+            mock_context, dispatch_ce_client, operation, month(2), month(1), filter=json.dumps(flt)
+        )
+        _assert_local_validation_error(
+            result, dispatch_ce_client, option, 'exactly', 'getDimensionValues'
+        )
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    @pytest.mark.parametrize('kind', ['Tags', 'CostCategories'])
+    @pytest.mark.parametrize('option', ['CASE_INSENSITIVE', 'STARTS_WITH', 'CONTAINS'])
+    async def test_ignored_tag_and_cost_category_match_option_rejected(
+        self, mock_context, dispatch_ce_client, operation, kind, option
+    ):
+        """Tags and cost categories honor only ABSENT besides the default."""
+        flt = {kind: {'Key': 'team', 'Values': ['web'], 'MatchOptions': [option]}}
+        result = await _call(
+            mock_context, dispatch_ce_client, operation, month(2), month(1), filter=json.dumps(flt)
+        )
+        _assert_local_validation_error(result, dispatch_ce_client, option, kind)
+
+    @pytest.mark.parametrize('kind', ['Tags', 'CostCategories'])
+    @pytest.mark.parametrize('how', NESTINGS)
+    async def test_absent_with_values_rejected(self, mock_context, dispatch_ce_client, kind, how):
+        """The comparison APIs drop Values when ABSENT is set, so the result ignores them."""
+        flt = _nest({kind: {'Key': 'team', 'Values': ['web'], 'MatchOptions': ['ABSENT']}}, how)
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            'getCostAndUsageComparisons',
+            month(2),
+            month(1),
+            filter=json.dumps(flt),
+        )
+        _assert_local_validation_error(result, dispatch_ce_client, 'ABSENT ignores its Values')
+
+    async def test_filter_nested_too_deep_rejected(self, mock_context, dispatch_ce_client):
+        """A filter nested deep enough to fail in Cost Explorer fails locally; one level less passes.
+
+        Live, getCostComparisonDrivers accepts 96 Not, And or Or levels and returns
+        InternalFailure at 97; both operations reject 98 with "Value is too deeply nested".
+        """
+        assert MAX_FILTER_DEPTH == 97
+        deepest_allowed = _service([EC2])
+        for _ in range(MAX_FILTER_DEPTH - 1):
+            deepest_allowed = {'Not': deepest_allowed}
+        validate_comparison_filter(deepest_allowed)
+        too_deep = (
+            '{"Not": ' * MAX_FILTER_DEPTH + json.dumps(_service([EC2])) + '}' * MAX_FILTER_DEPTH
+        )
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            'getCostAndUsageComparisons',
+            month(2),
+            month(1),
+            filter=too_deep,
+        )
+        _assert_local_validation_error(
+            result, dispatch_ce_client, f'nested {MAX_FILTER_DEPTH} or more'
+        )
+        too_wide_and = _service([EC2])
+        for _ in range(MAX_FILTER_DEPTH):
+            too_wide_and = {'And': [_service([EC2]), too_wide_and]}
+        with pytest.raises(ValueError, match='or more And/Or/Not levels'):
+            validate_comparison_filter(too_wide_and)
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    @pytest.mark.parametrize('how', NESTINGS)
+    async def test_resource_id_filter_rejected(
+        self, mock_context, dispatch_ce_client, operation, how
+    ):
+        """CE fails a RESOURCE_ID filter with InternalFailure, which retrying never fixes."""
+        flt = _nest({'Dimensions': {'Key': 'RESOURCE_ID', 'Values': ['i-0abc']}}, how)
+        result = await _call(
+            mock_context, dispatch_ce_client, operation, month(2), month(1), filter=json.dumps(flt)
+        )
+        _assert_local_validation_error(
+            result, dispatch_ce_client, 'RESOURCE_ID', 'getCostAndUsageWithResources'
+        )
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    @pytest.mark.parametrize(
+        'flt',
+        [
+            _service([EC2]),
+            _service([EC2], ['EQUALS']),
+            _service([EC2], ['EQUALS', 'CASE_SENSITIVE']),
+            {'Not': _service([EC2], [])},
+            {'Dimensions': {'Key': 'USAGE_TYPE_GROUP', 'Values': ['EC2: Running Hours']}},
+            {'Tags': {'Key': 'team', 'MatchOptions': ['ABSENT']}},
+            {'CostCategories': {'Key': 'env', 'Values': ['prod'], 'MatchOptions': ['EQUALS']}},
+            {'CostCategories': {'Key': 'env', 'MatchOptions': ['ABSENT']}},
+            {'And': [_service([EC2]), {'Tags': {'Key': 'team', 'Values': ['web']}}]},
+        ],
+        ids=[
+            'no_options',
+            'equals',
+            'equals_case_sensitive',
+            'not_empty_options',
+            'usage_type_group',
+            'tag_absent',
+            'cost_category_equals',
+            'cost_category_absent',
+            'and',
+        ],
+    )
+    async def test_supported_filter_reaches_ce_unchanged(
+        self, mock_context, dispatch_ce_client, operation, flt
+    ):
+        """Filters the comparison APIs honor are sent as given."""
+        result = await _call(
+            mock_context, dispatch_ce_client, operation, month(2), month(1), filter=json.dumps(flt)
+        )
+        assert result['status'] == 'success', result
+        call = getattr(dispatch_ce_client, CE_METHOD[operation])
+        assert call.call_args.kwargs['Filter'] == flt
+
+    async def test_shapes_left_to_botocore_are_skipped(self):
+        """Non-dict children are botocore's to reject; checks still reach the dict ones."""
+        validate_comparison_filter({'And': ['junk', 3, None], 'Not': [], 'Or': 'x'})
+        validate_comparison_filter({'Dimensions': {'Key': 'SERVICE', 'MatchOptions': 'x'}})
+        with pytest.raises(ValueError, match='RESOURCE_ID'):
+            validate_comparison_filter(
+                {'And': ['junk', 3, None, {'Dimensions': {'Key': 'RESOURCE_ID', 'Values': []}}]}
+            )
+
+    async def test_invalid_filter_json_is_a_validation_error(
+        self, mock_context, dispatch_ce_client
+    ):
+        """A filter that is not JSON still fails locally, as before."""
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            'getCostAndUsageComparisons',
+            month(2),
+            month(1),
+            filter='{not json',
+        )
+        _assert_local_validation_error(result, dispatch_ce_client, 'Invalid JSON format')
+
+    @pytest.mark.parametrize('flt', ['   ', '{}', '""'], ids=repr)
+    async def test_empty_filter_is_called_empty(self, mock_context, dispatch_ce_client, flt):
+        """A blank or empty filter gets the "filter is empty" error, not a JSON error."""
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            'getCostAndUsageComparisons',
+            month(2),
+            month(1),
+            filter=flt,
+        )
+        _assert_local_validation_error(result, dispatch_ce_client, 'filter is empty')
+
+
 class TestValidateComparisonRequest:
     """Boundaries of the rules, at a fixed date."""
 
@@ -1381,10 +1602,22 @@ class TestValidateComparisonRequest:
         self._validate(('2025-12-01', '2026-01-01'), ('2026-09-01', '2026-10-01'))
 
     def test_timestamp_form_is_accepted(self):
-        """CE accepts YYYY-MM-DDThh:mm:ssZ as well as YYYY-MM-DD."""
+        """The tool accepts a midnight YYYY-MM-DDThh:mm:ssZ as well as YYYY-MM-DD."""
         self._validate(
             ('2026-08-01T00:00:00Z', '2026-09-01T00:00:00Z'), ('2026-09-01', '2026-10-01')
         )
+
+    @pytest.mark.parametrize(
+        'baseline',
+        [
+            ('2026-08-01T05:00:00Z', '2026-09-01'),
+            ('2026-08-01', '2026-09-01T00:00:01Z'),
+        ],
+    )
+    def test_timestamp_off_midnight_is_rejected(self, baseline):
+        """A month boundary must be at midnight UTC; CE fails otherwise (InternalFailure or 504)."""
+        with pytest.raises(ValueError, match='not midnight UTC'):
+            self._validate(baseline, ('2026-09-01', '2026-10-01'))
 
     def test_months_before_clamps_to_month_end(self):
         """Like Java's minusMonths, the day clamps to the shorter month."""
@@ -1420,4 +1653,12 @@ async def test_description_states_the_enforced_rules():
     assert (
         'UsageQuantity: Usage amounts in their respective units. getCostAndUsageComparisons only'
         in description
+    )
+    assert 'MatchOptions other than EQUALS and CASE_SENSITIVE (the default)' in description
+    assert 'ABSENT together with Values' in description
+    assert 'A RESOURCE_ID filter' in description
+    assert 'Nesting of 97 or more And/Or/Not levels' in description
+    assert 'Keys and values match exactly, including case' in description
+    assert (
+        'A filter holds at most 200 values in total, counted across all its leaves' in description
     )

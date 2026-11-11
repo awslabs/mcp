@@ -20,8 +20,10 @@ from ..utilities.aws_service_base import (
     format_response,
     handle_aws_error,
     paginate_aws_items,
+    parse_filter,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.logging_utils import get_context_logger
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
@@ -80,12 +82,16 @@ payment_option, and lookback_period_in_days. None of them has a default — each
 recommended commitment, so the caller must choose. Recommendations are precomputed and may be
 stale; the response carries the generation timestamp. DATABASE_SP is sold only as ONE_YEAR with
 NO_UPFRONT. An empty recommendation (an unsold combination, or no eligible usage) comes with a
-message and does not mean potential savings are zero.
+message and does not mean potential savings are zero. Each call returns recommendations for one
+savings_plans_type. Cost Optimization Hub shows one deduplicated commitment option per covered
+usage, so plan types returned here can be absent there.
 
 PAGINATION (get_savings_plans_purchase_recommendation, where the items are the recommendation
 details, and list_savings_plans_purchase_recommendation_generation; the other operations take
 neither parameter):
-- max_items is the total number of items returned. Omit it to fetch every page (no limit). Pass it,
+- max_items is the total number of items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it,
   or narrow the filter, for queries that can be large.
 - If the response has complete_dataset: false, call again with a larger max_items, continue with
   next_token, or state in the answer that the result is partial.""",
@@ -188,6 +194,12 @@ async def sp_recommendation(
         return await handle_aws_error(ctx, e, 'sp_recommendation', 'Cost Explorer')
 
 
+# Both paginated operations answer a rejected NextPageToken (stale, from other parameters,
+# truncated, or made up) with an AccessDeniedException that has no message, not with
+# InvalidNextTokenException. A real permission error carries a message, so only a message-less
+# one on the first request of a continuation is treated as the caller's token being rejected.
+_REJECTED_TOKEN_EMPTY_MESSAGE_CODES = frozenset({'AccessDeniedException'})
+
 # The details list sits inside SavingsPlansPurchaseRecommendation, alongside the term, payment
 # option, and summary that give the details their meaning.
 CE_GET_SAVINGS_PLANS_PURCHASE_RECOMMENDATION = PageSpec(
@@ -196,6 +208,7 @@ CE_GET_SAVINGS_PLANS_PURCHASE_RECOMMENDATION = PageSpec(
     token_key_in_response='NextPageToken',
     page_max=6000,
     page_size_param='PageSize',
+    caller_token_empty_message_codes=_REJECTED_TOKEN_EMPTY_MESSAGE_CODES,
 )
 
 
@@ -256,8 +269,8 @@ async def get_savings_plans_purchase_recommendation(
         # Add optional parameters if provided
         if account_scope:
             request_params['AccountScope'] = account_scope
-        if filter_expr:
-            request_params['Filter'] = filter_expr
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         details, pages, pagination = await paginate_aws_items(
             ctx,
@@ -385,6 +398,7 @@ CE_LIST_SAVINGS_PLANS_PURCHASE_RECOMMENDATION_GENERATION = PageSpec(
     token_key_in_response='NextPageToken',
     page_max=6000,
     page_size_param='PageSize',
+    caller_token_empty_message_codes=_REJECTED_TOKEN_EMPTY_MESSAGE_CODES,
 )
 
 

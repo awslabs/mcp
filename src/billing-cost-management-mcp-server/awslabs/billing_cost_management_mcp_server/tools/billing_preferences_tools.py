@@ -18,6 +18,7 @@ Provides MCP tool definitions for AWS Billing preference operations, one tool pe
 API operation (mirroring the billing-conductor and bvs tools).
 """
 
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .billing_preferences_operations import (
     get_billing_preferences as _get_billing_preferences,
 )
@@ -56,7 +57,9 @@ Parameters:
     Any filter fails with ValidationException.
   A credit the caller cannot see returns no rows, not an error. A feature the caller's account cannot
   read fails with AccessDeniedException, filter or not.
-- max_items: total number of rows to return. Omit it to fetch every page (no limit); pass it
+- max_items: total number of rows to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it
   when the organization is large.
 - next_token: `pagination.next_token` from a previous partial response, to continue.
 

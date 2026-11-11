@@ -97,7 +97,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
-2. Install Python 3.10 or newer using uv python install 3.10 (or a more recent version)
+2. Install Python 3.11 or newer using uv python install 3.11 (or a more recent version)
 3. Set up AWS credentials with access to AWS services
    - You need an AWS account with appropriate permissions
    - Configure AWS credentials with `aws configure` or environment variables
@@ -311,6 +311,8 @@ AWS Pricing:
 
 AWS Free Tier:
 - freetier:GetFreeTierUsage
+- freetier:GetAccountPlanState
+- freetier:ListAccountActivities
 
 AWS Billing and Cost Management Pricing Calculator:
 - bcm-pricing-calculator:GetPreferences
@@ -331,6 +333,12 @@ Storage Lens (Athena and S3):
 - athena:GetTableMetadata
 - athena:ListDatabases
 - athena:ListTableMetadata
+- glue:GetDatabase
+- glue:CreateDatabase
+- glue:GetTable
+- glue:CreateTable
+- glue:GetPartitions (Athena checks it, with glue:UpdateTable, for ALTER TABLE ... SET LOCATION)
+- glue:UpdateTable (points the table at another day's report folder)
 - s3:GetObject
 - s3:ListBucket
 - s3:PutObject
@@ -469,6 +477,8 @@ The server currently supports the following AWS services
 
 3. **AWS Free Tier**
    - get_free_tier_usage
+   - get_account_plan_state
+   - list_account_activities
 
 4. **AWS Pricing**
    - get_service_codes

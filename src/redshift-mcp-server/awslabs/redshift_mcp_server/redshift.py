@@ -58,8 +58,9 @@ from mcp.server.mcpserver.exceptions import ToolError
 from typing import NoReturn
 
 
-# Keepalive sent on the batch that closes a transaction, so its session is released soon after
-# rather than idling for SESSION_KEEPALIVE with nothing left to run. The Data API has no close
+# Keepalive sent with the last statement a session runs - the batch that closes a transaction, or
+# the compatibility path's statement - so the session is released soon after rather than idling
+# out the keepalive it was minted with. The Data API has no close
 # operation, and omitting the parameter keeps the timeout the session already had, so a small
 # value is the only lever; zero mints no session at all. Reaping runs on the Data API's own
 # schedule, so release lands tens of seconds after the close, not on the second. It cannot cut a
@@ -86,9 +87,9 @@ _APP_NAME_SQL = f"SET application_name TO '{CLIENT_USER_AGENT_NAME}/{__version__
 _no_batch_since: dict[ClusterKey, float] = {}
 
 # Refusals for what the compatibility path will not carry, kept together so they stay consistent
-# with each other. A transaction cannot be grouped by one statement per call. A write is declined
-# for a different reason: this path keeps the contract of the release before read-write mode,
-# which served reads only, so it refuses writes at every access mode.
+# with each other. A transaction needs one session across calls, and this path gives each read its
+# own. A write is declined for a different reason: this path keeps the contract of the release
+# before read-write mode, which served reads only, so it refuses writes at every access mode.
 #
 # Both are also sent from the latch, which can be up to FALLBACK_NO_BATCH_REPROBE old, so they say
 # when the denial was seen and when a grant takes effect. Worded as current, an operator who had
@@ -553,8 +554,8 @@ async def execute_standalone_statement(
     a failed statement, so a failure cannot leave a transaction open.
 
     While the batch action is latched as denied on the cluster there is neither batch nor
-    wrapper: a read runs alone on the compatibility path, and anything `might_write` flags is
-    refused before it is sent.
+    wrapper: a read runs on the compatibility path, still after `SET application_name`, and
+    anything `might_write` flags is refused before it is sent.
 
     Args:
         cluster_identifier: The cluster identifier to query.
@@ -643,7 +644,7 @@ async def execute_standalone_statement(
     if might_write(sql):
         raise ToolError(_FALLBACK_NO_BATCH_REFUSES_WRITE)
 
-    # A recognized read cannot write, so it needs no wrapper and can go on its own.
+    # A recognized read cannot write, so it needs no wrapper.
     return await _execute_statement_fallback_no_batch(
         cluster_info=cluster_info,
         database_name=database_name,
@@ -663,10 +664,9 @@ async def _begin_transaction(
 ) -> tuple[dict, str]:
     """Open a named transaction, optionally running its first statement.
 
-    The transaction holds a Data API session for as long as it stays open, which is the only
-    reason this server ever creates one. The access mode picks the transaction's own mode:
-    read-only callers get `BEGIN READ ONLY`, so the engine refuses a write inside it just as
-    it does outside one.
+    The transaction holds a Data API session for as long as it stays open. The access mode
+    picks the transaction's own mode: read-only callers get `BEGIN READ ONLY`, so the engine
+    refuses a write inside it just as it does outside one.
 
     Args:
         cluster_identifier: The cluster identifier to query.
@@ -1263,8 +1263,9 @@ async def _rollback_lost_transaction(
 
 
 # --- Fallback: no_batch ---
-# Serves credentials denied redshift-data:BatchExecuteStatement by running one statement
-# per call, which keeps the read-only contract of the release before named transactions.
+# Serves credentials denied redshift-data:BatchExecuteStatement with reads only, the contract of
+# the release before named transactions. Each read runs through ExecuteStatement on a session of
+# its own, tagged first by `SET application_name`.
 # Everything tagged no_batch belongs to it, so the whole path can be deleted with its constants
 # and tests once the action is universal - along with its uses above: the latch clear in
 # `_execute_batch`, and the latch and denial checks in the three entry points.
@@ -1352,6 +1353,14 @@ def _latch_no_batch(error: ClientError, cluster: ClusterKey) -> None:
     )
 
 
+# Keepalive of the session the compatibility path mints with `SET application_name`. It covers
+# the gap from the SET finishing to the caller's statement arriving on the session - the describe
+# that settles the SET and the statement's submit - after which that statement's `_SESSION_DRAIN`
+# replaces it. Fixed rather than read from SESSION_KEEPALIVE, which accepts 1 second, short
+# enough to end the session before the statement arrives.
+_FALLBACK_NO_BATCH_KEEPALIVE = 60
+
+
 async def _execute_statement_fallback_no_batch(
     cluster_info: RedshiftCluster,
     database_name: str,
@@ -1364,9 +1373,12 @@ async def _execute_statement_fallback_no_batch(
     """Execute one statement through ExecuteStatement, for credentials denied the batch.
 
     The compatibility path, used only while redshift-data:BatchExecuteStatement is denied.
-    One statement per call means no connection is shared, so there is nowhere to put
-    `BEGIN READ ONLY` or `SET application_name`: the caller must have established that this
-    statement cannot write before choosing this path.
+    `SET application_name` runs first and mints a session; the statement then runs on that
+    session with the drain keepalive, so the session ends soon after. Each is its own call,
+    because ExecuteStatement runs every statement in its `Sql` and returns only the first one's
+    result. A `SET` that fails fails the call, and the statement is not sent. The statement runs
+    without `BEGIN READ ONLY`, so the caller must have established that it cannot write before
+    choosing this path.
 
     Args:
         cluster_info: Cluster information model.
@@ -1381,11 +1393,38 @@ async def _execute_statement_fallback_no_batch(
         Tuple of the statement's result as `_read_result` returns it, and its id.
 
     Raises:
-        ToolError: If the statement fails or does not settle within query_timeout.
+        ToolError: If the `SET` or the statement fails or does not settle within query_timeout.
     """
     data_client = client_manager.redshift_data_client()
+    long_poll_params = {'WaitTimeSeconds': query_long_poll} if query_long_poll else {}
 
-    request_params: dict[str, str | int | list] = {'Sql': sql, 'Database': database_name}
+    async def run(request_params: dict[str, str | int | list]) -> dict:
+        """Submit one statement and settle it, raising unless it finished."""
+        response = await asyncio.to_thread(
+            data_client.execute_statement, **request_params, **long_poll_params
+        )
+        logger.debug(f'Executed statement {response["Id"]} on the compatibility path')
+
+        settled = await _settle_statement(
+            statement_id=response['Id'],
+            response=response,
+            query_poll_interval=query_poll_interval,
+            query_timeout=query_timeout,
+            query_long_poll=query_long_poll,
+        )
+
+        if settled['Status'] != 'FINISHED':
+            error = settled.get('Error', 'Unknown error')
+            logger.debug(f'Statement failed: {error}')
+            raise ToolError(f'Statement failed: {error}')
+
+        return settled
+
+    request_params: dict[str, str | int | list] = {
+        'Sql': _APP_NAME_SQL,
+        'Database': database_name,
+        'SessionKeepAliveSeconds': _FALLBACK_NO_BATCH_KEEPALIVE,
+    }
     if cluster_info.type == 'provisioned':
         request_params['ClusterIdentifier'] = cluster_info.identifier
     elif cluster_info.type == 'serverless':
@@ -1395,29 +1434,20 @@ async def _execute_statement_fallback_no_batch(
         # bug, not something the caller can act on.
         raise Exception(f'Unknown cluster type: {cluster_info.type}')
 
+    tagged = await run(request_params)
+
+    # The session holds the connection, so the statement names only the session.
+    request_params = {
+        'Sql': sql,
+        'SessionId': tagged['SessionId'],
+        'SessionKeepAliveSeconds': _SESSION_DRAIN,
+    }
+
     if parameters:
         request_params['Parameters'] = parameters
 
-    long_poll_params = {'WaitTimeSeconds': query_long_poll} if query_long_poll else {}
-
-    response = await asyncio.to_thread(
-        data_client.execute_statement, **request_params, **long_poll_params
-    )
-    statement_id = response['Id']
-    logger.debug(f'Executed statement {statement_id} on the compatibility path')
-
-    settled = await _settle_statement(
-        statement_id=statement_id,
-        response=response,
-        query_poll_interval=query_poll_interval,
-        query_timeout=query_timeout,
-        query_long_poll=query_long_poll,
-    )
-
-    if settled['Status'] != 'FINISHED':
-        error = settled.get('Error', 'Unknown error')
-        logger.debug(f'Statement failed: {error}')
-        raise ToolError(f'Statement failed: {error}')
+    settled = await run(request_params)
+    statement_id = settled['Id']
 
     if not settled.get('HasResultSet'):
         return {'Records': [], 'ColumnMetadata': []}, statement_id

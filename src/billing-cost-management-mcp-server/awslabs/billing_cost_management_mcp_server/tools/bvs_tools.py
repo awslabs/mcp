@@ -20,6 +20,7 @@ and retrieving resource-based policies.
 """
 
 from ..utilities.aws_service_base import handle_aws_error
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .bvs_operations import (
     get_billing_view as _get_billing_view,
 )
@@ -74,6 +75,7 @@ It holds at most one of:
 - dimensions: key LINKED_ACCOUNT and a list of account IDs
 - tags: one tag key and a list of its values
 - cost_categories: one cost category name and a list of its values
+  (a value of "" matches the costs no rule of that cost category assigns a value to)
 plus an optional time_range (begin_date_inclusive, end_date_inclusive; one of them can
 be absent, meaning open-ended on that side). There are no match options and no
 And/Or/Not. An empty or missing expression means the view is unfiltered: it shows all
@@ -148,18 +150,19 @@ You can filter billing views by:
   period, the current one by default, and list-billing-groups gives that group's primary
   account), then pass that ID here.
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {}
-Example 2 (filter by type): {"billing_view_types": "[\"PRIMARY\", \"CUSTOM\"]"}
+Example 2 (filter by type): {"billing_view_types": "[\\"PRIMARY\\", \\"CUSTOM\\"]"}
 Example 3 (filter by owner): {"owner_account_id": "123456789012"}
-Example 4 (filter by name): {"names": "[{\"searchOption\": \"STARTS_WITH\", \"searchValue\": \"MyView\"}]"}
+Example 4 (filter by name): {"names": "[{\\"searchOption\\": \\"STARTS_WITH\\", \\"searchValue\\": \\"MyView\\"}]"}
 Example 5 (time range covering all of January 2024): {"active_after_inclusive": "2024-01-01", "active_before_inclusive": "2024-01-31T23:59:59"}
-Example 6 (filter by ARNs): {"arns": "[\"arn:aws:billing::123456789012:billingview/custom-view-abc123\"]"}""",
+Example 6 (filter by ARNs): {"arns": "[\\"arn:aws:billing::123456789012:billingview/custom-view-abc123\\"]"}""",
 )
 async def list_billing_views(
     ctx: Context,
@@ -240,8 +243,9 @@ Use this tool to:
 - Audit cross-organization data consolidation (which orgs/accounts contribute to this view)
 - Determine if the custom billing view aggregates data from a single org or multiple orgs
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
@@ -352,8 +356,9 @@ Each segment in `data.segments` contains:
 - billing_transfer_account_id: The billing transfer account (only for billing transfer source accounts)
 - time_range: begin_date_inclusive and end_date_exclusive in UTC ISO format
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.

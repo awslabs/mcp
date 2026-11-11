@@ -375,7 +375,7 @@ deployed to Lambda. You do not need to use integrate the code with any adapter f
 **Parameters:**
 
 - `deployment_type` (required): Type of deployment (backend, frontend, fullstack)
-- `project_name` (required): Project name
+- `project_name` (required): Project name. May contain only letters, digits, hyphens, and underscores, up to 128 characters
 - `project_root` (required): Absolute path to the project root directory
 - `region`: AWS Region to deploy to (e.g., us-east-1)
 - `backend_configuration`: Backend configuration

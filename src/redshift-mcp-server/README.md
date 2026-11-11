@@ -126,9 +126,9 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 - `LOG_FILE`: Path to log file (optional, logs to stderr if not specified)
 - `ACCESS_MODE`: Access mode for `execute_query` (optional, defaults to `read-only`). Supported modes are `read-only` and `read-write`; any other value falls back to `read-only`. Read [Read-Write Mode](#read-write-mode) before selecting `read-write`.
 - `UNSAFE_SKIP_WRITE_CONFIRMATION`: Skips the per-write confirmation prompt (optional, defaults to `false`). Ignored in `read-only` mode. See [Confirming each write](#confirming-each-write).
-- `SESSION_KEEPALIVE`: How long an open transaction may sit idle before Redshift ends it, in seconds (optional, defaults to `600`, maximum `86400`). Only transactions are affected; a statement outside one holds nothing open. See [Transactions](#transactions).
+- `SESSION_KEEPALIVE`: How long an open transaction may sit idle before Redshift ends it, in seconds (optional, defaults to `600`, maximum `86400`). Only transactions are affected. See [Transactions](#transactions).
 - `MAX_OPEN_TRANSACTIONS_PER_TARGET`: How many transactions may be open at once against one cluster and database (optional, defaults to `10`).
-- `MAX_RESULT_ROWS`: The most rows one statement may return (optional, defaults to `1000`). A larger result is refused rather than cut short, by every tool but `list_clusters`. Only a whole number above zero is accepted; anything else falls back to the default. It counts rows, not bytes: a `VARCHAR` value can be 64 KB, so a result of wide rows within the default can be tens of megabytes.
+- `MAX_RESULT_ROWS`: The most rows one statement may return (optional, defaults to `1000`). A larger result is refused rather than cut short, by every tool that runs SQL. Only a whole number above zero is accepted; anything else falls back to the default. It counts rows, not bytes: a `VARCHAR` value can be 64 KB, so a result of wide rows within the default can be tens of megabytes.
 
 The log carries statement content: `DEBUG` writes every statement's full SQL, so a `CREATE USER ... PASSWORD` lands verbatim, and `ERROR` — included by the default `WARNING` — carries the engine's message, which quotes the offending value or relation. Treat `LOG_FILE` as holding the statements themselves.
 
@@ -376,7 +376,7 @@ list_clusters() -> list[RedshiftCluster]
 - Configuration information (node type, encryption, etc.)
 - Tags and metadata. A serverless workgroup's tags need the optional `redshift-serverless:ListTagsForResource`; without it a workgroup is reported untagged.
 
-Provisioned clusters and serverless workgroups are separate AWS namespaces, so one name can be both. Every other tool therefore takes the type with the identifier: `cluster_type`, `provisioned` or `serverless`, as `list_clusters` reports it. Every tool that takes a `cluster_identifier`, except `review_cluster`, reuses a lookup for up to 5 minutes; `list_clusters` and `review_cluster` look again every time they run. Until the lookup is replaced, a cluster created since reads as not found, with the refusal saying how old the lookup is. A lookup that runs while one of the two listings is denied refuses a cluster of that type, names the denial, and is not reused.
+Provisioned clusters and serverless workgroups are separate AWS namespaces, so one name can be both. Every tool that runs SQL therefore takes the type with the identifier: `cluster_type`, `provisioned` or `serverless`, as `list_clusters` reports it. Every tool that takes a `cluster_identifier`, except `review_cluster`, reuses a lookup for up to 5 minutes; `list_clusters` and `review_cluster` look again every time they run. Until the lookup is replaced, a cluster created since reads as not found, with the refusal saying how old the lookup is. A lookup that runs while one of the two listings is denied refuses a cluster of that type, names the denial, and is not reused.
 
 ### list_databases
 
@@ -538,6 +538,21 @@ review_cluster(
 - List of diagnostic queries executed
 
 **Note**: Requires the connecting database user to hold the `sys:monitor` role (or be a superuser), see [Database Permissions](#database-permissions). Provisioned-only diagnostics are automatically skipped for serverless workgroups.
+
+### retrieve_skill_file
+
+Returns the Redshift guide, or one of the reference files it cites. The guide is a copy of the [`redshift-guide`](https://github.com/aws/agent-toolkit-for-aws/tree/main/plugins/aws-data-analytics/skills/redshift-guide) skill from `aws/agent-toolkit-for-aws`, covering Redshift SQL and how it differs from PostgreSQL, metadata, connectivity and authorization, storage, and query performance.
+
+```python
+retrieve_skill_file(file: str | None = None, chunk: int = 1) -> str
+```
+
+**Parameters**:
+
+- `file`: A reference file's path as the guide cites it, such as `references/<file>.md`. Omit for the guide itself
+- `chunk`: Which 25,000-character chunk of the file to return, from 1 (default: 1)
+
+**Returns**: That chunk of the guide or the reference file, as markdown text.
 
 ## Permissions
 

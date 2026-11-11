@@ -30,6 +30,7 @@ from ..utilities.aws_service_base import (
     paginate_aws_items,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.sql_utils import convert_response_if_needed
 from ..utilities.time_utils import format_timestamp_to_utc_iso
 from botocore.exceptions import ClientError
@@ -41,11 +42,14 @@ from typing import Any, Dict, List, Optional
 budget_server = FastMCP(name='budget-tools', instructions='Tools for working with AWS Budgets API')
 
 
-_PAGINATION_DESCRIPTION = """Pagination: `max_items` is the total number of items to return. Omit it to fetch every
-page (no limit); pass it when the account can have many budgets. A partial result leads with
+_PAGINATION_DESCRIPTION = (
+    """Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it when the account can have many budgets. A partial result leads with
 `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by passing
 `pagination.next_token` back as `next_token`, or say in the answer that the result is partial.
 `pagination.items_returned` counts the items in this response, not every item that exists."""
+)
 
 
 # =============================================================================
@@ -72,6 +76,12 @@ The API returns information about:
 A budget's filter is in `filter_expression` (an Expression of Dimensions, Tags, CostCategories and
 ProductAttributes combined with And, Or and Not) or, for budgets that use the deprecated form, in
 `cost_filters`.
+AWS does not forecast a COST or USAGE budget filtered by ProductAttributes, and its alerts can fire
+only on actual spend, not on a forecast. Such a budget with no `forecasted_spend` carries
+`forecast_note`: its `status`, when present, is `EXCEEDED` or `OK` from actual spend alone.
+If `filter_expression_incomplete` is true, part of the filter could not be read (an empty or null
+node in `filter_expression`): the budget is still filtered and `calculated_spend` reflects its full
+filter.
 `metrics` (or the deprecated `cost_types`) says how cost is measured, and `billing_view_arn` names
 the billing view the budget reads, which can be a non-primary view such as a billing group or
 custom view. A budget with no filter tracks everything its budget type measures in its billing
@@ -693,6 +703,45 @@ async def describe_budget_performance_history(
 # notification threshold instead, so a spend-vs-limit status would read them inverted.
 _SPEND_BUDGET_TYPES = frozenset({'COST', 'USAGE'})
 
+_FILTER_EXPRESSION_INCOMPLETE_NOTE = (
+    "Part of this budget's filter could not be read (an empty or null node in "
+    "filter_expression), for example a filter type newer than this server's AWS SDK. The budget is "
+    'still filtered and calculated_spend reflects its full filter; do not treat it as unfiltered.'
+)
+
+_FORECAST_NOTE = (
+    'AWS does not forecast budgets filtered by ProductAttributes, so status, when present, is '
+    'EXCEEDED or OK from actual spend only, never FORECASTED_TO_EXCEED; OK does not mean spend is '
+    'on track to stay under the limit.'
+)
+
+
+def _expression_nodes(expression: Any):
+    """Yield every node of a budgets Expression tree (And, Or and Not children included)."""
+    yield expression
+    if isinstance(expression, dict):
+        for key in ('And', 'Or'):
+            for child in expression.get(key) or []:
+                yield from _expression_nodes(child)
+        if 'Not' in expression:
+            yield from _expression_nodes(expression['Not'])
+
+
+def _has_unreadable_node(expression: Any) -> bool:
+    """True if a node is empty or null: botocore parses a member it does not know as {}.
+
+    An empty leaf such as {'Dimensions': {}} is not checked: the service never sends one.
+    """
+    return any(not node for node in _expression_nodes(expression))
+
+
+def _has_product_attributes(expression: Any) -> bool:
+    """True if the Expression has a ProductAttributes leaf at any depth."""
+    return any(
+        isinstance(node, dict) and 'ProductAttributes' in node
+        for node in _expression_nodes(expression)
+    )
+
 
 def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Formats the budget objects from the AWS API response.
@@ -746,8 +795,21 @@ def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         # Add the budget's scope if present; calculated_spend is computed on it.
         if 'CostFilters' in budget and budget['CostFilters']:
             formatted_budget['cost_filters'] = budget['CostFilters']
-        if budget.get('FilterExpression'):
-            formatted_budget['filter_expression'] = budget['FilterExpression']
+        # The API omits FilterExpression for an unfiltered budget, so a present one is kept even
+        # when it parsed as {}: dropping it would make a filtered budget read as unfiltered.
+        if 'FilterExpression' in budget:
+            filter_expression = budget['FilterExpression']
+            formatted_budget['filter_expression'] = filter_expression
+            if _has_unreadable_node(filter_expression):
+                formatted_budget['filter_expression_incomplete'] = True
+                formatted_budget['filter_expression_note'] = _FILTER_EXPRESSION_INCOMPLETE_NOTE
+            # Only when the response has no forecast, so the note never contradicts status.
+            if (
+                budget.get('BudgetType') in _SPEND_BUDGET_TYPES
+                and _has_product_attributes(filter_expression)
+                and 'ForecastedSpend' not in (budget.get('CalculatedSpend') or {})
+            ):
+                formatted_budget['forecast_note'] = _FORECAST_NOTE
         if budget.get('Metrics'):
             formatted_budget['metrics'] = budget['Metrics']
         if budget.get('CostTypes'):

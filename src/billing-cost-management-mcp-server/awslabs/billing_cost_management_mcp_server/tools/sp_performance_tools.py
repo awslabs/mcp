@@ -25,10 +25,12 @@ from ..utilities.aws_service_base import (
     get_date_range,
     handle_aws_error,
     paginate_aws_items,
+    parse_filter,
     parse_json,
     whole_query_in_one_page,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.logging_utils import get_context_logger
 from ..utilities.time_utils import monthly_period_note
 from fastmcp import Context, FastMCP
@@ -64,6 +66,8 @@ COVERAGE grouping and filtering (get_savings_plans_coverage):
   ParamValidationError typed validation_error).
 
 DATES AND DATA FRESHNESS (all three operations):
+- If `start_date` is omitted, the tool uses 30 days before today; if `end_date` is
+  omitted, it uses today (exclusive, so today is not included).
 - start_date must be within the last 13 months (the Cost Explorer lookback); an
   older start_date returns a ValidationException.
 - Savings Plans data for the most recent 2-3 days (counting today) is not processed
@@ -106,6 +110,21 @@ FILTER VALUES (exact, case-sensitive spellings):
   ValidationException. On that error with a filter set, check these spellings before
   changing the window.
 
+RATE BASIS (all three operations):
+- Coverage OnDemandCost, TotalCost and SpendCoveredBySavingsPlans, and utilization
+  OnDemandCostEquivalent and NetSavings, price usage at public On-Demand rates.
+- A negative NetSavings means the Savings Plans cost more than the usage they covered
+  would have cost at public On-Demand rates.
+- So on an account with private pricing, OnDemandCost is not what was billed at
+  On-Demand rates, and NetSavings is not the saving against the account's own rates.
+  Label these figures "at public On-Demand rates".
+- For billed On-Demand cost, use Cost Explorer cost and usage grouped by PURCHASE_TYPE.
+- No field here or in Cost Explorer gives the saving against the account's own rates. It
+  needs the account's On-Demand discount applied to the public On-Demand cost of the
+  covered usage, compared with the plans' effective cost (in the Cost and Usage Report:
+  SavingsPlanCoveredUsage UnblendedCost against SavingsPlansEffectiveCost). Don't derive it
+  by subtracting other Cost Explorer figures.
+
 SORTING (sort_by; get_savings_plans_coverage and get_savings_plans_utilization_details):
 - A JSON string `{"Key": "...", "SortOrder": "ASCENDING" or "DESCENDING"}`.
 - Order of operations: the API sorts every matching item by the key first, then pages;
@@ -138,12 +157,16 @@ RESPONSE PERIODS (all three operations):
 IMPORTANT: For get_savings_plans_coverage, `granularity` and `group_by` are mutually
 exclusive. If `group_by` is provided, `granularity` is ignored (the Cost Explorer
 GetSavingsPlansCoverage API does not allow both). Valid `group_by` dimensions for
-coverage are SERVICE, REGION, or INSTANCE_TYPE_FAMILY.
+coverage are SERVICE, REGION, or INSTANCE_TYPE_FAMILY. If `metrics` is omitted, coverage uses
+["SpendCoveredBySavingsPlans"] (the only valid value). `granularity` does not apply to
+get_savings_plans_utilization_details.
 
 PAGINATION (get_savings_plans_coverage, where an item is one period x group entry, and
 get_savings_plans_utilization_details, where an item is one Savings Plan;
 get_savings_plans_utilization is not paginated and takes neither parameter):
-- max_items is the total number of items returned. Omit it to fetch every page (no limit). Pass it,
+- max_items is the total number of items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it,
   or narrow the date range or filter, for queries that can be large.
 - If the response has complete_dataset: false, call again with a larger max_items, continue with
   next_token, or state in the answer that the result is partial.
@@ -173,7 +196,7 @@ async def sp_performance(
         operation: The operation to perform: 'get_savings_plans_coverage', 'get_savings_plans_utilization', or 'get_savings_plans_utilization_details'
         start_date: Start date in YYYY-MM-DD format (inclusive). Defaults to 30 days ago if not provided. Must be within the last 13 months.
         end_date: End date in YYYY-MM-DD format (exclusive). Defaults to today if not provided. Savings Plans data for the last 2-3 days (counting today) is not processed yet: a start_date in those days returns a DataUnavailableException, and a window reaching into them leaves them out.
-        granularity: Time granularity of the data (DAILY or MONTHLY). Defaults to DAILY. For coverage, ignored when group_by is provided (granularity and group_by are mutually exclusive).
+        granularity: Time granularity of the data (DAILY, MONTHLY or HOURLY). Defaults to DAILY. HOURLY needs the Cost Explorer hourly granularity opt-in and start_date and end_date in YYYY-MM-DDTHH:MM:SSZ format (YYYY-MM-DD dates return a ValidationException), so pass both dates explicitly with HOURLY. For coverage, ignored when group_by is provided (granularity and group_by are mutually exclusive).
         metrics: List of metrics to retrieve as a JSON string. For coverage, only 'SpendCoveredBySavingsPlans' is valid.
         group_by: Optional grouping of results as a JSON string. For coverage, supports SERVICE, REGION, or INSTANCE_TYPE_FAMILY (NOT LINKED_ACCOUNT). Each entry is {"Type": ..., "Key": ...}; there is no "Value" field.
         filter: Optional filter to apply to the results as a JSON string. Coverage filter dimensions: LINKED_ACCOUNT, REGION, SERVICE, INSTANCE_TYPE_FAMILY. And needs >=2 operands; for one condition pass the leaf object directly. Values are case-sensitive; see FILTER VALUES in the tool description.
@@ -260,7 +283,7 @@ async def get_savings_plans_coverage(
         ce_client: Cost Explorer client
         start_date: Start date for the query
         end_date: End date for the query
-        granularity: Time granularity (DAILY/MONTHLY)
+        granularity: Time granularity (DAILY/MONTHLY/HOURLY)
         metrics: Metrics to retrieve as JSON string
         group_by: Grouping dimensions as JSON string
         filter_expr: Filter expression as JSON string
@@ -301,8 +324,8 @@ async def get_savings_plans_coverage(
         else:
             request_params['Granularity'] = granularity
 
-        if filter_expr:
-            request_params['Filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         if sort_by:
             request_params['SortBy'] = parse_json(sort_by, 'sort_by')
@@ -347,7 +370,7 @@ async def get_savings_plans_utilization(
         ce_client: Cost Explorer client
         start_date: Start date for the query
         end_date: End date for the query
-        granularity: Time granularity (DAILY/MONTHLY)
+        granularity: Time granularity (DAILY/MONTHLY/HOURLY)
         filter_expr: Filter expression as JSON string
 
     Returns:
@@ -372,8 +395,8 @@ async def get_savings_plans_utilization(
         }
 
         # Add optional parameters if provided
-        if filter_expr:
-            request_params['Filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         response = ce_client.get_savings_plans_utilization(**request_params)
 
@@ -464,8 +487,8 @@ async def get_savings_plans_utilization_details(
         request_params: dict = {'TimePeriod': {'Start': start, 'End': end}}
 
         # Add optional parameters if provided
-        if filter_expr:
-            request_params['Filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         if sort_by:
             request_params['SortBy'] = parse_json(sort_by, 'sort_by')

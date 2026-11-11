@@ -117,6 +117,11 @@ async def start_run_batch(
 ) -> Dict[str, Any]:
     """Start a new HealthOmics run batch.
 
+    Run batches do not support an output path layout option (outputUriPrefixMode).
+    Batch runs always use the HealthOmics default layout, output_uri/<runId>/out/.
+    To write outputs directly under an output URI, start individual runs with
+    StartAHORun and output_uri_prefix_mode instead.
+
     Args:
         ctx: MCP context for error reporting
         workflow_id: ID of the workflow to run

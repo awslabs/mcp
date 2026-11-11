@@ -20,6 +20,7 @@ custom line items, and billing transfer preferences.
 """
 
 from ..utilities.aws_service_base import handle_aws_error
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .billing_conductor_operations import (
     get_billing_group_cost_report as _get_billing_group_cost_report,
 )
@@ -97,14 +98,15 @@ You can filter billing groups by:
 - Auto-associate: Filter by auto-associate setting
 - Responsibility transfer ARNs: Filter by responsibility transfer ARNs
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {"billing_period": "2025-01"}
-Example 2 (with filter): {"filters": "{\"Statuses\": [\"ACTIVE\"], \"BillingGroupTypes\": [\"STANDARD\"]}", "billing_period": "2025-01"}""",
+Example 2 (with filter): {"filters": "{\\"Statuses\\": [\\"ACTIVE\\"], \\"BillingGroupTypes\\": [\\"STANDARD\\"]}", "billing_period": "2025-01"}""",
 )
 async def list_billing_groups(
     ctx: Context,
@@ -169,8 +171,9 @@ You can filter account associations by:
 Use AccountId or AccountIds, not both. Either can be combined with Association to narrow the
 result.
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
@@ -178,8 +181,8 @@ The service returns up to 100 accounts per page, so a `max_items` below 100 stil
 whole first page.
 
 Example 1: {"billing_period": "2025-01"}
-Example 2 (monitored only): {"filters": "{\"Association\": \"MONITORED\"}", "billing_period": "2025-01"}
-Example 3 (by account IDs): {"filters": "{\"AccountIds\": [\"123456789012\", \"234567890123\"]}"}""",
+Example 2 (monitored only): {"filters": "{\\"Association\\": \\"MONITORED\\"}", "billing_period": "2025-01"}
+Example 3 (by account IDs): {"filters": "{\\"AccountIds\\": [\\"123456789012\\", \\"234567890123\\"]}"}""",
 )
 async def list_account_associations(
     ctx: Context,
@@ -222,6 +225,7 @@ This tool retrieve cost reports for billing groups.
 If no billing period is provided, the current billing period is used.
 A billing_period after the current month (UTC) fails with validation_error before any AWS call;
 the service would return $0 for every billing group.
+A past month with no billing group in effect returns an empty list, not an error.
 
 The tool returns cost report information for each billing group:
 - Billing group ARN
@@ -231,18 +235,24 @@ The tool returns cost report information for each billing group:
 - Margin percentage (margin divided by AWS cost, as a fraction, not a percent: -0.25 means -25%;
   "0.0" when the AWS cost is 0)
 - Currency (displayed currency)
+- `decimal_values` (aws_cost, proforma_cost, margin and margin_percentage, digit for digit, as
+  strings in plain decimal notation)
+- MONETARY AMOUNTS ARE STRINGS. They can come in exponent form ("5.0E-7") and with floating-point
+  rounding digits ("-12.340000000000003"). `decimal_values` removes the exponent but keeps every
+  digit; parse them as decimals, never floats, and round only for display.
 
 You can filter cost reports by:
 - BillingGroupArns: Filter by specific billing group ARNs (1 to 100 ARNs)
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {"billing_period": "2025-01"}
-Example 2 (with filter): {"filters": "{\"BillingGroupArns\": [\"arn:aws:billingconductor::123456789012:billinggroup/abc\"]}", "billing_period": "2025-01"}""",
+Example 2 (with filter): {"filters": "{\\"BillingGroupArns\\": [\\"arn:aws:billingconductor::123456789012:billinggroup/abcdef1234\\"]}", "billing_period": "2025-01"}""",
 )
 async def list_billing_group_cost_reports(
     ctx: Context,
@@ -284,6 +294,8 @@ This tool retrieve detailed cost reports for a
 single billing group, optionally broken down by product name and/or billing period.
 A BillingPeriodRange whose InclusiveStartBillingPeriod is after the current month (UTC) fails
 with validation_error before any AWS call; the service would return no results.
+A range with no data for the billing group (for example, months before it took effect) returns
+no results, not an error.
 
 The tool returns margin summary report results for the billing group:
 - Billing group ARN
@@ -294,6 +306,11 @@ The tool returns margin summary report results for the billing group:
 - Margin percentage (margin divided by AWS cost, as a fraction, not a percent: -0.25 means -25%;
   "0.0" when the AWS cost is 0)
 - Currency (displayed currency)
+- `decimal_values` (aws_cost, proforma_cost, margin and margin_percentage, digit for digit, as
+  strings in plain decimal notation)
+- MONETARY AMOUNTS ARE STRINGS. They can come in exponent form ("5.0E-7") and with floating-point
+  rounding digits ("-12.340000000000003"). `decimal_values` removes the exponent but keeps every
+  digit; parse them as decimals, never floats, and round only for display.
 
 You can customize the report by:
 - BillingPeriodRange: JSON string {"InclusiveStartBillingPeriod": "YYYY-MM",
@@ -305,8 +322,9 @@ You can customize the report by:
   range, PRODUCT_NAME alone one row per product. Include BILLING_PERIOD in GroupBy to get one
   row per month.
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
@@ -314,8 +332,8 @@ Results come in pages of up to 300; the service returns at least 200 per page, s
 below 200 can return up to 200.
 The next_token expires shortly after the first call; after that, call again without next_token.
 
-Example 1: {"arn": "arn:aws:billingconductor::123456789012:billinggroup/abc", "group_by": "[\"PRODUCT_NAME\"]"}
-Example 2: {"arn": "arn:aws:billingconductor::123456789012:billinggroup/abc", "group_by": "[\"PRODUCT_NAME\", \"BILLING_PERIOD\"]", "billing_period_range": "{\"InclusiveStartBillingPeriod\": \"2025-01\", \"ExclusiveEndBillingPeriod\": \"2025-07\"}"}""",
+Example 1: {"arn": "arn:aws:billingconductor::123456789012:billinggroup/abcdef1234", "group_by": "[\\"PRODUCT_NAME\\"]"}
+Example 2: {"arn": "arn:aws:billingconductor::123456789012:billinggroup/abcdef1234", "group_by": "[\\"PRODUCT_NAME\\", \\"BILLING_PERIOD\\"]", "billing_period_range": "{\\"InclusiveStartBillingPeriod\\": \\"2025-01\\", \\"ExclusiveEndBillingPeriod\\": \\"2025-07\\"}"}""",
 )
 async def get_billing_group_cost_report(
     ctx: Context,
@@ -377,14 +395,15 @@ You can filter custom line items by:
 - BillingGroups: Filter by billing group ARNs (up to 100)
 - Names: Filter by custom line item names (up to 100)
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {"billing_period": "2025-01"}
-Example 2 (with filter): {"filters": "{\"Names\": [\"MyCustomLineItem\"]}", "billing_period": "2025-01"}""",
+Example 2 (with filter): {"filters": "{\\"Names\\": [\\"MyCustomLineItem\\"]}", "billing_period": "2025-01"}""",
 )
 async def list_custom_line_items(
     ctx: Context,
@@ -425,14 +444,15 @@ billing periods, and timestamps.
 You can filter versions by:
 - BillingPeriodRange: Filter by start and/or end billing period
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {"arn": "arn:aws:billingconductor::123456789012:customlineitem/abcdef1234"}
-Example 2: {"arn": "...", "filters": "{\"BillingPeriodRange\": {\"StartBillingPeriod\": \"2025-01\", \"EndBillingPeriod\": \"2025-06\"}}"}""",
+Example 2: {"arn": "...", "filters": "{\\"BillingPeriodRange\\": {\\"StartBillingPeriod\\": \\"2025-01\\", \\"EndBillingPeriod\\": \\"2025-06\\"}}"}""",
 )
 async def list_custom_line_item_versions(
     ctx: Context,
@@ -467,6 +487,10 @@ This tool retrieve resources associated with a specific custom line item.
 If no billing period is provided, the current billing period is used.
 A billing_period after the current month (UTC) is a projection, not a record: the response sets
 `billing_period_is_future: true` and lists what is recorded today as in effect that month.
+A billing_period in which the custom line item was not in effect (before it started or after it
+ended) fails with ResourceNotFoundException ("Custom line item does not exist."), not an empty
+list. A mistyped ARN can return the same error: confirm the ARN with list-custom-line-items for
+a recent month.
 
 The tool returns information about each associated resource:
 - Resource ARN (can be a billing group or custom line item)
@@ -476,14 +500,15 @@ The tool returns information about each associated resource:
 You can filter associated resources by:
 - Relationship: Filter by relationship type ("PARENT" or "CHILD")
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {"arn": "arn:aws:billingconductor::123456789012:customlineitem/abcdef1234"}
-Example 2: {"arn": "...", "filters": "{\"Relationship\": \"CHILD\"}", "billing_period": "2025-01"}""",
+Example 2: {"arn": "...", "filters": "{\\"Relationship\\": \\"CHILD\\"}", "billing_period": "2025-01"}""",
 )
 async def list_resources_associated_to_custom_line_item(
     ctx: Context,
@@ -536,14 +561,15 @@ The tool returns information about:
 You can filter pricing rules by:
 - Arns: Filter by specific pricing rule ARNs
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {"billing_period": "2025-01"}
-Example 2: {"filters": "{\"Arns\": [\"arn:aws:billingconductor::123456789012:pricingrule/abc\"]}", "billing_period": "2025-01"}""",
+Example 2: {"filters": "{\\"Arns\\": [\\"arn:aws:billingconductor::123456789012:pricingrule/abcdef1234\\"]}", "billing_period": "2025-01"}""",
 )
 async def list_pricing_rules(
     ctx: Context,
@@ -588,14 +614,15 @@ The tool returns information about:
 You can filter pricing plans by:
 - Arns: Filter by specific pricing plan ARNs
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
 Example 1: {"billing_period": "2025-01"}
-Example 2: {"filters": "{\"Arns\": [\"arn:aws:billingconductor::123456789012:pricingplan/abc\"]}", "billing_period": "2025-01"}""",
+Example 2: {"filters": "{\\"Arns\\": [\\"arn:aws:billingconductor::123456789012:pricingplan/abcdef1234\\"]}", "billing_period": "2025-01"}""",
 )
 async def list_pricing_plans(
     ctx: Context,
@@ -631,6 +658,9 @@ This tool retrieve pricing rules associated with a specific pricing plan
 If no billing period is provided, the current billing period is used.
 A billing_period after the current month (UTC) is a projection, not a record: the response sets
 `billing_period_is_future: true` and lists what is recorded today as in effect that month.
+A billing_period in which the pricing plan was not in effect (for example, before it
+started) fails with ResourceNotFoundException ("Pricing plan does not exist."), not an empty list.
+A mistyped ARN can return the same error: confirm the ARN with list-pricing-plans for a recent month.
 
 The tool returns information about:
 - The billing period for which the pricing rule associations are listed.
@@ -638,13 +668,14 @@ The tool returns information about:
 - The ARN of the pricing plan for which associations are listed.
 - A list containing pricing rules that are associated with the requested pricing plan
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
-Example: {"pricing_plan_arn": "arn:aws:billingconductor::123456789012:pricingplan/abc"}""",
+Example: {"pricing_plan_arn": "arn:aws:billingconductor::123456789012:pricingplan/abcdef1234"}""",
 )
 async def list_pricing_rules_associated_to_pricing_plan(
     ctx: Context,
@@ -684,6 +715,9 @@ This tool retrieve pricing plans associated with a specific pricing rule
 If no billing period is provided, the current billing period is used.
 A billing_period after the current month (UTC) is a projection, not a record: the response sets
 `billing_period_is_future: true` and lists what is recorded today as in effect that month.
+A billing_period in which the pricing rule was not in effect (for example, before it
+started) fails with ResourceNotFoundException ("Pricing rule does not exist."), not an empty list.
+A mistyped ARN can return the same error: confirm the ARN with list-pricing-rules for a recent month.
 
 The tool returns information about:
 - The billing period for which the pricing rule associations are listed.
@@ -691,13 +725,14 @@ The tool returns information about:
 - The ARN of the pricing rule for which associations are listed.
 - The list containing pricing plans that are associated with the requested pricing rule.
 
-Pagination: `max_items` is the total number of items to return. Omit it to fetch every page
-(no limit); pass it, or narrow the filters, when the result can be large. A partial result leads
+Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it, or narrow the filters, when the result can be large. A partial result leads
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
 
-Example: {"pricing_rule_arn": "arn:aws:billingconductor::123456789012:pricingrule/abc"}""",
+Example: {"pricing_rule_arn": "arn:aws:billingconductor::123456789012:pricingrule/abcdef1234"}""",
 )
 async def list_pricing_plans_associated_with_pricing_rule(
     ctx: Context,

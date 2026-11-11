@@ -18,6 +18,7 @@ Updated to use shared utility functions.
 """
 
 import botocore.session
+import json
 from ..utilities.aws_service_base import (
     create_aws_client,
     format_response,
@@ -46,6 +47,7 @@ from ..utilities.constants import (
     OPERATION_LIST_RECOMMENDATION_SUMMARIES,
     OPERATION_LIST_RECOMMENDATIONS,
     ORDER_BY_VALID_ORDERS,
+    PAGINATION_LIMIT_TEXT,
 )
 from .cost_optimization_hub_helpers import (
     get_preferences,
@@ -207,29 +209,13 @@ def _filter_members() -> Dict[str, Any]:
         return {}
 
 
-# Values the API accepts and returns that the installed botocore model does not list yet.
-# They are merged into the botocore enum so they normalize and appear in valid_filter_values.
-# Remove an entry once the botocore cost-optimization-hub model includes it.
-_SUPPLEMENTAL_FILTER_VALUES: Dict[str, Tuple[str, ...]] = {
-    'resourceTypes': ('DatabaseSavingsPlans',),
-}
-
-
 def _filter_model() -> Dict[str, Optional[List[str]]]:
-    """Return {filter key: enum values, or None} for the list-valued filter keys.
-
-    The botocore enum is extended with _SUPPLEMENTAL_FILTER_VALUES.
-    """
-    model: Dict[str, Optional[List[str]]] = {
+    """Return {filter key: enum values, or None} for the list-valued filter keys."""
+    return {
         name: (list(shape.member.enum) if getattr(shape.member, 'enum', None) else None)
         for name, shape in _filter_members().items()
         if shape.type_name == 'list'
     }
-    for name, extra in _SUPPLEMENTAL_FILTER_VALUES.items():
-        known = model.get(name)
-        if known:
-            model[name] = [*known, *(value for value in extra if value not in known)]
-    return model
 
 
 def _filter_item_fields() -> Dict[str, List[str]]:
@@ -247,27 +233,50 @@ def _filter_item_fields() -> Dict[str, List[str]]:
 SUMMARIES_UNSUPPORTED_FILTERS = frozenset({'recommendationIds', 'resourceIds', 'resourceArns'})
 
 
+def _decodes_to_object(text: str) -> bool:
+    """Whether text is itself a JSON object, as a double-encoded filters value is."""
+    try:
+        return isinstance(json.loads(text), dict)
+    except ValueError:
+        return False
+
+
 def _normalize_filters(operation: str, filters: Any) -> Tuple[Any, Optional[Dict[str, Any]]]:
     """Fold filter keys and enum values onto the spelling the API expects.
 
     The API is case-sensitive on both. Keys match case-, underscore-, and
     singular/plural-insensitively (``ResourceType`` -> ``resourceTypes``); enum values
     match case- and underscore-insensitively (``ec2_instance`` -> ``Ec2Instance``). A
-    single bare value is wrapped in a list. Values that match nothing are passed
-    through unchanged, so the service stays the authority on what is valid.
+    single bare value is wrapped in a list, and a ``"true"``/``"false"`` string for a
+    boolean filter becomes a boolean (botocore rejects the string). Values that match
+    nothing are passed through unchanged, so the service stays the authority on what is
+    valid.
 
     Returns:
-        (normalized filters, None), or (original filters, error response) when a list
-        filter is empty, which the API rejects.
+        (normalized filters, None), or (original filters, error response) when filters is
+        not a JSON object or a list filter is empty, which the API rejects.
     """
+    if filters is not None and not isinstance(filters, dict):
+        message = 'filters must be a JSON object, e.g. {"resourceTypes": ["Ec2Instance"]}'
+        if isinstance(filters, str) and _decodes_to_object(filters):
+            message += '; it was JSON-encoded twice, so encode the object once'
+        return filters, _error_response(operation, {'provided_filters': filters}, message + '.')
     model = _filter_model()
-    if not isinstance(filters, dict) or not model:
+    if filters is None or not model:
         return filters, None
 
-    keys = {_filter_key(name).removesuffix('s'): name for name in _filter_members()}
+    members = _filter_members()
+    keys = {_filter_key(name).removesuffix('s'): name for name in members}
     normalized: Dict[str, Any] = {}
     for key, value in filters.items():
         name = keys.get(_filter_key(key).removesuffix('s'), key) if isinstance(key, str) else key
+        if (
+            name in members
+            and members[name].type_name == 'boolean'
+            and isinstance(value, str)
+            and value.strip().casefold() in ('true', 'false')
+        ):
+            value = value.strip().casefold() == 'true'
         if name in model:
             if isinstance(value, (str, dict)):
                 value = [value]
@@ -307,16 +316,23 @@ def _normalize_filters(operation: str, filters: Any) -> Tuple[Any, Optional[Dict
     return normalized, None
 
 
+def _summaries_valid_group_by() -> List[str]:
+    """Return the group_by values list_recommendation_summaries accepts, for error messages."""
+    return [*COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES, f'{GROUP_BY_TAG_KEY_PREFIX}<tag key>']
+
+
 def _resolve_summaries_group_by(group_by: Any) -> Tuple[Any, Optional[Dict[str, Any]]]:
     """Validate list_recommendation_summaries group_by, accepting 'TagKey:<tag key>'.
 
-    The 'TagKey:' prefix is matched case-insensitively and sent in the spelling the API
-    expects; the tag key itself is case-sensitive and kept as given.
+    The API is case-sensitive. Fixed dimensions and the 'TagKey:' prefix match
+    case-insensitively and are sent in the API's spelling (``resourcetype`` ->
+    ``ResourceType``). Underscores are not ignored, so ``RESOURCE_TYPE`` is rejected. The
+    tag key itself is case-sensitive and kept as given.
 
     Returns:
         (group_by to send, None), or (None, error response).
     """
-    valid = [*COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES, f'{GROUP_BY_TAG_KEY_PREFIX}<tag key>']
+    valid = _summaries_valid_group_by()
     if isinstance(group_by, str) and group_by.casefold().startswith(
         GROUP_BY_TAG_KEY_PREFIX.casefold()
     ):
@@ -328,13 +344,15 @@ def _resolve_summaries_group_by(group_by: Any) -> Tuple[Any, Optional[Dict[str, 
                 f'group_by {group_by} needs a tag key, e.g. {GROUP_BY_TAG_KEY_PREFIX}Environment.',
             )
         return GROUP_BY_TAG_KEY_PREFIX + tag_key, None
-    if group_by not in COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES:
+    canonical = {v.casefold(): v for v in COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES}
+    resolved = canonical.get(group_by.casefold()) if isinstance(group_by, str) else None
+    if resolved is None:
         return None, _error_response(
             OPERATION_LIST_RECOMMENDATION_SUMMARIES,
             {'provided_group_by': group_by, 'valid_group_by_values': valid},
             f'Invalid group_by value: {group_by}. Must be one of: {", ".join(valid)}.',
         )
-    return group_by, None
+    return resolved, None
 
 
 def _add_valid_filter_values(result: Dict[str, Any], filters: Any) -> Dict[str, Any]:
@@ -442,21 +460,46 @@ Supported Operations:
 
 IMPORTANT: 'list_recommendation_summaries' operation REQUIRES a 'group_by' parameter.
 Valid 'group_by' values: AccountId, Region, ActionType, ResourceType, RestartNeeded, RollbackPossible, ImplementationEffort
-Or group by a tag's values with 'TagKey:<tag key>' (e.g. 'TagKey:Environment'). The tag
+(matched case-insensitively). Or group by a tag's values with
+'TagKey:<tag key>' (e.g. 'TagKey:Environment'). The tag
 key is case-sensitive; recommendations without the tag, or for a key that does not exist,
 are grouped under 'NoTagKey'.
+
+list_recommendation_summaries also returns metrics.savings_percentage: the estimated
+deduplicated monthly savings as a percent of the last 30 days' net amortized cost,
+excluding credits and refunds, for the whole filtered result (not per group). It is a
+whole-number string such as '12%', clamped to '>=80%' and '<=2%'. It is only computed when
+the savings estimation mode preference is AfterDiscounts and the only filters are
+accountIds, regions and tags; otherwise metrics.savings_percentage_unavailable_reason gives
+the service's reason instead. The metrics block can be absent.
+
+SAVINGS TOTALS:
+- For a portfolio total, use list_recommendation_summaries estimated_total_deduped_savings
+  with no filter, or with only accountIds and/or regions. Never add up list_recommendations
+  estimated_monthly_savings: items overlap (commitment purchases and rightsizing or idle
+  actions on the same usage, Auto Scaling groups and their instances, Payer and Linked copies).
+- Filters other than accountIds and regions (actionTypes, resourceTypes, implementationEfforts,
+  restartNeeded, rollbackPossible) change how overlap is netted out, so a filtered total is
+  not that slice's share of the portfolio total, and filtered totals do not sum to it.
+- Commitment (Savings Plans/Reserved Instance) savings assume current usage; implementing
+  rightsizing or idle recommendations reduces them.
+- With include_all_recommendations=true, the same purchase appears once per term, payment
+  option, and Payer/Linked scope, so a sum is inflated further.
 
 CRITICAL PARAMETER REQUIREMENTS:
 - 'filters' parameter must be passed as JSON string format
 - 'max_items' must be integer (not string)
 
 PAGINATION (list_recommendations, list_recommendation_summaries, list_efficiency_metrics):
-- 'max_items' is the total number of items returned. Omit it to fetch every page (no limit). Pass it, or narrow 'filters', for queries that can be large (e.g. list_recommendations across an organization).
+- 'max_items' is the total number of items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow 'filters', for queries that can be large (e.g. list_recommendations across an organization).
 - Top N: pass 'order_by' with max_items=N (list_recommendations, list_efficiency_metrics). Without order_by, the first N are not the top N.
 - If the result has complete_dataset: false, it is partial: totals and counts undercount. Call again with a larger 'max_items', continue with 'next_token', or state that the result is partial. Never report the number of returned items as a total count.
-- Fields from the first page only (summary totals such as estimated_total_deduped_savings, currency_code, metrics) are not repeated on continuation calls.
+- Summary fields (estimated_total_deduped_savings, currency_code, metrics) cover the whole filtered result and are the same on every page, including continuation calls: do not add them across pages (total_recommendation_count is different; see the next bullet).
 - list_recommendation_summaries returns total_recommendation_count (the sum of the groups' recommendation_count) only when every group was fetched; use it as the overall count instead of adding the groups. It is absent on a partial result, a continuation call, or when a group has no recommendation_count.
-- In ranking_mode='performance', 'max_items' only limits how many ranked groups are returned; the fetch behind the ranking is fixed. A ranking has no 'next_token'; a larger 'max_items' or a continuation does not widen it. complete_dataset: false there means only the top spenders were fetched and ranked: group_by=Region (fewer groups) for a complete ranking, or state that it covers only the top spenders.
+- list_recommendation_summaries returns at most 1,000 groups, those with the highest estimated savings, and no next_token for the rest, so a larger 'max_items' or a continuation cannot fetch them. A result of 1,000 groups is marked complete_dataset: false: groups (e.g. accounts) may be missing and estimated_total_deduped_savings may cover only the returned groups. For totals, group by a dimension with fewer values (such as Region). A continuation call cannot see earlier pages, so its last page is not marked: when paging with 'max_items', 1,000 groups across all pages means the same.
+- In ranking_mode='performance', 'max_items' only limits how many ranked groups are returned; the fetch behind the ranking is fixed. A ranking has no 'next_token'; a larger 'max_items' or a continuation does not widen it. complete_dataset: false there means only the top spenders were fetched and ranked: group_by=Region (fewer groups) for a complete ranking, or state that it covers only the top spenders. If 'ranking_mode' is omitted, the tool returns the raw per-group series without ranking.
 - list_enrollment_statuses, get_recommendation and get_preferences are not paginated.
 - 'get_recommendation' requires only 'recommendation_id' (mapped to the API's recommendationId)
 - Service only available in us-east-1 region
@@ -497,13 +540,12 @@ Deduplication (list_recommendations, 'include_all_recommendations'):
   commitment preference (term and payment option, see get_preferences), then the one
   with the highest savings, so a hidden term or payment option can save more. For
   example, unless 'filters' rule them out, it shows Compute Savings Plans and hides
-  EC2 Instance Savings Plans and EC2 Reserved Instances, and in accounts that get
-  Database Savings Plans recommendations it hides the RDS, ElastiCache and OpenSearch
-  Reserved Instances and DynamoDB reserved capacity they cover. In a management (payer) account it keeps the
+  EC2 Instance Savings Plans and EC2 Reserved Instances. In a management (payer) account it keeps the
   organization-wide options (summary ends "(Payer account level)") and hides the
   options sized for one account ("(Linked account level)"). Filter 'accountIds' to
   member accounts, without the management account, to see those for member
-  accounts; include_all_recommendations=true lists all of them.
+  accounts; include_all_recommendations=true lists all of them. The sp-recommendation
+  tool returns Cost Explorer's recommendations for each Savings Plans type.
 - Which option is kept depends on 'filters': filtering resourceTypes to options the
   default hid (e.g. ["Ec2ReservedInstances"]) returns those, still deduplicated
   among the filtered types. It does not mean they save more than the option the
@@ -518,10 +560,16 @@ Deduplication (list_recommendations, 'include_all_recommendations'):
   so its per-type counts and savings need not match list_recommendations.
 
 Available Filter Parameters (pass as JSON string):
-- resourceTypes: ['Ec2Instance', 'LambdaFunction', 'EbsVolume', 'EcsService', 'Ec2AutoScalingGroup', 'Ec2InstanceSavingsPlans', 'ComputeSavingsPlans', 'SageMakerSavingsPlans', 'Ec2ReservedInstances', 'RdsReservedInstances', 'OpenSearchReservedInstances', 'RedshiftReservedInstances', 'ElastiCacheReservedInstances', 'RdsDbInstanceStorage', 'RdsDbInstance', 'AuroraDbClusterStorage', 'DynamoDbReservedCapacity', 'MemoryDbReservedInstances', 'NatGateway', 'DynamoDBTable', 'ElastiCacheCluster', 'MemoryDBCluster', 'DocumentDBCluster', 'WorkSpaces', 'SageMakerEndpoint', 'DatabaseSavingsPlans']
-  DatabaseSavingsPlans: list_recommendations returns these recommendations.
-  list_recommendation_summaries accepts the filter but returns nothing for it and leaves them
-  out of its totals and groups, so list and summary totals differ by those savings.
+- resourceTypes: ['Ec2Instance', 'LambdaFunction', 'EbsVolume', 'EcsService', 'Ec2AutoScalingGroup', 'Ec2InstanceSavingsPlans', 'ComputeSavingsPlans', 'SageMakerSavingsPlans', 'Ec2ReservedInstances', 'RdsReservedInstances', 'OpenSearchReservedInstances', 'RedshiftReservedInstances', 'ElastiCacheReservedInstances', 'RdsDbInstanceStorage', 'RdsDbInstance', 'AuroraDbClusterStorage', 'DynamoDbReservedCapacity', 'MemoryDbReservedInstances', 'NatGateway', 'DynamoDBTable', 'ElastiCacheCluster', 'MemoryDBCluster', 'DocumentDBCluster', 'WorkSpaces', 'SageMakerEndpoint']
+  For Database Savings Plans purchase recommendations, use sp-recommendation with
+  savings_plans_type DATABASE_SP. One rejected value fails the whole request. For a value
+  that matches no documented type (case and underscores aside, see below), the error's
+  'fields' lists every type in the service's model, including types the account cannot
+  use; choose from valid_filter_values (the documented types).
+  The service can return types not listed here; list_recommendations shows them. There is
+  no per-service filter: to cover a service, list each of its types (e.g. RDS:
+  'RdsDbInstance', 'RdsDbInstanceStorage', 'AuroraDbClusterStorage',
+  'RdsReservedInstances').
 - actionTypes: ['Rightsize', 'Stop', 'Upgrade', 'PurchaseSavingsPlans', 'PurchaseReservedInstances', 'MigrateToGraviton', 'Delete', 'ScaleIn']
 - implementationEfforts: ['VeryLow', 'Low', 'Medium', 'High', 'VeryHigh']
 - regions: AWS region codes (e.g., ["us-east-1", "us-west-2"]).
@@ -532,16 +580,17 @@ Available Filter Parameters (pass as JSON string):
   so "us-east-1" returns them and "Global" returns $0. The same region filter can therefore
   show no Savings Plans in the list and a positive amount in the summaries.
 - accountIds: List of AWS account IDs
-- restartNeeded: boolean
+- restartNeeded: true or false (the strings "true"/"false" are accepted too)
 - tags: List of {"key": ..., "value": ...} objects, e.g.
   [{"key": "Environment", "value": "prod"}, {"key": "Environment", "value": "staging"},
   {"key": "Team", "value": "web"}] matches (Environment=prod OR staging) AND Team=web.
   Values for the same key are ORed; different keys are ANDed. Both key and value are
   required and matched exactly (case-sensitive, no wildcards). Only tags that appear on
   the recommendations can match (see 'tags' in get_recommendation).
-- rollbackPossible: boolean
-list_recommendation_summaries does not accept recommendationIds, resourceIds or resourceArns
-(rejected locally); they apply to list_recommendations only.
+- rollbackPossible: true or false (the strings "true"/"false" are accepted too)
+- resourceIds, resourceArns, recommendationIds: lists of resource IDs, resource ARNs or
+  recommendation IDs. list_recommendations only; list_recommendation_summaries rejects
+  them locally.
 Filter keys and enum values are matched case- and underscore-insensitively
 (e.g. "ec2_instance" -> "Ec2Instance"); tag keys and values are not. List filters must be non-empty: omit a filter
 to include all values rather than passing []. An empty list is rejected locally, and a
@@ -549,7 +598,10 @@ rejected value returns the accepted values in valid_filter_values.
 
 Cost Optimization Hub provides recommendations across multiple AWS services, including:
 - EC2 instances (right-sizing, Graviton migration)
-- EBS volumes (unused volumes, IOPS optimization)
+- EBS volumes (Delete covers both idle attached volumes and unattached ones: a
+  recommended_resource_summary starting "Detach volume from instance" marks an attached
+  volume, and get_recommendation returns attachment_state "Attached" or "Unattached" as of
+  last_refresh_timestamp), IOPS/type optimization
 - RDS instances (right-sizing, engine optimization)
 - Lambda functions (memory size optimization)
 - SP/RI
@@ -595,8 +647,9 @@ async def cost_optimization_hub(
             omitted (default): one deduplicated recommendation per resource, and
             one Savings Plans/Reserved Instances purchase option per covered usage,
             chosen first by the account's commitment preference; Cost Optimization Hub
-            hides the alternatives. True: every recommendation,
-            including alternatives whose savings must not be added together.
+            hides the alternatives. True: every recommendation, including one row per
+            term, payment option, and Payer/Linked scope for the same purchase, so do
+            not sum their estimated_monthly_savings to get a total.
         next_token: Pagination token to resume from a previous response.
             Applies to list_recommendations, list_recommendation_summaries, and
             list_efficiency_metrics.
@@ -646,10 +699,11 @@ async def cost_optimization_hub(
         # Validate operation-specific requirements
         if operation == OPERATION_LIST_RECOMMENDATION_SUMMARIES:
             if not group_by:
+                valid_group_by = _summaries_valid_group_by()
                 return _error_response(
                     operation,
-                    {'valid_group_by_values': COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES},
-                    f'group_by parameter is required for list_recommendation_summaries operation. Must be one of: {", ".join(COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES)}, or {GROUP_BY_TAG_KEY_PREFIX}<tag key>',
+                    {'valid_group_by_values': valid_group_by},
+                    f'group_by parameter is required for list_recommendation_summaries operation. Must be one of: {", ".join(valid_group_by)}.',
                 )
 
             group_by, group_by_error = _resolve_summaries_group_by(group_by)
@@ -691,7 +745,8 @@ async def cost_optimization_hub(
                         'list_recommendation_summaries. Use one of supported_filters.',
                     )
 
-                effective_group_by = str(group_by) if group_by else 'RESOURCE_TYPE'
+                # group_by was validated and resolved to the API's spelling above.
+                effective_group_by = str(group_by)
                 await ctx.info(f'Using group_by: {effective_group_by}')
 
                 result = await list_recommendation_summaries(

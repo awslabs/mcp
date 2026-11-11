@@ -28,6 +28,7 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operatio
     _format_linked_accounts,
     _format_pricing_plans,
     _format_pricing_rules,
+    _plain_decimal,
     get_billing_group_cost_report,
     get_billing_transfer_preference,
     list_account_associations,
@@ -1285,6 +1286,65 @@ class TestFormatBillingGroupCostReports:
         assert result[0]['currency'] == 'USD'
 
 
+class TestPlainDecimalAmounts:
+    """Tests for _plain_decimal and the decimal_values field on cost report rows."""
+
+    @pytest.mark.parametrize(
+        'value,expected',
+        [
+            ('5.0E-7', '0.00000050'),
+            ('-1.2345678E7', '-12345678'),
+            ('1.0E-6', '0.0000010'),
+            ('-12.340000000000003', '-12.340000000000003'),
+            ('0.0', '0.0'),
+            ('-0.0', '-0.0'),
+            ('100', '100'),
+            (None, None),
+            ('', None),
+            (0.0, None),
+            ('not-a-number', None),
+            ('NaN', None),
+            ('Infinity', None),
+        ],
+    )
+    def test_plain_decimal_keeps_every_digit_and_never_exponent(self, value, expected):
+        """Exponent strings become exact plain decimals; digits are never rounded."""
+        assert _plain_decimal(value) == expected
+
+    def test_cost_report_row_adds_decimal_values_and_keeps_raw_strings(self):
+        """The raw service strings are unchanged; decimal_values adds the plain-notation copies."""
+        row = {
+            'Arn': BILLING_GROUP_ARN_1,
+            'AWSCost': '5.0E-7',
+            'ProformaCost': '4.0E-7',
+            'Margin': '-1.0000000000000002E-7',
+            'MarginPercentage': '-0.20000000000000004',
+            'Currency': 'USD',
+        }
+        for formatted in (
+            _format_billing_group_cost_reports([row])[0],
+            _format_billing_group_cost_report_results([row])[0],
+        ):
+            assert formatted['aws_cost'] == '5.0E-7'
+            assert formatted['margin'] == '-1.0000000000000002E-7'
+            assert formatted['decimal_values'] == {
+                'aws_cost': '0.00000050',
+                'proforma_cost': '0.00000040',
+                'margin': '-0.00000010000000000000002',
+                'margin_percentage': '-0.20000000000000004',
+            }
+
+    def test_cost_report_row_decimal_values_none_for_missing_amounts(self):
+        """A missing amount stays None in decimal_values instead of failing the row."""
+        formatted = _format_billing_group_cost_reports([{'Arn': BILLING_GROUP_ARN_1}])[0]
+        assert formatted['decimal_values'] == {
+            'aws_cost': None,
+            'proforma_cost': None,
+            'margin': None,
+            'margin_percentage': None,
+        }
+
+
 class TestFormatBillingGroupCostReportResults:
     """Tests for the _format_billing_group_cost_report_results function."""
 
@@ -2427,6 +2487,39 @@ class TestFutureBillingPeriod:
         call_kwargs = mock_client.get_billing_group_cost_report.call_args[1]
         assert call_kwargs.get('BillingPeriodRange') == rng
 
+    @pytest.mark.parametrize('start', [202701, {'Year': 2027}, True])
+    async def test_cost_report_non_string_start_is_a_param_validation_error(
+        self, _today, mock_ctx, start, monkeypatch
+    ):
+        """A non-string start is left to botocore, whose error names the field and type."""
+        monkeypatch.delenv('AWS_PROFILE', raising=False)
+        client = boto3.Session(
+            aws_access_key_id='a', aws_secret_access_key='b', region_name='us-east-1'
+        ).client('billingconductor')
+        sent = []
+
+        def _record_and_block(request, **_):
+            # A request that got past botocore's validation is recorded and never sent.
+            sent.append(request)
+            raise AssertionError('request reached the wire')
+
+        client.meta.events.register('before-send', _record_and_block)
+        rng = json.dumps(
+            {'InclusiveStartBillingPeriod': start, 'ExclusiveEndBillingPeriod': '2026-10'}
+        )
+
+        with patch(PATCH_BC_CLIENT, return_value=client):
+            result = await get_billing_group_cost_report(mock_ctx, BILLING_GROUP_ARN_1, rng)
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'validation_error'
+        assert result['boto_error_type'] == 'ParamValidationError'
+        assert (
+            'Invalid type for parameter BillingPeriodRange.InclusiveStartBillingPeriod'
+            in result['message']
+        )
+        assert sent == []
+
     @pytest.mark.parametrize('op,method,key,args', CONFIG_LISTS)
     @patch(PATCH_BC_CLIENT)
     async def test_config_lists_flag_future_month(
@@ -2473,6 +2566,10 @@ class TestFutureBillingPeriod:
         (date(2026, 10, 28), '2026-13', False),
         (date(2026, 10, 28), '2026-00', False),
         (date(2026, 10, 28), None, False),
+        (date(2026, 10, 28), 202701, False),
+        (date(2026, 10, 28), {'Year': 2027}, False),
+        (date(2026, 10, 28), ['2027-01'], False),
+        (date(2026, 10, 28), b'2027-01', False),
     ],
 )
 def test_is_future_billing_period_year_boundary(today, period, future):

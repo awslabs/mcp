@@ -26,6 +26,7 @@ from ..utilities.aws_service_base import (
     validate_date_format,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.logging_utils import get_context_logger
 from datetime import date, datetime, timedelta, timezone
 from fastmcp import Context, FastMCP
@@ -85,7 +86,9 @@ Feedback status options:
 - PLANNED_ACTIVITY: Anomalies marked as planned activities
 
 Pagination:
-- max_items: total number of anomalies returned. Omit it to fetch every page (no limit).
+- max_items: total number of anomalies returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result.
   Pass it, or narrow the filters (monitor_arn, total impact, a shorter date range), for
   accounts with many anomalies.
 - Anomalies come back newest first (by anomaly end date), so max_items=N returns the N most
@@ -121,7 +124,8 @@ async def cost_anomaly(
         end_date: End date in YYYY-MM-DD format (inclusive — use today's date to include today's anomalies). Required.
         monitor_arn: Optional ARN of a specific cost anomaly monitor to filter results.
         feedback: Optional filter for anomalies by feedback status (YES, NO, PLANNED_ACTIVITY).
-        max_items: Optional total number of anomalies to return. None fetches every page.
+        max_items: Optional total number of anomalies to return. Omit it to fetch every page
+            within the time limit.
         next_token: Optional pagination token from a previous response.
         total_impact_operator: Optional numeric operator for filtering by total impact (EQUAL, GREATER_THAN, LESS_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL, BETWEEN). Needs total_impact_start. Defaults to GREATER_THAN_OR_EQUAL when only total_impact_start is given, BETWEEN when total_impact_end is also given.
         total_impact_start: Optional dollar value the operator compares against (the lower bound for BETWEEN).
@@ -524,7 +528,10 @@ matches no monitor returns an empty list, not an error; a malformed ARN is a Val
 and another account's ARN is an AccessDeniedException.
 
 Pagination:
-- max_items: total monitors or subscriptions returned. Omit it to fetch every page.
+- max_items: total monitors or subscriptions returned. If it is omitted, the tool fetches every
+  page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result.
 - If the result has complete_dataset: false, it is partial: call again with a larger
   max_items, continue with next_token, or say the result is partial.""",
 )
@@ -542,7 +549,8 @@ async def cost_anomaly_monitors(
         operation: Required. 'list_monitors' or 'list_subscriptions'.
         monitor_arn: Optional monitor ARN. list_monitors returns only that monitor;
             list_subscriptions returns only the subscriptions attached to it.
-        max_items: Optional total number of items to return. None fetches every page.
+        max_items: Optional total number of items to return. Omit it to fetch every page
+            within the time limit.
         next_token: Optional pagination token from a previous response.
 
     Returns:

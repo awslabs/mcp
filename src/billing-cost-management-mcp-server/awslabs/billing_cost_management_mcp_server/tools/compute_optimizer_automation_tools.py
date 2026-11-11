@@ -37,6 +37,7 @@ from ..utilities.aws_service_base import (
     partial_data_warning,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.error_contract import classify_error, combine_guidance
 from ..utilities.regional_fanout import (
     collect_regional_pages,
@@ -452,6 +453,13 @@ collapsed. Account-global operations (get_automation_rule, get_enrollment_config
 list_accounts, list_automation_rules, list_tags_for_resource) accept at most one region —
 rules are global resources, so fanning them out would repeat identical data.
 
+**Account scope:** Called from an organization's management account or a delegated
+administrator, list_recommended_actions, list_recommended_action_summaries,
+list_automation_events and list_automation_event_summaries also return data for the
+associated member accounts (see list_accounts), not just the calling account. Actions and
+events have an account_id; summary rows do not, so their counts and savings can cover several
+accounts. To report on one account, filter on AccountId.
+
 Supported operations (pass via the `operation` parameter):
 
 1. get_enrollment_configuration: Current Automation enrollment status for the account.
@@ -469,7 +477,8 @@ Supported operations (pass via the `operation` parameter):
    Params: event_id (required), max_items, next_token. With `regions`, `found_in_region`
    names the region holding the event and `regions_not_found` the regions without it.
 7. list_automation_event_summaries: Aggregated automation-event counts and savings.
-   Params: filters, start_date, end_date, max_items, next_token
+   Params: filters, start_date, end_date, max_items, next_token. If start_date and end_date
+   are omitted, the summary covers all events from the past year.
 8. list_automation_rules: Automation rules matching filters.
    Params: filters, max_items, next_token
 9. list_recommended_actions: Recommended actions matching filters.
@@ -479,7 +488,10 @@ Supported operations (pass via the `operation` parameter):
 11. list_automation_rule_preview: Preview the recommended actions a rule config would
     match, without creating the rule. Params: rule_type (required),
     recommended_action_types (required), organization_scope, criteria, max_items,
-    next_token
+    next_token. A preview with rule_type AccountRule covers only the calling account.
+    OrganizationRule, available only to the management account or a delegated
+    administrator, covers member accounts that have Automation enabled and allow
+    organization rules; organization_scope limits it to specific accounts.
 12. list_automation_rule_preview_summaries: Aggregated summary of a rule preview.
     Params: same as list_automation_rule_preview
 13. list_tags_for_resource: Tags for a resource (e.g. an automation rule).
@@ -511,9 +523,19 @@ Filter values:
   ResourceTagsKey and ResourceTagsValue each search keys and values, so a key filter also
   matches tag values and the reverse. EBS volume types are lowercased for you.
 
+Rule criteria (`criteria`, preview operations) is a JSON object string of the form
+{"<field>": [{"comparison": "<operator>", "values": [...]}]}. Text fields: `region`,
+`resourceArn`, `ebsVolumeType`, `restartNeeded`; they take String* operators (StringEquals,
+StringLike, StringEqualsIgnoreCase, ...). Number fields: `ebsVolumeSizeInGib`,
+`lookBackPeriodInDays`, `estimatedMonthlySavings`; they take Numeric* operators
+(NumericEquals, NumericGreaterThan, ...). `resourceTag` also takes a "key" and String*
+operators. An OrganizationRule needs organization_scope; the tool rejects one without it.
+
 PAGINATION (list_* operations only; the get_* operations and list_tags_for_resource take
 neither max_items nor next_token):
-- max_items is the total number of items returned. Omit it to fetch every page (no limit).
+- max_items is the total number of items returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result.
   Pass it, or narrow the filters, for queries that can be large.
 - With `regions`, max_items applies PER REGION: each region returns up to max_items items, so
   a response can hold up to max_items x len(regions) items.
@@ -529,8 +551,8 @@ Examples:
 - {"operation": "get_enrollment_configuration"}
 - {"operation": "get_automation_event", "event_id": "abc123"}
 - {"operation": "list_automation_events", "regions": ["us-east-1", "eu-west-1"]}
-- {"operation": "list_automation_events", "filters": "[{\"name\": \"EventStatus\", \"values\": [\"Complete\"]}]"}
-- {"operation": "list_automation_rule_preview", "rule_type": "AccountRule", "recommended_action_types": "[\"UpgradeEbsVolumeType\"]"}""",
+- {"operation": "list_automation_events", "filters": "[{\\"name\\": \\"EventStatus\\", \\"values\\": [\\"Complete\\"]}]"}
+- {"operation": "list_automation_rule_preview", "rule_type": "AccountRule", "recommended_action_types": "[\\"UpgradeEbsVolumeType\\"]"}""",
 )
 async def compute_optimizer_automation(
     ctx: Context,
@@ -572,7 +594,10 @@ async def compute_optimizer_automation(
         rule_type: Rule type for the preview operations ('OrganizationRule'/'AccountRule').
         recommended_action_types: JSON string array of action types for the preview operations.
         organization_scope: Optional JSON string {accountIds: [...]} for the preview operations.
-        criteria: Optional JSON string of rule criteria conditions for the preview operations.
+            Required when rule_type is OrganizationRule.
+        criteria: Optional JSON object string of rule criteria for the preview operations:
+            {"<field>": [{"comparison": "<operator>", "values": [...]}]}. See the tool
+            description for the fields and operators.
         max_items: Total number of items to return across all pages (per region when
             regions is set). Omit it to fetch every page. List operations only.
         next_token: The pagination.next_token from a previous response; continue with

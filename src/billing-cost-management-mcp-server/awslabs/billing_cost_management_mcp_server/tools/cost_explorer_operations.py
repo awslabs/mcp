@@ -26,10 +26,12 @@ from ..utilities.aws_service_base import (
     get_date_range,
     handle_aws_error,
     paginate_aws_items,
+    parse_filter,
     parse_json,
     parse_metrics,
     with_pagination,
 )
+from ..utilities.error_contract import MODIFY_REQUEST
 from ..utilities.sql_utils import convert_response_if_needed
 from ..utilities.time_utils import monthly_period_note
 from dataclasses import replace
@@ -175,7 +177,7 @@ async def get_cost_and_usage(
         # Parse JSON inputs
         metrics_list = parse_metrics(metrics)
         group_by_list = parse_json(group_by, 'group_by')
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {
@@ -188,7 +190,7 @@ async def get_cost_and_usage(
         if group_by_list:
             request_params['GroupBy'] = group_by_list
 
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         if billing_view_arn:
@@ -270,7 +272,7 @@ async def get_cost_and_usage_with_resources(
         # Parse JSON inputs
         metrics_list = parse_metrics(metrics)
         group_by_list = parse_json(group_by, 'group_by')
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {
@@ -283,7 +285,7 @@ async def get_cost_and_usage_with_resources(
         if group_by_list:
             request_params['GroupBy'] = group_by_list
 
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         if billing_view_arn:
@@ -328,6 +330,7 @@ async def get_dimension_values(
     max_items: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
     context: Optional[str] = None,
+    dimension_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get available dimension values.
 
@@ -345,6 +348,10 @@ async def get_dimension_values(
             If not provided, defaults to the account's primary billing view.
         context: The context for the call, which can be COST_AND_USAGE, RESERVATIONS, or
             SAVINGS_PLANS. The default is COST_AND_USAGE. The context scopes which values come back.
+        dimension_key: Only used when dimension is PRODUCT_ATTRIBUTE. Without it (or empty),
+            the call lists the product attribute names, such as `model`. With one of those names,
+            it lists that attribute's values instead, such as the model names. Sent to Cost
+            Explorer as DimensionKey.
 
     Returns:
         Dimension values response
@@ -357,7 +364,7 @@ async def get_dimension_values(
         await ctx.info(f'Using date range: {start} to {end}')
 
         # Parse JSON filter if provided
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {'TimePeriod': {'Start': start, 'End': end}, 'Dimension': dimension}
@@ -366,7 +373,7 @@ async def get_dimension_values(
         if search_string:
             request_params['SearchString'] = search_string
 
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         if billing_view_arn:
@@ -374,6 +381,9 @@ async def get_dimension_values(
 
         if context:
             request_params['Context'] = context
+
+        if dimension_key:
+            request_params['DimensionKey'] = dimension_key
 
         response = await _fetch_pages(
             ctx,
@@ -449,6 +459,29 @@ def _forecast_period_note(
     return {'period_note': note}
 
 
+# A forecast filter that matches no past costs fails with the same DataUnavailableException
+# as too little history. The shared hint names unmatched filters only as a possible cause and
+# maps to do_not_retry; with a filter sent, fixing the filter is the likely next step.
+_FORECAST_FILTER_NO_DATA_HINT = (
+    'Cost Explorer also returns this error when the filter as a whole matches no past costs '
+    'or usage (a misspelled value, the wrong case, a value from another dimension, or an And '
+    'of values that never occur together), not only when there is too little history. '
+    'Forecast filter values must match exactly, including case: MatchOptions such as '
+    'STARTS_WITH, CONTAINS or CASE_INSENSITIVE are accepted but not applied. Do not resend the '
+    'same request: check the values with getDimensionValues (getTagsOrValues for tags, '
+    'getCostCategories for cost categories) and retry with corrected values. If the values '
+    'exist and can occur together, report that there is too little history to forecast this.'
+)
+
+
+def _with_forecast_filter_hint(result: Dict[str, Any], filters: Any) -> Dict[str, Any]:
+    """Point a filtered forecast's DataUnavailableException at the filter values."""
+    if filters and result.get('error_type') == 'DataUnavailableException':
+        result['retry_strategy'] = MODIFY_REQUEST
+        result['hint'] = _FORECAST_FILTER_NO_DATA_HINT
+    return result
+
+
 async def get_cost_forecast(
     ctx: Context,
     ce_client,
@@ -479,6 +512,7 @@ async def get_cost_forecast(
     """
     await ctx.info(f'Getting cost forecast for metric: {metric}')
 
+    filters = None
     try:
         # Set default dates if not provided (forecast should be future-looking)
 
@@ -495,7 +529,7 @@ async def get_cost_forecast(
         await ctx.info(f'Using forecast date range: {start_date} to {end_date}')
 
         # Parse JSON filter if provided
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {
@@ -506,7 +540,7 @@ async def get_cost_forecast(
         }
 
         # Add filters if provided
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         if billing_view_arn:
@@ -535,7 +569,8 @@ async def get_cost_forecast(
 
     except Exception as e:
         # Use shared error handling
-        return await handle_aws_error(ctx, e, 'getCostForecast', 'Cost Explorer')
+        result = await handle_aws_error(ctx, e, 'getCostForecast', 'Cost Explorer')
+        return _with_forecast_filter_hint(result, filters)
 
 
 async def get_usage_forecast(
@@ -568,6 +603,7 @@ async def get_usage_forecast(
     """
     await ctx.info(f'Getting usage forecast for metric: {metric}')
 
+    filters = None
     try:
         # Set default dates if not provided (forecast should be future-looking)
         if not start_date:
@@ -583,7 +619,7 @@ async def get_usage_forecast(
         await ctx.info(f'Using forecast date range: {start_date} to {end_date}')
 
         # Parse JSON filter if provided
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {
@@ -594,7 +630,7 @@ async def get_usage_forecast(
         }
 
         # Add filters if provided
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         if billing_view_arn:
@@ -621,7 +657,8 @@ async def get_usage_forecast(
 
     except Exception as e:
         # Use shared error handling
-        return await handle_aws_error(ctx, e, 'getUsageForecast', 'Cost Explorer')
+        result = await handle_aws_error(ctx, e, 'getUsageForecast', 'Cost Explorer')
+        return _with_forecast_filter_hint(result, filters)
 
 
 async def get_tags(
@@ -631,6 +668,7 @@ async def get_tags(
     end_date: Optional[str] = None,
     search_string: Optional[str] = None,
     tag_key: Optional[str] = None,
+    filter_expr: Optional[Union[str, Dict[str, Any]]] = None,
     next_token: Optional[str] = None,
     max_items: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
@@ -644,6 +682,7 @@ async def get_tags(
         end_date: End date in YYYY-MM-DD format (exclusive)
         search_string: Optional string to filter results
         tag_key: Optional specific tag key to get values for
+        filter_expr: Optional filters, as an object or JSON string
         next_token: Continuation token from a previous response
         max_items: Most items to return; None fetches every page
         billing_view_arn: Optional ARN of a billing view to scope the query.
@@ -669,6 +708,10 @@ async def get_tags(
 
         if tag_key:
             request_params['TagKey'] = str(tag_key)
+
+        filters = parse_filter(filter_expr)
+        if filters is not None:
+            request_params['Filter'] = filters
 
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
@@ -702,6 +745,7 @@ async def get_cost_categories(
     end_date: Optional[str] = None,
     search_string: Optional[str] = None,
     cost_category_name: Optional[str] = None,
+    filter_expr: Optional[Union[str, Dict[str, Any]]] = None,
     next_token: Optional[str] = None,
     max_items: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
@@ -715,6 +759,7 @@ async def get_cost_categories(
         end_date: End date in YYYY-MM-DD format (exclusive)
         search_string: Optional string to filter results
         cost_category_name: Optional specific cost category to get values for
+        filter_expr: Optional filters, as an object or JSON string
         next_token: Continuation token from a previous response
         max_items: Most items to return; None fetches every page
         billing_view_arn: Optional ARN of a billing view to scope the query.
@@ -743,6 +788,10 @@ async def get_cost_categories(
         # (the values inside that category) instead of CostCategoryNames.
         if cost_category_name:
             request_params['CostCategoryName'] = str(cost_category_name)
+
+        filters = parse_filter(filter_expr)
+        if filters is not None:
+            request_params['Filter'] = filters
 
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
@@ -806,13 +855,13 @@ async def get_savings_plans_utilization(
         await ctx.info(f'Using date range: {start} to {end}')
 
         # Parse JSON filter if provided
-        filters = parse_json(filter_expr, 'filter')
+        filters = parse_filter(filter_expr)
 
         # Build request parameters
         request_params = {'TimePeriod': {'Start': start, 'End': end}, 'Granularity': granularity}
 
         # Add optional parameters
-        if filters:
+        if filters is not None:
             request_params['Filter'] = filters
 
         response = ce_client.get_savings_plans_utilization(**request_params)

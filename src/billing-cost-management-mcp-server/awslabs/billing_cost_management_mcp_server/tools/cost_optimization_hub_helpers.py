@@ -17,6 +17,7 @@
 These functions handle the specific operations for the Cost Optimization Hub tool.
 """
 
+import re
 from ..utilities.aws_service_base import (
     PageSpec,
     first_page_fields,
@@ -31,6 +32,7 @@ from ..utilities.constants import (
     EFFICIENCY_PARETO_PAGE_SIZE,
     EFFICIENCY_PARETO_SPEND_FRACTION,
     EFFICIENCY_RANKING_MODE_PERFORMANCE,
+    GROUP_BY_TAG_KEY_PREFIX,
     OPERATION_GET_PREFERENCES,
     OPERATION_GET_RECOMMENDATION,
     OPERATION_LIST_EFFICIENCY_METRICS,
@@ -45,6 +47,10 @@ from botocore.exceptions import ClientError
 from fastmcp import Context
 from typing import Any, Dict, Optional
 
+
+# A ListRecommendationSummaries savingsPercentage value: '12%', or clamped to '>=80%' / '<=2%'.
+# Anything else in that field is the service explaining why there is no percentage.
+SAVINGS_PERCENTAGE_VALUE = re.compile(r'(>=|<=)?[0-9]+(\.[0-9]+)?%')
 
 # maxResults is at most 1000 on every paginated COH list operation, and nextToken is not
 # bound to it, so each page asks for what is left of max_items.
@@ -66,6 +72,9 @@ COH_LIST_RECOMMENDATION_SUMMARIES = PageSpec(
     # The service reports a bad caller next_token as ValidationException.
     caller_token_error_codes=frozenset({'ValidationException'}),
 )
+# ListRecommendationSummaries returns at most this many groups, the ones with the highest
+# estimated savings, and no nextToken for the rest.
+COH_SUMMARIES_MAX_GROUPS = 1000
 COH_LIST_EFFICIENCY_METRICS = PageSpec(
     result_key='efficiencyMetricsByGroup',
     token_param='nextToken',
@@ -261,6 +270,13 @@ async def get_recommendation(
                 'recommendedResourceDetails'
             )
 
+        # An EBS volume's attachmentState ("Attached"/"Unattached") tells an idle volume from an
+        # unattached one under action type Delete, so surface it at the top level.
+        current_details = recommendation.get('currentResourceDetails') or {}
+        ebs_config = (current_details.get('ebsVolume') or {}).get('configuration') or {}
+        if ebs_config.get('attachmentState') is not None:
+            formatted_response['attachment_state'] = ebs_config['attachmentState']
+
         if 'tags' in recommendation:
             formatted_response['tags'] = recommendation.get('tags')
 
@@ -291,6 +307,24 @@ async def get_recommendation(
         )
 
 
+def _summaries_group_limit_warning(group_by: str) -> str:
+    """Warn that a summaries result reached the service's group limit and may be cut."""
+    limit = f'{COH_SUMMARIES_MAX_GROUPS:,}'
+    warning = (
+        f'Cost Optimization Hub returns at most {limit} groups, those with the highest '
+        f'estimated savings, and no next_token for the rest. This result has {limit}, so '
+        'groups may be missing and estimated_total_deduped_savings may cover only the '
+        'returned groups. For totals, group by a dimension with fewer values (such as '
+        'Region).'
+    )
+    if str(group_by).startswith(GROUP_BY_TAG_KEY_PREFIX):
+        warning += (
+            ' NoTagKey may be missing, or may also count recommendations whose tag value was '
+            'left out.'
+        )
+    return warning
+
+
 async def list_recommendation_summaries(
     ctx: Context,
     coh_client: Any,
@@ -303,11 +337,13 @@ async def list_recommendation_summaries(
 
     Fetches every page, or stops before exceeding ``max_items``, and returns the combined
     summaries with a ``pagination`` block so callers can see partial data and continue.
+    A result of ``COH_SUMMARIES_MAX_GROUPS`` groups is marked partial, since the service
+    drops any groups past that limit without a token.
 
     Args:
         ctx: MCP context
         coh_client: Cost Optimization Hub client
-        group_by: Grouping parameter (e.g. ``RESOURCE_TYPE``)
+        group_by: Grouping dimension (e.g. ``ResourceType``)
         max_items: Most summaries to return. None fetches every page.
         filters: Optional filters dictionary
         next_token: Pagination token to resume from a previous response
@@ -318,8 +354,12 @@ async def list_recommendation_summaries(
     ctx_logger = get_context_logger(ctx, __name__)
 
     try:
-        # Build the boto3 request payload. Field names match the COH API.
-        request_params: Dict[str, Any] = {'groupBy': str(group_by)}
+        # Build the boto3 request payload. Field names match the COH API. Without
+        # 'metrics' the service returns 'Percentage not requested.' as the percentage.
+        request_params: Dict[str, Any] = {
+            'groupBy': str(group_by),
+            'metrics': ['SavingsPercentage'],
+        }
         if filters:
             request_params['filter'] = dict(filters)
 
@@ -332,8 +372,15 @@ async def list_recommendation_summaries(
             max_items=max_items,
             next_token=next_token,
         )
+        if pagination['complete_dataset'] and len(all_summaries) >= COH_SUMMARIES_MAX_GROUPS:
+            pagination = {
+                **pagination,
+                'complete_dataset': False,
+                'warning': _summaries_group_limit_warning(group_by),
+            }
         # ``groupBy``, ``currencyCode``, ``estimatedTotalDedupedSavings`` and ``metrics`` are
-        # aggregates over the whole filtered result set, so they come from the first page.
+        # aggregates over the whole filtered result set (every page carries the same values),
+        # so they come from the first page.
         first_response = first_page_fields(
             pages, ['groupBy', 'currencyCode', 'estimatedTotalDedupedSavings', 'metrics']
         )
@@ -364,10 +411,14 @@ async def list_recommendation_summaries(
         ):
             formatted_response['total_recommendation_count'] = sum(counts)
         formatted_response['summaries'] = formatted_summaries
-        if 'metrics' in first_response:
-            formatted_response['metrics'] = {
-                'savings_percentage': first_response['metrics'].get('savingsPercentage')
-            }
+        percentage = (first_response.get('metrics') or {}).get('savingsPercentage')
+        if isinstance(percentage, str):
+            if SAVINGS_PERCENTAGE_VALUE.fullmatch(percentage):
+                formatted_response['metrics'] = {'savings_percentage': percentage}
+            else:
+                formatted_response['metrics'] = {
+                    'savings_percentage_unavailable_reason': percentage
+                }
 
         return format_response('success', with_pagination(formatted_response, pagination))
 

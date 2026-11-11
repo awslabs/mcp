@@ -14,7 +14,9 @@
 
 """Tests for the Redshift MCP Server tools."""
 
+import math
 import pytest
+import re
 import sys
 import time
 from awslabs.redshift_mcp_server import clusters as clusters_module
@@ -24,6 +26,10 @@ from awslabs.redshift_mcp_server.consts import (
     ACCESS_MODE_READ_ONLY,
     ACCESS_MODE_READ_WRITE,
     LOG_LEVEL_DEFAULT,
+    MAX_OPEN_TRANSACTIONS_PER_TARGET_DEFAULT,
+    MAX_RESULT_ROWS_DEFAULT,
+    SESSION_KEEPALIVE_DEFAULT,
+    SESSION_KEEPALIVE_MAX,
 )
 from awslabs.redshift_mcp_server.models import (
     ClusterKey,
@@ -40,6 +46,9 @@ from awslabs.redshift_mcp_server.review.models import (
     ReviewResult,
 )
 from awslabs.redshift_mcp_server.server import (
+    _CHUNK_CHARS,
+    _SKILL_USAGE,
+    GUIDE_POINTER,
     ConfirmWrite,
     _current_settings,
     _execute_query_annotations,
@@ -54,6 +63,7 @@ from awslabs.redshift_mcp_server.server import (
     list_schemas_tool,
     list_tables_tool,
     mcp,
+    retrieve_skill_file_tool,
     review_cluster_tool,
 )
 from awslabs.redshift_mcp_server.settings import (
@@ -66,6 +76,15 @@ from datetime import datetime
 from helpers import _fake_cluster
 from mcp.server.mcpserver import Context, Elicit, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
+from mcp.types import CallToolResult, TextContent
+from pathlib import Path
+
+
+# Found from this file rather than from the server, so the tests read the files as shipped.
+SKILL_DIR = (
+    Path(__file__).parents[1] / 'awslabs' / 'redshift_mcp_server' / 'skills' / 'redshift-guide'
+)
+REFERENCES = sorted(f'references/{path.name}' for path in (SKILL_DIR / 'references').glob('*.md'))
 
 
 class TestWriteConfirmation:
@@ -318,10 +337,45 @@ class TestCurrentSettings:
         assert '`UNSAFE_SKIP_WRITE_CONFIRMATION`: true' in settings
         assert 'get their agreement yourself' in settings
 
-    def test_the_instructions_end_with_the_settings(self):
-        """The instructions are the one place the block appears, so the caller reads it once."""
+    def test_the_instructions_lead_with_the_pointer_and_then_the_settings(self):
+        """A client that keeps only the start of the instructions still shows both."""
         assert mcp.instructions is not None
-        assert mcp.instructions.endswith(_current_settings())
+        assert mcp.instructions.startswith(f'{GUIDE_POINTER}\n{_current_settings()}')
+
+    # SESSION_KEEPALIVE at its bound; the two unbounded caps beyond any real setting.
+    @pytest.mark.parametrize(
+        'access_mode, skip, keepalive, transactions, rows',
+        [
+            (
+                ACCESS_MODE_READ_ONLY,
+                False,
+                SESSION_KEEPALIVE_DEFAULT,
+                MAX_OPEN_TRANSACTIONS_PER_TARGET_DEFAULT,
+                MAX_RESULT_ROWS_DEFAULT,
+            ),
+            (ACCESS_MODE_READ_WRITE, True, SESSION_KEEPALIVE_MAX, 1_000, 1_000_000),
+        ],
+        ids=['defaults', 'longest'],
+    )
+    def test_the_pointer_and_the_settings_end_within_the_first_2048_chars(
+        self, mocker, access_mode, skip, keepalive, transactions, rows
+    ):
+        """Some clients keep only the first 2,048 characters of the instructions."""
+        mocker.patch('awslabs.redshift_mcp_server.server.ACCESS_MODE', access_mode)
+        mocker.patch('awslabs.redshift_mcp_server.server.SKIP_WRITE_CONFIRMATION', skip)
+        mocker.patch(
+            'awslabs.redshift_mcp_server.server.session_keepalive', return_value=keepalive
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.server.max_open_transactions_per_target',
+            return_value=transactions,
+        )
+        mocker.patch('awslabs.redshift_mcp_server.server.max_result_rows', return_value=rows)
+
+        lead = f'{GUIDE_POINTER}\n{_current_settings()}'
+
+        assert f'`MAX_RESULT_ROWS`: {rows}\n' in lead
+        assert len(lead) <= 2048
 
 
 @pytest.mark.asyncio
@@ -332,6 +386,7 @@ async def test_tool_annotations():
     tests do not set ACCESS_MODE.
     """
     expected_titles = {
+        'retrieve_skill_file': 'Retrieve Redshift guide',
         'list_clusters': 'List Redshift clusters and workgroups',
         'list_databases': 'List Redshift databases',
         'list_schemas': 'List Redshift schemas',
@@ -351,7 +406,8 @@ async def test_tool_annotations():
         assert annotations.read_only_hint is True
         assert annotations.destructive_hint is False
         assert annotations.idempotent_hint is True
-        assert annotations.open_world_hint is True
+        # The guide tool reads only files this package ships; the rest reach the AWS account.
+        assert annotations.open_world_hint is (name != 'retrieve_skill_file')
 
 
 @pytest.mark.asyncio
@@ -388,6 +444,139 @@ async def test_every_tool_taking_a_cluster_requires_its_type():
             'provisioned',
             'serverless',
         ]
+
+
+class TestTheGuide:
+    """retrieve_skill_file serves the guide and its references, and nothing else in the package."""
+
+    @pytest.mark.asyncio
+    async def test_it_lists_with_the_usage_note_and_optional_arguments(self):
+        """The guide comes back from the call; the description only says when to make it."""
+        tools = {tool.name: tool for tool in await mcp.list_tools()}
+        tool = tools['retrieve_skill_file']
+
+        assert len(tools) == 8
+        assert tool.description == _SKILL_USAGE
+        # A structured copy would send every file twice.
+        assert tool.output_schema is None
+        assert set(tool.input_schema['properties']) == {'file', 'chunk'}
+        assert not tool.input_schema.get('required')
+        chunk = tool.input_schema['properties']['chunk']
+        assert (chunk['default'], chunk['minimum']) == (1, 1)
+
+    def test_the_usage_note_lists_each_file_of_more_than_one_chunk_with_its_count(self):
+        """The model plans one parallel call per chunk from this list."""
+        counts = {
+            file: math.ceil(len((SKILL_DIR / file).read_text(encoding='utf-8')) / _CHUNK_CHARS)
+            for file in REFERENCES
+        }
+        listed = re.findall(r'`(references/[^`]+)` \((\d+) chunks\)', _SKILL_USAGE)
+
+        assert listed
+        assert listed == [(file, str(count)) for file, count in counts.items() if count > 1]
+
+    @pytest.mark.asyncio
+    async def test_the_pointer_comes_first_in_the_instructions_and_every_other_tool(self):
+        """A client may show the model the instructions alone, or a tool's description alone."""
+        others = [tool for tool in await mcp.list_tools() if tool.name != 'retrieve_skill_file']
+
+        assert len(GUIDE_POINTER) <= 160
+        assert mcp.instructions is not None
+        assert mcp.instructions.startswith(GUIDE_POINTER)
+        assert len(others) == 7
+        for tool in others:
+            assert tool.description and tool.description.startswith(GUIDE_POINTER), tool.name
+
+    @pytest.mark.asyncio
+    async def test_no_argument_returns_the_guide_without_its_frontmatter(self):
+        """Called directly as well, where only the signature supplies the default."""
+        skill = (SKILL_DIR / 'SKILL.md').read_text(encoding='utf-8')
+        body = skill.split('---\n', 2)[2]
+
+        assert skill.startswith('---\nname: redshift-guide\n')
+        assert await retrieve_skill_file_tool() == body
+        result = await mcp.call_tool('retrieve_skill_file', {})
+        assert isinstance(result, CallToolResult)
+        assert result.content == [TextContent(type='text', text=body)]
+        assert result.structured_content is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('file', REFERENCES)
+    async def test_each_reference_comes_back_whole_across_its_chunks(self, file):
+        """Joined, byte for byte what the package ships; each chunk within Kiro IDE's 30,000 chars."""
+        expected = (SKILL_DIR / file).read_text(encoding='utf-8')
+        count = math.ceil(len(expected) / _CHUNK_CHARS)
+        served = [await retrieve_skill_file_tool(file=file, chunk=n) for n in range(1, count + 1)]
+        # Every chunk but the last ends naming the next.
+        lines = [f'\n\n[Continued in chunk {n} of {count}.]' for n in range(2, count + 1)] + ['']
+
+        assert all(len(text) <= 30_000 for text in served)
+        assert all(text.endswith(line) for text, line in zip(served, lines))
+        assert ''.join(text.removesuffix(line) for text, line in zip(served, lines)) == expected
+        with pytest.raises(ToolError) as refused:
+            await retrieve_skill_file_tool(file=file, chunk=count + 1)
+        assert str(refused.value) == f'Chunk {count + 1} not found: {file} ends at chunk {count}.'
+
+    @pytest.mark.asyncio
+    async def test_each_chunk_served_is_logged_by_its_path_and_number(self, mocker):
+        """The end-to-end guide scenario grades the server log by these lines."""
+        info = mocker.patch('awslabs.redshift_mcp_server.server.logger.info')
+
+        await retrieve_skill_file_tool()
+        await retrieve_skill_file_tool(file='references/redshift-storage-remediation.md')
+        with pytest.raises(ToolError):
+            await retrieve_skill_file_tool(file='SKILL.md')
+
+        assert [logged.args[0] for logged in info.call_args_list] == [
+            'Serving skill file SKILL.md chunk 1 of 1',
+            'Serving skill file references/redshift-storage-remediation.md chunk 1 of 2',
+        ]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'file',
+        [
+            '../SKILL.md',
+            'references/../SKILL.md',
+            'references/../../server.py',
+            '/etc/passwd',
+            str(SKILL_DIR / REFERENCES[0]),
+            f'{REFERENCES[0]}\x00',
+            f'{REFERENCES[0]}\n\x1b[2K',
+            'SKILL.md',
+            'README.md',
+            REFERENCES[0].removeprefix('references/'),
+            REFERENCES[0].upper(),
+            f'./{REFERENCES[0]}',
+            'references/',
+            '',
+        ],
+    )
+    async def test_anything_but_a_listed_reference_is_refused(self, file):
+        """The refusal lists what is there, and echoes the request with control characters escaped."""
+        with pytest.raises(ToolError) as refused:
+            await retrieve_skill_file_tool(file=file)
+
+        message = str(refused.value)
+        assert message == (
+            f'Skill file not found: {file!r}. Available files: {", ".join(REFERENCES)}'
+        )
+        assert message.isprintable()
+
+    def test_every_reference_the_files_cite_exists_and_the_guide_cites_every_reference(self):
+        """A dangling citation sends the model to a refusal; an uncited reference is never read."""
+        pattern = r'references/[A-Za-z0-9._-]+\.md'
+        guide = (SKILL_DIR / 'SKILL.md').read_text(encoding='utf-8')
+        files = [guide, *((SKILL_DIR / file).read_text(encoding='utf-8') for file in REFERENCES)]
+
+        assert set(re.findall(pattern, guide)) == set(re.findall(pattern, '\n'.join(files)))
+        assert set(re.findall(pattern, guide)) == set(REFERENCES)
+
+    def test_the_skill_directory_holds_only_the_served_files_and_the_readme(self):
+        """Hatch ships everything under the package, so a stray file here reaches every install."""
+        files = {path.relative_to(SKILL_DIR).as_posix() for path in SKILL_DIR.rglob('*')}
+
+        assert files == {'SKILL.md', 'README.md', 'references', *REFERENCES}
 
 
 class TestListClustersTool:

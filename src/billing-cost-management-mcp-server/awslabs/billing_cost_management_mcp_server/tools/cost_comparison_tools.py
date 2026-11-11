@@ -26,9 +26,11 @@ from ..utilities.aws_service_base import (
     format_response,
     handle_aws_error,
     paginate_aws_items,
+    parse_filter,
     parse_json,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from datetime import date, datetime, timezone
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional, Tuple
@@ -107,9 +109,16 @@ def _upper_snake(metric: str) -> str:
 def _parse_month(name: str, start: str, end: str) -> Tuple[date, date]:
     """Parse one period and require it to be exactly one calendar month."""
     for value in (start, end):
-        if not isinstance(value, str) or not _DATE_PATTERN.match(value):
+        if not isinstance(value, str) or not _DATE_PATTERN.fullmatch(value):
             raise ValueError(
                 f'{name} period date {value!r} is not in YYYY-MM-DD format. {_WHOLE_MONTHS}'
+            )
+        # A time other than midnight is not a month boundary, and cutting it to the date
+        # would silently move the boundary, so reject it.
+        if len(value) > 10 and value[10:] != 'T00:00:00Z':
+            raise ValueError(
+                f'{name} period date {value!r} is not midnight UTC. Use YYYY-MM-DD. '
+                f'{_WHOLE_MONTHS}'
             )
     try:
         first, last = date.fromisoformat(start[:10]), date.fromisoformat(end[:10])
@@ -185,6 +194,75 @@ def validate_comparison_request(
         )
 
 
+# MatchOptions the comparison APIs honor. With any other option they still match each
+# value exactly, so a value in another case or a prefix matches nothing: a silent $0
+# (or everything under Not).
+_FILTER_MATCH_OPTIONS = {
+    'Dimensions': ('EQUALS', 'CASE_SENSITIVE'),
+    'Tags': ('EQUALS', 'CASE_SENSITIVE', 'ABSENT'),
+    'CostCategories': ('EQUALS', 'CASE_SENSITIVE', 'ABSENT'),
+}
+# A filter nested this deep fails in Cost Explorer: getCostComparisonDrivers returns
+# InternalFailure at 97 levels and both operations reject 98 ("Value is too deeply
+# nested"). Checked here also so the walk below cannot exhaust Python's recursion limit.
+MAX_FILTER_DEPTH = 97
+
+
+def validate_comparison_filter(expression: Any, depth: int = 0) -> None:
+    """Raise ValueError for a filter the comparison APIs mishandle.
+
+    Checks every nested And, Or and Not. Shapes botocore validates (wrong types,
+    unknown keys) are left to botocore.
+
+    Args:
+        expression: The parsed filter Expression
+        depth: Nesting depth of ``expression`` in the whole filter
+
+    Raises:
+        ValueError: The filter uses an ignored MatchOption, ABSENT with Values, a
+            RESOURCE_ID key, or is nested too deeply.
+    """
+    if not isinstance(expression, dict):
+        return
+    if depth >= MAX_FILTER_DEPTH:
+        raise ValueError(
+            f'filter is nested {MAX_FILTER_DEPTH} or more And/Or/Not levels deep. Flatten '
+            'it, for example by listing several Values in one Dimensions filter.'
+        )
+    for operator in ('And', 'Or'):
+        children = expression.get(operator)
+        for child in children if isinstance(children, list) else []:
+            validate_comparison_filter(child, depth + 1)
+    validate_comparison_filter(expression.get('Not'), depth + 1)
+    for kind, allowed in _FILTER_MATCH_OPTIONS.items():
+        values = expression.get(kind)
+        if not isinstance(values, dict):
+            continue
+        if kind == 'Dimensions' and values.get('Key') == 'RESOURCE_ID':
+            raise ValueError(
+                'RESOURCE_ID is not supported in a cost-comparison filter. For per-resource '
+                'costs, use cost-explorer getCostAndUsageWithResources (last 14 days only).'
+            )
+        options = values.get('MatchOptions')
+        options = options if isinstance(options, list) else []
+        unsupported = [str(o) for o in dict.fromkeys(options) if o not in allowed]
+        if unsupported:
+            raise ValueError(
+                f'filter {kind} MatchOptions {", ".join(unsupported)} are not supported by '
+                f'cost-comparison. Allowed here: {", ".join(allowed)}. With any other option '
+                "Cost Explorer's comparison APIs still match each value exactly, so a value in "
+                'another case or a partial value silently returns $0 or no drivers (or '
+                'everything under Not). Drop the other options and pass exact values from '
+                'cost-explorer getDimensionValues (or getTagsOrValues, getCostCategories).'
+            )
+        if 'ABSENT' in options and values.get('Values'):
+            raise ValueError(
+                f'filter {kind} with ABSENT ignores its Values: the comparison APIs return only '
+                f'costs without the key {values.get("Key")!r}. Drop Values to match those '
+                'costs, or use a separate filter (combined with Or) to match specific values.'
+            )
+
+
 def _starts_before_default_history(today: date, *starts: str) -> bool:
     """True if any period start is older than the default 13-month history."""
     cutoff = _months_before(today, DEFAULT_HISTORY_MONTHS)
@@ -255,9 +333,25 @@ Note:
   Cost Explorer decides; if it reports the data unavailable, the error carries a hint
   about multi-year data
 
+Filter (optional): a Cost Explorer Expression using And, Or, Not, Dimensions, Tags or
+CostCategories. Keys and values match exactly, including case: get them from cost-explorer
+getDimensionValues (or getTagsOrValues, getCostCategories). Rejected with validation_error and no
+AWS call:
+- MatchOptions other than EQUALS and CASE_SENSITIVE (the default), plus ABSENT for Tags and
+  CostCategories. The comparison APIs ignore the others (CASE_INSENSITIVE, STARTS_WITH,
+  ENDS_WITH, CONTAINS, ...) and still match exactly, so a value in another case or a partial
+  value would silently return $0 or no drivers (or everything under Not)
+- ABSENT together with Values: the comparison APIs drop the Values
+- A RESOURCE_ID filter
+- Nesting of 97 or more And/Or/Not levels, which fails in Cost Explorer
+A filter holds at most 200 values in total, counted across all its leaves (Cost Explorer
+returns ValidationException beyond that; getCostAndUsage allows 6,000).
+In group_by, Cost Explorer itself rejects RESOURCE_ID and USAGE_TYPE_GROUP.
+
 Pagination (both operations):
-- max_items: total number of comparisons or drivers returned. Omit it to fetch every page
-  (no limit). Pass it, or narrow group_by/filter, for comparisons that can be large (for
+- max_items: total number of comparisons or drivers returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or narrow group_by/filter, for comparisons that can be large (for
   example grouped by USAGE_TYPE or LINKED_ACCOUNT).
 - If the result has complete_dataset: false, it is partial: call again with a larger
   max_items, continue with next_token, or say the result is partial.
@@ -289,7 +383,7 @@ async def cost_comparison(
         comparison_end_date: Comparison period end date in YYYY-MM-DD format (must be first day of next month)
         metric_for_comparison: The metric to compare, exact case. getCostAndUsageComparisons: AmortizedCost, BlendedCost, NetAmortizedCost, NetUnblendedCost, NormalizedUsageAmount, UnblendedCost, UsageQuantity. getCostComparisonDrivers: the five *Cost metrics only
         group_by: Optional grouping of results as a JSON string (e.g., '[{"Type": "DIMENSION", "Key": "SERVICE"}]')
-        filter: Optional filter to apply to the results as a JSON string
+        filter: Optional Cost Explorer Expression as a JSON string. Keys and values match exactly, including case; MatchOptions only EQUALS/CASE_SENSITIVE (plus ABSENT, without Values, for Tags and CostCategories); no RESOURCE_ID; at most 200 values in total
         max_items: Total comparisons or drivers to return. None fetches every page.
         next_token: Pagination token from a previous response
         billing_view_arn: Optional ARN of a specific billing view
@@ -318,6 +412,12 @@ async def cost_comparison(
             metric_for_comparison,
             today,
         )
+        validate_comparison_filter(parse_filter(filter))
+        # getCostComparisonDrivers answers 504 Gateway Timeout when any period date has a
+        # time part, even T00:00:00Z (getCostAndUsageComparisons accepts it), so send dates.
+        baseline_start_date, baseline_end_date = baseline_start_date[:10], baseline_end_date[:10]
+        comparison_start_date = comparison_start_date[:10]
+        comparison_end_date = comparison_end_date[:10]
 
         # Initialize Cost Explorer client using shared utility
         ce_client = create_aws_client('ce', region_name='us-east-1')
@@ -412,8 +512,8 @@ async def get_cost_and_usage_comparisons(
         if group_by:
             request_params['GroupBy'] = parse_json(group_by, 'group_by')
 
-        if filter_expr:
-            request_params['Filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
@@ -516,8 +616,8 @@ async def get_cost_comparison_drivers(
         if group_by:
             request_params['GroupBy'] = parse_json(group_by, 'group_by')
 
-        if filter_expr:
-            request_params['Filter'] = parse_json(filter_expr, 'filter')
+        if filter_expr is not None:
+            request_params['Filter'] = parse_filter(filter_expr)
 
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn

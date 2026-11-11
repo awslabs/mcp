@@ -32,6 +32,7 @@ from ..utilities.aws_service_base import (
 from ..utilities.constants import REGION_US_EAST_1
 from ..utilities.time_utils import timestamp_to_utc_iso_string
 from datetime import date, datetime, timezone
+from decimal import Decimal, InvalidOperation
 from fastmcp import Context
 from typing import Any, Dict, List, Optional
 
@@ -116,19 +117,22 @@ def _current_billing_period() -> str:
     return f'{today.year:04d}-{today.month:02d}'
 
 
-def _is_future_billing_period(billing_period: Optional[str]) -> bool:
+def _is_future_billing_period(billing_period: Any) -> bool:
     """Return True when billing_period is a well-formed month after the current UTC month.
 
-    A missing or malformed value is not future; the service validates the format.
+    A missing or malformed value is not future, including a non-string one parsed from
+    caller JSON; botocore and the service validate the type and format.
     """
-    match = _BILLING_PERIOD_PATTERN.fullmatch(billing_period or '')
+    if not isinstance(billing_period, str):
+        return False
+    match = _BILLING_PERIOD_PATTERN.fullmatch(billing_period)
     if not match:
         return False
     today = _utc_today()
     return (int(match.group(1)), int(match.group(2))) > (today.year, today.month)
 
 
-def _reject_future_billing_period(billing_period: Optional[str], field: str, outcome: str) -> None:
+def _reject_future_billing_period(billing_period: Any, field: str, outcome: str) -> None:
     """Raise ValueError when a cost report is asked for a month that has not started.
 
     Args:
@@ -476,6 +480,22 @@ async def get_billing_group_cost_report(
         return await handle_aws_error(ctx, e, 'getBillingGroupCostReport', 'Billing Conductor')
 
 
+def _plain_decimal(value: Optional[str]) -> Optional[str]:
+    """Rewrite a cost report amount string in plain decimal notation, digit for digit.
+
+    The service can return a small or large amount in exponent form ("5.0E-7"). Decimal
+    parses it exactly and format 'f' writes it without an exponent or any rounding. Returns
+    None for a missing, non-numeric or non-finite value.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        number = Decimal(value)
+    except InvalidOperation:
+        return None
+    return format(number, 'f') if number.is_finite() else None
+
+
 def _format_cost_report_base(report: Dict[str, Any]) -> Dict[str, Any]:
     """Format the common fields of a billing group cost report object.
 
@@ -492,6 +512,10 @@ def _format_cost_report_base(report: Dict[str, Any]) -> Dict[str, Any]:
         'margin': report.get('Margin'),
         'margin_percentage': report.get('MarginPercentage'),
         'currency': report.get('Currency'),
+    }
+    formatted['decimal_values'] = {
+        key: _plain_decimal(formatted[key])
+        for key in ('aws_cost', 'proforma_cost', 'margin', 'margin_percentage')
     }
     return formatted
 
