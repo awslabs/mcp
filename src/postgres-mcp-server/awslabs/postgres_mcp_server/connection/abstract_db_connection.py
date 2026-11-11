@@ -21,6 +21,11 @@ from typing import Any, Dict, List, Optional
 class AbstractDBConnection(ABC):
     """Abstract base class for database connections."""
 
+    # Startup validation of loop-affine connectors (psycopg pools, aiorwlock)
+    # must run on MCP's serving loop. Connectors with no loop-bound state keep
+    # the synchronous startup path.
+    requires_serving_loop: bool = False
+
     def __init__(self, readonly: bool):
         """Initialize the database connection.
 

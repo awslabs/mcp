@@ -1675,6 +1675,10 @@ class TestSpPerformanceDescription:
         assert 'price usage at public On-Demand rates' in description
         assert 'OnDemandCost is not what was billed at On-Demand rates' in description
         assert 'NetSavings is not the saving against the account' in description
+        assert (
+            'A negative NetSavings means the Savings Plans cost more than the usage they '
+            'covered would have cost at public On-Demand rates.' in description
+        )
         assert 'grouped by PURCHASE_TYPE' in description
         assert 'No field here or in Cost Explorer gives the saving against' in description
         assert (

@@ -1344,11 +1344,18 @@ class TestDescribeSavingsPlansFilterValues:
         assert re.search(r'case-sensitive', description, re.I)
         assert 'A well-formed value that matches no plan returns [].' in description
         assert 'Text values match exactly (case-sensitive).' in description
-        # Malformed numeric and timestamp values are rejected, not matched as empty.
+        # NaN and Infinity upfront or commitment values are a 500, not a ValidationException,
+        # so the served text makes no blanket claim about malformed values.
+        assert 'Malformed values are a ValidationException' not in description
+        # DescribeSavingsPlans rejects start and end with no zone and misreads other forms,
+        # so the served text gives only the form a plan returns.
+        assert 'start and end yyyy-MM-ddTHH:mm:ss.SSS.' not in description
         assert (
-            'Malformed values are a ValidationException: term must be whole seconds, upfront '
-            'and commitment numbers, start and end yyyy-MM-ddTHH:mm:ss.SSS.'
+            'written as a plan returns them: yyyy-MM-ddTHH:mm:ss.SSSZ with exactly three '
+            'fraction digits and Z'
         ) in description
+        # DescribeSavingsPlans drops an offset's minutes, so only Z is named.
+        assert 'offset' not in description
         assert re.search(r'compared as numbers', description)
         assert 'and a value that matches no plan returns an empty list' not in description
         for value in ('Compute', 'EC2Instance', 'SageMaker', 'Database'):
