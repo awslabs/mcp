@@ -99,6 +99,32 @@ class TestRequestParameters:
         assert result['status'] == 'success'
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize('features', ['["RI_SHARING"]', ' ["RI_SHARING"] '])
+    async def test_json_array_string_feature_is_decoded(self, mock_context, features):
+        """A list sent as a JSON array string is sent as that list, not as one feature name."""
+        client, stubber = _stub(
+            {'billingPreferences': list(ORG_ROWS)}, {'features': ['RI_SHARING']}
+        )
+
+        with patch(CREATE_CLIENT_PATH, return_value=client):
+            result = await get_billing_preferences(mock_context, features=features)
+
+        stubber.assert_no_pending_responses()
+        assert result['status'] == 'success'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('features', ['["RI_SHARING"', '[1]', '[]', ' [] ', []])
+    async def test_bad_json_array_string_feature_is_rejected(self, mock_context, features):
+        """A list or JSON array string that is malformed, empty or not of names fails first."""
+        with patch(CREATE_CLIENT_PATH) as create_client:
+            result = await get_billing_preferences(mock_context, features=features)
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert 'features' in result['message']
+        create_client.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_list_feature_is_passed_through(self, mock_context):
         """A list is forwarded unchanged."""
         client, stubber = _stub({'billingPreferences': []}, {'features': ['CREDIT_SHARING']})

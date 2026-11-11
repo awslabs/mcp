@@ -110,6 +110,21 @@ FILTER VALUES (exact, case-sensitive spellings):
   ValidationException. On that error with a filter set, check these spellings before
   changing the window.
 
+RATE BASIS (all three operations):
+- Coverage OnDemandCost, TotalCost and SpendCoveredBySavingsPlans, and utilization
+  OnDemandCostEquivalent and NetSavings, price usage at public On-Demand rates.
+- A negative NetSavings means the Savings Plans cost more than the usage they covered
+  would have cost at public On-Demand rates.
+- So on an account with private pricing, OnDemandCost is not what was billed at
+  On-Demand rates, and NetSavings is not the saving against the account's own rates.
+  Label these figures "at public On-Demand rates".
+- For billed On-Demand cost, use Cost Explorer cost and usage grouped by PURCHASE_TYPE.
+- No field here or in Cost Explorer gives the saving against the account's own rates. It
+  needs the account's On-Demand discount applied to the public On-Demand cost of the
+  covered usage, compared with the plans' effective cost (in the Cost and Usage Report:
+  SavingsPlanCoveredUsage UnblendedCost against SavingsPlansEffectiveCost). Don't derive it
+  by subtracting other Cost Explorer figures.
+
 SORTING (sort_by; get_savings_plans_coverage and get_savings_plans_utilization_details):
 - A JSON string `{"Key": "...", "SortOrder": "ASCENDING" or "DESCENDING"}`.
 - Order of operations: the API sorts every matching item by the key first, then pages;

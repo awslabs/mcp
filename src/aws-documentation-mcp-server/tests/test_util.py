@@ -21,16 +21,24 @@ from awslabs.aws_documentation_mcp_server.util import (
     add_search_intent_to_search_request,
     enforce_redirect_allowlist,
     extract_content_from_html,
-    extract_sections_from_markdown,
     format_documentation_result,
     has_empty_link_target,
     has_readable_text,
     is_html_content,
     parse_recommendation_results,
-    rewrite_markdown_links,
+    select_sections,
+    to_html_page_url,
     url_matches_allowlist,
 )
 from unittest.mock import MagicMock, patch
+
+
+def extract_sections_from_markdown(markdown, section_titles):
+    """Return the selection as read_sections renders it, without the server's paging."""
+    selection = select_sections(markdown, section_titles)
+    if selection.whole_page:
+        return f'{selection.notes.lstrip()}\n\n{markdown}' if selection.notes else markdown
+    return selection.markdown + selection.notes
 
 
 ALLOWLIST = (
@@ -864,6 +872,230 @@ class TestExtractSectionsFromMarkdown:
             extract_sections_from_markdown(markdown, ['not a heading'])
 
 
+class TestSectionsAtAnyHeadingLevel:
+    """Search lists headings at every level, so read_sections must accept any of them."""
+
+    # Shaped on amazondynamodb/latest/developerguide/ServiceQuotas.html
+    QUOTAS = (
+        '\n\n# Quotas in Amazon DynamoDB\n<a name="ServiceQuotas"></a>\n\nIntro.\n\n'
+        '## Read/write throughput\n\nThroughput intro.\n\n'
+        '### Throughput default quotas\n\nDefault quotas body.\n\n'
+        '### Increasing or decreasing throughput (for provisioned tables)\n\nChange intro.\n\n'
+        '#### Increasing provisioned throughput\n\nIncrease body.\n\n'
+        '#### Decreasing provisioned throughput\n\nDecrease body.\n\n'
+        '## Reserved Capacity\n\nReserved body.\n\n'
+        '## Tables\n\nTables body.\n\n'
+        '### Table size\n\nTable size body.\n'
+    )
+
+    def test_level_one_title_selects_the_whole_page(self):
+        """Search recommends the page title, which is an h1."""
+        selection = select_sections(self.QUOTAS, ['Quotas in Amazon DynamoDB'])
+        assert selection.whole_page
+        assert selection.markdown == self.QUOTAS
+        assert selection.missing == []
+
+    def test_whole_page_still_reports_missing_titles(self):
+        """The page title plus a title the page lacks still notes the missing one."""
+        selection = select_sections(self.QUOTAS, ['Quotas in Amazon DynamoDB', 'Service quotas'])
+        assert selection.whole_page
+        assert selection.missing == ['Service quotas']
+
+    def test_level_three_section_ends_at_the_next_level_three(self):
+        """An h3 section stops at its sibling, not at the end of its h2."""
+        result = extract_sections_from_markdown(self.QUOTAS, ['Throughput default quotas'])
+        assert result == '### Throughput default quotas\n\nDefault quotas body.'
+
+    def test_level_three_section_keeps_its_subsections(self):
+        """Deeper headings belong to the section, so the h3 runs to the next h2."""
+        result = extract_sections_from_markdown(
+            self.QUOTAS, ['Increasing or decreasing throughput (for provisioned tables)']
+        )
+        assert result.startswith('### Increasing or decreasing throughput')
+        assert '#### Increasing provisioned throughput' in result
+        assert result.endswith('Decrease body.')
+        assert 'Reserved' not in result
+
+    def test_level_four_section(self):
+        """Shaped on the DevOps Agent authentication page, which lists an h4 title."""
+        markdown = (
+            '# Authentication and security\n\n## Security considerations\n\n'
+            '### Traceability\n\nCloudTrail intro.\n\n'
+            '#### Access token authentication events\n\nAuthenticateAccessToken body.\n\n'
+            '| Field | Description |\n| --- | --- |\n| userName | The token name. |\n\n'
+            '#### Downstream action events\n\nDownstream body.\n\n'
+            '### VPC endpoint policy limitation\n\nVPC body.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Access token authentication events'])
+        assert result == (
+            '#### Access token authentication events\n\nAuthenticateAccessToken body.\n\n'
+            '| Field | Description |\n| --- | --- |\n| userName | The token name. |'
+        )
+
+    def test_level_three_section_at_end_of_document(self):
+        """Shaped on the AppSync resolvers tutorial, which ends on an h3."""
+        markdown = (
+            '# Creating a simple post application using DynamoDB resolvers\n\n'
+            '## Create an updatePost Mutation (DynamoDB UpdateItem)\n\nMutation body.\n\n'
+            '#### [ JSON ]\n\n```json\n{}\n```\n\n'
+            '### Call the API to Update a Post\n\nUpdate body.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Call the API to Update a Post'])
+        assert result == '### Call the API to Update a Post\n\nUpdate body.'
+
+    def test_title_at_two_levels_returns_both_sections(self):
+        """Shaped on the Lambda quotas page, where "Compute and storage" is an h2 and an h3."""
+        markdown = (
+            '## Compute and storage\n\nFunction quotas.\n\n'
+            '## Lambda MicroVMs\n\n### Compute and storage\n\nPer-MicroVM quotas.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Compute and storage'])
+        assert result == (
+            '## Compute and storage\n\nFunction quotas.'
+            '\n\n### Compute and storage\n\nPer-MicroVM quotas.'
+        )
+
+    def test_page_title_that_also_names_a_section_returns_the_section(self):
+        """Shaped on the API Gateway VPCLinks page, which has an h3 property named VpcLinks."""
+        markdown = (
+            '# VPCLinks\n\n## Properties\n\n### VpcLinks\n\nProperty body.\n\n## Other\n\nx\n'
+        )
+        note = (
+            '\n\n> **Note**: "VPCLinks" also names the whole page. Use the read_documentation'
+            ' tool to read all of it.'
+        )
+        alone = extract_sections_from_markdown(markdown, ['VPCLinks'])
+        assert alone == '### VpcLinks\n\nProperty body.' + note
+        mixed = extract_sections_from_markdown(markdown, ['VPCLinks', 'Other'])
+        assert mixed == '### VpcLinks\n\nProperty body.\n\n## Other\n\nx' + note
+
+    def test_nested_titles_are_returned_once(self):
+        """Asking for a section and one of its subsections does not repeat the subsection."""
+        result = extract_sections_from_markdown(
+            self.QUOTAS, ['Read/write throughput', 'Throughput default quotas']
+        )
+        assert result.count('Default quotas body.') == 1
+        assert result.startswith('## Read/write throughput')
+        assert '> **Note**' not in result
+
+    def test_repeated_deeper_titles_return_every_match(self):
+        """Like repeated h2 titles, every heading carrying the title is returned."""
+        markdown = (
+            '## Create\n\n### Prerequisites\n\nCreate prereqs.\n\n### Steps\n\nSteps.\n\n'
+            '## Delete\n\n### Prerequisites\n\nDelete prereqs.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Prerequisites'])
+        assert result == (
+            '### Prerequisites\n\nCreate prereqs.\n\n### Prerequisites\n\nDelete prereqs.'
+        )
+
+    def test_level_one_line_does_not_end_a_deeper_section(self):
+        """The unescaped '# of hosts' paragraph is text inside an h3 section too."""
+        markdown = '### Hosts\n\nIntro.\n\n# of hosts is 3\n\nMore.\n\n### Next\n\nOther.\n'
+        result = extract_sections_from_markdown(markdown, ['Hosts'])
+        assert result == '### Hosts\n\nIntro.\n\n# of hosts is 3\n\nMore.'
+
+    def test_deeper_headings_inside_code_blocks_are_ignored(self):
+        """A '###' line in a fenced block neither matches nor ends a section."""
+        markdown = '### Example\n\n```\n### not a heading\n```\n\n### Next\n\nNext.\n'
+        result = extract_sections_from_markdown(markdown, ['Example'])
+        assert result == '### Example\n\n```\n### not a heading\n```'
+        with pytest.raises(ValueError, match='Available sections: "Example", "Next".'):
+            extract_sections_from_markdown(markdown, ['not a heading'])
+
+    def test_page_without_level_two_lists_its_top_subsections(self):
+        """A miss on a page whose subsections start at h3 lists those, not 'no subsections'."""
+        markdown = '# Page\n\n### First\n\n#### Inner\n\nBody.\n\n### Second\n\nBody.\n'
+        with pytest.raises(ValueError) as exc_info:
+            extract_sections_from_markdown(markdown, ['Missing'])
+        assert 'Available sections: "First", "Second".' in str(exc_info.value)
+
+    def test_page_title_with_a_section_returns_the_section(self):
+        """A section named alongside the page title is returned, not lost past the first page."""
+        result = extract_sections_from_markdown(
+            self.QUOTAS, ['Quotas in Amazon DynamoDB', 'Table size']
+        )
+        assert result == (
+            '### Table size\n\nTable size body.'
+            '\n\n> **Note**: "Quotas in Amazon DynamoDB" also names the whole page. Use the'
+            ' read_documentation tool to read all of it.'
+        )
+
+    def test_page_title_equal_to_a_level_two_title_returns_the_section(self):
+        """An h2 that shares the page title returns the h2, not the whole page."""
+        selection = select_sections('# Limits\n\n## Limits\n\nBody.\n', ['Limits'])
+        assert not selection.whole_page
+        assert selection.markdown == '## Limits\n\nBody.'
+        assert selection.page_titles == ['Limits']
+
+    def test_later_level_one_line_is_not_the_page_title(self):
+        """Only the first h1 names the page; an unescaped '# of hosts' paragraph names nothing."""
+        markdown = '# Cluster sizing\n\nIntro.\n\n# of hosts\n\n3\n\n## Details\n\nd\n'
+        with pytest.raises(ValueError, match='Available sections: "Details".'):
+            select_sections(markdown, ['of hosts'])
+
+    def test_empty_title_matches_nothing(self):
+        """A title with no text does not select an empty heading or the page."""
+        markdown = '# \n\n### \n\nEmpty heading body.\n\n## A\n\nb\n'
+        result = extract_sections_from_markdown(markdown, ['', 'A'])
+        assert result == (
+            '## A\n\nb\n\n> **Note**: The following requested sections were not found: ""'
+        )
+
+    def test_callouts_and_empty_headings_are_not_offered(self):
+        """h6 callout titles and empty headings are not listed as sections to retry with."""
+        markdown = '# Page\n\n### \n\nx\n\n### Setup\n\n###### Note\n\nn\n\n### Usage\n\nu\n'
+        with pytest.raises(ValueError) as exc_info:
+            select_sections(markdown, ['Missing'])
+        assert 'Available sections: "Setup", "Usage".' in str(exc_info.value)
+
+    def test_repeated_level_two_titles_are_all_offered(self):
+        """The h2 list in a miss keeps repeated titles, as it always has."""
+        markdown = '## Example\n\na\n\n## Example\n\nb\n'
+        with pytest.raises(ValueError, match='Available sections: "Example", "Example".'):
+            select_sections(markdown, ['Missing'])
+
+    def test_missing_titles_are_reported_stripped(self):
+        """A padded title that matches nothing is named without its padding."""
+        result = extract_sections_from_markdown(self.QUOTAS, ['Tables', '  Service quotas  '])
+        assert result.endswith('were not found: "Service quotas"')
+
+    def test_page_title_spellings_are_noted_once(self):
+        """Two spellings of the page title alongside a section are noted once."""
+        result = extract_sections_from_markdown(
+            self.QUOTAS, ['Quotas in Amazon DynamoDB', 'QUOTAS IN AMAZON DYNAMODB', 'Table size']
+        )
+        assert result.endswith(
+            '"Quotas in Amazon DynamoDB" also names the whole page.'
+            ' Use the read_documentation tool to read all of it.'
+        )
+
+    def test_available_subsections_are_listed_once(self):
+        """Repeated headings, such as tab labels, are offered once when a title misses."""
+        markdown = '# Page\n\n### [ JSON ]\n\nA.\n\n### [ YAML ]\n\nB.\n\n### [ JSON ]\n\nC.\n'
+        with pytest.raises(ValueError) as exc_info:
+            extract_sections_from_markdown(markdown, ['Missing'])
+        assert 'Available sections: "[ JSON ]", "[ YAML ]".' in str(exc_info.value)
+
+    def test_level_six_titles_match_but_are_not_offered(self):
+        """An h6 callout title can be read by name, but a miss never suggests one."""
+        markdown = '# Page\n\n## Setup\n\n###### Note\n\nCallout.\n\n## Usage\n\nu\n'
+        assert extract_sections_from_markdown(markdown, ['Note']) == '###### Note\n\nCallout.'
+        with pytest.raises(ValueError, match='Available sections: "Setup", "Usage".'):
+            select_sections(markdown, ['Missing'])
+
+    def test_missing_title_spellings_are_noted_once(self):
+        """Two spellings of a title that matches nothing are listed once, as first written."""
+        result = extract_sections_from_markdown(self.QUOTAS, ['Tables', 'Foo', 'foo', 'Bar'])
+        assert result.endswith('were not found: "Foo", "Bar"')
+
+    def test_title_repeated_in_another_case_is_not_reported_missing(self):
+        """Two spellings of one title resolve together, so neither is listed as not found."""
+        result = extract_sections_from_markdown(self.QUOTAS, ['Tables', 'tables'])
+        assert '> **Note**' not in result
+        assert result.startswith('## Tables')
+
+
 class TestEmptyLinkTargets:
     """An unresolved cross-reference became a link to nowhere."""
 
@@ -1087,64 +1319,51 @@ class TestWhitespaceOnlyBody:
             extract_content_from_html('<html><body><p> </p><p>  </p></body></html>')
 
 
-class TestRewriteMarkdownLinks:
-    """Tests for rewriting published-Markdown links to readable .html URLs."""
-
-    BASE = 'https://docs.aws.amazon.com/lambda/latest/dg/lambda-invocation.html'
+class TestToHtmlPageUrl:
+    """Tests for mapping a documentation URL to the .html page the tools fetch."""
 
     @pytest.mark.parametrize(
-        'target, expected',
+        'url, expected',
         [
             (
-                'testing-functions.md',
-                'https://docs.aws.amazon.com/lambda/latest/dg/testing-functions.html',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html',
             ),
             (
-                'invocation-async.md#invocation-async-destinations',
-                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.html'
-                '#invocation-async-destinations',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.md',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html',
             ),
             (
-                '../api/API_Invoke.md',
-                'https://docs.aws.amazon.com/lambda/latest/api/API_Invoke.html',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.md#destinations',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.html',
             ),
             (
-                '/AmazonS3/latest/userguide/Welcome.md',
-                'https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html#section',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.md?x=1',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/lambda/latest/dg/README.MD',
+                'https://docs.aws.amazon.com/lambda/latest/dg/README.html',
             ),
         ],
     )
-    def test_same_site_md_links_become_absolute_html(self, target, expected):
-        """Relative and root-relative .md links resolve against the page and swap to .html."""
-        result = rewrite_markdown_links(f'See [the page]({target}).', self.BASE)
-        assert result == f'See [the page]({expected}).'
+    def test_html_and_md_urls_map_to_html_page(self, url, expected):
+        """A .md URL names the .html page at its path; query and fragment are dropped."""
+        assert to_html_page_url(url) == expected
 
     @pytest.mark.parametrize(
-        'target',
+        'url',
         [
-            '#lambda-invocation',
-            'https://docs.aws.amazon.com/lambda/latest/api/API_Invoke.html',
-            'https://github.com/awslabs/mcp/blob/main/README.md',
-            'urls-configuration.html',
+            'https://docs.aws.amazon.com/test.pdf',
+            'https://docs.aws.amazon.com/lambda/latest/dg/',
+            'https://docs.aws.amazon.com/test.md.bak#x',
+            'https://docs.aws.amazon.com/README.markdown',
         ],
     )
-    def test_other_links_unchanged(self, target):
-        """Fragments, .html pages and off-site Markdown are left alone."""
-        markdown = f'See [the page]({target}).'
-        assert rewrite_markdown_links(markdown, self.BASE) == markdown
-
-    def test_link_title_is_preserved(self):
-        """A quoted link title after the destination survives the rewrite."""
-        result = rewrite_markdown_links('[a](invocation-sync.md "Sync")', self.BASE)
-        assert result == (
-            '[a](https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html "Sync")'
-        )
-
-    def test_code_blocks_unchanged(self):
-        """Links inside fenced code blocks are not rewritten."""
-        markdown = '```\n[a](invocation-sync.md)\n```\n[b](invocation-sync.md)'
-        result = rewrite_markdown_links(markdown, self.BASE)
-        assert result.split('\n')[1] == '[a](invocation-sync.md)'
-        assert result.split('\n')[3] == (
-            '[b](https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html)'
-        )
+    def test_other_urls_are_rejected(self, url):
+        """Anything not ending in .html or .md has no page URL."""
+        assert to_html_page_url(url) is None

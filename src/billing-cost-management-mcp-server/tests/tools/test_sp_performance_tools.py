@@ -1669,6 +1669,23 @@ class TestSpPerformanceDescription:
         assert 'an unknown SAVINGS_PLANS_TYPE, for example, returns this error' in description
         assert 'not zero utilization or coverage' in description
 
+    async def test_states_the_public_rate_basis_and_where_billed_figures_come_from(self):
+        """Coverage and utilization dollars are at public rates, not billed spend or savings."""
+        description = ' '.join((await self._description()).split())
+        assert 'price usage at public On-Demand rates' in description
+        assert 'OnDemandCost is not what was billed at On-Demand rates' in description
+        assert 'NetSavings is not the saving against the account' in description
+        assert (
+            'A negative NetSavings means the Savings Plans cost more than the usage they '
+            'covered would have cost at public On-Demand rates.' in description
+        )
+        assert 'grouped by PURCHASE_TYPE' in description
+        assert 'No field here or in Cost Explorer gives the saving against' in description
+        assert (
+            'SavingsPlanCoveredUsage UnblendedCost against SavingsPlansEffectiveCost'
+            in description
+        )
+
     async def test_end_date_doc_states_the_data_lag(self):
         """The end_date arg doc no longer says excluding today is enough."""
         tool = await sp_performance_server.get_tool('sp-performance')

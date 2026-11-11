@@ -1594,10 +1594,10 @@ async def test_coh_local_validation_errors_carry_telemetry_fields(
         ({'resource_types': ['Ec2Instance']}, {'resourceTypes': ['Ec2Instance']}),
         # A bare value is wrapped in a list.
         ({'resourceTypes': 'ebsvolume'}, {'resourceTypes': ['EbsVolume']}),
-        # Values the botocore model lacks but the API accepts fold too.
+        # Values the botocore model lacks pass through unchanged; the service decides.
         (
-            {'resourceTypes': ['database_savings_plans']},
-            {'resourceTypes': ['DatabaseSavingsPlans']},
+            {'resourceTypes': ['database_savings_plans', 'DatabaseSavingsPlans']},
+            {'resourceTypes': ['database_savings_plans', 'DatabaseSavingsPlans']},
         ),
         ({'regions': 'us-east-1'}, {'regions': ['us-east-1']}),
         # Unknown values, non-enum lists, non-string items, booleans, and unknown keys pass through.
@@ -1629,14 +1629,21 @@ def test_normalize_filters(filters, expected):
     assert normalized == expected
 
 
-def test_normalize_filters_non_dict_passes_through():
-    """Filters that are not an object are left for the API to reject."""
+def test_normalize_filters_rejects_non_dict():
+    """No filters passes through; filters that are not an object are a validation error.
+
+    The request builder copies filters with dict(), which fails on a list or a string, so a
+    non-object never reaches the API.
+    """
     from awslabs.billing_cost_management_mcp_server.tools import (
         cost_optimization_hub_tools as coh_mod,
     )
 
     assert coh_mod._normalize_filters('list_recommendations', None) == (None, None)
-    assert coh_mod._normalize_filters('list_recommendations', ['x']) == (['x'], None)
+    filters, error = coh_mod._normalize_filters('list_recommendations', ['x'])
+    assert filters == ['x']
+    assert error is not None and error['error_type'] == 'validation_error'
+    assert 'filters must be a JSON object' in error['message']
 
 
 def test_normalize_filters_empty_list_is_rejected():
@@ -1678,8 +1685,8 @@ def test_filter_model_unavailable_skips_normalization():
         coh_mod._filter_members.cache_clear()
 
 
-def test_filter_model_adds_supplemental_resource_types():
-    """Values the botocore enum lacks are merged in, once, and the botocore values stay."""
+def test_filter_model_lists_only_botocore_resource_types():
+    """The resourceTypes values are the botocore enum as is, with nothing added."""
     from awslabs.billing_cost_management_mcp_server.tools import (
         cost_optimization_hub_tools as coh_mod,
     )
@@ -1688,13 +1695,12 @@ def test_filter_model_adds_supplemental_resource_types():
 
     assert resource_types is not None
     assert 'Ec2Instance' in resource_types
-    assert resource_types.count('DatabaseSavingsPlans') == 1
+    assert 'DatabaseSavingsPlans' not in resource_types
 
-    # A botocore model that already lists the value does not duplicate it.
     shape = MagicMock(type_name='list')
-    shape.member.enum = ['Ec2Instance', 'DatabaseSavingsPlans']
+    shape.member.enum = ['Ec2Instance', 'LambdaFunction']
     with patch.object(coh_mod, '_filter_members', return_value={'resourceTypes': shape}):
-        assert coh_mod._filter_model()['resourceTypes'] == ['Ec2Instance', 'DatabaseSavingsPlans']
+        assert coh_mod._filter_model()['resourceTypes'] == ['Ec2Instance', 'LambdaFunction']
 
 
 def test_add_valid_filter_values():
@@ -1708,6 +1714,7 @@ def test_add_valid_filter_values():
         error, {'resourceTypes': ['NotAType'], 'regions': ['us-east-1']}
     )
     assert list(result['valid_filter_values']) == ['resourceTypes']
+    assert 'DatabaseSavingsPlans' not in result['valid_filter_values']['resourceTypes']
 
     # No enum filter sent: nothing to add.
     error = {'status': 'error', 'error_type': 'ValidationException'}
@@ -1855,6 +1862,7 @@ async def test_coh_validation_exception_adds_valid_filter_values(mock_context, o
     assert sent_filters == {'resourceTypes': ['Ec2Instance', 'NotAType']}
     assert res['error_type'] == 'ValidationException'
     assert 'Ec2Instance' in res['valid_filter_values']['resourceTypes']
+    assert 'DatabaseSavingsPlans' not in res['valid_filter_values']['resourceTypes']
 
 
 @pytest.mark.asyncio
@@ -1876,7 +1884,8 @@ async def test_description_warns_that_summing_recommendation_savings_double_coun
     for filter_name in ('actionTypes', 'resourceTypes', 'implementationEfforts'):
         assert filter_name in description.split('SAVINGS TOTALS:')[1].split('CRITICAL')[0]
     assert 'include_all_recommendations=true' in description
-    assert 'do not include DatabaseSavingsPlans' in description
+    totals = description.split('SAVINGS TOTALS:')[1].split('CRITICAL')[0]
+    assert 'DatabaseSavingsPlans' not in totals
 
 
 @pytest.mark.parametrize(
@@ -1932,7 +1941,11 @@ def test_filter_item_fields_unavailable():
 
 @pytest.mark.asyncio
 async def test_description_documents_region_and_database_savings_plans_behavior():
-    """The description says how regions and DatabaseSavingsPlans differ between list and summaries."""
+    """The description covers regions in list vs summaries, and Database Savings Plans.
+
+    It no longer lists DatabaseSavingsPlans as a resourceTypes value (the service rejects it
+    for accounts without access) and points to sp-recommendation instead.
+    """
     from awslabs.billing_cost_management_mcp_server.tools import (
         cost_optimization_hub_tools as coh_mod,
     )
@@ -1945,10 +1958,25 @@ async def test_description_documents_region_and_database_savings_plans_behavior(
 
     assert 'regions=["Global"] returns them' in description
     assert '"Global" returns $0' in description
-    assert (
-        'DatabaseSavingsPlans: list_recommendations returns these recommendations' in description
+    assert 'DatabaseSavingsPlans: list_recommendations returns these recommendations' not in (
+        description
     )
-    assert "'DatabaseSavingsPlans']" in description
+    assert (
+        'list_recommendation_summaries accepts the filter but returns nothing' not in description
+    )
+    assert 'DatabaseSavingsPlans' not in description
+    assert 'Database Savings Plans recommendations it hides' not in description
+    assert (
+        "'WorkSpaces', 'SageMakerEndpoint'] For Database Savings Plans purchase recommendations, "
+        'use sp-recommendation with savings_plans_type DATABASE_SP.'
+    ) in description
+    assert 'One rejected value fails the whole request.' in description
+    assert (
+        'For a value that matches no documented type (case and underscores aside, see below), '
+        "the error's 'fields' lists every type in the service's model, including types the "
+        'account cannot use'
+    ) in description
+    assert 'choose from valid_filter_values (the documented types)' in description
 
 
 @pytest.mark.parametrize(
@@ -2073,7 +2101,7 @@ async def test_coh_list_recommendations_string_boolean_filter(mock_context):
 
 @pytest.mark.asyncio
 async def test_tool_description_documents_filters_and_metrics():
-    """The description documents the ID filters, DatabaseSavingsPlans and savings_percentage."""
+    """The description documents the ID filters, the DATABASE_SP pointer and savings_percentage."""
     from awslabs.billing_cost_management_mcp_server.tools import (
         cost_optimization_hub_tools as coh_mod,
     )
@@ -2087,7 +2115,7 @@ async def test_tool_description_documents_filters_and_metrics():
         'resourceIds',
         'resourceArns',
         'recommendationIds',
-        "'DatabaseSavingsPlans'",
+        'savings_plans_type DATABASE_SP',
         'savings_percentage',
         'savings_percentage_unavailable_reason',
         'AfterDiscounts',
@@ -2218,3 +2246,44 @@ async def test_description_states_the_summaries_group_limit():
     assert '1,000 groups across all pages means the same' in flat
     assert 'use list_recommendations with the same filters' not in flat
     assert 'until fewer than 1,000 groups come back' not in flat
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('operation', ['list_recommendations', 'list_recommendation_summaries'])
+@pytest.mark.parametrize(
+    'filters, hint',
+    [
+        (json.dumps(json.dumps({'resourceTypes': ['Ec2Instance']})), 'encoded twice'),
+        ('["Ec2Instance"]', 'must be a JSON object'),
+        ('5', 'must be a JSON object'),
+        ('[]', 'must be a JSON object'),
+        ('false', 'must be a JSON object'),
+        ('"Ec2Instance"', 'must be a JSON object'),
+    ],
+    ids=['double-encoded', 'array', 'number', 'empty-array', 'false', 'quoted-string'],
+)
+async def test_coh_filters_that_are_not_an_object_are_rejected_clearly(
+    mock_context, operation, filters, hint
+):
+    """Filters that decode to a non-object get a clear error, not the dict() failure."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(coh_mod, 'list_recommendations', new_callable=AsyncMock) as mock_list,
+        patch.object(
+            coh_mod, 'list_recommendation_summaries', new_callable=AsyncMock
+        ) as mock_summaries,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context, operation=operation, filters=filters, group_by='ResourceType'
+        )
+
+    assert res['status'] == 'error'
+    assert res['error_type'] == 'validation_error'
+    assert hint in res['message']
+    assert 'dictionary update sequence' not in res['message']
+    assert ('encoded twice' in res['message']) == (hint == 'encoded twice')
+    mock_list.assert_not_awaited()
+    mock_summaries.assert_not_awaited()
