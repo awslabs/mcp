@@ -20,6 +20,8 @@ InvalidNextTokenException. Each operation's PageSpec names that code, so a rejec
 token gets the restart hint, while the same code without a caller token stays an ordinary
 error. Because those codes also report other invalid arguments, the message must name
 the token too, except for the billing group cost report, whose expired-token error may not.
+The Savings Plans purchase recommendation operations report a bad token as an
+AccessDeniedException with no message, so for them only a message-less one maps.
 """
 
 import pytest
@@ -38,6 +40,7 @@ from awslabs.billing_cost_management_mcp_server.tools import (
     invoicing_operations,
     procurement_preferences_operations,
     sp_explorer_tools,
+    sp_recommendation_tools,
 )
 from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base import (
     handle_aws_error,
@@ -332,14 +335,85 @@ async def test_cost_report_maps_its_codes_without_a_token_message(ctx, code):
         )
 
 
+@pytest.mark.parametrize('message', ['Not authorized to use token.', None])
 @pytest.mark.parametrize('spec, code', SPECS)
-async def test_unlisted_code_with_caller_token_is_unchanged(ctx, spec, code):
-    """A code the spec does not list stays the service's error, even when it names the token."""
-    api = MagicMock(
-        side_effect=_client_error('AccessDeniedException', 'Not authorized to use token.')
-    )
+async def test_unlisted_code_with_caller_token_is_unchanged(ctx, spec, code, message):
+    """A code the spec does not list stays the service's error, with or without a message."""
+    error: Dict[str, Any] = {'Code': 'AccessDeniedException'}
+    if message is not None:
+        error['Message'] = message
+    api = MagicMock(side_effect=ClientError({'Error': error}, 'Op'))
 
     with pytest.raises(ClientError) as raised:
         await paginate_aws_items(ctx, 'op', api, {}, spec, next_token='bogus')
 
     assert raised.value.response['Error']['Code'] == 'AccessDeniedException'
+
+
+EMPTY_MESSAGE_SPECS = [
+    pytest.param(
+        sp_recommendation_tools.CE_GET_SAVINGS_PLANS_PURCHASE_RECOMMENDATION,
+        id='CE_GET_SAVINGS_PLANS_PURCHASE_RECOMMENDATION',
+    ),
+    pytest.param(
+        sp_recommendation_tools.CE_LIST_SAVINGS_PLANS_PURCHASE_RECOMMENDATION_GENERATION,
+        id='CE_LIST_SAVINGS_PLANS_PURCHASE_RECOMMENDATION_GENERATION',
+    ),
+]
+
+
+def _access_denied(message=None):
+    error: Dict[str, Any] = {'Code': 'AccessDeniedException'}
+    if message is not None:
+        error['Message'] = message
+    return ClientError({'Error': error}, 'Op')
+
+
+@pytest.mark.parametrize('message', [None, '', '  '])
+@pytest.mark.parametrize('spec', EMPTY_MESSAGE_SPECS)
+async def test_message_less_access_denied_on_caller_token_is_invalid_next_token(
+    ctx, spec, message
+):
+    """A message-less AccessDeniedException on the caller's next_token gives the restart hint."""
+    api = MagicMock(side_effect=_access_denied(message))
+
+    with pytest.raises(InvalidNextTokenError) as raised:
+        await paginate_aws_items(ctx, 'op', api, {}, spec, next_token='bogus')
+
+    response = add_retry_guidance(await handle_aws_error(ctx, raised.value, 'op', 'svc'))
+    assert response['error_type'] == 'invalid_next_token'
+    assert 'without next_token' in response['hint']
+
+
+@pytest.mark.parametrize('spec', EMPTY_MESSAGE_SPECS)
+async def test_access_denied_with_a_message_on_caller_token_is_unchanged(ctx, spec):
+    """An AccessDeniedException with a message is a permission error, even with a token."""
+    api = MagicMock(side_effect=_access_denied('User is not authorized to perform this.'))
+
+    with pytest.raises(ClientError) as raised:
+        await paginate_aws_items(ctx, 'op', api, {}, spec, next_token='bogus')
+
+    assert raised.value.response['Error']['Code'] == 'AccessDeniedException'
+
+
+@pytest.mark.parametrize('spec', EMPTY_MESSAGE_SPECS)
+async def test_message_less_access_denied_without_caller_token_is_unchanged(ctx, spec):
+    """Without a caller next_token the AccessDeniedException is raised unchanged."""
+    api = MagicMock(side_effect=_access_denied())
+
+    with pytest.raises(ClientError) as raised:
+        await paginate_aws_items(ctx, 'op', api, {}, spec)
+
+    assert raised.value.response['Error']['Code'] == 'AccessDeniedException'
+
+
+@pytest.mark.parametrize('spec', EMPTY_MESSAGE_SPECS)
+async def test_message_less_access_denied_on_a_later_page_keeps_the_retry_token(ctx, spec):
+    """On a later page it is an ordinary failure: the result is partial and resumable."""
+    page: Dict[str, Any] = {spec.token_key_in_response: 't1'}
+    api = MagicMock(side_effect=[page, _access_denied()])
+
+    _, _, pagination = await paginate_aws_items(ctx, 'op', api, {}, spec, next_token='t0')
+
+    assert pagination['complete_dataset'] is False
+    assert pagination['next_token'] == 't1'

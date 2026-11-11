@@ -101,6 +101,10 @@ The tool returns a CostCategory object containing:
 - RuleVersion (always "CostCategoryExpression.v1")
 - Rules array with Value, Rule expression (Dimensions/Tags/CostCategories with And/Or/Not), and Type
 - DefaultValue, SplitChargeRules (PROPORTIONAL, FIXED, or EVEN allocation methods)
+  SplitChargeRules are applied only on the cost category details page in the console.
+  cost-explorer results grouped by the category do not apply them: the source value keeps
+  its full cost and the targets get no share (per the AWS docs, Cost and Usage Reports and
+  the other Cost Management tools do not apply them either).
 - EffectiveStart/EffectiveEnd (null if still active)
 - ProcessingStatus: APPLIED (rules reflected in data) or PROCESSING (backfill in progress)
 
@@ -200,7 +204,7 @@ Limits: 50 cost categories per management account, 500 rules per category (API),
 
 Example 1 - List all current categories: {}
 Example 2 - List categories active on a date: {"effective_on": "2024-06-01"}
-Example 3 - Filter by billing view support: {"supported_resource_types": "[\"billing:billingview\"]"}""",
+Example 3 - Filter by billing view support: {"supported_resource_types": "[\\"billing:billingview\\"]"}""",
 )
 async def list_cost_category_definitions(
     ctx: Context,

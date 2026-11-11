@@ -14,7 +14,9 @@
 
 """Unit tests for the cost_explorer_operations module."""
 
+import json
 import pytest
+from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_operations
 from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations import (
     get_cost_and_usage,
     get_cost_and_usage_with_resources,
@@ -27,6 +29,9 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations i
 )
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
+
+
+REGION_FILTER = {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1']}}
 
 
 @pytest.fixture
@@ -222,6 +227,33 @@ class TestBillingViewArnSupport:
         assert result['status'] == 'success'
         call_kwargs = mock_ce_client.get_dimension_values.call_args[1]
         assert 'Context' not in call_kwargs
+
+    async def test_get_dimension_values_sends_dimension_key(self, mock_context, mock_ce_client):
+        """dimension_key is sent as DimensionKey, which lists that product attribute's values."""
+        result = await get_dimension_values(
+            mock_context,
+            mock_ce_client,
+            dimension='PRODUCT_ATTRIBUTE',
+            dimension_key='model',
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_dimension_values.call_args[1]
+        assert call_kwargs['Dimension'] == 'PRODUCT_ATTRIBUTE'
+        assert call_kwargs['DimensionKey'] == 'model'
+
+    @pytest.mark.parametrize('dimension_key', [None, ''])
+    async def test_get_dimension_values_omits_empty_dimension_key(
+        self, mock_context, mock_ce_client, dimension_key
+    ):
+        """No or an empty dimension_key sends no DimensionKey, so the service lists the keys."""
+        result = await get_dimension_values(
+            mock_context,
+            mock_ce_client,
+            dimension='PRODUCT_ATTRIBUTE',
+            dimension_key=dimension_key,
+        )
+        assert result['status'] == 'success'
+        assert 'DimensionKey' not in mock_ce_client.get_dimension_values.call_args[1]
 
     async def test_get_cost_forecast_with_billing_view_arn(
         self, mock_context, mock_ce_client, sample_billing_view_arn
@@ -1557,6 +1589,34 @@ class TestGetTags:
         assert 'SearchString' in call_kwargs
         assert call_kwargs['SearchString'] == 'Env'
 
+    @pytest.mark.parametrize('filter_expr', [REGION_FILTER, json.dumps(REGION_FILTER)])
+    @pytest.mark.parametrize('tag_key', [None, 'Environment'], ids=['keys', 'values'])
+    async def test_filter_is_sent(self, mock_context, mock_ce_client, filter_expr, tag_key):
+        """The filter reaches GetTags as Filter, for tag keys and for one key's values.
+
+        Dropping it would return the unfiltered list as if it were filtered.
+        """
+        result = await get_tags(
+            mock_context, mock_ce_client, tag_key=tag_key, filter_expr=filter_expr
+        )
+
+        assert result['status'] == 'success'
+        assert mock_ce_client.get_tags.call_args[1]['Filter'] == REGION_FILTER
+
+    async def test_no_filter_sends_none(self, mock_context, mock_ce_client):
+        """Without a filter, no Filter key is sent."""
+        await get_tags(mock_context, mock_ce_client)
+
+        assert 'Filter' not in mock_ce_client.get_tags.call_args[1]
+
+    async def test_empty_filter_is_rejected_before_aws(self, mock_context, mock_ce_client):
+        """An empty filter is an error, not an unfiltered call."""
+        result = await get_tags(mock_context, mock_ce_client, filter_expr='{}')
+
+        assert result['status'] == 'error'
+        assert 'filter is empty' in result['message']
+        mock_ce_client.get_tags.assert_not_called()
+
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_tags."""
         # Setup error
@@ -1669,6 +1729,34 @@ class TestGetCostCategories:
         call_kwargs = mock_ce_client.get_cost_categories.call_args[1]
         assert 'SearchString' in call_kwargs
         assert call_kwargs['SearchString'] == 'Dep'
+
+    @pytest.mark.parametrize('filter_expr', [REGION_FILTER, json.dumps(REGION_FILTER)])
+    @pytest.mark.parametrize('name', [None, 'Department'], ids=['names', 'values'])
+    async def test_filter_is_sent(self, mock_context, mock_ce_client, filter_expr, name):
+        """The filter reaches GetCostCategories as Filter, for names and for one category's values.
+
+        Dropping it would return the unfiltered list as if it were filtered.
+        """
+        result = await get_cost_categories(
+            mock_context, mock_ce_client, cost_category_name=name, filter_expr=filter_expr
+        )
+
+        assert result['status'] == 'success'
+        assert mock_ce_client.get_cost_categories.call_args[1]['Filter'] == REGION_FILTER
+
+    async def test_no_filter_sends_none(self, mock_context, mock_ce_client):
+        """Without a filter, no Filter key is sent."""
+        await get_cost_categories(mock_context, mock_ce_client)
+
+        assert 'Filter' not in mock_ce_client.get_cost_categories.call_args[1]
+
+    async def test_empty_filter_is_rejected_before_aws(self, mock_context, mock_ce_client):
+        """An empty filter is an error, not an unfiltered call."""
+        result = await get_cost_categories(mock_context, mock_ce_client, filter_expr='{}')
+
+        assert result['status'] == 'error'
+        assert 'filter is empty' in result['message']
+        mock_ce_client.get_cost_categories.assert_not_called()
 
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_cost_categories."""
@@ -1928,3 +2016,132 @@ async def test_max_items_without_next_token_omits_token_from_first_request(
     first_call_kwargs = getattr(mock_ce_client, ce_method).call_args_list[0][1]
     assert token_key not in first_call_kwargs
     assert 'MaxResults' not in first_call_kwargs
+
+
+def _data_unavailable(operation):
+    """The error Cost Explorer returns for a forecast it cannot produce."""
+    from botocore.exceptions import ClientError
+
+    return ClientError(
+        {
+            'Error': {
+                'Code': 'DataUnavailableException',
+                'Message': 'Insufficient amount of historical data.',
+            },
+            'ResponseMetadata': {'RequestId': 'r', 'HTTPStatusCode': 400},
+        },
+        operation,
+    )
+
+
+_FORECASTS = [
+    (get_cost_forecast, 'get_cost_forecast', 'UNBLENDED_COST'),
+    (get_usage_forecast, 'get_usage_forecast', 'USAGE_QUANTITY'),
+]
+_OPERATION_NAMES = {
+    'get_cost_forecast': 'GetCostForecast',
+    'get_usage_forecast': 'GetUsageForecast',
+}
+_NO_MATCH_FILTER = {
+    'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compte']}
+}
+
+
+@pytest.mark.asyncio
+class TestForecastFilterNoMatch:
+    """A forecast filter that matches no past costs fails like an account with too little history."""
+
+    @pytest.mark.parametrize('func, api, metric', _FORECASTS)
+    @pytest.mark.parametrize('filter_expr', [_NO_MATCH_FILTER, json.dumps(_NO_MATCH_FILTER)])
+    async def test_filtered_data_unavailable_asks_to_check_the_filter(
+        self, mock_context, mock_ce_client, func, api, metric, filter_expr
+    ):
+        """With a filter, the caller is told to check the values, not that no forecast exists."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            MODIFY_REQUEST,
+            add_retry_guidance,
+        )
+
+        getattr(mock_ce_client, api).side_effect = _data_unavailable(_OPERATION_NAMES[api])
+
+        result = add_retry_guidance(
+            await func(mock_context, mock_ce_client, metric=metric, filter_expr=filter_expr)
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'DataUnavailableException'
+        assert result['message'] == 'Insufficient amount of historical data.'
+        assert result['retry_strategy'] == MODIFY_REQUEST
+        assert result['hint'] == cost_explorer_operations._FORECAST_FILTER_NO_DATA_HINT
+
+    @pytest.mark.parametrize('func, api, metric', _FORECASTS)
+    async def test_unfiltered_data_unavailable_keeps_default_guidance(
+        self, mock_context, mock_ce_client, func, api, metric
+    ):
+        """Without a filter sent, the error keeps the shared do_not_retry guidance."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            DO_NOT_RETRY,
+            add_retry_guidance,
+            classify_error,
+        )
+
+        getattr(mock_ce_client, api).side_effect = _data_unavailable(_OPERATION_NAMES[api])
+
+        result = add_retry_guidance(await func(mock_context, mock_ce_client, metric=metric))
+
+        assert 'Filter' not in getattr(mock_ce_client, api).call_args[1]
+        assert result['retry_strategy'] == DO_NOT_RETRY
+        assert result['hint'] == classify_error('DataUnavailableException')[1]
+
+    @pytest.mark.parametrize('func, api, metric', _FORECASTS)
+    @pytest.mark.parametrize('filter_expr', [{}, '{}'])
+    async def test_empty_filter_is_rejected_without_the_forecast_hint(
+        self, mock_context, mock_ce_client, func, api, metric, filter_expr
+    ):
+        """An empty filter is a validation_error before any call, never the no-match hint."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            add_retry_guidance,
+            classify_error,
+        )
+
+        result = add_retry_guidance(
+            await func(mock_context, mock_ce_client, metric=metric, filter_expr=filter_expr)
+        )
+
+        getattr(mock_ce_client, api).assert_not_called()
+        assert result['error_type'] == 'validation_error'
+        assert (result['retry_strategy'], result['hint']) == classify_error('validation_error')
+        assert result['hint'] != cost_explorer_operations._FORECAST_FILTER_NO_DATA_HINT
+
+    @pytest.mark.parametrize('func, api, metric', _FORECASTS)
+    async def test_other_errors_with_a_filter_are_unchanged(
+        self, mock_context, mock_ce_client, func, api, metric
+    ):
+        """Only DataUnavailableException gets the filter guidance."""
+        from botocore.exceptions import ClientError
+
+        getattr(mock_ce_client, api).side_effect = ClientError(
+            {'Error': {'Code': 'ValidationException', 'Message': 'bad'}}, 'GetCostForecast'
+        )
+
+        result = await func(
+            mock_context, mock_ce_client, metric=metric, filter_expr=_NO_MATCH_FILTER
+        )
+
+        assert result['error_type'] == 'ValidationException'
+        assert 'retry_strategy' not in result
+        assert 'hint' not in result
+
+
+def test_hint_names_the_lookups_and_the_ignored_match_options():
+    """The hint says how to check each kind of value and that partial matching is ignored."""
+    for phrase in (
+        'the filter as a whole matches no past costs or usage',
+        'CASE_INSENSITIVE are accepted but not applied',
+        'Do not resend the same request',
+        'getDimensionValues',
+        'getTagsOrValues',
+        'getCostCategories',
+        'too little history',
+    ):
+        assert phrase in cost_explorer_operations._FORECAST_FILTER_NO_DATA_HINT

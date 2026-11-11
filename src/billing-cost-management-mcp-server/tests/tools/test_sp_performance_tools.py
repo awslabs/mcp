@@ -1669,6 +1669,23 @@ class TestSpPerformanceDescription:
         assert 'an unknown SAVINGS_PLANS_TYPE, for example, returns this error' in description
         assert 'not zero utilization or coverage' in description
 
+    async def test_states_the_public_rate_basis_and_where_billed_figures_come_from(self):
+        """Coverage and utilization dollars are at public rates, not billed spend or savings."""
+        description = ' '.join((await self._description()).split())
+        assert 'price usage at public On-Demand rates' in description
+        assert 'OnDemandCost is not what was billed at On-Demand rates' in description
+        assert 'NetSavings is not the saving against the account' in description
+        assert (
+            'A negative NetSavings means the Savings Plans cost more than the usage they '
+            'covered would have cost at public On-Demand rates.' in description
+        )
+        assert 'grouped by PURCHASE_TYPE' in description
+        assert 'No field here or in Cost Explorer gives the saving against' in description
+        assert (
+            'SavingsPlanCoveredUsage UnblendedCost against SavingsPlansEffectiveCost'
+            in description
+        )
+
     async def test_end_date_doc_states_the_data_lag(self):
         """The end_date arg doc no longer says excluding today is enough."""
         tool = await sp_performance_server.get_tool('sp-performance')
@@ -1676,6 +1693,16 @@ class TestSpPerformanceDescription:
         end_date_doc = tool.parameters['properties']['end_date'].get('description', '')
         assert 'lags ~1 day' not in end_date_doc
         assert 'last 2-3 days (counting today) is not processed yet' in end_date_doc
+
+    async def test_granularity_doc_lists_hourly_and_its_date_format(self):
+        """HOURLY is accepted by the API, but only with the opt-in and timestamp dates."""
+        tool = await sp_performance_server.get_tool('sp-performance')
+        assert tool is not None
+        granularity_doc = tool.parameters['properties']['granularity'].get('description', '')
+        assert '(DAILY or MONTHLY)' not in granularity_doc
+        assert 'DAILY, MONTHLY or HOURLY' in granularity_doc
+        assert 'hourly granularity opt-in' in granularity_doc
+        assert 'YYYY-MM-DDTHH:MM:SSZ' in granularity_doc
 
     async def test_lists_utilization_details_filter_dimensions(self):
         """Every GetSavingsPlansUtilizationDetails filter dimension is named."""
