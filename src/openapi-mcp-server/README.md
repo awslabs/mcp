@@ -31,15 +31,13 @@ This project is a server that dynamically creates Model Context Protocol (MCP) t
 - **OpenAPI Support**: Works with OpenAPI 3.x specifications in JSON or YAML format
 - **OpenAPI Specification Validation**: Validates specifications without failing startup if issues detected, logging warnings instead to work with specs having minor issues or non-standard extensions
 - **Authentication Support**: Supports multiple authentication methods (Basic, Bearer Token, API Key, Cognito)
-- **AWS Best Practices**: Implements AWS best practices for caching, resilience, and observability
 - **Comprehensive Testing**: Includes extensive unit and integration tests with high code coverage
-- **Metrics Collection**: Tracks API calls, tool usage, errors, and performance metrics
 
 ## Installation
 
 | Kiro | Cursor | VS Code |
 |:----:|:------:|:-------:|
-| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.openapi-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.openapi-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22API_NAME%22%3A%22your-api-name%22%2C%22API_BASE_URL%22%3A%22https%3A//api.example.com%22%2C%22API_SPEC_URL%22%3A%22https%3A//api.example.com/openapi.json%22%2C%22LOG_LEVEL%22%3A%22ERROR%22%2C%22ENABLE_PROMETHEUS%22%3A%22false%22%2C%22ENABLE_OPERATION_PROMPTS%22%3A%22true%22%2C%22UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN%22%3A%225.0%22%2C%22UVICORN_GRACEFUL_SHUTDOWN%22%3A%22true%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.openapi-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMub3BlbmFwaS1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJBUElfTkFNRSI6InlvdXItYXBpLW5hbWUiLCJBUElfQkFTRV9VUkwiOiJodHRwczovL2FwaS5leGFtcGxlLmNvbSIsIkFQSV9TUEVDX1VSTCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL29wZW5hcGkuanNvbiIsIkxPR19MRVZFTCI6IkVSUk9SIiwiRU5BQkxFX1BST01FVEhFVVMiOiJmYWxzZSIsIkVOQUJMRV9PUEVSQVRJT05fUFJPTVBUUyI6InRydWUiLCJVVklDT1JOX1RJTUVPVVRfR1JBQ0VGVUxfU0hVVERPV04iOiI1LjAiLCJVVklDT1JOX0dSQUNFRlVMX1NIVVRET1dOIjoidHJ1ZSJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=OpenAPI%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.openapi-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22API_NAME%22%3A%22your-api-name%22%2C%22API_BASE_URL%22%3A%22https%3A%2F%2Fapi.example.com%22%2C%22API_SPEC_URL%22%3A%22https%3A%2F%2Fapi.example.com%2Fopenapi.json%22%2C%22LOG_LEVEL%22%3A%22ERROR%22%2C%22ENABLE_PROMETHEUS%22%3A%22false%22%2C%22ENABLE_OPERATION_PROMPTS%22%3A%22true%22%2C%22UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN%22%3A%225.0%22%2C%22UVICORN_GRACEFUL_SHUTDOWN%22%3A%22true%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.openapi-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.openapi-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22API_NAME%22%3A%22your-api-name%22%2C%22API_BASE_URL%22%3A%22https%3A//api.example.com%22%2C%22API_SPEC_URL%22%3A%22https%3A//api.example.com/openapi.json%22%2C%22LOG_LEVEL%22%3A%22ERROR%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.openapi-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMub3BlbmFwaS1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJBUElfTkFNRSI6InlvdXItYXBpLW5hbWUiLCJBUElfQkFTRV9VUkwiOiJodHRwczovL2FwaS5leGFtcGxlLmNvbSIsIkFQSV9TUEVDX1VSTCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL29wZW5hcGkuanNvbiIsIkxPR19MRVZFTCI6IkVSUk9SIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=OpenAPI%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.openapi-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22API_NAME%22%3A%22your-api-name%22%2C%22API_BASE_URL%22%3A%22https%3A%2F%2Fapi.example.com%22%2C%22API_SPEC_URL%22%3A%22https%3A%2F%2Fapi.example.com%2Fopenapi.json%22%2C%22LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
 ### From PyPI
 
@@ -54,9 +52,6 @@ The package supports several optional dependencies:
 ```bash
 # For YAML OpenAPI specification support
 pip install "awslabs.openapi-mcp-server[yaml]"
-
-# For Prometheus metrics support
-pip install "awslabs.openapi-mcp-server[prometheus]"
 
 # For testing
 pip install "awslabs.openapi-mcp-server[test]"
@@ -87,11 +82,7 @@ Example configuration for Kiro (`~/.kiro/settings/mcp.json`):
         "API_NAME": "your-api-name",
         "API_BASE_URL": "https://api.example.com",
           "API_SPEC_URL": "https://api.example.com/openapi.json",
-          "LOG_LEVEL": "ERROR",
-          "ENABLE_PROMETHEUS": "false",
-          "ENABLE_OPERATION_PROMPTS": "true",
-          "UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN": "5.0",
-          "UVICORN_GRACEFUL_SHUTDOWN": "true"
+          "LOG_LEVEL": "ERROR"
       },
       "disabled": false,
       "autoApprove": []
@@ -123,12 +114,8 @@ For Windows users, the MCP server configuration format is slightly different:
           "API_NAME": "your-api-name",
           "API_BASE_URL": "https://api.example.com",
           "API_SPEC_URL": "https://api.example.com/openapi.json",
-          "LOG_LEVEL": "ERROR",
-          "ENABLE_PROMETHEUS": "false",
-          "ENABLE_OPERATION_PROMPTS": "true",
-          "UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN": "5.0",
-          "UVICORN_GRACEFUL_SHUTDOWN": "true"
-      },
+          "LOG_LEVEL": "ERROR"
+      }
     }
   }
 }
@@ -247,22 +234,12 @@ uvx --refresh --from . awslabs.openapi-mcp-server --api-url https://petstore3.sw
 
 ```bash
 # Server configuration
-export SERVER_NAME="My API Server"
 export SERVER_DEBUG=true
 export SERVER_MESSAGE_TIMEOUT=60
 export SERVER_HOST="0.0.0.0"
 export SERVER_PORT=8000
 export SERVER_TRANSPORT="stdio"  # Option: stdio
 export LOG_LEVEL="INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
-
-# Metrics and monitoring configuration
-export ENABLE_PROMETHEUS="false"  # Enable/disable Prometheus metrics (default: false)
-export PROMETHEUS_PORT=9090  # Port for Prometheus metrics server
-export ENABLE_OPERATION_PROMPTS="true"  # Enable/disable operation-specific prompts (default: true)
-
-# Graceful shutdown configuration
-export UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=5.0  # Timeout for graceful shutdown in seconds
-export UVICORN_GRACEFUL_SHUTDOWN=true  # Enable/disable graceful shutdown
 
 # API configuration
 export API_NAME="myapi"
@@ -286,6 +263,10 @@ export EXCLUDE_TAGS="admin,internal"  # Hide operations with these tags
 # Output validation
 export VALIDATE_OUTPUT="true"  # Set to "false" to disable response schema validation
 
+# HTTP client connection pooling (outbound requests to the API)
+export HTTP_MAX_CONNECTIONS=100  # Maximum number of connections (default: 100)
+export HTTP_MAX_KEEPALIVE=20     # Maximum number of keepalive connections (default: 20)
+
 # Multi-spec composition
 # Each additional spec requires base_url and either spec_url or spec_path
 # Each entry can optionally include auth_type, auth_token, auth_api_key, auth_api_key_name, auth_username, auth_password
@@ -303,19 +284,7 @@ The OpenAPI MCP Server includes comprehensive documentation to help you get star
 
 - [**AUTHENTICATION.md**](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/AUTHENTICATION.md): Detailed information about authentication methods, configuration options, and troubleshooting
 - [**DEPLOYMENT.md**](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/DEPLOYMENT.md): Guidelines for deploying the server in various environments, including Docker and AWS
-- [**AWS_BEST_PRACTICES.md**](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/AWS_BEST_PRACTICES.md): AWS best practices implemented in the server for resilience, caching, and efficiency
-- [**OBSERVABILITY.md**](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/OBSERVABILITY.md): Information about metrics, logging, and monitoring capabilities
 - [**tests/README.md**](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/tests/README.md): Overview of the test structure and strategy
-
-## AWS Best Practices
-
-The OpenAPI MCP Server implements AWS best practices for building resilient, observable, and efficient cloud applications. These include:
-
-- **Caching**: Robust caching system with multiple backend options
-- **Resilience**: Patterns to handle transient failures and ensure high availability
-- **Observability**: Comprehensive monitoring, metrics, and logging features
-
-For detailed information about these features, including implementation details and configuration options, see [AWS_BEST_PRACTICES.md](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/AWS_BEST_PRACTICES.md).
 
 ## Security
 
@@ -362,10 +331,6 @@ docker run -p 8000:8000 \
   -e API_BASE_URL=https://api.example.com \
   -e API_SPEC_URL=https://api.example.com/openapi.json \
   -e SERVER_TRANSPORT=stdio \
-  -e ENABLE_PROMETHEUS=false \
-  -e ENABLE_OPERATION_PROMPTS=true \
-  -e UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=5.0 \
-  -e UVICORN_GRACEFUL_SHUTDOWN=true \
   openapi-mcp-server:latest
 ```
 
@@ -396,10 +361,9 @@ The test suite covers:
 
 1. **API Configuration**: Tests for API configuration handling and validation
 2. **API Discovery**: Tests for API endpoint discovery and tool generation
-3. **Caching**: Tests for the caching system and providers
-4. **HTTP Client**: Tests for the HTTP client with resilience features
-5. **Metrics**: Tests for metrics collection and reporting
-6. **OpenAPI Validation**: Tests for OpenAPI specification validation
+3. **HTTP Client**: Tests for the HTTP client
+4. **Authentication**: Tests for the supported authentication providers
+5. **OpenAPI Validation**: Tests for OpenAPI specification validation
 
 For more information about the test structure and strategy, see the [tests/README.md](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/tests/README.md) file.
 
@@ -423,12 +387,9 @@ This server acts as a bridge between OpenAPI specifications and LLMs, allowing m
 2. Set up appropriate authentication if your API requires it
 3. Configure the stdio transport option
 
-### Monitoring and Metrics
+### Logging
 
-The server includes built-in monitoring capabilities:
-- Prometheus metrics (disabled by default)
-- Detailed logging of API calls and tool usage
-- Performance tracking for API operations
+The server emits detailed logs of API calls and tool usage via loguru. Configure verbosity with `LOG_LEVEL` (default: `INFO`).
 
 ## Testing with Kiro
 
@@ -457,10 +418,6 @@ To test the OpenAPI MCP Server with Kiro, you need to configure Kiro to use your
            "API_BASE_URL": "https://petstore3.swagger.io/api/v3",
            "API_SPEC_URL": "https://petstore3.swagger.io/api/v3/openapi.json",
            "LOG_LEVEL": "INFO",
-           "ENABLE_PROMETHEUS": "false",
-           "ENABLE_OPERATION_PROMPTS": "true",
-           "UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN": "5.0",
-           "UVICORN_GRACEFUL_SHUTDOWN": "true",
            "PYTHONPATH": "/path/to/your/openapi-mcp-server"
          },
          "disabled": false,

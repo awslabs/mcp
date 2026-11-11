@@ -38,7 +38,6 @@ docker run -p 8000:8000 \
   -e API_BASE_URL=https://api.example.com \
   -e API_SPEC_URL=https://api.example.com/openapi.json \
   -e SERVER_TRANSPORT=sse \
-  -e ENABLE_PROMETHEUS=false \
   -e ENABLE_OPERATION_PROMPTS=true \
   openapi-mcp-server:latest
 ```
@@ -68,46 +67,9 @@ You can customize the container behavior using environment variables:
 -e AUTH_API_KEY_NAME="X-API-Key" \
 -e AUTH_API_KEY_IN="header" \
 
-# Prometheus configuration
--e ENABLE_PROMETHEUS=false \
--e PROMETHEUS_PORT=9090 \
+# Prompt configuration
 -e ENABLE_OPERATION_PROMPTS=true
 ```
-
-### Graceful Shutdown
-
-The OpenAPI MCP Server implements a robust graceful shutdown mechanism to ensure clean termination when the server is stopped or interrupted. This is particularly important for production deployments where abrupt termination could lead to connection errors, data loss, or incomplete operations.
-
-#### How Graceful Shutdown Works
-
-When the server receives a termination signal (SIGINT from Ctrl+C or SIGTERM from container orchestrators):
-
-1. The server logs that it's shutting down gracefully
-2. Final metrics are logged to provide visibility into the server's state at shutdown
-3. For SIGINT (Ctrl+C), the server chains to the original handler after logging
-4. Uvicorn's built-in graceful shutdown process handles the actual shutdown
-5. Active connections are allowed to complete before the server exits
-
-#### Configuration Options
-
-The server's graceful shutdown can be configured through uvicorn options:
-
-```bash
-# Set a custom timeout for graceful shutdown (in seconds)
--e UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=5.0
-
-# Enable/disable graceful shutdown (default: true)
--e UVICORN_GRACEFUL_SHUTDOWN=true
-```
-
-#### Best Practices for Container Environments
-
-When running in container environments like Docker, Kubernetes, or ECS:
-
-1. **Set appropriate termination grace periods** - Allow enough time for connections to complete
-2. **Use SIGTERM for orchestrated shutdowns** - Container orchestrators typically send SIGTERM
-3. **Configure health checks** - Ensure they fail appropriately during shutdown
-4. **Monitor shutdown metrics** - Track shutdown times and any errors during shutdown
 
 ### Deploying to AWS
 
@@ -248,7 +210,6 @@ For the most reliable SSE implementation with AWS services:
 3. **Implement health checks** to ensure container availability
 4. **Set up CloudWatch alarms** to monitor connection counts and response times
 5. **Use AWS X-Ray** for tracing requests through your application
-6. **Implement Amazon Managed Service for Prometheus** for metrics collection and monitoring
 
 This approach provides the most reliable support for SSE connections while still leveraging AWS managed services and maintaining compatibility with the Model Context Protocol.
 
@@ -298,73 +259,9 @@ AWS X-Ray provides end-to-end tracing capabilities that help you analyze and deb
    }
    ```
 
-### Amazon Managed Service for Prometheus
-
-For comprehensive metrics collection and monitoring, integrate with Amazon Managed Service for Prometheus:
-
-1. **Configure Prometheus in your application**:
-   ```python
-   # Set environment variables
-   ENABLE_PROMETHEUS=true
-   PROMETHEUS_PORT=9090
-   ```
-
-2. **Set up remote write to Amazon Managed Service for Prometheus**:
-   ```yaml
-   # prometheus.yml
-   global:
-     scrape_interval: 15s
-
-   remote_write:
-     - url: https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-12345678-1234-1234-1234-123456789012/api/v1/remote_write
-       sigv4:
-         region: us-east-1
-       queue_config:
-         max_samples_per_send: 1000
-         max_shards: 200
-
-   scrape_configs:
-     - job_name: 'openapi-mcp-server'
-       static_configs:
-         - targets: ['localhost:9090']
-   ```
-
-3. **Create an IAM role** with permissions for Amazon Managed Service for Prometheus:
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Effect": "Allow",
-         "Action": [
-           "aps:RemoteWrite",
-           "aps:GetSeries",
-           "aps:GetLabels",
-           "aps:GetMetricMetadata"
-         ],
-         "Resource": "*"
-       }
-     ]
-   }
-   ```
-
-4. **Visualize metrics** using Amazon Managed Grafana:
-   - Create a Grafana workspace in the AWS console
-   - Add Amazon Managed Service for Prometheus as a data source
-   - Import or create dashboards for monitoring your OpenAPI MCP Server
-
-This comprehensive observability setup provides both tracing and metrics monitoring for your OpenAPI MCP Server deployment.
+This tracing setup provides end-to-end request visibility for your OpenAPI MCP Server deployment.
 
 ## AWS Service Integration Documentation References
-
-### Amazon Managed Service for Prometheus
-
-For integrating with Amazon Managed Service for Prometheus, refer to:
-
-- [Amazon Managed Service for Prometheus User Guide](https://docs.aws.amazon.com/prometheus/latest/userguide/what-is-Amazon-Managed-Service-Prometheus.html)
-- [Getting started with Amazon Managed Service for Prometheus](https://docs.aws.amazon.com/prometheus/latest/userguide/AMP-getting-started.html)
-- [Remote write to Amazon Managed Service for Prometheus](https://docs.aws.amazon.com/prometheus/latest/userguide/AMP-remote-write.html)
-- [IAM policies for Amazon Managed Service for Prometheus](https://docs.aws.amazon.com/prometheus/latest/userguide/security_iam_service-with-iam.html)
 
 ### Amazon CloudWatch
 

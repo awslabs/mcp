@@ -18,11 +18,7 @@ The tests are organized by module:
   - `test_enhanced_instructions.py`: Tests for enhanced API documentation
 
 - `tests/utils/`: Tests for utility modules
-  - `test_cache_provider.py`: Tests for the cache provider module
-  - `test_http_client.py`: Tests for the HTTP client utilities
-  - `test_metrics_provider.py`: Tests for the metrics provider module
-  - `test_metrics_provider_prometheus.py`: Tests for the Prometheus metrics provider (skipped if prometheus_client not installed)
-  - `test_metrics_provider_decorators.py`: Tests for the metrics provider decorators
+  - `test_openapi.py`: Tests for the OpenAPI spec loading utilities
   - `test_openapi_validator.py`: Tests for the OpenAPI validation utilities
 
 - `tests/test_init.py`: Tests for module initialization
@@ -44,7 +40,7 @@ pytest
 pytest --cov=awslabs
 
 # Run specific test file
-pytest tests/utils/test_cache_provider.py
+pytest tests/utils/test_openapi.py
 
 # Run tests with verbose output
 pytest -v
@@ -57,8 +53,6 @@ The tests aim to cover:
 1. **Unit Tests**: Testing individual components in isolation
    - Configuration handling
    - OpenAPI spec loading and validation
-   - Caching mechanisms
-   - Metrics collection
    - HTTP client functionality
    - API discovery tools
    - Prompt generation utilities
@@ -69,16 +63,6 @@ The tests aim to cover:
    - Authentication handling
    - Dynamic prompt generation
    - Operation-specific prompts
-
-## Environment Variables for Testing
-
-Some tests can be influenced by environment variables:
-
-- `ENABLE_CACHETOOLS=true`: Test with cachetools integration
-- `ENABLE_PROMETHEUS=true`: Test with Prometheus metrics (requires prometheus_client package)
-- `ENABLE_TENACITY=true`: Test with tenacity retry logic
-- `ENABLE_OPENAPI_CORE=true`: Test with openapi-core validation
-- `ENABLE_OPERATION_PROMPTS=true`: Test with operation-specific prompts
 
 ## Mock Strategy
 
