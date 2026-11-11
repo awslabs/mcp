@@ -199,6 +199,41 @@ def internal_get_instance_properties(target_endpoint: str, region: str) -> Dict[
     raise ValueError(not_found_error)
 
 
+def internal_get_instance_properties_by_identifier(
+    instance_identifier: str, region: str
+) -> Dict[str, Any]:
+    """Retrieve RDS DB instance properties by DB instance identifier.
+
+    Args:
+        instance_identifier: RDS DB instance identifier
+        region: AWS region (e.g., 'us-east-1')
+
+    Returns:
+        Dict[str, Any]: DB instance properties from the RDS API
+
+    Raises:
+        ValueError: If an argument is empty or the instance is not found
+        ClientError: If the AWS API call fails
+    """
+    if not instance_identifier or not region:
+        raise ValueError('instance_identifier and region are required')
+
+    rds_client = internal_create_rds_client(region=region)
+    try:
+        response = rds_client.describe_db_instances(DBInstanceIdentifier=instance_identifier)
+    except ClientError as e:
+        logger.error(
+            f"AWS error fetching instance '{instance_identifier}': "
+            f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
+        )
+        raise
+
+    instances = response.get('DBInstances', [])
+    if not instances:
+        raise ValueError(f"Instance '{instance_identifier}' not found in region '{region}'")
+    return instances[0]
+
+
 def internal_get_cluster_properties(cluster_identifier: str, region: str) -> Dict[str, Any]:
     """Retrieve RDS cluster properties from AWS.
 
