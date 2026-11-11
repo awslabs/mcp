@@ -221,6 +221,7 @@ def _request(
     connection_type: Optional[str] = None,
     major_engine_version: Optional[str] = None,
     user_group_id: Optional[str] = None,
+    tags: Optional[str] = None,
 ) -> CreateServerlessCacheRequest:
     """Build a Valkey CreateServerlessCacheRequest with every optional field set explicitly."""
     return CreateServerlessCacheRequest(
@@ -231,7 +232,7 @@ def _request(
         major_engine_version=major_engine_version,
         snapshot_arns_to_restore=None,
         subnet_ids=None,
-        tags=None,
+        tags=tags,
         security_group_ids=None,
         cache_usage_limits=None,
         user_group_id=user_group_id,
@@ -294,3 +295,45 @@ def test_create_serverless_cache_invalid_connection_type():
     """Test that an unsupported connection_type is rejected at validation time."""
     with pytest.raises(ValidationError, match="connection_type must be 'vpc' or 'public'"):
         _request(connection_type='internet')
+
+
+@pytest.mark.asyncio
+async def test_create_serverless_cache_string_tags_value_with_equals():
+    """Test that string tags split on the first '=' so values may contain '='."""
+    mock_client = MagicMock()
+    mock_client.create_serverless_cache.return_value = {'ServerlessCache': {}}
+
+    with patch(
+        'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+        return_value=mock_client,
+    ):
+        result = await create_serverless_cache(_request(tags='Query=a=b, Owner=team-x, Empty=,'))
+
+    assert 'error' not in result
+    assert mock_client.create_serverless_cache.call_args[1]['Tags'] == [
+        {'Key': 'Query', 'Value': 'a=b'},
+        {'Key': 'Owner', 'Value': 'team-x'},
+        {'Key': 'Empty', 'Value': None},
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'tags, message',
+    [
+        ('Environment', 'Key=Value format'),
+        ('=Production', 'Tag key cannot be empty'),
+    ],
+)
+async def test_create_serverless_cache_invalid_string_tags(tags, message):
+    """Test that malformed string tags return a clear error without calling the API."""
+    mock_client = MagicMock()
+
+    with patch(
+        'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+        return_value=mock_client,
+    ):
+        result = await create_serverless_cache(_request(tags=tags))
+
+    assert message in result['error']
+    mock_client.create_serverless_cache.assert_not_called()
