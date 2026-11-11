@@ -14,7 +14,7 @@
 
 """Utility functions for checking AWS storage services encryption and security."""
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import boto3
 import botocore.exceptions
@@ -56,6 +56,12 @@ async def check_storage_encryption(
     # Find all storage resources using Resource Explorer
     storage_resources = await find_storage_resources(region, session, services, ctx)
 
+    # EBS, RDS and EFS report the KMS key ARN only; KMS DescribeKey tells whether
+    # that key is AWS managed or customer managed.
+    kms_client = None
+    if any(service in services for service in ("ebs", "rds", "efs")):
+        kms_client = session.client("kms", region_name=region, config=USER_AGENT_CONFIG)
+
     # Check each service as requested
     if "s3" in services:
         s3_client = session.client("s3", region_name=region, config=USER_AGENT_CONFIG)
@@ -64,12 +70,16 @@ async def check_storage_encryption(
 
     if "ebs" in services:
         ec2_client = session.client("ec2", region_name=region, config=USER_AGENT_CONFIG)
-        ebs_results = await check_ebs_volumes(region, ec2_client, ctx, storage_resources)
+        ebs_results = await check_ebs_volumes(
+            region, ec2_client, ctx, storage_resources, kms_client=kms_client
+        )
         await _update_results(results, ebs_results, "ebs", include_unencrypted_only)
 
     if "rds" in services:
         rds_client = session.client("rds", region_name=region, config=USER_AGENT_CONFIG)
-        rds_results = await check_rds_instances(region, rds_client, ctx, storage_resources)
+        rds_results = await check_rds_instances(
+            region, rds_client, ctx, storage_resources, kms_client=kms_client
+        )
         await _update_results(results, rds_results, "rds", include_unencrypted_only)
 
     if "dynamodb" in services:
@@ -81,7 +91,9 @@ async def check_storage_encryption(
 
     if "efs" in services:
         efs_client = session.client("efs", region_name=region, config=USER_AGENT_CONFIG)
-        efs_results = await check_efs_filesystems(region, efs_client, ctx, storage_resources)
+        efs_results = await check_efs_filesystems(
+            region, efs_client, ctx, storage_resources, kms_client=kms_client
+        )
         await _update_results(results, efs_results, "efs", include_unencrypted_only)
 
     if "elasticache" in services:
@@ -99,6 +111,29 @@ async def check_storage_encryption(
     results["recommendations"] = await generate_recommendations(results)
 
     return results
+
+
+def _is_customer_managed_key(
+    kms_client: Any, key_id: str, cache: Dict[str, Optional[bool]]
+) -> Optional[bool]:
+    """Return whether a KMS key is customer managed.
+
+    The key ARN that EBS, RDS and EFS report looks the same for AWS managed keys
+    (for example ``aws/ebs``) and customer managed keys, so ask KMS for the key's
+    ``KeyManager``. Returns ``None`` when this can't be determined (no KMS client,
+    or DescribeKey failed, for example because of missing permissions).
+    """
+    if kms_client is None or not key_id:
+        return None
+    if key_id not in cache:
+        try:
+            metadata = kms_client.describe_key(KeyId=key_id).get("KeyMetadata", {})
+            key_manager = metadata.get("KeyManager")
+            cache[key_id] = None if key_manager is None else key_manager == "CUSTOMER"
+        except (botocore.exceptions.ClientError, botocore.exceptions.BotoCoreError) as e:
+            print(f"[DEBUG:StorageSecurity] Could not describe KMS key {key_id}: {e}")
+            cache[key_id] = None
+    return cache[key_id]
 
 
 async def _update_results(
@@ -459,7 +494,11 @@ async def check_s3_buckets(
 
 
 async def check_ebs_volumes(
-    region: str, ec2_client: Any, ctx: Context, storage_resources: Dict[str, Any]
+    region: str,
+    ec2_client: Any,
+    ctx: Context,
+    storage_resources: Dict[str, Any],
+    kms_client: Any = None,
 ) -> Dict[str, Any]:
     """Check EBS volumes for encryption and security best practices."""
     print(f"[DEBUG:StorageSecurity] Checking EBS volumes in {region}")
@@ -471,6 +510,8 @@ async def check_ebs_volumes(
         "non_compliant_resources": 0,
         "resource_details": [],
     }
+
+    kms_key_cache: Dict[str, Optional[bool]] = {}
 
     try:
         # Get volume list - either from Resource Explorer or directly
@@ -524,7 +565,9 @@ async def check_ebs_volumes(
                     if is_encrypted and "KmsKeyId" in volume:
                         volume_result["checks"]["kms_key_id"] = volume["KmsKeyId"]
                         # Check if using AWS managed key or CMK
-                        is_cmk = not volume["KmsKeyId"].startswith("arn:aws:kms:region:aws:")
+                        is_cmk = _is_customer_managed_key(
+                            kms_client, volume["KmsKeyId"], kms_key_cache
+                        )
                         volume_result["checks"]["using_cmk"] = is_cmk
                     else:
                         volume_result["checks"]["using_cmk"] = False
@@ -544,7 +587,7 @@ async def check_ebs_volumes(
                         volume_result["remediation"].append(
                             "Enable default EBS encryption for the region"
                         )
-                    elif not volume_result["checks"].get("using_cmk", False):
+                    elif volume_result["checks"].get("using_cmk") is False:
                         volume_result["remediation"].append(
                             "Consider using a customer-managed KMS key instead of AWS managed key"
                         )
@@ -576,7 +619,11 @@ async def check_ebs_volumes(
 
 
 async def check_rds_instances(
-    region: str, rds_client: Any, ctx: Context, storage_resources: Dict[str, Any]
+    region: str,
+    rds_client: Any,
+    ctx: Context,
+    storage_resources: Dict[str, Any],
+    kms_client: Any = None,
 ) -> Dict[str, Any]:
     """Check RDS instances for encryption and security best practices."""
     print(f"[DEBUG:StorageSecurity] Checking RDS instances in {region}")
@@ -588,6 +635,8 @@ async def check_rds_instances(
         "non_compliant_resources": 0,
         "resource_details": [],
     }
+
+    kms_key_cache: Dict[str, Optional[bool]] = {}
 
     try:
         # Get RDS instance list - either from Resource Explorer or directly
@@ -642,7 +691,9 @@ async def check_rds_instances(
                 if is_storage_encrypted and "KmsKeyId" in instance:
                     instance_result["checks"]["kms_key_id"] = instance["KmsKeyId"]
                     # Check if using AWS managed key or CMK
-                    is_cmk = not instance["KmsKeyId"].startswith("arn:aws:kms:region:aws:")
+                    is_cmk = _is_customer_managed_key(
+                        kms_client, instance["KmsKeyId"], kms_key_cache
+                    )
                     instance_result["checks"]["using_cmk"] = is_cmk
                 else:
                     instance_result["checks"]["using_cmk"] = False
@@ -669,7 +720,7 @@ async def check_rds_instances(
                     instance_result["remediation"].append(
                         "Enable default encryption for new RDS instances"
                     )
-                elif not instance_result["checks"].get("using_cmk", False):
+                elif instance_result["checks"].get("using_cmk") is False:
                     instance_result["remediation"].append(
                         "Consider using a customer-managed KMS key instead of AWS managed key"
                     )
@@ -847,7 +898,11 @@ async def check_dynamodb_tables(
 
 
 async def check_efs_filesystems(
-    region: str, efs_client: Any, ctx: Context, storage_resources: Dict[str, Any]
+    region: str,
+    efs_client: Any,
+    ctx: Context,
+    storage_resources: Dict[str, Any],
+    kms_client: Any = None,
 ) -> Dict[str, Any]:
     """Check EFS filesystems for encryption and security best practices."""
     print(f"[DEBUG:StorageSecurity] Checking EFS filesystems in {region}")
@@ -859,6 +914,8 @@ async def check_efs_filesystems(
         "non_compliant_resources": 0,
         "resource_details": [],
     }
+
+    kms_key_cache: Dict[str, Optional[bool]] = {}
 
     try:
         # Get EFS filesystem list - either from Resource Explorer or directly
@@ -917,7 +974,7 @@ async def check_efs_filesystems(
                 if is_encrypted and "KmsKeyId" in fs:
                     fs_result["checks"]["kms_key_id"] = fs["KmsKeyId"]
                     # Check if using AWS managed key or CMK
-                    is_cmk = not fs["KmsKeyId"].startswith("arn:aws:kms:region:aws:")
+                    is_cmk = _is_customer_managed_key(kms_client, fs["KmsKeyId"], kms_key_cache)
                     fs_result["checks"]["using_cmk"] = is_cmk
                 else:
                     fs_result["checks"]["using_cmk"] = False
@@ -937,7 +994,7 @@ async def check_efs_filesystems(
                     fs_result["remediation"].append(
                         "Note: Encryption cannot be enabled on existing EFS filesystems"
                     )
-                elif not fs_result["checks"].get("using_cmk", False):
+                elif fs_result["checks"].get("using_cmk") is False:
                     fs_result["remediation"].append(
                         "Consider using a customer-managed KMS key instead of AWS managed key"
                     )
