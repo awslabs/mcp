@@ -71,6 +71,18 @@ class TestParseTimestamp:
         """Any fraction length is accepted and removed, so botocore sends whole seconds."""
         assert parse_timestamp(value, 'f') == datetime(2026, 1, 1, 10, 0, 0, tzinfo=UTC)
 
+    def test_end_of_day_maps_bare_date_to_last_second(self):
+        """With end_of_day, a bare date covers that whole day."""
+        assert parse_timestamp('2026-11-05', 'f', end_of_day=True) == datetime(
+            2026, 11, 5, 23, 59, 59, tzinfo=UTC
+        )
+
+    def test_end_of_day_leaves_date_times_alone(self):
+        """With end_of_day, an explicit date-time is kept as given."""
+        assert parse_timestamp('2026-11-05T08:00:00Z', 'f', end_of_day=True) == datetime(
+            2026, 11, 5, 8, 0, 0, tzinfo=UTC
+        )
+
     def test_invalid_value_names_the_field(self):
         """An unparseable value raises ValueError naming the parameter."""
         with pytest.raises(ValueError, match='published_after'):
@@ -87,6 +99,14 @@ class TestBuildFilters:
     def test_empty_lists_are_ignored(self):
         """Empty domain lists are not sent."""
         assert build_filters([], [], None, None) == {}
+
+    def test_same_date_bounds_cover_the_whole_day(self):
+        """published_after and published_before on one date span that whole day."""
+        filters = build_filters(None, None, '2026-11-05', '2026-11-05')
+        assert filters['publishedDateFilter'] == {
+            'publishedAfter': datetime(2026, 11, 5, 0, 0, 0, tzinfo=UTC),
+            'publishedBefore': datetime(2026, 11, 5, 23, 59, 59, tzinfo=UTC),
+        }
 
     def test_all_filters(self):
         """Every argument maps to its API field."""

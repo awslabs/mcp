@@ -144,7 +144,7 @@ Search the web with the AgentCore Web Search API (`InvokeWebSearch`). Each resul
 
 Key tool: `web_search`
 
-This gives an agent web search on clients that have none built in, for example Claude Code running on Amazon Bedrock. To load only this tool, set `AGENTCORE_ENABLE_TOOLS=web_search`:
+This gives an agent web search on clients that have none built in, for example Claude Code running on Amazon Bedrock. To load only this tool and the two documentation tools, set `AGENTCORE_ENABLE_TOOLS=web_search`:
 
 ```json
 {
