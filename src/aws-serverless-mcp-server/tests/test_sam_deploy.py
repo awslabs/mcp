@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for the sam_deploy module."""
 
+import json
 import os
 import pytest
 import subprocess
@@ -238,3 +239,35 @@ class TestSamDeploy:
             'Write operations are not allowed. Set --allow-write flag to true to enable write operations.'
             in str(exc_info.value)
         )
+
+    @pytest.mark.asyncio
+    async def test_sam_deploy_passes_metadata_as_one_token(self):
+        """Test that --metadata gets a single JSON token, since sam takes one value."""
+        with patch(
+            'awslabs.aws_serverless_mcp_server.tools.sam.sam_deploy.run_command',
+            return_value=(b'', b''),
+        ) as mock_run:
+            result = await SamDeployTool(MagicMock(), True).handle_sam_deploy(
+                AsyncMock(),
+                application_name='test-app',
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                template_file=None,
+                s3_bucket=None,
+                s3_prefix=None,
+                region=None,
+                profile=None,
+                parameter_overrides=None,
+                capabilities=None,
+                config_file=None,
+                config_env=None,
+                metadata={'team': 'payments', 'owner': 'alice'},
+                tags=None,
+                resolve_s3=False,
+                debug=False,
+            )
+
+            assert result['success'] is True
+            cmd = mock_run.call_args[0][0]
+            metadata_index = cmd.index('--metadata')
+            assert json.loads(cmd[metadata_index + 1]) == {'team': 'payments', 'owner': 'alice'}
+            assert 'owner=alice' not in cmd

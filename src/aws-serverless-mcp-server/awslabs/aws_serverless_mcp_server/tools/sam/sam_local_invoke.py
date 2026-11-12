@@ -114,6 +114,15 @@ class SamLocalInvokeTool:
                     f.write(event_data)
                 event_file = temp_event_file
 
+            # sam reads --container-env-vars from a JSON file, not from KEY=VALUE tokens
+            temp_container_env_file = None
+            if container_env_vars:
+                fd, temp_container_env_file = tempfile.mkstemp(
+                    suffix='.json', prefix='.temp-container-env-'
+                )
+                with os.fdopen(fd, 'w') as f:
+                    json.dump({'Parameters': container_env_vars}, f)
+
             try:
                 # Build the command arguments
                 cmd = ['sam', 'local', 'invoke', resource_name]
@@ -130,10 +139,8 @@ class SamLocalInvokeTool:
                 if docker_network:
                     cmd.extend(['--docker-network', docker_network])
 
-                if container_env_vars:
-                    cmd.extend(['--container-env-vars'])
-                    for key, value in container_env_vars.items():
-                        cmd.append(f'{key}={value}')
+                if temp_container_env_file:
+                    cmd.extend(['--container-env-vars', temp_container_env_file])
 
                 if parameter:
                     cmd.extend(['--parameter-overrides'])
@@ -174,6 +181,8 @@ class SamLocalInvokeTool:
                 # Clean up temporary event file if created
                 if temp_event_file and os.path.exists(temp_event_file):
                     os.unlink(temp_event_file)
+                if temp_container_env_file and os.path.exists(temp_container_env_file):
+                    os.unlink(temp_container_env_file)
         except Exception as e:
             logger.error(f'Error in sam_local_invoke: {str(e)}')
             return {
