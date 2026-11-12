@@ -129,6 +129,8 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 - `SESSION_KEEPALIVE`: How long an open transaction may sit idle before Redshift ends it, in seconds (optional, defaults to `600`, maximum `86400`). Only transactions are affected. See [Transactions](#transactions).
 - `MAX_OPEN_TRANSACTIONS_PER_TARGET`: How many transactions may be open at once against one cluster and database (optional, defaults to `10`).
 - `MAX_RESULT_ROWS`: The most rows one statement may return (optional, defaults to `1000`). A larger result is refused rather than cut short, by every tool that runs SQL. Only a whole number above zero is accepted; anything else falls back to the default. It counts rows, not bytes: a `VARCHAR` value can be 64 KB, so a result of wide rows within the default can be tens of megabytes.
+- `REDSHIFT_CONNECTION_MODE`: How statements reach the cluster (optional, defaults to `data-api`). `direct` connects to a provisioned cluster itself instead of calling the Redshift Data API; any other value falls back to `data-api`. See [Direct connections](#direct-connections).
+- `REDSHIFT_DIRECT_SSLMODE`: How a direct connection checks the cluster's TLS certificate (optional, defaults to `verify-full`). `verify-full` checks the certificate chain and that the certificate names the endpoint; `verify-ca` checks the chain only. Any other value is refused: every statement in direct mode fails with a message naming the accepted values. Has no effect in the default `data-api` mode.
 
 The log carries statement content: `DEBUG` writes every statement's full SQL, so a `CREATE USER ... PASSWORD` lands verbatim, and `ERROR` — included by the default `WARNING` — carries the engine's message, which quotes the offending value or relation. Treat `LOG_FILE` as holding the statements themselves.
 
@@ -697,7 +699,7 @@ If you select `read-write`:
 
 ## Transactions
 
-Without a transaction parameter, every `execute_query` call runs on its own connection. No session state carries over: in read-write mode, a temporary table or a `SET` from one call is invisible to the next, though the statement that made it reports success. Calls to the same cluster and database run concurrently rather than queueing.
+Without a transaction parameter, every `execute_query` call runs on its own connection. No session state carries over: in read-write mode, a temporary table or a `SET` from one call is invisible to the next, though the statement that made it reports success. Calls to the same cluster and database run concurrently rather than queueing. With [direct connections](#direct-connections), reads inside the read-only wrapper share one connection and queue; anything else outside a transaction, including every call in read-write mode and the `list_databases`, `list_schemas`, `list_tables` and `list_columns` tools, opens a connection of its own.
 
 To carry state across calls, name a transaction:
 
@@ -731,3 +733,48 @@ Two more are refused by this server rather than by Redshift, because each can en
 Keep them short. An open transaction holds a Redshift connection and can block other writers on the tables it touched, so the model is instructed to open one only once the statements it groups are decided, and to put nothing else between them — no waiting on you, no waiting on another system, no exploring. Asking for a transaction to be held open anyway is a legitimate thing to want, and the model is told to warn you what it costs before doing it.
 
 A name is only ever your own: it lives in this server process, so it cannot collide with another client's, and reusing a name that is still open is refused rather than joining it. `MAX_OPEN_TRANSACTIONS_PER_TARGET` bounds how many you can hold open at once against one cluster and database.
+
+## Direct connections
+
+With `REDSHIFT_CONNECTION_MODE=direct` the server connects to the cluster itself, with the [Amazon Redshift Python driver](https://github.com/aws/amazon-redshift-python-driver), instead of calling the Redshift Data API. Use it when your credentials may fetch cluster credentials but are denied the Data API. It supports provisioned clusters only; a statement against a serverless workgroup is refused.
+
+The driver is an optional extra, `direct`, so the default install does not carry it. Install the server with it (`pip install 'awslabs-redshift-mcp-server[direct]'`), or with `uvx`:
+
+```json
+"command": "uvx",
+"args": ["--from", "awslabs.redshift-mcp-server[direct]@latest", "awslabs.redshift-mcp-server"],
+"env": {
+  "REDSHIFT_CONNECTION_MODE": "direct"
+}
+```
+
+Without the extra, every statement in direct mode is refused with a message naming it.
+
+The Docker image includes the `direct` extra. The driver is loaded only when `REDSHIFT_CONNECTION_MODE=direct`, so the default `data-api` mode behaves as before.
+
+It needs no `redshift-data:*` action, only these two:
+
+```json
+"Action": [
+  "redshift:DescribeClusters",
+  "redshift:GetClusterCredentialsWithIAM"
+]
+```
+
+The server connects over TLS, checking the certificate with `REDSHIFT_DIRECT_SSLMODE` (`verify-full` unless set), as the database user the Data API would use, `IAM:<user>` or `IAMR:<role>`, to the endpoint `DescribeClusters` reports. That endpoint has to be reachable from where the server runs, through public access or a network path into the cluster's VPC, with its security group open on the cluster's port.
+
+The read-only wrapper, the SQL guard, named transactions and `MAX_RESULT_ROWS` all work as in the default mode. What differs:
+
+| | Data API (default) | Direct |
+|---|---|---|
+| Reads outside a transaction (inside the read-only wrapper) | Each on its own connection, run concurrently | One shared connection per cluster and database, one read at a time. The wrapper's `ROLLBACK` discards anything a read could leave |
+| A result over `MAX_RESULT_ROWS` | Refused after reading its first page | Refused, after the driver has read the whole result into memory |
+| A slow statement | The server stops waiting after 3600 seconds | Redshift cancels it after 3600 seconds (`statement_timeout`). A connection that stops answering is closed, and its own statement cancelled |
+| Open transactions when the server exits | End once idle for `SESSION_KEEPALIVE` | End at once, as their connections close |
+| A failed statement inside a batch | The rest of the batch runs | The rest is skipped and the transaction rolled back |
+| Statement parameters | Supported | Refused; no tool sends them today |
+| Binary values (`VARBYTE`) | Base64 text | Hex text |
+| Dates, times, timestamps and `DECIMAL` | The Data API's own text | The driver's text for the value (Python `str()`), which can differ in form, such as the timezone suffix or trailing zeros. The value is the same |
+| A `TIMESTAMPTZ` out of the driver's date range | Text | Can come back as a number |
+
+Every other statement outside a transaction runs on a connection of its own that closes when the call ends. That covers every `execute_query` call in read-write mode, which runs without the read-only wrapper, and the `list_databases`, `list_schemas`, `list_tables` and `list_columns` tools in both modes. As in the default mode, a `SET` or a temporary table it makes is gone for the next call. Each such call pays for a new connection: a TLS connect, one `GetClusterCredentialsWithIAM` call, and two setup statements (`SET statement_timeout` and `pg_backend_pid()`).
