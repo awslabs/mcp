@@ -1,11 +1,13 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import pika
 import pytest
 from awslabs.amazon_mq_mcp_server.rabbitmq.connection import (
     RabbitMQConnection,
     validate_rabbitmq_name,
 )
+from string import punctuation
 from unittest.mock import MagicMock, patch
 
 
@@ -17,6 +19,34 @@ class TestRabbitMQConnection:
         conn = RabbitMQConnection('test-host', 'user', 'pass')
         assert conn.protocol == 'amqps'
         assert conn.url == 'amqps://user:pass@test-host:5671'  # pragma: allowlist secret
+        assert conn.parameters.ssl_options is not None
+
+    @pytest.mark.parametrize(
+        ('username', 'password'),
+        [
+            ('user', f'synthetic{character}password')
+            for character in punctuation
+            if character not in ',:='
+        ]
+        + [
+            ('user.name_1', 'synthetic-password'),
+            ('user', 'synthetic%2Fpassword'),
+            ('user', 'synthetic%41password'),
+            ('user', 'synthetic@%/#?password'),
+            ('user', 'aB3#' * 62 + 'xY'),
+        ],
+    )
+    def test_init_preserves_credentials(self, username, password):
+        """Preserve literal credentials when constructing AMQPS connection parameters."""
+        conn = RabbitMQConnection('test-host', username, password)
+
+        credentials = conn.parameters.credentials
+        assert isinstance(credentials, pika.PlainCredentials)
+        assert credentials.username == username
+        assert credentials.password == password
+        assert conn.parameters.host == 'test-host'
+        assert conn.parameters.port == 5671
+        assert conn.parameters.virtual_host == '/'
         assert conn.parameters.ssl_options is not None
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.connection.pika.BlockingConnection')
