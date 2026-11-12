@@ -14,6 +14,20 @@
 
 """awslabs.mcp_lambda_handler: AWS Lambda MCP Server package."""
 
+import warnings
+
+
 __version__ = '0.1.15'
 
+DEPRECATION_NOTICE = (
+    'awslabs.mcp-lambda-handler is deprecated and will not receive further updates. '
+    'Use Amazon Bedrock AgentCore Gateway '
+    '(https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway.html) '
+    'with AWS Lambda targets instead. '
+    'Migration guide: https://github.com/awslabs/mcp/blob/main/docs/migration-mcp-lambda-handler.md'
+)
+
 from .mcp_lambda_handler import MCPLambdaHandler
+
+
+warnings.warn(DEPRECATION_NOTICE, DeprecationWarning, stacklevel=2)

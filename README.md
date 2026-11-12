@@ -438,6 +438,8 @@ Interact with AWS HealthAI services.
 
 ## MCP AWS Lambda Handler Module
 
+⚠️ **DEPRECATED**: Use [Amazon Bedrock AgentCore Gateway](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway.html) with AWS Lambda targets instead. See the [migration guide](docs/migration-mcp-lambda-handler.md).
+
 A Python library for creating serverless HTTP handlers for the Model Context Protocol (MCP) using AWS Lambda. This module provides a flexible framework for building MCP HTTP endpoints with pluggable session management, including built-in DynamoDB support.
 
 **Features:**
