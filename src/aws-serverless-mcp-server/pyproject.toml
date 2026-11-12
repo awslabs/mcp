@@ -47,7 +47,7 @@ skips = ["B608", "B101", "B404", "B603", "B607", "B110", "B311", "B104", "B102",
 [dependency-groups]
 dev = [
     "commitizen>=4.2.2",
-    "pre-commit>=4.1.0",
+    "pre-commit>=4.1.0; python_version >= '3.11'",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
     "pytest>=8.0.0",

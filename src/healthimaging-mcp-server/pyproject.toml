@@ -20,7 +20,6 @@ dependencies = [
     "httpx>=0.25.0",
     "python-dateutil>=2.8.0",
     "urllib3>=2.6.3",
-    "filelock>=3.20.3",
     "python-multipart>=0.0.22",
 ]
 license = {text = "Apache-2.0"}
@@ -48,7 +47,7 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
-    "pre-commit>=4.1.0",
+    "pre-commit>=4.1.0; python_version >= '3.11'",
 ]
 
 [project.urls]
@@ -69,7 +68,7 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
-    "pre-commit>=4.1.0",
+    "pre-commit>=4.1.0; python_version >= '3.11'",
 ]
 
 [tool.hatch.metadata]
