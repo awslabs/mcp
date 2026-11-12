@@ -175,8 +175,8 @@ class TestGetMetricData:
                 }
             ],
         }
-        start_time = datetime(2023, 1, 1, 0, 0, 0)
-        end_time = datetime(2023, 1, 1, 2, 0, 0)  # 2 hours = 7200 seconds
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(hours=2)  # 2 hours = 7200 seconds
         with patch(
             'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
             return_value=mock_client,

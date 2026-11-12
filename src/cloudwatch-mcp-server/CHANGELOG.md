@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- `get_metric_data` now picks a period that is a multiple of 5 minutes when `start_time` is more than 15 days ago and of 1 hour when it is more than 63 days ago. CloudWatch keeps older data only at those resolutions, so the previous 1-minute rounding (for example a 1440-second period) returned no datapoints for it.
+
 ## [0.3.0] - 2026-09-15
 
 ### Security
