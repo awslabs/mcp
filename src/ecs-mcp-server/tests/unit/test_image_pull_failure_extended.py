@@ -5,6 +5,7 @@ This script provides additional tests for the detect_image_pull_failures functio
 to increase test coverage.
 """
 
+import importlib
 import unittest
 from unittest.mock import patch
 
@@ -14,17 +15,17 @@ from awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures
     detect_image_pull_failures,
 )
 
+detect_image_pull_failures_module = importlib.import_module(
+    "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures"
+)
+
 
 class TestImagePullFailureDetectionExtended(unittest.TestCase):
     """Extended tests for the image pull failure detection functionality."""
 
     @pytest.mark.anyio
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures.get_task_definitions"
-    )
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures.validate_container_images"
-    )
+    @patch.object(detect_image_pull_failures_module, "_find_task_definitions")
+    @patch.object(detect_image_pull_failures_module, "_validate_container_images")
     async def test_detect_image_pull_failures_no_task_definitions(
         self, mock_validate_images, mock_find_task_defs
     ):
@@ -33,7 +34,7 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         mock_find_task_defs.return_value = []
 
         # Call the function
-        result = await detect_image_pull_failures("test-app")
+        result = await detect_image_pull_failures(family_prefix="test-app")
 
         # Verify the result
         self.assertEqual(result["status"], "success")
@@ -48,12 +49,8 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         mock_validate_images.assert_not_called()
 
     @pytest.mark.anyio
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures.get_task_definitions"
-    )
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures.validate_container_images"
-    )
+    @patch.object(detect_image_pull_failures_module, "_find_task_definitions")
+    @patch.object(detect_image_pull_failures_module, "_validate_container_images")
     async def test_detect_image_pull_failures_all_images_valid(
         self, mock_validate_images, mock_find_task_defs
     ):
@@ -83,7 +80,7 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         ]
 
         # Call the function
-        result = await detect_image_pull_failures("test-app")
+        result = await detect_image_pull_failures(family_prefix="test-app")
 
         # Verify the result
         self.assertEqual(result["status"], "success")
@@ -92,12 +89,8 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         self.assertEqual(len(result["recommendations"]), 0)
 
     @pytest.mark.anyio
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures.get_task_definitions"
-    )
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures.validate_container_images"
-    )
+    @patch.object(detect_image_pull_failures_module, "_find_task_definitions")
+    @patch.object(detect_image_pull_failures_module, "_validate_container_images")
     async def test_detect_image_pull_failures_ecr_image_not_found(
         self, mock_validate_images, mock_find_task_defs
     ):
@@ -133,7 +126,7 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         ]
 
         # Call the function
-        result = await detect_image_pull_failures("test-app")
+        result = await detect_image_pull_failures(family_prefix="test-app")
 
         # Verify the result
         self.assertEqual(result["status"], "success")
@@ -144,12 +137,8 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         self.assertIn("not found", result["recommendations"][0])
 
     @pytest.mark.anyio
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures.get_task_definitions"
-    )
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures.validate_container_images"
-    )
+    @patch.object(detect_image_pull_failures_module, "_find_task_definitions")
+    @patch.object(detect_image_pull_failures_module, "_validate_container_images")
     async def test_detect_image_pull_failures_external_image_unknown(
         self, mock_validate_images, mock_find_task_defs
     ):
@@ -181,7 +170,7 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         ]
 
         # Call the function
-        result = await detect_image_pull_failures("test-app")
+        result = await detect_image_pull_failures(family_prefix="test-app")
 
         # Verify the result
         self.assertEqual(result["status"], "success")
@@ -192,12 +181,8 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         self.assertIn("cannot be verified", result["recommendations"][0])
 
     @pytest.mark.anyio
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures.get_task_definitions"
-    )
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures.validate_container_images"
-    )
+    @patch.object(detect_image_pull_failures_module, "_find_task_definitions")
+    @patch.object(detect_image_pull_failures_module, "_validate_container_images")
     async def test_detect_image_pull_failures_other_image_issue(
         self, mock_validate_images, mock_find_task_defs
     ):
@@ -228,7 +213,7 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         ]
 
         # Call the function
-        result = await detect_image_pull_failures("test-app")
+        result = await detect_image_pull_failures(family_prefix="test-app")
 
         # Verify the result
         self.assertEqual(result["status"], "success")
@@ -239,12 +224,8 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         self.assertIn("has issues", result["recommendations"][0])
 
     @pytest.mark.anyio
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures.get_task_definitions"
-    )
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures.validate_container_images"
-    )
+    @patch.object(detect_image_pull_failures_module, "_find_task_definitions")
+    @patch.object(detect_image_pull_failures_module, "_validate_container_images")
     async def test_detect_image_pull_failures_missing_execution_role(
         self, mock_validate_images, mock_find_task_defs
     ):
@@ -280,7 +261,7 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         ]
 
         # Call the function
-        result = await detect_image_pull_failures("test-app")
+        result = await detect_image_pull_failures(family_prefix="test-app")
 
         # Verify the result
         self.assertEqual(result["status"], "success")
@@ -291,16 +272,14 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         self.assertIn("Add an executionRole", result["recommendations"][0])
 
     @pytest.mark.anyio
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures.get_task_definitions"
-    )
+    @patch.object(detect_image_pull_failures_module, "_find_task_definitions")
     async def test_detect_image_pull_failures_exception(self, mock_find_task_defs):
         """Test detect_image_pull_failures when an exception occurs."""
         # Mock the task definitions to raise an exception
         mock_find_task_defs.side_effect = Exception("Test exception")
 
         # Call the function
-        result = await detect_image_pull_failures("test-app")
+        result = await detect_image_pull_failures(family_prefix="test-app")
 
         # Verify the result
         self.assertEqual(result["status"], "error")

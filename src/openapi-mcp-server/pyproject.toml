@@ -55,7 +55,7 @@ test = [
 ]
 dev = [
     "commitizen>=4.13.9,<5",
-    "pre-commit>=4.5.1,<5",
+    "pre-commit>=4.5.1,<5; python_version >= '3.11'",
     "pyright>=1.1.408,<2",
     "ruff>=0.15.10,<1",
     "pytest>=9.0.3,<10",

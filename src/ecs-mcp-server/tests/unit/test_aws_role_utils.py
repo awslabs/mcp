@@ -125,40 +125,10 @@ class TestAWSRoleUtils(unittest.TestCase):
         self.assertEqual(password, "rolepassword")
 
     @pytest.mark.anyio
-    @patch("awslabs.ecs_mcp_server.utils.aws.get_aws_client")
-    @patch("awslabs.ecs_mcp_server.utils.aws.get_aws_client_with_role")
-    @patch("base64.b64decode")
-    async def test_get_ecr_login_password_without_role(
-        self, mock_b64decode, mock_get_client_with_role, mock_get_client
-    ):
-        """Test get_ecr_login_password function without a role."""
-        # Mock get_aws_client
-        mock_ecr = MagicMock()
-        mock_ecr.get_authorization_token.return_value = {
-            "authorizationData": [{"authorizationToken": "QVdTOmVjcnBhc3N3b3Jk"}]
-        }
-        mock_get_client.return_value = mock_ecr
-
-        # Mock base64.b64decode
-        mock_b64decode.return_value = b"AWS:ecrpassword"
-
-        # Call get_ecr_login_password without role
-        password = await get_ecr_login_password()
-
-        # Verify get_aws_client was called with the correct parameters
-        mock_get_client.assert_called_once_with("ecr")
-
-        # Verify get_aws_client_with_role was not called
-        mock_get_client_with_role.assert_not_called()
-
-        # Verify get_authorization_token was called
-        mock_ecr.get_authorization_token.assert_called_once()
-
-        # Verify base64.b64decode was called with the correct parameters
-        mock_b64decode.assert_called_once_with("QVdTOmVjcnBhc3N3b3Jk")
-
-        # Verify the password was returned
-        self.assertEqual(password, "ecrpassword")
+    async def test_get_ecr_login_password_requires_role(self):
+        """Test get_ecr_login_password rejects calls without an ECR role."""
+        with pytest.raises(ValueError, match="role_arn is required"):
+            await get_ecr_login_password(None)
 
 
 if __name__ == "__main__":

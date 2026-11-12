@@ -44,7 +44,7 @@ dev = [
     "boto3-stubs[application-signals,cloudwatch,logs,xray]>=1.43.35",
     "commitizen>=4.4.1",
     "moto>=5.0.0",
-    "pre-commit>=4.2.0",
+    "pre-commit>=4.2.0; python_version >= '3.11'",
     "pyright>=1.1.398",
     "ruff>=0.11.2",
     "pytest>=7.4.0",

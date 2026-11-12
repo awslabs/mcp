@@ -1,7 +1,7 @@
 # AWS Security Agent MCP Server
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
 An AWS Labs Model Context Protocol (MCP) server for **AWS Security Agent** — automated security scanning and penetration testing.
 
@@ -18,7 +18,7 @@ This MCP server provides full access to the AWS Security Agent service, enabling
 ## Prerequisites
 
 1. [uv](https://docs.astral.sh/uv/getting-started/installation/) installed
-2. Python 3.10+ (`uv python install 3.10`)
+2. Python 3.11+ (`uv python install 3.11`)
 3. AWS credentials configured (via `aws configure`, SSO, or environment variables)
 
 ## Installation
