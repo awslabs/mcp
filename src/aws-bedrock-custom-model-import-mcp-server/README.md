@@ -372,7 +372,7 @@ To follow security best practices:
 ## Links
 
 - [Homepage](https://awslabs.github.io/mcp/)
-- [Documentation](https://awslabs.github.io/mcp/servers/aws-bedrock-custom-model-import-mcp-server/)
+- [Documentation](https://awslabs.github.io/mcp/servers/aws-bedrock-custom-model-import-mcp-server)
 - [Source Code](https://github.com/awslabs/mcp.git)
 - [Bug Tracker](https://github.com/awslabs/mcp/issues)
 - [Changelog](https://github.com/awslabs/mcp/blob/main/src/aws-bedrock-custom-model-import-mcp-server/CHANGELOG.md)
