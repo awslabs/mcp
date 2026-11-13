@@ -14,11 +14,13 @@
 
 """Tests for the server.py module to improve coverage."""
 
+import re
 from unittest import mock
 
 import pytest
 
 from awslabs.well_architected_security_mcp_server.server import (
+    DEPRECATION_NOTICE,
     check_network_security_prompt,
     check_storage_security_prompt,
     main,
@@ -79,8 +81,9 @@ def test_main():
             with mock.patch(
                 "awslabs.well_architected_security_mcp_server.server.mcp.run"
             ) as mock_mcp_run:
-                # Call the main function
-                main()
+                # Call the main function; it warns that the package is deprecated
+                with pytest.warns(FutureWarning, match=re.escape(DEPRECATION_NOTICE)):
+                    main()
 
                 # Verify asyncio.run was not called since initialize was removed
                 mock_run.assert_not_called()
@@ -102,8 +105,9 @@ def test_main_with_sse():
             with mock.patch(
                 "awslabs.well_architected_security_mcp_server.server.mcp.run"
             ) as mock_mcp_run:
-                # Call the main function
-                main()
+                # Call the main function; it warns that the package is deprecated
+                with pytest.warns(FutureWarning, match=re.escape(DEPRECATION_NOTICE)):
+                    main()
 
                 # Verify asyncio.run was not called since initialize was removed
                 mock_run.assert_not_called()

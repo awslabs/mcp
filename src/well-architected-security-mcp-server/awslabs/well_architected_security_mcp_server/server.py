@@ -18,6 +18,7 @@ import argparse
 import datetime
 import os
 import sys
+import warnings
 from typing import Dict, List, Optional
 
 import boto3
@@ -58,10 +59,17 @@ AWS_PROFILE = os.environ.get("AWS_PROFILE", "default")
 logger.remove()
 logger.add(sys.stderr, level=os.getenv("FASTMCP_LOG_LEVEL", "DEBUG"))
 
+DEPRECATION_NOTICE = (
+    "awslabs.well-architected-security-mcp-server is deprecated and will not receive further "
+    "updates. Use the AWS MCP Server (https://github.com/aws/agent-toolkit-for-aws) instead. "
+    "Migration guide: "
+    "https://github.com/awslabs/mcp/blob/main/docs/migration-well-architected-security.md"
+)
+
 # Initialize MCP Server
 mcp = MCPServer(
     "well-architected-security-mcp-server",
-    instructions=INSTRUCTIONS,
+    instructions=f"{DEPRECATION_NOTICE}\n\n{INSTRUCTIONS}",
     dependencies=[
         "boto3",
         "requests",
@@ -139,7 +147,7 @@ async def check_security_services(
     store_in_context: bool = FIELD_STORE_IN_CONTEXT_TRUE,
     debug: bool = FIELD_DEBUG_TRUE,
 ) -> Dict:
-    """Verify if selected AWS security services are enabled in the specified region and account.
+    """[DEPRECATED] Verify if selected AWS security services are enabled in the specified region and account.
 
     This consolidated tool checks the status of multiple AWS security services in a single call,
     providing a comprehensive overview of your security posture.
@@ -333,7 +341,7 @@ async def get_security_findings(
     aws_profile: Optional[str] = FIELD_AWS_PROFILE,
     check_enabled: bool = FIELD_CHECK_ENABLED,
 ) -> Dict:
-    """Retrieve security findings from AWS security services.
+    """[DEPRECATED] Retrieve security findings from AWS security services.
 
     This tool provides a consolidated interface to retrieve findings from various AWS security
     services, including GuardDuty, Security Hub, Inspector, IAM Access Analyzer, and Trusted Advisor.
@@ -518,7 +526,7 @@ async def get_stored_security_context(
     region: str = FIELD_AWS_REGION,
     detailed: bool = FIELD_DETAILED_FALSE,
 ) -> Dict:
-    """Retrieve security services data that was stored in context from a previous CheckSecurityServices call.
+    """[DEPRECATED] Retrieve security services data that was stored in context from a previous CheckSecurityServices call.
 
     This tool allows you to access security service status data stored by the CheckSecurityServices tool
     without making additional AWS API calls. This is useful for workflows where you need to reference
@@ -574,7 +582,7 @@ async def check_storage_encryption_tool(
     aws_profile: Optional[str] = FIELD_AWS_PROFILE,
     store_in_context: bool = FIELD_STORE_IN_CONTEXT_TRUE,
 ) -> Dict:
-    """Check if AWS storage resources have encryption enabled.
+    """[DEPRECATED] Check if AWS storage resources have encryption enabled.
 
     This tool identifies storage resources using Resource Explorer and checks if they
     are properly configured for data protection at rest according to AWS Well-Architected
@@ -634,7 +642,7 @@ async def list_services_in_region_tool(
     aws_profile: Optional[str] = FIELD_AWS_PROFILE,
     store_in_context: bool = FIELD_STORE_IN_CONTEXT_TRUE,
 ) -> Dict:
-    """List all AWS services being used in a specific region.
+    """[DEPRECATED] List all AWS services being used in a specific region.
 
     This tool identifies which AWS services are actively being used in the specified region
     by discovering resources through AWS Resource Explorer or direct API calls.
@@ -697,7 +705,7 @@ async def check_network_security_tool(
     aws_profile: Optional[str] = FIELD_AWS_PROFILE,
     store_in_context: bool = FIELD_STORE_IN_CONTEXT_TRUE,
 ) -> Dict:
-    """Check if AWS network resources are configured for secure data-in-transit.
+    """[DEPRECATED] Check if AWS network resources are configured for secure data-in-transit.
 
     This tool identifies network resources using Resource Explorer and checks if they
     are properly configured for data protection in transit according to AWS Well-Architected
@@ -1145,6 +1153,8 @@ By following this workflow, you'll efficiently assess your AWS network security 
 
 def main():
     """Run the MCP server with CLI argument support."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
+
     parser = argparse.ArgumentParser(description="AWS Security Pillar MCP Server")
     parser.add_argument("--sse", action="store_true", help="Use SSE transport")
     parser.add_argument("--port", type=int, default=8888, help="Port to run the server on")

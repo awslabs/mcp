@@ -14,11 +14,13 @@
 
 """Tests for the server.py module."""
 
+import re
 from unittest import mock
 
 import pytest
 
 from awslabs.well_architected_security_mcp_server.server import (
+    DEPRECATION_NOTICE,
     check_network_security_tool,
     check_security_services,
     check_storage_encryption_tool,
@@ -540,8 +542,9 @@ def test_main():
         args.port = 8888
         parser_instance.parse_args.return_value = args
 
-        # Call the function
-        main()
+        # Call the function; it warns that the package is deprecated
+        with pytest.warns(FutureWarning, match=re.escape(DEPRECATION_NOTICE)):
+            main()
 
         # Verify that asyncio.run was not called since initialize was removed
         mock_run.assert_not_called()
@@ -566,8 +569,9 @@ def test_main_with_sse():
         args.port = 9999
         parser_instance.parse_args.return_value = args
 
-        # Call the function
-        main()
+        # Call the function; it warns that the package is deprecated
+        with pytest.warns(FutureWarning, match=re.escape(DEPRECATION_NOTICE)):
+            main()
 
         # Verify that asyncio.run was not called since initialize was removed
         mock_run.assert_not_called()
