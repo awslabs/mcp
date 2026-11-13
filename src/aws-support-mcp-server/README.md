@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [AWS MCP Server](https://github.com/aws/agent-toolkit-for-aws), part of the Agent Toolkit for AWS, which makes the same AWS Support API calls (`CreateCase`, `DescribeCases`, `AddCommunicationToCase` and the others) through its `run_script` tool (sandboxed Python that calls AWS APIs with your own IAM credentials) and returns the full responses. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-aws-support.md) for the tool mapping.
+
 # AWS Support MCP Server
 
 A Model Context Protocol (MCP) server implementation for interacting with the AWS Support API. This server enables AI assistants to create and manage AWS support cases programmatically.

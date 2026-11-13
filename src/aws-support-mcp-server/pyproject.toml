@@ -1,7 +1,7 @@
 [project]
 name = "awslabs.aws-support-mcp-server"
 version = "0.1.23"
-description = "An Model Context Protocol (MCP) server for AWS SupportAPI."
+description = "[DEPRECATED] A Model Context Protocol (MCP) server for the AWS Support API."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -30,6 +30,7 @@ authors = [
     {name = "John de Villiers", email="jackdevilliers.work@gmail.com"},
 ]
 classifiers = [
+    "Development Status :: 7 - Inactive",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
