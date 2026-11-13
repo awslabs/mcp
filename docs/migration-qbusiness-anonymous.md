@@ -99,10 +99,16 @@ An application created with anonymous access has no end-user identities, so the 
 | Agent limited to the one application set in `QBUSINESS_APPLICATION_ID` | Not available | Allow `qbusiness:ChatSync` only on that application's ARN in the IAM policy the agent's credentials use |
 | Error returned as a text string instead of raised | Changed | `run_script` reports API errors, such as an `AccessDeniedException` or a `ConflictException` from an application with no ready retriever, in its response |
 
+## What Deprecation Means
+
+- The final release keeps working. It prints a `FutureWarning` at startup, and its server instructions and tool description are marked deprecated.
+- The package stays on PyPI and gets no further updates.
+- Configurations that use `awslabs.amazon-qbusiness-anonymous-mcp-server@latest` get that final release.
+- The `src/amazon-qbusiness-anonymous-mcp-server` folder may later be removed from this repository, as the folders of earlier deprecated servers were.
+
 ## Removing the Old Server
 
 Once you've verified the replacement meets your needs:
 
 1. Remove `awslabs.amazon-qbusiness-anonymous-mcp-server` from your MCP configuration
 2. Uninstall the package: `pip uninstall awslabs.amazon-qbusiness-anonymous-mcp-server`
-3. The old package will remain on PyPI but will not receive updates
