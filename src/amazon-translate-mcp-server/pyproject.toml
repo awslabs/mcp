@@ -1,7 +1,7 @@
 [project]
 name = "awslabs.amazon-translate-mcp-server"
 version = "1.0.7"
-description = "A Model Context Protocol server for Amazon Translate to provide text translation, custom terminology management, and batch translation processing"
+description = "[DEPRECATED] A Model Context Protocol server for Amazon Translate to provide text translation, custom terminology management, and batch translation processing"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
@@ -10,7 +10,7 @@ authors = [
 ]
 license = { text = "Apache-2.0" }
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 7 - Inactive",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
