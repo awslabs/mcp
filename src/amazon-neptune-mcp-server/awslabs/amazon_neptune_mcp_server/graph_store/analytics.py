@@ -142,13 +142,17 @@ class NeptuneAnalytics(NeptuneGraph):
         self.schema = graph
         return graph
 
-    def get_schema(self) -> GraphSchema:
+    def get_schema(self, refresh: bool = False) -> GraphSchema:
         """Returns the current graph schema, refreshing it if necessary.
+
+        Args:
+            refresh (bool): If True, rediscover the schema even if one is cached.
+                Defaults to False.
 
         Returns:
             GraphSchema: Complete schema information for the graph
         """
-        if self.schema is None:
+        if refresh or self.schema is None:
             self._refresh_schema()
         return (
             self.schema
