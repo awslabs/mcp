@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [AWS MCP Server](https://github.com/aws/agent-toolkit-for-aws), part of the Agent Toolkit for AWS, which lists and invokes your Lambda functions through its `run_script` tool (sandboxed Python that calls AWS APIs with your own IAM credentials) and returns each function's response, including its error message. To publish selected functions as named MCP tools with input schemas, use an Amazon Bedrock AgentCore Gateway with a Lambda target. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-lambda-tool.md) for how each server behavior maps to the new setup.
+
 # AWS Lambda Tool MCP Server
 
 A Model Context Protocol (MCP) server for AWS Lambda to select and run Lambda function as MCP tools without code changes.
@@ -92,7 +94,7 @@ For Windows users, the MCP server configuration format is slightly different:
 }
 ```
 
-or docker after a successful `docker build -t awslabs/bedrock-kb-retrieval-mcp-server .`:
+or docker after a successful `docker build -t awslabs/lambda-tool-mcp-server .`:
 
 ```file
 # fictitious `.env` file with AWS temporary credentials
