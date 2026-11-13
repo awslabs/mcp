@@ -92,6 +92,8 @@ async def _configure_security_groups(
         )
 
     # Get cache cluster port from first node
+    if not first_cluster.get('CacheNodes'):
+        raise ValueError(f'No cache nodes found for cluster {first_cluster_id}')
     cache_port = first_cluster['CacheNodes'][0]['Endpoint']['Port']
 
     # Get cache cluster security groups from all member clusters
