@@ -1,5 +1,5 @@
 ---
-title: AWS AppSync MCP Server
+title: AWS AppSync MCP Server (Deprecated)
 ---
 
 import ReadmeContent from "../../../src/aws-appsync-mcp-server/README.md";

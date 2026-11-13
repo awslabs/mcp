@@ -1,6 +1,8 @@
 ---
-title: "AWS AppSync MCPサーバー"
+title: "AWS AppSync MCPサーバー（非推奨）"
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。こちらは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて同じ AWS AppSync API を呼び出し、このサーバーでは作成しかできなかったリソースの一覧表示、更新、削除も行えます。ツールの対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-appsync.md) を参照してください。
 
 AI アシスタントがバックエンド API を管理・操作できるようにする、AWS AppSync 向けの Model Context Protocol (MCP) サーバーです。
 

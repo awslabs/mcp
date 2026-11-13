@@ -26,7 +26,7 @@ def register_create_resolver_tool(mcp):
 
     @mcp.tool(
         name='create_resolver',
-        description="""Creates a resolver for a GraphQL field in an AppSync API.
+        description="""[DEPRECATED] Creates a resolver for a GraphQL field in an AppSync API.
 
         A resolver is the bridge between your GraphQL schema and your data sources.
         It defines how to fetch or modify data for a specific field in your schema.

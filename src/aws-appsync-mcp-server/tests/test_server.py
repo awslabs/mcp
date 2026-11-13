@@ -29,7 +29,9 @@ def test_main_with_allow_write():
     ):
         mock_mcp.run = MagicMock()
 
-        main()
+        # main() warns that the server is deprecated
+        with pytest.warns(FutureWarning):
+            main()
 
         assert is_write_allowed() is True
         mock_logger.info.assert_called_once_with(
@@ -47,7 +49,9 @@ def test_main_without_allow_write():
     ):
         mock_mcp.run = MagicMock()
 
-        main()
+        # main() warns that the server is deprecated
+        with pytest.warns(FutureWarning):
+            main()
 
         assert is_write_allowed() is False
         mock_logger.info.assert_called_once_with(
@@ -84,7 +88,9 @@ def test_main_registers_all_tools():
     ):
         mock_mcp.run = MagicMock()
 
-        main()
+        # main() warns that the server is deprecated
+        with pytest.warns(FutureWarning):
+            main()
 
         # Verify all tools are registered
         mock_api.assert_called_once_with(mock_mcp)
@@ -101,7 +107,11 @@ def test_main_registers_all_tools():
 
 def test_main_with_help_flag():
     """Test main function with --help flag."""
-    with patch('sys.argv', ['server.py', '--help']), pytest.raises(SystemExit):
+    with (
+        patch('sys.argv', ['server.py', '--help']),
+        pytest.warns(FutureWarning),
+        pytest.raises(SystemExit),
+    ):
         main()
 
 

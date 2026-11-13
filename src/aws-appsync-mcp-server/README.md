@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [AWS MCP Server](https://github.com/aws/agent-toolkit-for-aws), part of the Agent Toolkit for AWS, which makes the same AWS AppSync API calls through its `run_script` tool (sandboxed Python that calls AWS APIs with your own IAM credentials) and can also list, update, and delete the resources this server could only create. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-appsync.md) for the tool mapping.
+
 # AWS AppSync MCP Server
 
 A Model Context Protocol (MCP) server for AWS AppSync that enables AI assistants to manage and interact with backend APIs.

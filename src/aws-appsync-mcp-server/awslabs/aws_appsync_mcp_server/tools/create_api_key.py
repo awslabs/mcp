@@ -26,7 +26,7 @@ def register_create_api_key_tool(mcp):
 
     @mcp.tool(
         name='create_api_key',
-        description="""Creates a unique key that you can distribute to clients who invoke your API.
+        description="""[DEPRECATED] Creates a unique key that you can distribute to clients who invoke your API.
 
         This operation creates an API key for the specified GraphQL API. API keys are used
         to authenticate requests when the API uses API_KEY authentication type.
