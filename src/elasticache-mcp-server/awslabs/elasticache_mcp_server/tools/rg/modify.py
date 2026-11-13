@@ -127,6 +127,9 @@ def prepare_modify_request_dict(request: ModifyReplicationGroupRequest) -> Dict[
 
     Returns:
         Dict containing the properly formatted request parameters
+
+    Raises:
+        ValueError: If the log delivery configurations are invalid.
     """
     # Start with required parameters
     modify_request: Dict[str, Any] = {
@@ -187,14 +190,11 @@ def prepare_modify_request_dict(request: ModifyReplicationGroupRequest) -> Dict[
 
     # Handle log delivery configurations
     if request.log_delivery_configurations:
-        try:
-            processed_configs = process_log_delivery_configurations(
-                request.log_delivery_configurations
-            )
-            if processed_configs:
-                modify_request['LogDeliveryConfigurations'] = processed_configs
-        except ValueError as e:
-            return {'error': str(e)}
+        processed_configs = process_log_delivery_configurations(
+            request.log_delivery_configurations
+        )
+        if processed_configs:
+            modify_request['LogDeliveryConfigurations'] = processed_configs
 
     return modify_request
 
