@@ -18,6 +18,7 @@ import argparse
 import fnmatch
 import json
 import re
+import warnings
 from awslabs.iam_mcp_server.aws_client import get_iam_client
 from awslabs.iam_mcp_server.context import Context
 from awslabs.iam_mcp_server.errors import IamClientError, IamValidationError, handle_iam_error
@@ -44,6 +45,12 @@ from mcp.types import CallToolResult
 from pydantic import Field
 from typing import Any, Dict, List, Optional, Union
 
+
+DEPRECATION_NOTICE = (
+    'awslabs.iam-mcp-server is deprecated and will not receive further updates. '
+    'Use the AWS MCP Server (https://github.com/aws/agent-toolkit-for-aws) instead. '
+    'Migration guide: https://github.com/awslabs/mcp/blob/main/docs/migration-iam.md'
+)
 
 # Managed-policy names that are too dangerous to attach via MCP.
 # Compared against the policy name (the segment after ':policy/') so the denylist
@@ -230,7 +237,9 @@ def _require_confirmation(operation: str, details: str) -> None:
 
 mcp = MCPServer(
     'awslabs.iam-mcp-server',
-    instructions="""
+    instructions=DEPRECATION_NOTICE
+    + """
+
     # AWS IAM MCP Server
 
     This MCP server provides comprehensive AWS Identity and Access Management (IAM) capabilities:
@@ -277,7 +286,7 @@ async def list_users(
     ),
     max_items: int = Field(description='Maximum number of users to return', default=100),
 ) -> UsersListResponse:
-    """List IAM users in the account.
+    """[DEPRECATED] List IAM users in the account.
 
     This tool retrieves a list of IAM users from your AWS account with optional filtering.
     Use this to get an overview of all users or find specific users by path prefix.
@@ -341,7 +350,7 @@ async def list_users(
 async def get_user(
     ctx: CallToolResult, user_name: str = Field(description='The name of the IAM user to retrieve')
 ) -> UserDetailsResponse:
-    """Get detailed information about a specific IAM user.
+    """[DEPRECATED] Get detailed information about a specific IAM user.
 
     This tool retrieves comprehensive information about an IAM user including
     attached policies, group memberships, and access keys. Use this to get
@@ -437,7 +446,7 @@ async def create_user(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> CreateUserResponse:
-    """Create a new IAM user.
+    """[DEPRECATED] Create a new IAM user.
 
     This tool creates a new IAM user in your AWS account. The user will be created
     without any permissions by default - you'll need to attach policies separately.
@@ -516,7 +525,7 @@ async def delete_user(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> Dict[str, Any]:
-    """Delete an IAM user.
+    """[DEPRECATED] Delete an IAM user.
 
     Args:
         user_name: The name of the IAM user to delete
@@ -574,7 +583,7 @@ async def list_roles(
     ),
     max_items: int = Field(description='Maximum number of roles to return', default=100),
 ) -> Dict[str, Any]:
-    """List IAM roles in the account.
+    """[DEPRECATED] List IAM roles in the account.
 
     Args:
         path_prefix: Optional path prefix to filter roles
@@ -636,7 +645,7 @@ async def create_role(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> Dict[str, Any]:
-    """Create a new IAM role.
+    """[DEPRECATED] Create a new IAM role.
 
     Args:
         role_name: The name of the new IAM role
@@ -719,7 +728,7 @@ async def list_policies(
     path_prefix: Optional[str] = Field(description='Path prefix to filter policies', default=None),
     max_items: int = Field(description='Maximum number of policies to return', default=100),
 ) -> Dict[str, Any]:
-    """List IAM policies in the account.
+    """[DEPRECATED] List IAM policies in the account.
 
     Args:
         scope: Scope of policies to list ("All", "AWS", or "Local")
@@ -777,7 +786,7 @@ async def get_managed_policy_document(
         description='The version ID of the policy (defaults to current version)', default=None
     ),
 ) -> ManagedPolicyResponse:
-    """Retrieve the policy document for a managed policy.
+    """[DEPRECATED] Retrieve the policy document for a managed policy.
 
     This tool retrieves the policy document for a specific managed policy version.
     Use this to examine the actual permissions and wildcards in managed policies.
@@ -835,7 +844,7 @@ async def attach_user_policy(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> Dict[str, Any]:
-    """Attach a managed policy to an IAM user.
+    """[DEPRECATED] Attach a managed policy to an IAM user.
 
     Args:
         user_name: The name of the IAM user
@@ -878,7 +887,7 @@ async def detach_user_policy(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> Dict[str, Any]:
-    """Detach a managed policy from an IAM user.
+    """[DEPRECATED] Detach a managed policy from an IAM user.
 
     Args:
         user_name: The name of the IAM user
@@ -919,7 +928,7 @@ async def create_access_key(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> Dict[str, Any]:
-    """Create a new access key for an IAM user.
+    """[DEPRECATED] Create a new access key for an IAM user.
 
     Args:
         user_name: The name of the IAM user
@@ -968,7 +977,7 @@ async def delete_access_key(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> Dict[str, Any]:
-    """Delete an access key for an IAM user.
+    """[DEPRECATED] Delete an access key for an IAM user.
 
     Args:
         user_name: The name of the IAM user
@@ -1013,7 +1022,7 @@ async def simulate_principal_policy(
         description='Context entries for the simulation', default=None
     ),
 ) -> Dict[str, Any]:
-    """Simulate IAM policy evaluation for a principal.
+    """[DEPRECATED] Simulate IAM policy evaluation for a principal.
 
     Args:
         policy_source_arn: ARN of the user or role to simulate
@@ -1071,7 +1080,7 @@ async def list_groups(
     ),
     max_items: int = Field(100, description='Maximum number of groups to return'),
 ) -> GroupsListResponse:
-    """List IAM groups in the account.
+    """[DEPRECATED] List IAM groups in the account.
 
     This tool retrieves a list of IAM groups from your AWS account with optional filtering.
     Use this to get an overview of all groups or find specific groups by path prefix.
@@ -1127,7 +1136,7 @@ async def list_groups(
 async def get_group(
     group_name: str = Field(description='The name of the IAM group to retrieve'),
 ) -> GroupDetailsResponse:
-    """Get detailed information about a specific IAM group.
+    """[DEPRECATED] Get detailed information about a specific IAM group.
 
     This tool retrieves comprehensive information about an IAM group including
     group members, attached policies, and inline policies. Use this to get
@@ -1196,7 +1205,7 @@ async def create_group(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> CreateGroupResponse:
-    """Create a new IAM group.
+    """[DEPRECATED] Create a new IAM group.
 
     This tool creates a new IAM group in your AWS account. The group will be created
     without any permissions by default - you'll need to attach policies separately.
@@ -1252,7 +1261,7 @@ async def delete_group(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> Dict[str, str]:
-    """Delete an IAM group.
+    """[DEPRECATED] Delete an IAM group.
 
     Args:
         group_name: The name of the IAM group to delete
@@ -1306,7 +1315,7 @@ async def add_user_to_group(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> GroupMembershipResponse:
-    """Add a user to an IAM group.
+    """[DEPRECATED] Add a user to an IAM group.
 
     Args:
         group_name: The name of the IAM group
@@ -1346,7 +1355,7 @@ async def remove_user_from_group(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> GroupMembershipResponse:
-    """Remove a user from an IAM group.
+    """[DEPRECATED] Remove a user from an IAM group.
 
     Args:
         group_name: The name of the IAM group
@@ -1386,7 +1395,7 @@ async def attach_group_policy(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> GroupPolicyAttachmentResponse:
-    """Attach a managed policy to an IAM group.
+    """[DEPRECATED] Attach a managed policy to an IAM group.
 
     Args:
         group_name: The name of the IAM group
@@ -1429,7 +1438,7 @@ async def detach_group_policy(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> GroupPolicyAttachmentResponse:
-    """Detach a managed policy from an IAM group.
+    """[DEPRECATED] Detach a managed policy from an IAM group.
 
     Args:
         group_name: The name of the IAM group
@@ -1476,7 +1485,7 @@ async def put_user_policy(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> InlinePolicyResponse:
-    """Create or update an inline policy for an IAM user.
+    """[DEPRECATED] Create or update an inline policy for an IAM user.
 
     This tool creates a new inline policy or updates an existing one for the specified user.
     Inline policies are directly embedded in a single user, role, or group and have a one-to-one
@@ -1553,7 +1562,7 @@ async def get_user_policy(
     user_name: str = Field(description='The name of the IAM user'),
     policy_name: str = Field(description='The name of the inline policy'),
 ) -> InlinePolicyResponse:
-    """Retrieve an inline policy for an IAM user.
+    """[DEPRECATED] Retrieve an inline policy for an IAM user.
 
     This tool retrieves the policy document for a specific inline policy attached to a user.
 
@@ -1605,7 +1614,7 @@ async def delete_user_policy(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> Dict[str, Any]:
-    """Delete an inline policy from an IAM user.
+    """[DEPRECATED] Delete an inline policy from an IAM user.
 
     This tool removes an inline policy from the specified user. The policy document
     will be permanently deleted and cannot be recovered.
@@ -1669,7 +1678,7 @@ async def put_role_policy(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> InlinePolicyResponse:
-    """Create or update an inline policy for an IAM role.
+    """[DEPRECATED] Create or update an inline policy for an IAM role.
 
     This tool creates a new inline policy or updates an existing one for the specified role.
     Inline policies are directly embedded in a single user, role, or group and have a one-to-one
@@ -1740,7 +1749,7 @@ async def get_role_policy(
     role_name: str = Field(description='The name of the IAM role'),
     policy_name: str = Field(description='The name of the inline policy'),
 ) -> InlinePolicyResponse:
-    """Retrieve an inline policy for an IAM role.
+    """[DEPRECATED] Retrieve an inline policy for an IAM role.
 
     This tool retrieves the policy document for a specific inline policy attached to a role.
 
@@ -1792,7 +1801,7 @@ async def delete_role_policy(
         description='Must be true to confirm this write operation', default=False
     ),
 ) -> Dict[str, Any]:
-    """Delete an inline policy from an IAM role.
+    """[DEPRECATED] Delete an inline policy from an IAM role.
 
     This tool removes an inline policy from the specified role. The policy document
     will be permanently deleted and cannot be recovered.
@@ -1846,7 +1855,7 @@ async def delete_role_policy(
 async def list_user_policies(
     user_name: str = Field(description='The name of the IAM user'),
 ) -> InlinePolicyListResponse:
-    """List all inline policies for an IAM user.
+    """[DEPRECATED] List all inline policies for an IAM user.
 
     This tool retrieves the names of all inline policies attached to the specified user.
 
@@ -1886,7 +1895,7 @@ async def list_user_policies(
 async def list_role_policies(
     role_name: str = Field(description='The name of the IAM role'),
 ) -> InlinePolicyListResponse:
-    """List all inline policies for an IAM role.
+    """[DEPRECATED] List all inline policies for an IAM role.
 
     This tool retrieves the names of all inline policies attached to the specified role.
 
@@ -1924,6 +1933,7 @@ async def list_role_policies(
 
 def main():
     """Run the MCP server with CLI argument support."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for comprehensive AWS IAM management'
     )
