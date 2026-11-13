@@ -25,6 +25,7 @@ from awslabs.mysql_mcp_server.connection.cp_api_connection import (
     internal_create_aurora_cluster,
     internal_get_cluster_properties,
     internal_get_instance_properties,
+    internal_get_instance_properties_by_identifier,
     internal_require_aws_port,
     internal_resolve_cluster_endpoint,
     setup_aurora_iam_policy_for_current_user,
@@ -713,11 +714,44 @@ def internal_connect_to_database(
     cluster_arn: str = ''
     secret_arn: str = ''
 
+    instance_properties: Optional[Dict[str, Any]] = None
+    requested_endpoint = db_endpoint
     if cluster_identifier:
-        cluster_properties = internal_get_cluster_properties(
-            cluster_identifier=cluster_identifier, region=region
-        )
+        cluster_properties: Dict[str, Any] = {}
+        try:
+            cluster_properties = internal_get_cluster_properties(
+                cluster_identifier=cluster_identifier, region=region
+            )
+        except ClientError as e:
+            # For RDS MySQL / MariaDB the identifier may name a standalone DB
+            # instance rather than a cluster. Only a "cluster not found" answer
+            # triggers the instance lookup; other errors (access denied,
+            # throttling) propagate. Aurora always names a cluster, and the
+            # RDS Data API only works against clusters, so the fallback applies
+            # to the MySQL wire-protocol methods only.
+            error_code = e.response.get('Error', {}).get('Code')
+            if (
+                not is_wire_protocol
+                or database_type == DatabaseType.AURORA_MYSQL
+                or error_code != 'DBClusterNotFoundFault'
+            ):
+                raise
+            try:
+                instance_properties = internal_get_instance_properties_by_identifier(
+                    cluster_identifier, region
+                )
+            except ClientError as inst_err:
+                if inst_err.response.get('Error', {}).get('Code') in (
+                    'DBInstanceNotFound',
+                    'DBInstanceNotFoundFault',
+                ):
+                    raise ValueError(
+                        f'No DB cluster and no DB instance found with identifier '
+                        f"'{cluster_identifier}' in region '{region}'."
+                    ) from inst_err
+                raise
 
+    if cluster_identifier and instance_properties is None:
         enable_data_api = cluster_properties.get('HttpEndpointEnabled', False)
         masteruser = cluster_properties.get('MasterUsername', '')
         cluster_arn = cluster_properties.get('DBClusterArn', '')
@@ -767,16 +801,25 @@ def internal_connect_to_database(
         # host and port so the connection string never comes from caller input.
         # A missing address or a missing/malformed AWS port fails closed — we
         # never fall back to the caller-supplied host or guess a default port.
-        instance_properties = internal_get_instance_properties(db_endpoint, region)
+        if instance_properties is None:
+            instance_properties = internal_get_instance_properties(db_endpoint, region)
         masteruser = instance_properties.get('MasterUsername', '')
         secret_arn = instance_properties.get('MasterUserSecret', {}).get('SecretArn')
         instance_endpoint = instance_properties.get('Endpoint', {}) or {}
         resolved_host = instance_endpoint.get('Address', '')
         if not resolved_host:
             raise ValueError(
-                f"AWS returned no endpoint address for instance '{db_endpoint}'; "
+                f"AWS returned no endpoint address for instance '{cluster_identifier or db_endpoint}'; "
                 'refusing to connect to a caller-supplied host.'
             )
+        if requested_endpoint and cluster_identifier:
+            # Both an instance identifier and an endpoint were supplied: the
+            # endpoint must belong to that instance, never an arbitrary host.
+            if requested_endpoint.strip().rstrip('.').lower() != resolved_host.lower():
+                raise ValueError(
+                    f"db_endpoint '{requested_endpoint}' does not match the endpoint of "
+                    f"instance '{cluster_identifier}'."
+                )
         db_endpoint = resolved_host
         port = internal_require_aws_port(
             instance_endpoint.get('Port'), f"instance endpoint '{db_endpoint}'"

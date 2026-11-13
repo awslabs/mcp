@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- `connect_to_database` for `mysql` / `mariadb` now resolves a standalone RDS
+  instance from `cluster_identifier` alone. When the identifier is not a
+  cluster (`DBClusterNotFoundFault`), the server looks it up with
+  `describe_db_instances` and connects with the AWS-reported host and port.
+  Aurora MySQL behavior is unchanged. (#4589)
+
 ## 1.0.22
 
 ### Security
