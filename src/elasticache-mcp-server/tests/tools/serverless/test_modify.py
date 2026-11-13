@@ -109,7 +109,7 @@ async def test_modify_serverless_cache_all_params():
             'ServerlessCacheName': 'test-cache',
             'Description': 'Updated description',
             'CacheUsageLimits': cache_usage_limits.model_dump(),
-            'RemoveUserGroup': 'true',
+            'RemoveUserGroup': True,
             'UserGroupId': 'group-1',
             'SecurityGroupIds': ['sg-3', 'sg-4'],
             'SnapshotRetentionLimit': 14,
@@ -162,7 +162,7 @@ async def test_modify_serverless_cache_none_values():
     assert call_args['ServerlessCacheName'] == 'test-cache'
     assert call_args['Description'] == 'Updated description'
     assert call_args['SnapshotRetentionLimit'] == 14
-    assert call_args['RemoveUserGroup'] == 'true'
+    assert call_args['RemoveUserGroup'] is True
     assert call_args['SecurityGroupIds'] == ['sg-1']
 
 
