@@ -200,7 +200,7 @@ class HyperPodStackHandler:
         DescribeStackResponse,
         DeleteStackResponse,
     ]:
-        r"""Manage SageMaker HyperPod Cluster through CloudFormation stacks.
+        r"""[DEPRECATED] Manage SageMaker HyperPod Cluster through CloudFormation stacks.
 
         This tool provides operations for managing HyperPod CloudFormation stacks, including creating parameters for cloudformation template,
         deploying stacks, retrieving hyperpod stack and deployment information, and deleting hyperpod stacks. It serves as the primary

@@ -1,5 +1,5 @@
 ---
-title: Amazon SageMaker AI MCP Server
+title: Amazon SageMaker AI MCP Server (Deprecated)
 ---
 
 import ReadmeContent from "../../../src/sagemaker-ai-mcp-server/README.md";

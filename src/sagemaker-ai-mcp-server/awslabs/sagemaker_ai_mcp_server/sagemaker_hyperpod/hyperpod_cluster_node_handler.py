@@ -188,7 +188,7 @@ class HyperPodClusterNodeHandler:
         UpdateClusterSoftwareResponse,
         BatchDeleteClusterNodesResponse,
     ]:
-        """Manage SageMaker HyperPod clusters and nodes with both read and write operations.
+        """[DEPRECATED] Manage SageMaker HyperPod clusters and nodes with both read and write operations.
 
         This tool provides operations for managing SageMaker HyperPod clusters and nodes, including listing clusters,
         listing nodes, describing a specific node, updating cluster software, and deleting nodes. It serves as a consolidated
@@ -593,7 +593,7 @@ class HyperPodClusterNodeHandler:
             description='AWS profile name. If not provided, uses the default profile.',
         ),
     ):
-        """Describe a SageMaker HyperPod cluster.
+        """[DEPRECATED] Describe a SageMaker HyperPod cluster.
 
         Args:
             ctx: MCP context
@@ -634,7 +634,7 @@ class HyperPodClusterNodeHandler:
             description='AWS profile name. If not provided, uses the default profile.',
         ),
     ):
-        """Update a SageMaker HyperPod clusters.
+        """[DEPRECATED] Update a SageMaker HyperPod clusters.
 
         Notes:
             - before using this tool, ensure you first have the most recent cluster instance group configurations by first calling the describe_hp_cluster tool first.

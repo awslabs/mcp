@@ -15,6 +15,7 @@
 """Tests for the main function in server.py."""
 
 # Mock the imports that might cause issues
+import pytest
 import sys
 from unittest.mock import ANY, MagicMock, patch
 
@@ -46,7 +47,8 @@ class TestMain:
         mock_create_server.return_value = mock_mcp
 
         # Call the main function
-        result = main()
+        with pytest.warns(FutureWarning, match='is deprecated'):
+            result = main()
 
         # Check that create_server was called
         mock_create_server.assert_called_once()
@@ -91,7 +93,8 @@ class TestMain:
             mock_parse_args.return_value = mock_args
 
             # Call the main function
-            result = main()
+            with pytest.warns(FutureWarning, match='is deprecated'):
+                result = main()
 
         # Check that create_server was called
         mock_create_server.assert_called_once()
@@ -136,7 +139,8 @@ class TestMain:
             mock_parse_args.return_value = mock_args
 
             # Call the main function
-            result = main()
+            with pytest.warns(FutureWarning, match='is deprecated'):
+                result = main()
 
         # Check that create_server was called
         mock_create_server.assert_called_once()
@@ -188,7 +192,8 @@ class TestMain:
             mock_parse_args.return_value = mock_args
 
             # Call the main function
-            result = main()
+            with pytest.warns(FutureWarning, match='is deprecated'):
+                result = main()
 
         # Check that create_server was called
         mock_create_server.assert_called_once()
