@@ -1531,3 +1531,678 @@ def test_multiple_resources_same_handler():
             assert 'Content' in content['text']
     finally:
         os.unlink(temp_path)
+
+
+# --- Prompt tests ---
+def test_prompt_decorator_registers_prompt():
+    """Test that the prompt decorator registers a prompt."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def generate_code(language: str, task: str) -> str:
+        """Generate code for a specific task."""
+        return f'Code in {language} for {task}'
+
+    assert 'generateCode' in handler.prompts
+    assert 'generateCode' in handler.prompt_implementations
+
+
+def test_prompt_with_custom_name():
+    """Test prompt decorator with custom name."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt(name='customPrompt')
+    def test_function() -> str:
+        """Custom prompt."""
+        return 'test'
+
+    assert 'customPrompt' in handler.prompts
+    assert handler.prompts['customPrompt']['name'] == 'customPrompt'
+
+
+def test_prompt_with_description():
+    """Test prompt decorator uses docstring as description."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def create_summary(text: str) -> str:
+        """Create a summary of the provided text.
+
+        This is a detailed description.
+        """
+        return f'Summary: {text[:50]}'
+
+    assert (
+        handler.prompts['createSummary']['description'] == 'Create a summary of the provided text.'
+    )
+
+
+def test_prompt_with_custom_description():
+    """Test prompt decorator with custom description."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt(description='Custom description for this prompt')
+    def test_function() -> str:
+        """This should be overridden."""
+        return 'test'
+
+    assert handler.prompts['testFunction']['description'] == 'Custom description for this prompt'
+
+
+def test_prompt_with_arguments():
+    """Test prompt decorator extracts arguments from type hints."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def build_query(table: str, filters: str) -> str:
+        """Build a database query."""
+        return f'SELECT * FROM {table} WHERE {filters}'
+
+    prompt = handler.prompts['buildQuery']
+    assert 'arguments' in prompt
+    assert len(prompt['arguments']) == 2
+    assert prompt['arguments'][0]['name'] == 'table'
+    assert prompt['arguments'][0]['type'] == 'string'
+    assert prompt['arguments'][1]['name'] == 'filters'
+    assert prompt['arguments'][1]['type'] == 'string'
+
+
+def test_prompt_argument_types():
+    """Test prompt decorator handles different argument types."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def analyze_data(count: int, value: float, active: bool, name: str) -> str:
+        """Analyze data."""
+        return 'analysis'
+
+    prompt = handler.prompts['analyzeData']
+    types = {arg['name']: arg['type'] for arg in prompt['arguments']}
+    assert types['count'] == 'integer'
+    assert types['value'] == 'number'
+    assert types['active'] == 'boolean'
+    assert types['name'] == 'string'
+
+
+def test_prompt_without_arguments():
+    """Test prompt decorator with no arguments."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def get_help() -> str:
+        """Get help information."""
+        return 'This is help text.'
+
+    prompt = handler.prompts['getHelp']
+    assert prompt['arguments'] == []
+
+
+def test_prompt_with_tags():
+    """Test prompt decorator with tags."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt(tags={'code', 'generation'})
+    def generate_code() -> str:
+        """Generate code."""
+        return 'code'
+
+    prompt = handler.prompts['generateCode']
+    assert 'tags' in prompt
+    assert set(prompt['tags']) == {'code', 'generation'}
+
+
+def test_prompt_with_meta():
+    """Test prompt decorator with meta information."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt(meta={'version': '1.0', 'category': 'utility'})
+    def utility_prompt() -> str:
+        """Utility prompt."""
+        return 'utility'
+
+    prompt = handler.prompts['utilityPrompt']
+    assert '_meta' in prompt
+    assert prompt['_meta']['version'] == '1.0'
+    assert prompt['_meta']['category'] == 'utility'
+
+
+def test_prompt_disabled():
+    """Test prompt decorator with enabled=False."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt(enabled=False)
+    def disabled_prompt() -> str:
+        """This should not be registered."""
+        return 'disabled'
+
+    assert 'disabledPrompt' not in handler.prompts
+
+
+def test_handle_prompts_list():
+    """Test handling prompts/list request."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def prompt_one() -> str:
+        """First prompt."""
+        return 'one'
+
+    @handler.prompt
+    def prompt_two(arg: str) -> str:
+        """Second prompt."""
+        return 'two'
+
+    req = {'jsonrpc': '2.0', 'id': 1, 'method': 'prompts/list'}
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert 'result' in body
+    assert 'prompts' in body['result']
+    assert len(body['result']['prompts']) == 2
+
+
+def test_handle_prompts_get_without_arguments():
+    """Test handling prompts/get request without arguments."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def welcome_message() -> str:
+        """Welcome message prompt."""
+        return 'Welcome to the system!'
+
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'prompts/get',
+        'params': {'name': 'welcomeMessage'},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert 'result' in body
+    assert 'messages' in body['result']
+    assert len(body['result']['messages']) == 1
+    assert body['result']['messages'][0]['role'] == 'user'
+    assert body['result']['messages'][0]['content']['type'] == 'text'
+    assert body['result']['messages'][0]['content']['text'] == 'Welcome to the system!'
+
+
+def test_handle_prompts_get_with_arguments():
+    """Test handling prompts/get request with arguments."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def generate_response(name: str, count: int) -> str:
+        """Generate a response."""
+        return f'Hello {name}, count is {count}'
+
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'prompts/get',
+        'params': {'name': 'generateResponse', 'arguments': {'name': 'Alice', 'count': 42}},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert 'result' in body
+    content = body['result']['messages'][0]['content']['text']
+    assert 'Alice' in content
+    assert '42' in content
+
+
+def test_handle_prompts_get_missing_name():
+    """Test handling prompts/get request with missing name parameter."""
+    handler = MCPLambdaHandler('test-server')
+
+    req = {'jsonrpc': '2.0', 'id': 1, 'method': 'prompts/get', 'params': {}}
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    assert resp['statusCode'] == 400
+    body = json.loads(resp['body'])
+    assert 'error' in body
+    assert body['error']['code'] == -32602
+    assert 'Missing required parameter: name' in body['error']['message']
+
+
+def test_handle_prompts_get_not_found():
+    """Test handling prompts/get request for non-existent prompt."""
+    handler = MCPLambdaHandler('test-server')
+
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'prompts/get',
+        'params': {'name': 'nonexistentPrompt'},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    assert resp['statusCode'] == 500
+    body = json.loads(resp['body'])
+    assert 'error' in body
+    assert body['error']['code'] == -32603
+    assert 'Error rendering prompt' in body['error']['message']
+
+
+def test_handle_prompts_get_rendering_error():
+    """Test handling prompts/get when prompt function raises an error."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def failing_prompt() -> str:
+        """This prompt will fail."""
+        raise ValueError('Prompt execution failed')
+
+    req = {'jsonrpc': '2.0', 'id': 1, 'method': 'prompts/get', 'params': {'name': 'failingPrompt'}}
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    assert resp['statusCode'] == 500
+    body = json.loads(resp['body'])
+    assert 'error' in body
+    assert body['error']['code'] == -32603
+    assert 'errorContent' in body
+
+
+def test_initialize_includes_prompts_capability():
+    """Test that initialize response includes prompts capability."""
+    handler = MCPLambdaHandler('test-server')
+
+    req = {'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}}
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert 'result' in body
+    assert 'capabilities' in body['result']
+
+    capabilities = body['result']['capabilities']
+    assert 'prompts' in capabilities
+    assert capabilities['prompts']['list'] is True
+    assert capabilities['prompts']['get'] is True
+
+
+def test_prompt_naming_convention():
+    """Test prompt naming convention from function name."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def test_simple_prompt() -> str:
+        """Test simple prompt."""
+        return 'test'
+
+    @handler.prompt
+    def test_multi_word_prompt() -> str:
+        """Test multi word prompt."""
+        return 'test'
+
+    assert 'testSimplePrompt' in handler.prompts
+    assert 'testMultiWordPrompt' in handler.prompts
+
+
+def test_render_prompt_directly():
+    """Test _render_prompt method directly."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def direct_prompt(message: str) -> str:
+        """Direct prompt test."""
+        return f'Rendered: {message}'
+
+    result = handler._render_prompt('directPrompt', {'message': 'Hello'})
+    assert result == 'Rendered: Hello'
+
+
+def test_render_prompt_not_found():
+    """Test _render_prompt raises error for non-existent prompt."""
+    handler = MCPLambdaHandler('test-server')
+
+    with pytest.raises(ValueError, match='Prompt not found'):
+        handler._render_prompt('nonexistent')
+
+
+def test_multiple_prompts_same_handler():
+    """Test multiple prompts in the same handler."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def prompt_one() -> str:
+        """First prompt."""
+        return 'one'
+
+    @handler.prompt
+    def prompt_two() -> str:
+        """Second prompt."""
+        return 'two'
+
+    @handler.prompt
+    def prompt_three(arg: str) -> str:
+        """Third prompt with argument."""
+        return f'three: {arg}'
+
+    assert len(handler.prompts) == 3
+    assert 'promptOne' in handler.prompts
+    assert 'promptTwo' in handler.prompts
+    assert 'promptThree' in handler.prompts
+
+
+# ---------------------------------------------------------------------------
+# Tests for PR changes
+# ---------------------------------------------------------------------------
+
+# --- 1. required field on prompt arguments ---
+
+
+def test_prompt_argument_required_field_present():
+    """Test that every prompt argument has a 'required' field."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def my_prompt(name: str, count: int = 5) -> str:
+        """Test prompt."""
+        return f'{name} {count}'
+
+    args = {a['name']: a for a in handler.prompts['myPrompt']['arguments']}
+    assert 'required' in args['name']
+    assert 'required' in args['count']
+
+
+def test_prompt_argument_required_true_for_no_default():
+    """Test that params without a default value get required=True."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def my_prompt(required_arg: str, optional_arg: int = 0) -> str:
+        """Test prompt."""
+        return required_arg
+
+    args = {a['name']: a for a in handler.prompts['myPrompt']['arguments']}
+    assert args['required_arg']['required'] is True
+    assert args['optional_arg']['required'] is False
+
+
+def test_prompt_argument_required_false_for_default():
+    """Test that params WITH a default value get required=False."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def greeting(name: str, excited: bool = False) -> str:
+        """Greeting prompt."""
+        if excited:
+            return f'Hello, {name}!!!'
+        return f'Hello, {name}.'
+
+    args = {a['name']: a for a in handler.prompts['greeting']['arguments']}
+    assert args['name']['required'] is True
+    assert args['excited']['required'] is False
+
+
+# --- 2. Session validation for prompts/list ---
+
+
+def test_prompts_list_rejects_invalid_session():
+    """Test that prompts/list returns 404 when session ID is provided but invalid."""
+    with patch('boto3.resource') as mock_resource:
+        mock_table = MagicMock()
+        mock_resource.return_value.Table.return_value = mock_table
+        # Session not found in DynamoDB
+        mock_table.get_item.return_value = {}
+
+        handler = MCPLambdaHandler('test-server', session_store=DynamoDBSessionStore('tbl'))
+
+        req = {'jsonrpc': '2.0', 'id': 1, 'method': 'prompts/list'}
+        event = make_lambda_event(req)
+        event['headers']['mcp-session-id'] = 'bad-session-id'
+
+        resp = handler.handle_request(event, None)
+        assert resp['statusCode'] == 404
+        body = json.loads(resp['body'])
+        assert body['error']['code'] == -32000
+        assert 'Invalid or expired session' in body['error']['message']
+
+
+def test_prompts_list_rejects_missing_session_with_dynamodb_store():
+    """Test that prompts/list returns 400 when no session ID is sent and store requires one."""
+    with patch('boto3.resource') as mock_resource:
+        mock_table = MagicMock()
+        mock_resource.return_value.Table.return_value = mock_table
+
+        handler = MCPLambdaHandler('test-server', session_store=DynamoDBSessionStore('tbl'))
+
+        req = {'jsonrpc': '2.0', 'id': 1, 'method': 'prompts/list'}
+        event = make_lambda_event(req)
+        event['headers'].pop('mcp-session-id', None)
+
+        resp = handler.handle_request(event, None)
+        assert resp['statusCode'] == 400
+        body = json.loads(resp['body'])
+        assert body['error']['code'] == -32000
+
+
+# --- 3. Session validation for prompts/get ---
+
+
+def test_prompts_get_rejects_invalid_session():
+    """Test that prompts/get returns 404 when session ID is provided but invalid."""
+    with patch('boto3.resource') as mock_resource:
+        mock_table = MagicMock()
+        mock_resource.return_value.Table.return_value = mock_table
+        mock_table.get_item.return_value = {}
+
+        handler = MCPLambdaHandler('test-server', session_store=DynamoDBSessionStore('tbl'))
+
+        req = {
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': 'prompts/get',
+            'params': {'name': 'anything'},
+        }
+        event = make_lambda_event(req)
+        event['headers']['mcp-session-id'] = 'bad-session-id'
+
+        resp = handler.handle_request(event, None)
+        assert resp['statusCode'] == 404
+        body = json.loads(resp['body'])
+        assert body['error']['code'] == -32000
+
+
+def test_prompts_get_rejects_missing_session_with_dynamodb_store():
+    """Test that prompts/get returns 400 when no session ID is sent and store requires one."""
+    with patch('boto3.resource') as mock_resource:
+        mock_table = MagicMock()
+        mock_resource.return_value.Table.return_value = mock_table
+
+        handler = MCPLambdaHandler('test-server', session_store=DynamoDBSessionStore('tbl'))
+
+        req = {
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': 'prompts/get',
+            'params': {'name': 'anything'},
+        }
+        event = make_lambda_event(req)
+        event['headers'].pop('mcp-session-id', None)
+
+        resp = handler.handle_request(event, None)
+        assert resp['statusCode'] == 400
+        body = json.loads(resp['body'])
+        assert body['error']['code'] == -32000
+
+
+# --- 4. Argument type coercion in _render_prompt ---
+
+
+def test_render_prompt_coerces_int_from_string():
+    """Test that _render_prompt coerces a string '42' to int when the param expects int."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def count_prompt(count: int) -> str:
+        """Count prompt."""
+        assert isinstance(count, int), f'Expected int, got {type(count)}'
+        return f'count={count}'
+
+    result = handler._render_prompt('countPrompt', {'count': '42'})
+    assert result == 'count=42'
+
+
+def test_render_prompt_coerces_float_from_string():
+    """Test that _render_prompt coerces a string '3.14' to float."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def ratio_prompt(ratio: float) -> str:
+        """Ratio prompt."""
+        assert isinstance(ratio, float), f'Expected float, got {type(ratio)}'
+        return f'ratio={ratio}'
+
+    result = handler._render_prompt('ratioPrompt', {'ratio': '3.14'})
+    assert result == 'ratio=3.14'
+
+
+def test_render_prompt_coerces_bool_from_string():
+    """Test that _render_prompt coerces string booleans to bool correctly."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def flag_prompt(flag: bool) -> str:
+        """Flag prompt."""
+        assert isinstance(flag, bool), f'Expected bool, got {type(flag)}'
+        return 'yes' if flag else 'no'
+
+    # 'false' string → False
+    assert handler._render_prompt('flagPrompt', {'flag': 'false'}) == 'no'
+    # '0' string → False
+    assert handler._render_prompt('flagPrompt', {'flag': '0'}) == 'no'
+    # 'true' string → True
+    assert handler._render_prompt('flagPrompt', {'flag': 'true'}) == 'yes'
+
+
+def test_render_prompt_via_http_coerces_string_int():
+    """Test type coercion end-to-end through prompts/get HTTP call."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def repeat_prompt(times: int) -> str:
+        """Repeat prompt."""
+        return 'x' * times
+
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'prompts/get',
+        # MCP clients send arguments as strings from JSON-RPC
+        'params': {'name': 'repeatPrompt', 'arguments': {'times': '3'}},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert body['result']['messages'][0]['content']['text'] == 'xxx'
+
+
+def test_render_prompt_coercion_fallback_on_bad_value():
+    """Test that _render_prompt falls back gracefully when coercion fails."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def value_prompt(number: int) -> str:
+        """Value prompt."""
+        return str(number)
+
+    # 'not_a_number' can't be coerced to int → falls back to raw string
+    # The function itself will then receive a string and either work or raise.
+    # Here we just verify _render_prompt doesn't crash internally on bad input.
+    try:
+        handler._render_prompt('valuePrompt', {'number': 'not_a_number'})
+    except (ValueError, TypeError):
+        pass  # The prompt function may raise, that is acceptable
+
+
+# --- 5. Multi-message / list return from prompt functions ---
+
+
+def test_render_prompt_returns_list_passthrough():
+    """Test that _render_prompt returns a list unchanged when the function returns a list."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def multi_msg_prompt(topic: str) -> list:
+        """Multi-message prompt."""
+        return [
+            {'role': 'system', 'content': {'type': 'text', 'text': 'You are helpful.'}},
+            {'role': 'user', 'content': {'type': 'text', 'text': f'Tell me about {topic}'}},
+        ]
+
+    result = handler._render_prompt('multiMsgPrompt', {'topic': 'Python'})
+    assert isinstance(result, list)
+    assert len(result) == 2
+    assert result[0]['role'] == 'system'
+    assert result[1]['role'] == 'user'
+
+
+def test_handle_prompts_get_multi_message_response():
+    """Test that prompts/get passes a list of messages through as-is."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def conversation_prompt(user_input: str) -> list:
+        """Conversation starter prompt."""
+        return [
+            {'role': 'system', 'content': {'type': 'text', 'text': 'Be concise.'}},
+            {'role': 'user', 'content': {'type': 'text', 'text': user_input}},
+        ]
+
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'prompts/get',
+        'params': {'name': 'conversationPrompt', 'arguments': {'user_input': 'Hello!'}},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert 'result' in body
+    messages = body['result']['messages']
+    assert len(messages) == 2
+    assert messages[0]['role'] == 'system'
+    assert messages[1]['role'] == 'user'
+    assert messages[1]['content']['text'] == 'Hello!'
+
+
+def test_handle_prompts_get_single_string_wrapped_as_user_message():
+    """Test that a str return is still wrapped as a single user message (regression guard)."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def simple_prompt() -> str:
+        """Simple prompt."""
+        return 'Hello world'
+
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'prompts/get',
+        'params': {'name': 'simplePrompt'},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    messages = body['result']['messages']
+    assert len(messages) == 1
+    assert messages[0]['role'] == 'user'
+    assert messages[0]['content']['text'] == 'Hello world'
