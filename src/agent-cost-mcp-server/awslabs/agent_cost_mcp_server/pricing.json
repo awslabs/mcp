@@ -1,0 +1,134 @@
+{
+  "currency": "USD",
+  "models": [
+    {
+      "display_name": "Claude Haiku 4.5",
+      "input_per_mtok": 1.0,
+      "model_id": "anthropic.claude-haiku-4-5",
+      "output_per_mtok": 5.0,
+      "provider": "anthropic"
+    },
+    {
+      "display_name": "Claude Sonnet 4.5",
+      "input_per_mtok": 3.0,
+      "model_id": "anthropic.claude-sonnet-4-5",
+      "output_per_mtok": 15.0,
+      "provider": "anthropic"
+    },
+    {
+      "display_name": "Claude Opus 4.5",
+      "input_per_mtok": 5.0,
+      "model_id": "anthropic.claude-opus-4-5",
+      "output_per_mtok": 25.0,
+      "provider": "anthropic"
+    },
+    {
+      "display_name": "Claude Haiku 3.5",
+      "input_per_mtok": 0.8,
+      "model_id": "anthropic.claude-haiku-3-5",
+      "output_per_mtok": 4.0,
+      "provider": "anthropic"
+    },
+    {
+      "display_name": "Amazon Nova Micro",
+      "input_per_mtok": 0.035,
+      "model_id": "amazon.nova-micro",
+      "output_per_mtok": 0.14,
+      "provider": "amazon"
+    },
+    {
+      "display_name": "Amazon Nova Lite",
+      "input_per_mtok": 0.06,
+      "model_id": "amazon.nova-lite",
+      "output_per_mtok": 0.24,
+      "provider": "amazon"
+    },
+    {
+      "display_name": "Amazon Nova Pro",
+      "input_per_mtok": 0.8,
+      "model_id": "amazon.nova-pro",
+      "output_per_mtok": 3.2,
+      "provider": "amazon"
+    },
+    {
+      "display_name": "GPT-5",
+      "input_per_mtok": 1.25,
+      "model_id": "openai.gpt-5",
+      "output_per_mtok": 10.0,
+      "provider": "openai"
+    },
+    {
+      "display_name": "GPT-5 mini",
+      "input_per_mtok": 0.25,
+      "model_id": "openai.gpt-5-mini",
+      "output_per_mtok": 2.0,
+      "provider": "openai"
+    },
+    {
+      "display_name": "GPT-5 nano",
+      "input_per_mtok": 0.05,
+      "model_id": "openai.gpt-5-nano",
+      "output_per_mtok": 0.4,
+      "provider": "openai"
+    },
+    {
+      "display_name": "GPT-4.1",
+      "input_per_mtok": 2.0,
+      "model_id": "openai.gpt-4.1",
+      "output_per_mtok": 8.0,
+      "provider": "openai"
+    },
+    {
+      "display_name": "GPT-4.1 mini",
+      "input_per_mtok": 0.4,
+      "model_id": "openai.gpt-4.1-mini",
+      "output_per_mtok": 1.6,
+      "provider": "openai"
+    },
+    {
+      "display_name": "GPT-4o",
+      "input_per_mtok": 2.5,
+      "model_id": "openai.gpt-4o",
+      "output_per_mtok": 10.0,
+      "provider": "openai"
+    },
+    {
+      "display_name": "GPT-4o mini",
+      "input_per_mtok": 0.15,
+      "model_id": "openai.gpt-4o-mini",
+      "output_per_mtok": 0.6,
+      "provider": "openai"
+    },
+    {
+      "display_name": "o4-mini",
+      "input_per_mtok": 1.1,
+      "model_id": "openai.o4-mini",
+      "output_per_mtok": 4.4,
+      "provider": "openai"
+    },
+    {
+      "display_name": "Gemini 2.5 Pro",
+      "input_per_mtok": 1.25,
+      "model_id": "google.gemini-2.5-pro",
+      "output_per_mtok": 10.0,
+      "provider": "google"
+    },
+    {
+      "display_name": "Gemini 2.5 Flash",
+      "input_per_mtok": 0.3,
+      "model_id": "google.gemini-2.5-flash",
+      "output_per_mtok": 2.5,
+      "provider": "google"
+    },
+    {
+      "display_name": "Gemini 2.5 Flash-Lite",
+      "input_per_mtok": 0.1,
+      "model_id": "google.gemini-2.5-flash-lite",
+      "output_per_mtok": 0.4,
+      "provider": "google"
+    }
+  ],
+  "note": "List prices per 1M tokens from provider pricing pages at snapshot time. Prices change; verify against the provider before making spending decisions. Update this file to refresh the snapshot \u2014 the server reads it at startup.",
+  "snapshot_date": "2026-10-20",
+  "snapshot_version": 1
+}
