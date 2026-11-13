@@ -828,6 +828,40 @@ class TestGetMetricData:
                     dimensions=[Dimension(name='TestDim', value='test-value')],
                 )
 
+    async def test_get_recommended_metric_alarms_forwards_statistic_and_profile(
+        self, ctx, cloudwatch_metrics_tools
+    ):
+        """Test that the analysis fallback receives the caller's statistic and profile."""
+        received = {}
+
+        async def fake_analyze(
+            ctx,
+            namespace,
+            metric_name,
+            dimensions,
+            region=None,
+            profile_name=None,
+            statistic='AVG',
+        ):
+            received.update(region=region, profile_name=profile_name, statistic=statistic)
+            return {'seasonality_seconds': 0}
+
+        with patch.object(cloudwatch_metrics_tools, '_lookup_metadata', return_value=None):
+            with patch.object(
+                cloudwatch_metrics_tools, 'analyze_metric', side_effect=fake_analyze
+            ):
+                await cloudwatch_metrics_tools.get_recommended_metric_alarms(
+                    ctx,
+                    namespace='Custom/App',
+                    metric_name='Invocations',
+                    dimensions=[Dimension(name='FunctionName', value='orders')],
+                    region='eu-west-1',
+                    profile_name='prod',
+                    statistic='Sum',
+                )
+
+        assert received == {'region': 'eu-west-1', 'profile_name': 'prod', 'statistic': 'Sum'}
+
     # Tests for get_metric_data with queries parameter (advanced queries support)
 
     async def test_get_metric_data_queries_single_metric(self, ctx, cloudwatch_metrics_tools):

@@ -221,3 +221,26 @@ class TestAnalyzeMetric:
 
             # Should handle empty results gracefully
             assert result['message'] == 'No metric data available for analysis'
+
+    @pytest.mark.asyncio
+    async def test_analyze_metric_forwards_profile_name(self, ctx, cloudwatch_metrics_tools):
+        """Test analyze_metric builds the CloudWatch client with the requested profile."""
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client'
+        ) as mock_get_client:
+            mock_cloudwatch = Mock()
+            mock_get_client.return_value = mock_cloudwatch
+            mock_cloudwatch.get_metric_data.return_value = {
+                'MetricDataResults': [{'Values': [], 'Timestamps': []}]
+            }
+
+            await cloudwatch_metrics_tools.analyze_metric(
+                ctx,
+                namespace='AWS/EC2',
+                metric_name='CPUUtilization',
+                dimensions=[Dimension(name='InstanceId', value='i-test123')],
+                region='eu-west-1',
+                profile_name='prod',
+            )
+
+            mock_get_client.assert_called_once_with('cloudwatch', 'eu-west-1', 'prod')
