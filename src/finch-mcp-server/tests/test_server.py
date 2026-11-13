@@ -863,6 +863,7 @@ class TestFinchTools:
                 set_enable_aws_resource_write(False)
 
 
+@pytest.mark.filterwarnings('ignore:awslabs.finch-mcp-server is deprecated:FutureWarning')
 class TestMainFunctionLogging:
     """Tests for main function logging behavior."""
 

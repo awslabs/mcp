@@ -57,7 +57,8 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/ecs-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @matthewgoodman13 @nineonine @biagic @Ryan-h1
 /src/eks-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @patrick-yu-amzn @lynnnnnnluo @djtung @BrianS99 @nolanzzz @okjuliankim
 /src/elasticache-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @swarnaprakash @madolson @allenss-amazon @kevinmcgehee
-/src/finch-mcp-server                                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @Shubhranshu153 @pendo324
+# DEPRECATED: use the Finch CLI and the AWS MCP Server
+/src/finch-mcp-server                                          @awslabs/mcp-admins
 /src/healthimaging-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @manish364
 /src/healthlake-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @aws-steve @awsri
 /src/iam-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @tildemit

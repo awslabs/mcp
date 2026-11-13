@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [Finch CLI](https://github.com/runfinch/finch), which your agent can run directly from its own shell (`finch image build`, `finch image push`, `finch vm start`), and the [AWS MCP Server](https://github.com/aws/agent-toolkit-for-aws), part of the Agent Toolkit for AWS, which makes the Amazon ECR calls through its `run_script` tool (sandboxed Python that calls AWS APIs with your own IAM credentials). See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-finch.md) for the tool mapping.
+
 # Finch MCP Server
 
 A Model Context Protocol (MCP) server for Finch that enables generative AI models to build and push container images through finch cli leveraged MCP tools.
