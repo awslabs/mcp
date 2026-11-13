@@ -1,5 +1,5 @@
 ---
-title: CloudTrail MCP Server
+title: CloudTrail MCP Server (Deprecated)
 ---
 
 import ReadmeContent from "../../../src/cloudtrail-mcp-server/README.md";

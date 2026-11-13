@@ -1,6 +1,8 @@
 ---
-title: "AWS Labs CloudTrail MCPサーバー"
+title: "AWS Labs CloudTrail MCPサーバー（非推奨）"
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。こちらは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて同じ AWS CloudTrail API（`LookupEvents` と CloudTrail Lake のクエリ操作）を呼び出し、1 回の呼び出しの中でイベントの絞り込みや集計も行えます。ツールの対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-cloudtrail.md) を参照してください。
 
 CloudTrail 向けのこの AWS Labs Model Context Protocol (MCP) サーバーは、AI エージェントがセキュリティ調査、コンプライアンス監査、運用上のトラブルシューティングのために AWS アカウントのアクティビティをクエリできるようにします。CloudTrail イベントと CloudTrail Lake の分析機能への包括的なアクセスを提供し、エージェントが API 呼び出しの追跡、ユーザーアクティビティの分析、高度なセキュリティ分析を行えるようにします。このサーバーは、標準化された MCP インターフェースを通じて AI エージェントに CloudTrail データへのシームレスなアクセスを提供し、カスタム API 統合の必要性を排除して、強力なセキュリティインサイトと監査機能を実現します。
 
