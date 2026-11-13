@@ -60,7 +60,7 @@ class ListModelImportJobs:
     async def list_model_import_jobs(
         self, ctx: Optional[Context], request: Optional[ListModelImportJobsRequest] = None
     ) -> str:
-        """List model import jobs in Amazon Bedrock.
+        """[DEPRECATED] List model import jobs in Amazon Bedrock.
 
         This tool retrieves a list of model import jobs in Amazon Bedrock.
         The results can be filtered and sorted using the optional request parameters.

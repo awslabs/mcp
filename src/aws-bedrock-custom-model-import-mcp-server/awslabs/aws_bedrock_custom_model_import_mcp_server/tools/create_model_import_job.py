@@ -58,7 +58,7 @@ class CreateModelImportJob:
     async def create_model_import_job(
         self, ctx: Optional[Context], request: CreateModelImportJobRequest
     ) -> str:
-        """Create a model import job to import a model into Amazon Bedrock.
+        """[DEPRECATED] Create a model import job to import a model into Amazon Bedrock.
 
         This tool creates a model import job in Amazon Bedrock to import a custom model.
         The job name and model name are mandatory parameters. The S3 URI for the model data source
