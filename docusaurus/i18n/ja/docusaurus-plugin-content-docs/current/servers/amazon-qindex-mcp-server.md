@@ -1,6 +1,8 @@
 ---
-title: AWS Labs amazon-qindex MCP Server
+title: AWS Labs amazon-qindex MCP Server（非推奨）
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。こちらは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて同じ Amazon Q Business `SearchRelevantContent` API を呼び出します。サインイン時のトークン交換はお客様自身が実行する短いスクリプトに移るため、ユーザーの一時的な認証情報が会話を経由することはありません。ツールの対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-qindex.md) を参照してください。
 
 AWS Labs amazon-qindex MCP Server は、Amazon Q Business の [SearchRelevantContent API](https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/isv-calling-api-idc.html) との統合を容易にするために設計された Model Context Protocol (MCP) サーバーです。このサーバーは Amazon Q index を使用した認証と検索機能のための必須ツールと機能を提供しますが、現時点では [AWS 登録データアクセサー](https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/isv.html)である独立系ソフトウェアベンダー (ISV) を対象としています。このサーバーはクロスアカウント検索機能を実現し、データアクセサーである ISV が、特定の認証・認可フローを使用して、エンタープライズ顧客の Q index を検索し、そのデータソース全体から関連コンテンツにアクセスできるようにします。
 
