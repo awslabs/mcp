@@ -1866,6 +1866,31 @@ async def test_schema_validator_allows_any_directory(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_generate_data_access_layer_writes_nothing_to_stdout(tmp_path, capsys):
+    """The server runs on stdio, so a tool call must not print to stdout."""
+    schema = (
+        Path(__file__).parent
+        / 'repo_generation_tool'
+        / 'fixtures'
+        / 'valid_schemas'
+        / 'deals_app'
+        / 'deals_schema.json'
+    )
+    schema_path = tmp_path / 'schema.json'
+    schema_path.write_text(schema.read_text())
+
+    result = await generate_data_access_layer(
+        schema_path=str(schema_path),
+        language='python',
+        generate_sample_usage=False,
+        usage_data_path=None,
+    )
+
+    assert 'Code generation completed successfully in:' in result
+    assert capsys.readouterr().out == ''
+
+
+@pytest.mark.asyncio
 async def test_generate_python_data_access_layer_success():
     """Test generate_data_access_layer with default and custom language parameter."""
     guide_content = '# Python DynamoDB Data Access Layer Implementation Expert System Prompt'
