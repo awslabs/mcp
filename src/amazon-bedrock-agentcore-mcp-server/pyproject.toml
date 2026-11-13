@@ -12,6 +12,7 @@ dependencies = [
     "mcp[cli]>=2.0.0,<3.0.0",
     "pydantic>=2.10.6",
     "bedrock-agentcore>=1.1.0,<2.0.0",
+    "boto3>=1.43.127",
     "playwright>=1.40.0",
 ]
 license = {text = "Apache-2.0"}
