@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for the main function in server.py."""
 
+import pytest
 from awslabs.amazon_kendra_index_mcp_server.server import main
 from unittest.mock import patch
 
@@ -24,8 +25,9 @@ class TestMain:
     @patch('sys.argv', ['awslabs.amazon-kendra-index-mcp-server'])
     def test_main_default(self, mock_run):
         """Test main function with default arguments."""
-        # Call the main function
-        main()
+        # Call the main function; it warns that the server is deprecated
+        with pytest.warns(FutureWarning):
+            main()
 
         # Check that mcp.run was called with the correct arguments
         mock_run.assert_called_once()

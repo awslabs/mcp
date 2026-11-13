@@ -162,10 +162,16 @@ result
 | `NextToken` followed automatically by `KendraListIndexesTool` | Changed | `call_boto3` returns one page of `ListIndices`; loop on `NextToken` as in the example. An account can hold 10 indexes by default |
 | Error returned as a text string instead of raised | Changed | `run_script` reports API errors, such as a `ResourceNotFoundException` for a wrong index ID, with `"status": "error"` and the error message |
 
+## What Deprecation Means
+
+- The final release keeps working. It prints a `FutureWarning` at startup, and its server instructions and tool descriptions are marked deprecated.
+- The package stays on PyPI and gets no further updates.
+- Configurations that use `awslabs.amazon-kendra-index-mcp-server@latest` get that final release.
+- The `src/amazon-kendra-index-mcp-server` folder may later be removed from this repository, as the folders of earlier deprecated servers were.
+
 ## Removing the Old Server
 
 Once you've verified the replacement meets your needs:
 
 1. Remove `awslabs.amazon-kendra-index-mcp-server` from your MCP configuration
 2. Uninstall the package: `pip uninstall awslabs.amazon-kendra-index-mcp-server`
-3. The old package will remain on PyPI but will not receive updates

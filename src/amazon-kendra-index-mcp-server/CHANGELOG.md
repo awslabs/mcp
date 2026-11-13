@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Deprecated
+
+- Deprecate this server in favor of the
+  [AWS MCP Server](https://github.com/aws/agent-toolkit-for-aws). See the
+  [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-kendra-index.md).
+  The server now prints a `FutureWarning` at startup, and its instructions and
+  tool descriptions are marked deprecated.
+
 ### Added
 
 - Initial project setup
