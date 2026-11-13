@@ -27,7 +27,8 @@ from awslabs.aws_dataprocessing_mcp_server.models.common_resource_models import 
     ServiceRolesData,
     UploadToS3Data,
 )
-from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
+from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper, ClientFactory
+from awslabs.aws_dataprocessing_mcp_server.utils.error_helper import create_error_result
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
@@ -73,16 +74,26 @@ class CommonResourceHandler:
     services like Glue, EMR, and Athena, and managing S3 resources.
     """
 
-    def __init__(self, mcp, allow_write: bool = False):
+    def __init__(
+        self,
+        mcp,
+        allow_write: bool = False,
+        client_factory: Optional[ClientFactory] = None,
+    ):
         """Initialize the Common Resource handler.
 
         Args:
             mcp: The MCP server instance
             allow_write: Whether to enable write access (default: False)
+            client_factory: Optional service-aware boto3 client factory
         """
         self.mcp = mcp
-        self.iam_client = AwsHelper.create_boto3_client('iam')
-        self.s3_client = AwsHelper.create_boto3_client('s3')
+        self._provided_client_factory = client_factory
+        self.client_factory = client_factory or (
+            lambda service_name: AwsHelper.create_boto3_client(service_name)
+        )
+        self.iam_client = self.client_factory('iam')
+        self.s3_client = self.client_factory('s3')
         self.allow_write = allow_write
 
         # Register IAM tools
@@ -189,10 +200,7 @@ class CommonResourceHandler:
             error_message = f'Failed to describe IAM role: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def add_inline_policy(
         self,
@@ -353,10 +361,7 @@ class CommonResourceHandler:
             error_message = f'Failed to create inline policy: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def create_data_processing_role(
         self,
@@ -557,10 +562,7 @@ class CommonResourceHandler:
             error_message = f'Failed to create IAM role: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def get_roles_for_service(
         self,
@@ -661,10 +663,7 @@ class CommonResourceHandler:
             error_message = f'Failed to list IAM roles for service {service_type}: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     # ============================================================================
     # S3 Operations
@@ -836,17 +835,11 @@ class CommonResourceHandler:
         except ClientError as e:
             error_message = f'AWS Error: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
         except Exception as e:
             error_message = f'Error: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def upload_to_s3(
         self,
@@ -931,10 +924,7 @@ class CommonResourceHandler:
                     error_message = f'Error checking bucket: {str(e)}'
 
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return CallToolResult(
-                    isError=True,
-                    content=[TextContent(type='text', text=error_message)],
-                )
+                return create_error_result(e, error_message)
 
             # Upload code content using putObject
             self.s3_client.put_object(
@@ -980,17 +970,11 @@ class CommonResourceHandler:
         except ClientError as e:
             error_message = f'AWS Error: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
         except Exception as e:
             error_message = f'Error: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def analyze_s3_usage_for_data_processing(
         self,
@@ -1022,9 +1006,9 @@ class CommonResourceHandler:
             )
 
             # Create necessary clients
-            glue_client = AwsHelper.create_boto3_client('glue')
-            athena_client = AwsHelper.create_boto3_client('athena')
-            emr_client = AwsHelper.create_boto3_client('emr')
+            glue_client = self.client_factory('glue')
+            athena_client = self.client_factory('athena')
+            emr_client = self.client_factory('emr')
 
             # Get buckets to analyze
             if bucket_name:
@@ -1032,12 +1016,9 @@ class CommonResourceHandler:
                     # Check if specific bucket exists
                     self.s3_client.head_bucket(Bucket=bucket_name)
                     buckets = [{'Name': bucket_name}]
-                except ClientError:
+                except ClientError as e:
                     error_message = f"Bucket '{bucket_name}' does not exist or is not accessible"
-                    return CallToolResult(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                    )
+                    return create_error_result(e, error_message)
             else:
                 # Get all buckets
                 response = self.s3_client.list_buckets()
@@ -1252,17 +1233,11 @@ class CommonResourceHandler:
         except ClientError as e:
             error_message = f'AWS Error: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
         except Exception as e:
             error_message = f'Error: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     # ============================================================================
     # Helper Methods

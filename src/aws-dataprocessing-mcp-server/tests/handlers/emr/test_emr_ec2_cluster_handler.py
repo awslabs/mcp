@@ -279,7 +279,11 @@ async def test_describe_cluster_aws_error(handler, mock_context):
 
     handler.emr_client = MagicMock()
     handler.emr_client.describe_cluster.side_effect = ClientError(
-        {'Error': {'Code': 'ClusterNotFound', 'Message': 'Cluster not found'}}, 'DescribeCluster'
+        {
+            'Error': {'Code': 'ClusterNotFound', 'Message': 'Cluster not found'},
+            'ResponseMetadata': {'HTTPStatusCode': 404, 'RequestId': 'emr-request-id'},
+        },
+        'DescribeCluster',
     )
 
     response = await handler.manage_aws_emr_clusters(
@@ -288,6 +292,15 @@ async def test_describe_cluster_aws_error(handler, mock_context):
 
     assert response.is_error
     assert 'Error in manage_aws_emr_clusters:' in response.content[0].text
+    assert response.structured_content == {
+        'error': {
+            'code': 'ClusterNotFound',
+            'error_type': 'ClientError',
+            'message': 'Cluster not found',
+            'http_status': 404,
+            'request_id': 'emr-request-id',
+        }
+    }
 
 
 @pytest.mark.asyncio

@@ -28,7 +28,8 @@ from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
     TableSummary,
     UpdateTableData,
 )
-from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
+from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper, ClientFactory
+from awslabs.aws_dataprocessing_mcp_server.utils.error_helper import create_error_result
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
@@ -48,16 +49,24 @@ class DataCatalogTableManager:
     on write permissions and handles tagging of resources for MCP management.
     """
 
-    def __init__(self, allow_write: bool = False, allow_sensitive_data_access: bool = False):
+    def __init__(
+        self,
+        allow_write: bool = False,
+        allow_sensitive_data_access: bool = False,
+        client_factory: Optional[ClientFactory] = None,
+    ):
         """Initialize the Data Catalog Table Manager.
 
         Args:
             allow_write: Whether to enable write operations (create-table, update-table, delete-table)
             allow_sensitive_data_access: Whether to allow access to sensitive data
+            client_factory: Optional service-aware boto3 client factory
         """
         self.allow_write = allow_write
         self.allow_sensitive_data_access = allow_sensitive_data_access
-        self.glue_client = AwsHelper.create_boto3_client('glue')
+        self._provided_client_factory = client_factory
+        self.client_factory = client_factory or AwsHelper.create_boto3_client
+        self.glue_client = self.client_factory('glue')
 
     async def create_table(
         self,
@@ -148,10 +157,7 @@ class DataCatalogTableManager:
             error_message = f'Failed to create table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def delete_table(
         self,
@@ -190,8 +196,10 @@ class DataCatalogTableManager:
 
                 # Construct the ARN for the table
                 region = AwsHelper.get_or_default_aws_region()
-                account_id = catalog_id or AwsHelper.get_aws_account_id()
-                partition = AwsHelper.get_aws_partition()
+                account_id = catalog_id or AwsHelper.get_aws_account_id(
+                    self._provided_client_factory
+                )
+                partition = AwsHelper.get_aws_partition(self._provided_client_factory)
                 table_arn = f'arn:{partition}:glue:{region}:{account_id}:table/{database_name}/{table_name}'
 
                 # Check if the table is managed by MCP
@@ -206,10 +214,7 @@ class DataCatalogTableManager:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Table {database_name}.{table_name} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return CallToolResult(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                    )
+                    return create_error_result(e, error_message)
                 else:
                     raise e
 
@@ -249,10 +254,7 @@ class DataCatalogTableManager:
             error_message = f'Failed to delete table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def get_table(
         self,
@@ -347,10 +349,7 @@ class DataCatalogTableManager:
             error_message = f'Failed to get table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def list_tables(
         self,
@@ -463,10 +462,7 @@ class DataCatalogTableManager:
             error_message = f'Failed to list tables in database {database_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def update_table(
         self,
@@ -514,8 +510,10 @@ class DataCatalogTableManager:
 
                 # Construct the ARN for the table
                 region = AwsHelper.get_or_default_aws_region()
-                account_id = catalog_id or AwsHelper.get_aws_account_id()
-                partition = AwsHelper.get_aws_partition()
+                account_id = catalog_id or AwsHelper.get_aws_account_id(
+                    self._provided_client_factory
+                )
+                partition = AwsHelper.get_aws_partition(self._provided_client_factory)
                 table_arn = f'arn:{partition}:glue:{region}:{account_id}:table/{database_name}/{table_name}'
 
                 # Check if the table is managed by MCP
@@ -541,10 +539,7 @@ class DataCatalogTableManager:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Table {database_name}.{table_name} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return CallToolResult(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                    )
+                    return create_error_result(e, error_message)
                 else:
                     raise e
 
@@ -593,10 +588,7 @@ class DataCatalogTableManager:
             error_message = f'Failed to update table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def search_tables(
         self,
@@ -703,7 +695,4 @@ class DataCatalogTableManager:
             )
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
