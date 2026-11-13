@@ -1,9 +1,11 @@
 """Tests for the describe service updates tool."""
 
+import botocore.session
 import pytest
 from awslabs.elasticache_mcp_server.tools.misc.describe_service_updates import (
     describe_service_updates,
 )
+from botocore.stub import Stubber
 from unittest.mock import MagicMock, patch
 
 
@@ -105,11 +107,9 @@ async def test_describe_service_updates_with_pagination():
         'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
         return_value=mock_client,
     ):
-        result = await describe_service_updates(
-            starting_token='current-page', page_size=20, max_items=50
-        )
+        result = await describe_service_updates(starting_token='current-page', page_size=20)
         mock_client.describe_service_updates.assert_called_once_with(
-            Marker='current-page', MaxRecords=20, MaxItems=50
+            Marker='current-page', MaxRecords=20
         )
         assert 'NextToken' in result
         assert result['NextToken'] == 'next-page'
@@ -232,7 +232,9 @@ async def test_describe_service_updates_pagination_edge_cases():
 
         # Test with negative max items
         await describe_service_updates(max_items=-1)
-        mock_client.describe_service_updates.assert_called_with(MaxItems=-1)
+        mock_client.get_paginator.return_value.paginate.assert_called_with(
+            PaginationConfig={'MaxItems': -1}
+        )
 
 
 @pytest.mark.asyncio
@@ -251,3 +253,37 @@ async def test_describe_service_updates_works_in_readonly_mode():
     ):
         result = await describe_service_updates()
         assert 'error' not in result
+
+
+@pytest.mark.asyncio
+async def test_describe_service_updates_max_items_uses_paginator():
+    """max_items goes to the paginator, and the API call only gets valid parameters."""
+    session = botocore.session.get_session()
+    client = session.create_client(
+        'elasticache',
+        region_name='us-east-1',
+    )
+    stubber = Stubber(client)
+    stubber.add_response(
+        'describe_service_updates',
+        {'ServiceUpdates': [{'ServiceUpdateName': 'update-1'}], 'Marker': 'next-page'},
+        {'ServiceUpdateStatus': ['available'], 'Marker': 'current-page', 'MaxRecords': 20},
+    )
+
+    with (
+        stubber,
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=client,
+        ),
+    ):
+        result = await describe_service_updates(
+            service_update_status=['available'],
+            starting_token='current-page',
+            page_size=20,
+            max_items=1,
+        )
+
+    stubber.assert_no_pending_responses()
+    assert result['ServiceUpdates'] == [{'ServiceUpdateName': 'update-1'}]
+    assert 'NextToken' in result

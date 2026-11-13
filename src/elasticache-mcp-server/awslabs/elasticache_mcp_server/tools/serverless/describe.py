@@ -17,7 +17,7 @@
 from ...common.connection import ElastiCacheConnectionManager
 from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 
 @mcp.tool(name='describe-serverless-caches')
@@ -58,13 +58,21 @@ async def describe_serverless_caches(
         return response
     else:
         # List all caches with optional pagination
-        kwargs = {}
+        # MaxItems is a paginator setting, not an API parameter
         if max_items:
-            kwargs['MaxItems'] = max_items
+            pagination_config: Dict[str, Any] = {'MaxItems': max_items}
+            if page_size:
+                pagination_config['PageSize'] = page_size
+            if starting_token:
+                pagination_config['StartingToken'] = starting_token
+            paginator = elasticache_client.get_paginator('describe_serverless_caches')
+            return paginator.paginate(PaginationConfig=pagination_config).build_full_result()
+
+        kwargs = {}
         if starting_token:
-            kwargs['StartingToken'] = starting_token
+            kwargs['NextToken'] = starting_token
         if page_size:
-            kwargs['PageSize'] = page_size
+            kwargs['MaxResults'] = page_size
 
         response = elasticache_client.describe_serverless_caches(**kwargs)
         return response
