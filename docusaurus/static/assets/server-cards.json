@@ -175,7 +175,7 @@
       "description": "Comprehensive AWS resource management with integrated security scanning and full CRUDL operations",
       "icon": "\ud83c\udfd7\ufe0f",
       "id": "ccapi-mcp-server",
-      "name": "AWS Cloud Control API MCP Server",
+      "name": "AWS Cloud Control API MCP Server (Deprecated)",
       "source_path": "src/ccapi-mcp-server/",
       "subcategory": "Infrastructure as Code",
       "tags": [
@@ -338,7 +338,7 @@
       "description": "Enterprise search and RAG enhancement",
       "icon": "\ud83e\udd16",
       "id": "amazon-kendra-index-mcp-server",
-      "name": "Amazon Kendra Index MCP Server",
+      "name": "Amazon Kendra Index MCP Server (Deprecated)",
       "source_path": "src/amazon-kendra-index-mcp-server/",
       "subcategory": "Knowledge & Search",
       "tags": [
@@ -359,7 +359,7 @@
       "description": "AI assistant based on knowledgebase with anonymous access",
       "icon": "\ud83e\udd16",
       "id": "amazon-qbusiness-anonymous-mcp-server",
-      "name": "Amazon Q Business anonymous MCP Server",
+      "name": "Amazon Q Business anonymous MCP Server (Deprecated)",
       "source_path": "src/amazon-qbusiness-anonymous-mcp-server/",
       "subcategory": "Knowledge & Search",
       "tags": [
@@ -1173,7 +1173,7 @@
       "description": "Comprehensive IAM user, role, group, and policy management with security best practices",
       "icon": "\ud83d\udee0\ufe0f",
       "id": "iam-mcp-server",
-      "name": "AWS IAM MCP Server",
+      "name": "AWS IAM MCP Server (Deprecated)",
       "source_path": "src/iam-mcp-server/",
       "subcategory": "Security & Access",
       "tags": [

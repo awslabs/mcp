@@ -1,5 +1,5 @@
 ---
-title: Amazon Q Business anonymous MCP Server
+title: Amazon Q Business anonymous MCP Server (Deprecated)
 ---
 
 import ReadmeContent from "../../../src/amazon-qbusiness-anonymous-mcp-server/README.md";

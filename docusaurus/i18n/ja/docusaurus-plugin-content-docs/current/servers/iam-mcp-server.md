@@ -1,6 +1,8 @@
 ---
-title: "AWS IAM MCPサーバー"
+title: "AWS IAM MCPサーバー（非推奨）"
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。こちらは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて IAM API を呼び出し、`aws-iam` Agent Skill を通じて IAM のガイダンスを提供します。ツールごとの詳細な対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-iam.md) を参照してください。
 
 AWS Identity and Access Management (IAM) の包括的な操作を提供する Model Context Protocol (MCP) サーバーです。このサーバーは、セキュリティのベストプラクティスに従いながら、AI アシスタントが IAM のユーザー、ロール、ポリシー、権限を管理できるようにします。
 
