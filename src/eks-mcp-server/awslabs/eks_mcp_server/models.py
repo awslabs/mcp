@@ -340,7 +340,10 @@ class EksInsightItem(BaseModel):
     additional_info: Optional[Dict[str, str]] = Field(
         None, description='Additional information links'
     )
-    resources: Optional[List[str]] = Field(None, description='Resources involved in the insight')
+    resources: Optional[List[Dict[str, Any]]] = Field(
+        None,
+        description='Resources involved in the insight, each with an insightStatus and a kubernetesResourceUri or arn',
+    )
     category_specific_summary: Optional[Dict[str, Any]] = Field(
         None, description='Additional category-specific details'
     )

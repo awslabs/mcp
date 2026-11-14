@@ -191,7 +191,16 @@ class TestInsightsHandler:
         )
         insight_data['recommendation'] = 'This is a test recommendation'
         insight_data['additionalInfo'] = {'link': 'https://example.com'}
-        insight_data['resources'] = ['resource-1', 'resource-2']
+        insight_data['resources'] = [
+            {
+                'insightStatus': {'status': 'FAILING', 'reason': 'Deprecated API in use'},
+                'kubernetesResourceUri': '/apis/flowcontrol.apiserver.k8s.io/v1beta2/flowschemas/x',
+            },
+            {
+                'insightStatus': {'status': 'PASSING', 'reason': 'No issues'},
+                'arn': 'arn:aws:eks:us-east-1:123456789012:addon/test-cluster/vpc-cni/1',
+            },
+        ]
         insight_data['categorySpecificSummary'] = {'detail': 'Some specific details'}
 
         mock_eks_client.describe_insight.return_value = {'insight': insight_data}
@@ -225,7 +234,7 @@ class TestInsightsHandler:
         assert insight['category'] == 'CONFIGURATION'
         assert insight['recommendation'] == 'This is a test recommendation'
         assert insight['additional_info'] == {'link': 'https://example.com'}
-        assert insight['resources'] == ['resource-1', 'resource-2']
+        assert insight['resources'] == insight_data['resources']
         assert insight['category_specific_summary'] == {'detail': 'Some specific details'}
 
         # Verify success message in content
