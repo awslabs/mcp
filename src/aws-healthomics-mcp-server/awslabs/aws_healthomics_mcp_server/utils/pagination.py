@@ -82,6 +82,32 @@ _DICT_TOKEN_KEYS: Dict[str, str] = {
     'ListPullThroughCacheRules': 'next_token',
 }
 
+# Result-list fields returned by the paginated tools registered in this server.
+# These are intentionally checked in a fixed order rather than by response
+# insertion order: some responses also carry list-valued metadata (for example,
+# SearchGenomicsFiles includes ``storage_systems_searched``) that is not a page
+# of returned items.
+_RESULT_LIST_KEYS = (
+    'results',
+    'workflows',
+    'versions',
+    'runs',
+    'tasks',
+    'runGroups',
+    'runCaches',
+    'batches',
+    'sequenceStores',
+    'readSets',
+    'importJobs',
+    'exportJobs',
+    'referenceStores',
+    'references',
+    'configurations',
+    'connections',
+    'repositories',
+    'rules',
+)
+
 
 def _continuation_param_name(fn: Callable[..., Any]) -> str:
     """Derive the real parameter name a caller uses to pass a continuation token.
@@ -97,14 +123,14 @@ def _continuation_param_name(fn: Callable[..., Any]) -> str:
     return 'next_token'
 
 
-def _first_list_length(values: Any) -> int:
-    """Count of the (single) list-valued field in a paginated result.
+def _result_list_length(result: Dict[str, Any]) -> int:
+    """Return the length of a known page-of-results list, or zero if none exists.
 
-    Every idiom handled here carries exactly one "items returned" list per
-    response (workflows, runs, repositories, ...); the rest of the response is
-    scalar metadata or the token itself.
+    Paginated responses can include other lists containing metadata, so only
+    documented result-list keys are eligible to determine ``returnedCount``.
     """
-    for value in values:
+    for key in _RESULT_LIST_KEYS:
+        value = result.get(key)
         if isinstance(value, list):
             return len(value)
     return 0
@@ -191,7 +217,7 @@ def paginating(tool_name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
         if isinstance(nested, dict) and 'has_more' in nested:
             token = nested.get('continuation_token')
             is_complete = not bool(nested['has_more'])
-            returned_count = _first_list_length(result.values())
+            returned_count = _result_list_length(result)
             nested.update(
                 _pagination_block(is_complete, returned_count, tool_name, param_name, token)
             )
@@ -200,7 +226,7 @@ def paginating(tool_name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
         if token_key is not None:
             token = result.get(token_key)
             is_complete = token is None
-            returned_count = _first_list_length(result.values())
+            returned_count = _result_list_length(result)
             result['pagination'] = _pagination_block(
                 is_complete, returned_count, tool_name, param_name, token
             )
