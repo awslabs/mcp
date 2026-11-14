@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `extract_slides_as_images` now removes the slides it already wrote when it
   fails partway, so an error response matches an output directory with no new
   slides (#5082).
+- When a tool times out, its background work now stops at the next page or
+  step instead of running on. `extract_slides_as_images` writes no further
+  slides after a timeout and removes the ones it wrote, and the PDF to image
+  step uses its own `timeout` (#5083).
 
 ### Changed
 - `extract_slides_as_images` now returns an error if a slide file path in the
