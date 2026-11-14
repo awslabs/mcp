@@ -49,7 +49,6 @@ You can customize the container behavior using environment variables:
 
 ```bash
 # Server configuration
--e SERVER_NAME="My API Server" \
 -e SERVER_DEBUG=true \
 -e SERVER_MESSAGE_TIMEOUT=60 \
 -e SERVER_HOST="0.0.0.0" \
@@ -74,40 +73,24 @@ You can customize the container behavior using environment variables:
 -e ENABLE_OPERATION_PROMPTS=true
 ```
 
-### Graceful Shutdown
+### Signal Handling
 
-The OpenAPI MCP Server implements a robust graceful shutdown mechanism to ensure clean termination when the server is stopped or interrupted. This is particularly important for production deployments where abrupt termination could lead to connection errors, data loss, or incomplete operations.
+The server runs over stdio, not Uvicorn. Its signal handlers log final metrics;
+they do not drain in-flight outbound API requests.
 
-#### How Graceful Shutdown Works
+#### What Happens on a Signal
 
-When the server receives a termination signal (SIGINT from Ctrl+C or SIGTERM from container orchestrators):
+1. Both SIGINT and SIGTERM log a shutdown message and final metrics.
+2. SIGINT (Ctrl+C) exits with status 0. The exit happens before the code that
+   would chain to the original handler.
+3. SIGTERM returns from the installed handler without exiting or calling the
+   previous handler. Logging the signal does not itself stop the process.
 
-1. The server logs that it's shutting down gracefully
-2. Final metrics are logged to provide visibility into the server's state at shutdown
-3. For SIGINT (Ctrl+C), the server chains to the original handler after logging
-4. Uvicorn's built-in graceful shutdown process handles the actual shutdown
-5. Active connections are allowed to complete before the server exits
+#### Container Shutdown
 
-#### Configuration Options
-
-The server's graceful shutdown can be configured through uvicorn options:
-
-```bash
-# Set a custom timeout for graceful shutdown (in seconds)
--e UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=5.0
-
-# Enable/disable graceful shutdown (default: true)
--e UVICORN_GRACEFUL_SHUTDOWN=true
-```
-
-#### Best Practices for Container Environments
-
-When running in container environments like Docker, Kubernetes, or ECS:
-
-1. **Set appropriate termination grace periods** - Allow enough time for connections to complete
-2. **Use SIGTERM for orchestrated shutdowns** - Container orchestrators typically send SIGTERM
-3. **Configure health checks** - Ensure they fail appropriately during shutdown
-4. **Monitor shutdown metrics** - Track shutdown times and any errors during shutdown
+Do not rely on the SIGTERM handler to terminate the process or complete active
+requests. Account for the orchestrator's termination deadline and forced-stop
+behavior, and verify shutdown behavior in the deployment environment.
 
 ### Deploying to AWS
 
