@@ -745,9 +745,27 @@ def _extract_slides_sync(
             _check_slide_target(name, dir_fd, resolved_dir)
 
         output_files = []
-        for page, name in zip(pages, names):
-            _write_slide(page, name, output_format.upper(), dir_fd, resolved_dir, base_dir)
-            output_files.append(os.path.join(output_dir, name))
+        try:
+            for page, name in zip(pages, names):
+                _write_slide(page, name, output_format.upper(), dir_fd, resolved_dir, base_dir)
+                output_files.append(os.path.join(output_dir, name))
+        except BaseException:
+            # Error means nothing written: remove the slides this call wrote.
+            # In the path fallback the directory may have been swapped, so it
+            # is re-verified before unlinking inside it.
+            try:
+                if dir_fd is None:
+                    _verify_output_dir_path(base_dir, resolved_dir)
+            except (UnsafeOutputPathError, OSError):
+                pass
+            else:
+                for name in names[: len(output_files)]:
+                    with contextlib.suppress(OSError):
+                        if dir_fd is not None:
+                            os.unlink(name, dir_fd=dir_fd)
+                        else:
+                            os.unlink(resolved_dir / name)
+            raise
         return output_files
     finally:
         if dir_fd is not None:

@@ -337,6 +337,17 @@ def test_temp_files_removed_when_later_slide_fails(sandbox, write_mode):
     assert _temp_leftovers(out) == []
 
 
+def test_failed_extraction_removes_slides_already_written(sandbox, write_mode):
+    """A failure on a later slide also removes the slides this call already wrote."""
+    out = sandbox.base / 'out'
+    out.mkdir()
+
+    with patch.object(server, 'convert_from_path', return_value=[*_pages(2), _FailingPage()]):
+        with pytest.raises(OSError, match='disk full'):
+            _extract_slides_sync('/docs/deck.pdf', str(out), 72, 'png')
+    assert list(out.iterdir()) == []
+
+
 def test_is_link_or_reparse_point_classification():
     """Symlinks and Windows name-surrogate reparse points are links; others are not."""
     reparse = getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0x400)
