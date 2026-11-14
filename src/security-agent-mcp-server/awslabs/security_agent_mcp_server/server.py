@@ -112,7 +112,22 @@ async def _validate_path(ctx: Context, path: str, must_be_dir: bool = True) -> s
     resolved = os.path.realpath(os.path.abspath(path))
     root = os.path.realpath(_ALLOWED_ROOT) if _ALLOWED_ROOT else os.path.realpath(os.getcwd())
 
-    if root != os.sep and not (resolved == root or resolved.startswith(root + os.sep)):
+    # A root filesystem workspace would make every local path eligible for upload.
+    # Fail closed instead, and require the caller to declare a confined workspace.
+    if os.path.dirname(root) == root:
+        raise ValueError(
+            'Cannot determine a safe workspace: the allowed workspace resolves to the filesystem '
+            'root. Set the WORKSPACE_ROOT environment variable to the directory you want to allow '
+            'scanning.'
+        )
+
+    try:
+        is_within_workspace = os.path.commonpath((root, resolved)) == root
+    except ValueError:
+        # Paths on different volumes (for example, on Windows) cannot share a workspace.
+        is_within_workspace = False
+
+    if not is_within_workspace:
         raise ValueError(
             f'Path "{path}" resolves to "{resolved}" which is outside the allowed workspace '
             f'root "{root}". Set the WORKSPACE_ROOT environment variable to the directory '
@@ -404,10 +419,12 @@ async def start_security_scan(
         if not config.get('agent_space_id') or not config.get('service_role'):
             return json.dumps({'error': 'Not configured. Run setup first.'}, default=_json_serial)
 
+        # Validate before creating cloud resources or handing the path to the scanner.
+        path = await _validate_path(ctx, path)
+
         # Lazy S3 bucket creation on first scan
         _ensure_s3_bucket(config)
 
-        path = await _validate_path(ctx, path)
         prefix = _client_prefix(ctx)
         title = (
             f'{prefix}-{title}'
@@ -459,9 +476,10 @@ async def start_diff_scan(
         if not config.get('agent_space_id') or not config.get('service_role'):
             return json.dumps({'error': 'Not configured. Run setup first.'}, default=_json_serial)
 
+        path = await _validate_path(ctx, path)
+
         _ensure_s3_bucket(config)
 
-        path = await _validate_path(ctx, path)
         prefix = _client_prefix(ctx)
         title = (
             f'{prefix}-{title}'
@@ -514,10 +532,11 @@ async def start_threat_model_review(
         if not config.get('agent_space_id') or not config.get('service_role'):
             return json.dumps({'error': 'Not configured. Run setup first.'}, default=_json_serial)
 
-        _ensure_s3_bucket(config, 'threat-model')
-
         path = await _validate_path(ctx, path)
         specs = [await _validate_path(ctx, s, must_be_dir=False) for s in specs]
+
+        _ensure_s3_bucket(config, 'threat-model')
+
         prefix = _client_prefix(ctx)
         title = (
             f'{prefix}-{title}'
