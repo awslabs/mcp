@@ -704,6 +704,23 @@ def _write_slide(
         raise
 
 
+def _remove_slides(
+    names: List[str], dir_fd: Optional[int], dir_path: Path, base_dir: Path
+) -> None:
+    """Best-effort removal of slides written by a failed extraction."""
+    if dir_fd is None:
+        try:
+            _verify_output_dir_path(base_dir, dir_path)
+        except OSError:
+            return
+    for name in names:
+        with contextlib.suppress(OSError):
+            if dir_fd is not None:
+                os.unlink(name, dir_fd=dir_fd)
+            else:
+                os.unlink(dir_path / name)
+
+
 def _extract_slides_sync(
     file_path: str,
     output_dir: str,
@@ -744,11 +761,16 @@ def _extract_slides_sync(
         for name in names:
             _check_slide_target(name, dir_fd, resolved_dir)
 
-        output_files = []
-        for page, name in zip(pages, names):
-            _write_slide(page, name, output_format.upper(), dir_fd, resolved_dir, base_dir)
-            output_files.append(os.path.join(output_dir, name))
-        return output_files
+        written = []
+        try:
+            for page, name in zip(pages, names):
+                _write_slide(page, name, output_format.upper(), dir_fd, resolved_dir, base_dir)
+                written.append(name)
+        except BaseException:
+            # An error response reports no slides, so remove the ones this call wrote.
+            _remove_slides(written, dir_fd, resolved_dir, base_dir)
+            raise
+        return [os.path.join(output_dir, name) for name in written]
     finally:
         if dir_fd is not None:
             os.close(dir_fd)
