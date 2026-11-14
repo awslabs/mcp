@@ -1,12 +1,12 @@
 # End-to-end test: The guide, unprompted
 
-2026-11-05 02:25 UTC
+2026-11-13 23:30 UTC
 
 - **Scenario**: `guide`
-- **Code under test**: `feat/redshift-guide-skill` at `6d01b634`
+- **Code under test**: `fix/redshift-read-only-transaction-rollback` at `8998a9d0`
 - **Agent**: `kiro-cli`, model `claude-opus-5`
 - **Exit status**: `0`
-- **Duration**: 2.0 min
+- **Duration**: 1.5 min
 - **Region**: `us-east-1`
 - **Provisioned**: `mcp-e2e-provisioned`, ra3.large x2
 - **Serverless**: `mcp-e2e-serverless`, 8 RPU
@@ -31,39 +31,37 @@ Which tables in database `dev` on my Redshift warehouse `mcp-e2e-harbor` take up
 
 ## Transcript
 
-I'll start by loading the Redshift guide, as this server requires.`mcp-e2e-harbor` is a serverless workgroup, so I'll attribute space with `SVV_TABLE_INFO` (the STV/STL storage views don't exist there).Only an internal table came back. Let me confirm that's the real picture and not a visibility limit.**Database `dev` on `mcp-e2e-harbor` holds no user tables, so there is nothing consuming space and nothing to reclaim.**
+**Nothing to report and nothing to reclaim: `dev` on `mcp-e2e-harbor` holds no user tables.**
 
-What `SVV_TABLE_INFO` returns is a single row, and it isn't yours:
+`SVV_TABLE_INFO` (superuser, so the view is unfiltered) returns exactly one row for the whole database:
 
-| schema | table | size | rows | ghost rows |
+| schema | table | size | ghost rows | unsorted | vacuum_sort_benefit |
 
-|---|---|---|---|---|
+|---|---|---|---|---|---|
 
-| pg_internal | redshift_auto_health_check_ | 32 MB | 4,000 | 0 |
+| pg_internal | redshift_auto_health_check_ | 32 MB (32 blocks) | 0 of 4,000 | null | null |
 
-That table belongs to Redshift's own automatic health check. It carries zero ghost rows, and you can't vacuum or drop it in any case.
+That is Redshift's own internal health-check relation, not yours. `tbl_rows - estimated_visible_rows` is 0, so there are no ghost rows to clear, and `vacuum_sort_benefit` is null, so there is no sort debt either. Reclaimable space: 0. Do not run VACUUM here.
 
-A cross-check backs this up: I'm connected as `IAMR:Admin`, a superuser, so `SVV_TABLE_INFO` rows aren't being filtered by privilege; `dev` contains only `public`, `pg_catalog` and `information_schema`, and `public` is empty.
+The only user-visible schema, `public`, contains no tables; the rest are `pg_catalog` and `information_schema`.
 
-Two things worth knowing before you go looking elsewhere:
+Two things worth knowing before you conclude the workgroup is empty:
 
-- The workgroup also auto-mounts three external catalogs (`awsdatacatalog`, `[catalog]@s3tablescatalog`, `[catalog]@s3tablescatalog`). Data in those lives in S3 or S3 Tables and is billed there, not as Redshift managed storage. Redshift refuses connections to an auto-mounted catalog, so neither I nor `SVV_TABLE_INFO` can size them from here.
+- The workgroup also has three auto-mounted catalogs (`awsdatacatalog`, `[catalog]@s3tablescatalog`, `[catalog]@s3tablescatalog`). Their data sits in S3/Glue, not in Redshift managed storage, and Redshift refuses connections to them, so neither this server nor `SVV_TABLE_INFO` can size them. Check those through S3 or the Glue/S3 Tables console.
 
-- If you see a storage figure in the console or in CloudWatch that this doesn't explain, on Serverless that reading is managed storage plus cache plus query spill, not permanent table data. Snapshots and recovery points also bill against managed storage and never show up in `SVV_TABLE_INFO`. Pruning old recovery points would be the lever there, not `VACUUM`.
-
-If you expected tables here, tell me which workgroup or cluster you think they're on and I'll run the same attribution against it.
-
-[tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
+- `SVV_TABLE_INFO` covers permanent user tables only. If a billing or capacity figure for this workgroup looks larger than 32 MB, the rest is temp/spill, catalog, snapshot and recovery-point storage, none of which VACUUM touches. `SVV_TABLES_SPACE_USAGE` splits perm vs temp vs datashared per node if you want that breakdown, and `sys_serverless_usage` covers billed storage.
 
 [tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
 
 [tool] Running: @awslabs.redshift-mcp-server/list_clusters
 
 [tool] status: Completed
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
+
+[tool] Running: @awslabs.redshift-mcp-server/retrieve_skill_file
 
 [tool] status: Completed
 
@@ -78,6 +76,10 @@ If you expected tables here, tell me which workgroup or cluster you think they'r
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
 
 [tool] status: Completed
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/list_tables
 
 [tool] status: Completed
 
