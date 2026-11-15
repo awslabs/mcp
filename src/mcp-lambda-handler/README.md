@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This library is deprecated and will no longer receive updates. Please migrate to [Amazon Bedrock AgentCore Gateway](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway.html) with AWS Lambda targets, where the gateway is the MCP endpoint: it holds the tool schemas, checks each caller with IAM or a JSON Web Token, validates the arguments, and invokes your function with only the tool's arguments. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-mcp-lambda-handler.md) for the concept mapping.
+
 # MCP Lambda Handler Module
 
 A Python library for creating serverless HTTP handlers for the Model Context Protocol (MCP) using AWS Lambda. This library provides a minimal, extensible framework for building MCP HTTP endpoints with pluggable session management support.
