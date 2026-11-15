@@ -3,10 +3,10 @@ name = "awslabs.security-agent-mcp-server"
 version = "0.2.2"
 description = "An AWS Labs Model Context Protocol (MCP) server for AWS Security Agent — automated security scanning, penetration testing, and remediation"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "boto3>=1.43.32",
-    "filelock>=3.0.0",
+    "filelock>=4.2.1",
     "loguru>=0.7.0",
     "mcp[cli]>=2.0.0,<3.0.0",
     "pydantic>=2.10.6",
@@ -26,7 +26,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",

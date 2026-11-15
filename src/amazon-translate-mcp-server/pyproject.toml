@@ -51,7 +51,6 @@ dependencies = [
     "starlette>=0.50.0",
     "urllib3>=2.6.0",
     "authlib>=1.6.6",
-    "filelock>=3.20.0",
     "python-multipart>=0.0.22",
 ]
 
@@ -74,7 +73,7 @@ Changelog = "https://github.com/awslabs/mcp/blob/main/src/amazon-translate-mcp-s
 [dependency-groups]
 dev = [
     "commitizen>=4.2.2",
-    "pre-commit>=4.1.0",
+    "pre-commit>=4.1.0; python_version >= '3.11'",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
     "pytest>=8.0.0",

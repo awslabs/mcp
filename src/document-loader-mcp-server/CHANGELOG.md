@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `extract_slides_as_images` now writes slide images only inside the resolved
+  output directory under `DOCUMENT_BASE_DIR`. Each slide is written to a new
+  temporary file in that directory and then moved into place.
+
+### Changed
+- `extract_slides_as_images` now returns an error if a slide file path in the
+  output directory already exists as a symlink. Output file names, image
+  content, and the response format are unchanged.
+
 ## [1.0.21] - 2026-09-01
 
 ### Security
