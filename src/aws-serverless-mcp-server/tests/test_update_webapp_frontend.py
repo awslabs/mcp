@@ -167,6 +167,36 @@ class TestUpdateWebappFrontend:
             )
 
     @pytest.mark.asyncio
+    async def test_sync_directory_to_s3_windows_paths(self):
+        """Test that Windows paths become POSIX S3 keys and existing objects are kept."""
+        import ntpath
+        from types import SimpleNamespace
+
+        mock_s3_client = MagicMock()
+        mock_s3_client.list_objects_v2.return_value = {
+            'Contents': [{'Key': 'index.html'}, {'Key': 'assets/app.js'}],
+            'IsTruncated': False,
+        }
+        local_files = [r'C:\site\index.html', r'C:\site\assets\app.js']
+        windows_os = SimpleNamespace(path=ntpath, sep='\\')
+
+        with (
+            patch(
+                'awslabs.aws_serverless_mcp_server.tools.webapps.update_webapp_frontend.os',
+                windows_os,
+            ),
+            patch.object(UpdateFrontendTool, '_get_all_files', return_value=local_files),
+            patch('builtins.open', mock_open(read_data=b'content')),
+        ):
+            await UpdateFrontendTool(MagicMock(), True)._sync_directory_to_s3(
+                mock_s3_client, r'C:\site', 'test-bucket'
+            )
+
+        uploaded = [c[1]['Key'] for c in mock_s3_client.put_object.call_args_list]
+        assert sorted(uploaded) == ['assets/app.js', 'index.html']
+        mock_s3_client.delete_object.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_sync_directory_to_s3_empty_s3(self):
         """Test sync_directory_to_s3 with an empty S3 bucket."""
         mock_s3_client = MagicMock()
