@@ -227,6 +227,10 @@ async def _run_with_timeout(func: Callable[..., T], *args: Any, timeout_seconds:
 
     ``func`` must accept a ``cancel`` keyword argument and call ``cancel.check()``
     between steps. Raises ``asyncio.TimeoutError`` if the work does not finish in time.
+
+    The timeout error is returned right away; the worker stops at its next checkpoint,
+    so any cleanup it does (such as removing written slides) completes shortly after.
+    A single blocking step, such as one markitdown conversion, runs to its end.
     """
     cancel = _CancelToken()
     loop = asyncio.get_running_loop()
@@ -814,7 +818,8 @@ def _extract_slides_sync(
     be inside the base directory. Existing symlinks at slide paths are refused.
 
     If ``cancel`` fires, no further slide is started and the slides this call
-    wrote are removed before WorkCancelledError propagates.
+    wrote are removed before WorkCancelledError propagates. This happens as the
+    worker stops, so shortly after the caller's timeout error is returned.
     """
     suffix = Path(file_path).suffix.lower()
     temp_dir = None

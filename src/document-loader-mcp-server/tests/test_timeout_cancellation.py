@@ -219,6 +219,35 @@ async def test_no_slide_is_written_after_timeout_fires(base_dir, write_mode):
 
 
 @pytest.mark.asyncio
+async def test_timeout_during_last_slide_leaves_no_slides(base_dir, write_mode):
+    """A timeout while the last slide is written still removes every slide."""
+    out = base_dir / 'out'
+    writes = _BlockingWrites(block_on=5)
+    finished = threading.Event()
+
+    def extract(*args, cancel):
+        try:
+            return _extract_slides_sync(*args, cancel=cancel)
+        finally:
+            finished.set()
+
+    with (
+        patch.object(server, 'convert_from_path', return_value=_pages(5)),
+        patch.object(server, '_write_slide', writes),
+    ):
+        with pytest.raises(asyncio.TimeoutError):
+            await _run_with_timeout(
+                extract, '/docs/deck.pdf', str(out), 72, 'png', timeout_seconds=0.2
+            )
+        assert writes.blocked.is_set()
+        writes.release.set()
+        assert await asyncio.to_thread(finished.wait, WAIT_SECONDS)
+
+    assert len(writes.started) == 5
+    assert list(out.iterdir()) == []
+
+
+@pytest.mark.asyncio
 async def test_tool_timeout_leaves_no_slides(base_dir, write_mode):
     """End to end: the tool reports a timeout and the output directory holds no slides."""
     deck = base_dir / 'deck.pdf'

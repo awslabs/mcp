@@ -17,7 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - When a tool times out, its background work now stops at the next page or
   step instead of running on. `extract_slides_as_images` writes no further
   slides after a timeout and removes the ones it wrote, and the PDF to image
-  step uses its own `timeout` (#5083).
+  step uses its own `timeout` (#5083). The timeout error is returned right
+  away and the cleanup completes as the worker stops, shortly after. A single
+  markitdown conversion cannot be stopped partway, and the PDF to image
+  timeout counts from when poppler starts.
 
 ### Changed
 - `extract_slides_as_images` now returns an error if a slide file path in the
