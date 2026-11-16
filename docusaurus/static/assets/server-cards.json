@@ -298,7 +298,7 @@
       "description": "Help users create and manage AWS Support cases",
       "icon": "\ud83c\udfd7\ufe0f",
       "id": "aws-support-mcp-server",
-      "name": "AWS Support MCP Server",
+      "name": "AWS Support MCP Server (Deprecated)",
       "source_path": "src/aws-support-mcp-server/",
       "subcategory": "Support",
       "tags": [

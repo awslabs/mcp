@@ -16,6 +16,7 @@
 import argparse
 import os
 import sys
+import warnings
 from awslabs.aws_support_mcp_server.client import SupportClient
 from awslabs.aws_support_mcp_server.consts import (
     DEFAULT_ISSUE_TYPE,
@@ -60,10 +61,17 @@ from pydantic import Field, ValidationError
 from typing import Any, Dict, List, Optional
 
 
+DEPRECATION_NOTICE = (
+    'awslabs.aws-support-mcp-server is deprecated and will not receive further updates. '
+    'Use the AWS MCP Server (https://github.com/aws/agent-toolkit-for-aws) instead. '
+    'Migration guide: https://github.com/awslabs/mcp/blob/main/docs/migration-aws-support.md'
+)
+
 # Initialize the MCP server
 mcp = FastMCP(
     'awslabs_support_mcp_server',
-    instructions="""
+    instructions=f"""{DEPRECATION_NOTICE}
+
     # AWS Support API MCP Server
 
     This MCP server provides tools for interacting with the AWS Support API, enabling AI assistants to create and manage support cases on behalf of users.
@@ -283,7 +291,7 @@ async def create_support_case(
     ),
     attachment_set_id: Optional[str] = Field(None, description='The ID of the attachment set'),
 ) -> Dict[str, Any]:
-    """Create a new AWS Support case.
+    """[DEPRECATED] Create a new AWS Support case.
 
     ## Prerequisites
     1. **describe_services** → get valid `service_code` and `category_code` values
@@ -407,7 +415,7 @@ async def describe_support_cases(
     next_token: Optional[str] = Field(None, description='A resumption point for pagination'),
     format: str = Field('json', description='The format of the response (json or markdown)'),
 ) -> Dict[str, Any]:
-    """Retrieve information about support cases.
+    """[DEPRECATED] Retrieve information about support cases.
 
     ## Usage
     - You can retrieve cases by ID, display ID, or date range
@@ -452,7 +460,7 @@ async def describe_severity_levels(
     language: str = Field(DEFAULT_LANGUAGE, description="The language code (e.g., 'en', 'ja')"),
     format: str = Field('json', description='The format of the response in markdown or json'),
 ) -> Dict[str, Any]:
-    """Retrieve information about AWS Support severity levels. This tool provides details about the available severity levels for AWS Support cases, including their codes and descriptions.
+    """[DEPRECATED] Retrieve information about AWS Support severity levels. This tool provides details about the available severity levels for AWS Support cases, including their codes and descriptions.
 
     ## Usage
     - You can request the response in either JSON or Markdown format.
@@ -535,7 +543,7 @@ async def add_communication_to_case(
     ),
     attachment_set_id: Optional[str] = Field(None, description='The ID of the attachment set'),
 ) -> Dict[str, Any]:
-    """Add communication to a support case.
+    """[DEPRECATED] Add communication to a support case.
 
     ## Usage
     - You must provide a valid case ID
@@ -594,7 +602,7 @@ async def resolve_support_case(
     ctx: Context,
     case_id: str = Field(..., description='The ID of the support case'),
 ) -> Dict[str, Any]:
-    """Resolve a support case.
+    """[DEPRECATED] Resolve a support case.
 
     ## Usage
     - You must provide a valid case ID
@@ -623,7 +631,7 @@ async def describe_services(
     ),
     format: str = Field('json', description='The format of the response (json or markdown)'),
 ) -> Dict[str, Any]:
-    """Retrieve information about AWS services available for support cases.
+    """[DEPRECATED] Retrieve information about AWS services available for support cases.
 
     This tool provides details about AWS services, including their service codes,
     names, and categories. Use this information when creating support cases to
@@ -726,7 +734,7 @@ async def describe_communications(
     ),
     next_token: Optional[str] = Field(None, description='Pagination token'),
 ) -> Dict[str, Any]:
-    """Retrieve communications for a support case.
+    """[DEPRECATED] Retrieve communications for a support case.
 
     ## Usage
     - Provide a case ID to get all communications for that case
@@ -779,7 +787,7 @@ async def describe_supported_languages(
         'technical', description='The issue type: technical or customer-service'
     ),
 ) -> Dict[str, Any]:
-    """Retrieve supported languages for a specific service and category.
+    """[DEPRECATED] Retrieve supported languages for a specific service and category.
 
     Returns a list of languages with their ISO 639-1 code and display name.
     Language support varies by service, category, and issue type.
@@ -842,7 +850,7 @@ async def describe_create_case_options(
         None, description='The issue type: technical or customer-service'
     ),
 ) -> Dict[str, Any]:
-    """Retrieve supported hours and language availability for a service.
+    """[DEPRECATED] Retrieve supported hours and language availability for a service.
 
     Returns communication types (e.g., chat, phone, web) with their supported
     hours and any dates without support, plus language availability status.
@@ -909,7 +917,7 @@ async def add_attachments_to_set(
         None, description='Existing attachment set ID to append to. Omit to create a new set.'
     ),
 ) -> Dict[str, Any]:
-    """Add attachments to a new or existing attachment set.
+    """[DEPRECATED] Add attachments to a new or existing attachment set.
 
     ## Usage
     - Use before create_support_case or add_communication_to_case
@@ -959,7 +967,7 @@ async def describe_attachment(
         ..., description='The ID of the attachment. Get IDs from describe_communications.'
     ),
 ) -> Dict[str, Any]:
-    """Retrieve an attachment by ID.
+    """[DEPRECATED] Retrieve an attachment by ID.
 
     ## Usage
     - Get attachment IDs from describe_communications results
@@ -975,6 +983,8 @@ async def describe_attachment(
 
 def main():
     """Run the MCP server with CLI argument support."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
+
     parser = argparse.ArgumentParser(description='AWS Support API MCP Server')
     parser.add_argument(
         '--log-file',

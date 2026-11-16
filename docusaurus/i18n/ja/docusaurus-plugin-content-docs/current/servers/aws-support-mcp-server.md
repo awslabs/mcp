@@ -1,6 +1,8 @@
 ---
-title: "AWS Support MCPサーバー"
+title: "AWS Support MCPサーバー（非推奨）"
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。こちらは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて同じ AWS Support API（`CreateCase`、`DescribeCases`、`AddCommunicationToCase` など）を呼び出し、完全なレスポンスを返します。ツールの対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-aws-support.md) を参照してください。
 
 AWS Support API と連携するための Model Context Protocol (MCP) サーバー実装です。このサーバーにより、AI アシスタントがプログラムから AWS サポートケースを作成・管理できるようになります。
 

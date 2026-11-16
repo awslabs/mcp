@@ -1,5 +1,5 @@
 ---
-title: AWS Support MCP Server
+title: AWS Support MCP Server (Deprecated)
 ---
 
 import ReadmeContent from "../../../src/aws-support-mcp-server/README.md";

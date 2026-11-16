@@ -3236,7 +3236,8 @@ class TestServer:
 
         # Call main (but mock the actual server run)
         with patch('awslabs.aws_support_mcp_server.server.mcp.run'):
-            main()
+            with pytest.warns(FutureWarning):
+                main()
 
         # Verify logging configuration
         mock_logger.remove.assert_called()
@@ -3261,7 +3262,8 @@ class TestServer:
 
         # Call main (but mock the actual server run)
         with patch('awslabs.aws_support_mcp_server.server.mcp.run'):
-            main()
+            with pytest.warns(FutureWarning):
+                main()
 
         # Verify directory was created (OS-native path separators)
         mock_makedirs.assert_called_once_with(os.path.join(tmpdir, 'test'))
@@ -3279,7 +3281,8 @@ class TestServer:
 
         # Call main (but mock the actual server run)
         with patch('awslabs.aws_support_mcp_server.server.mcp.run'):
-            main()
+            with pytest.warns(FutureWarning):
+                main()
 
         # Verify INFO level logging was set (not DEBUG)
         assert any('INFO' in str(call) for call in mock_logger.add.call_args_list)
@@ -3296,7 +3299,8 @@ class TestServer:
 
         # Call main (but mock the actual server run)
         with patch('awslabs.aws_support_mcp_server.server.mcp.run'):
-            main()
+            with pytest.warns(FutureWarning):
+                main()
 
         # Verify diagnostics were enabled
         mock_diagnostics.enable.assert_called_once()
@@ -3513,7 +3517,8 @@ class TestServerBranchCoverage:
         sys.argv = ['server.py', '--debug']
         with patch('awslabs.aws_support_mcp_server.server.mcp') as mock_mcp:
             mock_mcp.settings = SimpleNamespace(debug=False)
-            main()
+            with pytest.warns(FutureWarning):
+                main()
             assert mock_mcp.settings.debug is True
 
     @patch('awslabs.aws_support_mcp_server.server.logger')
@@ -3535,5 +3540,6 @@ class TestServerBranchCoverage:
 
         sys.argv = ['server.py', '--debug']
         with patch('awslabs.aws_support_mcp_server.server.mcp', new=DummyMCP()) as dummy:
-            main()
+            with pytest.warns(FutureWarning):
+                main()
             assert dummy.debug is True
