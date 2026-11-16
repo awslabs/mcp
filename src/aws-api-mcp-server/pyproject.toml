@@ -52,7 +52,7 @@ changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-api-mcp-server/CHA
 [dependency-groups]
 dev = [
     "commitizen>=4.2.2",
-    "pre-commit>=4.1.0",
+    "pre-commit>=4.1.0; python_version >= '3.11'",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
     "pytest-asyncio>=0.26.0",

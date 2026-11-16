@@ -41,6 +41,8 @@ from typing import Any, Dict, List, Literal, Optional
 # human-readable ISO 8601 UTC strings so the values are JSON-serializable and
 # self-explanatory to the agent, while leaving every other field untouched.
 _TIMESTAMP_FIELDS = ('IssuedDate', 'DueDate')
+# An estimated invoice's InvoiceId starts with this; nothing else in the summary marks it.
+_ESTIMATE_PREFIX = 'Estimate-'
 
 _SECONDS_PER_DAY = 86400
 
@@ -197,13 +199,26 @@ def _create_invoicing_client() -> Any:
     return create_aws_client('invoicing')
 
 
+def _is_epoch_zero(value: Any) -> bool:
+    """Return True for the Unix epoch, as epoch seconds or as an aware or naive datetime."""
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.timestamp() == 0
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value == 0
+
+
 def _normalize_invoice_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize a raw InvoiceSummary for agent consumption.
 
     Converts the epoch timestamp fields (``IssuedDate`` and ``DueDate``) into
-    ISO 8601 UTC strings so they are JSON-serializable and human-readable. All
-    other fields are returned exactly as provided by the AWS API to preserve
-    fidelity (for example, monetary amounts remain decimal strings).
+    ISO 8601 UTC strings so they are JSON-serializable and human-readable. An
+    ``IssuedDate`` of the epoch itself means unset (estimated invoices carry it)
+    and becomes ``None`` rather than 1970-01-01. Adds ``is_estimate``: True when
+    the ``InvoiceId`` starts with ``Estimate-``, the only field that tells an
+    estimate from an issued invoice. All other fields are returned exactly as
+    provided by the AWS API to preserve fidelity (for example, monetary amounts
+    remain decimal strings).
 
     Args:
         summary: A single ``InvoiceSummary`` object from the Invoicing API.
@@ -215,8 +230,13 @@ def _normalize_invoice_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
         value = summary.get(field)
         # Guard against double-normalization: only convert raw timestamps
         # (epoch numbers or datetime objects), never an already-ISO string.
-        if value is not None and not isinstance(value, str):
+        if value is None or isinstance(value, str):
+            continue
+        if field == 'IssuedDate' and _is_epoch_zero(value):
+            summary[field] = None
+        else:
             summary[field] = timestamp_to_utc_iso_string(value)
+    summary['is_estimate'] = str(summary.get('InvoiceId') or '').startswith(_ESTIMATE_PREFIX)
     return summary
 
 

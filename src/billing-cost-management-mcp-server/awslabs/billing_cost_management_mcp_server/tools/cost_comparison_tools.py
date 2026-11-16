@@ -109,9 +109,16 @@ def _upper_snake(metric: str) -> str:
 def _parse_month(name: str, start: str, end: str) -> Tuple[date, date]:
     """Parse one period and require it to be exactly one calendar month."""
     for value in (start, end):
-        if not isinstance(value, str) or not _DATE_PATTERN.match(value):
+        if not isinstance(value, str) or not _DATE_PATTERN.fullmatch(value):
             raise ValueError(
                 f'{name} period date {value!r} is not in YYYY-MM-DD format. {_WHOLE_MONTHS}'
+            )
+        # A time other than midnight is not a month boundary, and cutting it to the date
+        # would silently move the boundary, so reject it.
+        if len(value) > 10 and value[10:] != 'T00:00:00Z':
+            raise ValueError(
+                f'{name} period date {value!r} is not midnight UTC. Use YYYY-MM-DD. '
+                f'{_WHOLE_MONTHS}'
             )
     try:
         first, last = date.fromisoformat(start[:10]), date.fromisoformat(end[:10])
@@ -337,6 +344,8 @@ AWS call:
 - ABSENT together with Values: the comparison APIs drop the Values
 - A RESOURCE_ID filter
 - Nesting of 97 or more And/Or/Not levels, which fails in Cost Explorer
+A filter holds at most 200 values in total, counted across all its leaves (Cost Explorer
+returns ValidationException beyond that; getCostAndUsage allows 6,000).
 In group_by, Cost Explorer itself rejects RESOURCE_ID and USAGE_TYPE_GROUP.
 
 Pagination (both operations):
@@ -374,7 +383,7 @@ async def cost_comparison(
         comparison_end_date: Comparison period end date in YYYY-MM-DD format (must be first day of next month)
         metric_for_comparison: The metric to compare, exact case. getCostAndUsageComparisons: AmortizedCost, BlendedCost, NetAmortizedCost, NetUnblendedCost, NormalizedUsageAmount, UnblendedCost, UsageQuantity. getCostComparisonDrivers: the five *Cost metrics only
         group_by: Optional grouping of results as a JSON string (e.g., '[{"Type": "DIMENSION", "Key": "SERVICE"}]')
-        filter: Optional Cost Explorer Expression as a JSON string. Keys and values match exactly, including case; MatchOptions only EQUALS/CASE_SENSITIVE (plus ABSENT, without Values, for Tags and CostCategories); no RESOURCE_ID
+        filter: Optional Cost Explorer Expression as a JSON string. Keys and values match exactly, including case; MatchOptions only EQUALS/CASE_SENSITIVE (plus ABSENT, without Values, for Tags and CostCategories); no RESOURCE_ID; at most 200 values in total
         max_items: Total comparisons or drivers to return. None fetches every page.
         next_token: Pagination token from a previous response
         billing_view_arn: Optional ARN of a specific billing view
@@ -403,7 +412,12 @@ async def cost_comparison(
             metric_for_comparison,
             today,
         )
-        validate_comparison_filter(parse_json(filter, 'filter'))
+        validate_comparison_filter(parse_filter(filter))
+        # getCostComparisonDrivers answers 504 Gateway Timeout when any period date has a
+        # time part, even T00:00:00Z (getCostAndUsageComparisons accepts it), so send dates.
+        baseline_start_date, baseline_end_date = baseline_start_date[:10], baseline_end_date[:10]
+        comparison_start_date = comparison_start_date[:10]
+        comparison_end_date = comparison_end_date[:10]
 
         # Initialize Cost Explorer client using shared utility
         ce_client = create_aws_client('ce', region_name='us-east-1')

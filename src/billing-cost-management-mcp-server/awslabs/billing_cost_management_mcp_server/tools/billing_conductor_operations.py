@@ -117,19 +117,22 @@ def _current_billing_period() -> str:
     return f'{today.year:04d}-{today.month:02d}'
 
 
-def _is_future_billing_period(billing_period: Optional[str]) -> bool:
+def _is_future_billing_period(billing_period: Any) -> bool:
     """Return True when billing_period is a well-formed month after the current UTC month.
 
-    A missing or malformed value is not future; the service validates the format.
+    A missing or malformed value is not future, including a non-string one parsed from
+    caller JSON; botocore and the service validate the type and format.
     """
-    match = _BILLING_PERIOD_PATTERN.fullmatch(billing_period or '')
+    if not isinstance(billing_period, str):
+        return False
+    match = _BILLING_PERIOD_PATTERN.fullmatch(billing_period)
     if not match:
         return False
     today = _utc_today()
     return (int(match.group(1)), int(match.group(2))) > (today.year, today.month)
 
 
-def _reject_future_billing_period(billing_period: Optional[str], field: str, outcome: str) -> None:
+def _reject_future_billing_period(billing_period: Any, field: str, outcome: str) -> None:
     """Raise ValueError when a cost report is asked for a month that has not started.
 
     Args:

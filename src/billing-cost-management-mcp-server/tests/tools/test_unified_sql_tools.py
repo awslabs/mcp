@@ -200,3 +200,13 @@ async def test_unified_sql_real_exception_flow_calls_handle_error_reload_identit
         assert res['status'] == 'error'
         assert 'kaboom' in res.get('message', '')
         mock_handle.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_description_names_no_nonexistent_tool():
+    """session-sql points at the offload fields, not a cost_explorer_sql tool that does not exist."""
+    tool = await unified_sql_server.get_tool('session-sql')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert 'cost_explorer_sql' not in description
+    assert '`data.data_stored: true` and names the table in `data.table_name`' in description

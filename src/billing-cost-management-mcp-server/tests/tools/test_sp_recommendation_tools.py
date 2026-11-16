@@ -30,6 +30,8 @@ from awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools im
     sp_recommendation_server,
     start_savings_plans_purchase_recommendation_generation,
 )
+from awslabs.billing_cost_management_mcp_server.utilities.error_contract import add_retry_guidance
+from botocore.exceptions import ClientError
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -767,3 +769,123 @@ def test_sp_recommendation_server_initialization():
     """The server is named and carries instructions."""
     assert sp_recommendation_server.name == 'sp-recommendation-tools'
     assert sp_recommendation_server.instructions is not None
+
+
+def _access_denied_without_message(operation_name):
+    """The error Cost Explorer returns for a rejected NextPageToken on these operations."""
+    return ClientError(
+        {
+            'Error': {'Code': 'AccessDeniedException'},
+            'ResponseMetadata': {'RequestId': 'r1', 'HTTPStatusCode': 400},
+        },
+        operation_name,
+    )
+
+
+def _access_denied_with_message(operation_name):
+    """A real permission error, which carries a message."""
+    return ClientError(
+        {
+            'Error': {
+                'Code': 'AccessDeniedException',
+                'Message': 'User is not authorized to perform: ce:' + operation_name,
+            },
+            'ResponseMetadata': {'RequestId': 'r1', 'HTTPStatusCode': 400},
+        },
+        operation_name,
+    )
+
+
+async def _call_get(mock_context, ce_client, next_token):
+    return await get_savings_plans_purchase_recommendation(
+        mock_context,
+        ce_client,
+        savings_plans_type='COMPUTE_SP',
+        term_in_years='ONE_YEAR',
+        payment_option='NO_UPFRONT',
+        lookback_period_in_days='SEVEN_DAYS',
+        account_scope=None,
+        filter_expr=None,
+        max_items=1,
+        next_token=next_token,
+    )
+
+
+async def _call_list(mock_context, ce_client, next_token):
+    return await list_savings_plans_purchase_recommendation_generation(
+        mock_context,
+        ce_client,
+        generation_status=None,
+        recommendation_ids=None,
+        max_items=1,
+        next_token=next_token,
+    )
+
+
+TOKEN_OPERATIONS = [
+    (
+        'get_savings_plans_purchase_recommendation',
+        'GetSavingsPlansPurchaseRecommendation',
+        _call_get,
+    ),
+    (
+        'list_savings_plans_purchase_recommendation_generation',
+        'ListSavingsPlansPurchaseRecommendationGeneration',
+        _call_list,
+    ),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('method,operation_name,call', TOKEN_OPERATIONS)
+async def test_rejected_next_token_reported_as_token_error_not_access_denied(
+    mock_context, method, operation_name, call
+):
+    """A rejected next_token comes back as AccessDeniedException with no message.
+
+    Cost Explorer answers a stale, truncated or made-up NextPageToken on both paginated
+    operations this way. The caller must restart without the token, not report a
+    missing permission.
+    """
+    ce_client = MagicMock()
+    getattr(ce_client, method).side_effect = _access_denied_without_message(operation_name)
+
+    result = add_retry_guidance(await call(mock_context, ce_client, 'stale-token'))
+
+    assert result['status'] == 'error'
+    assert result['error_type'] == 'invalid_next_token'
+    assert 'AccessDeniedException' in result['message']
+    assert result['retry_strategy'] == 'modify_request'
+    assert 'without next_token' in result['hint']
+    assert getattr(ce_client, method).call_args.kwargs['NextPageToken'] == 'stale-token'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('method,operation_name,call', TOKEN_OPERATIONS)
+async def test_access_denied_without_next_token_stays_access_denied(
+    mock_context, method, operation_name, call
+):
+    """Without a caller token, AccessDeniedException is a permission error as before."""
+    ce_client = MagicMock()
+    getattr(ce_client, method).side_effect = _access_denied_without_message(operation_name)
+
+    result = add_retry_guidance(await call(mock_context, ce_client, None))
+
+    assert result['error_type'] == 'AccessDeniedException'
+    assert result['retry_strategy'] == 'do_not_retry'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('method,operation_name,call', TOKEN_OPERATIONS)
+async def test_access_denied_with_a_message_and_next_token_stays_access_denied(
+    mock_context, method, operation_name, call
+):
+    """A real permission error on a continuation is still reported as a permission error."""
+    ce_client = MagicMock()
+    getattr(ce_client, method).side_effect = _access_denied_with_message(operation_name)
+
+    result = add_retry_guidance(await call(mock_context, ce_client, 'some-token'))
+
+    assert result['error_type'] == 'AccessDeniedException'
+    assert 'not authorized' in result['message']
+    assert result['retry_strategy'] == 'do_not_retry'

@@ -198,10 +198,10 @@ class TestFetchFailures:
 
     @pytest.mark.asyncio
     async def test_read_sections_non_html_content(self):
-        """Sections cannot be extracted from a non-HTML response."""
+        """A non-HTML response without level-2 headings has no sections to extract."""
         patcher = _client_for(_response(text='plain text', ctype='text/plain'))
         try:
-            with pytest.raises(ToolError, match='Cannot extract sections from non-HTML'):
+            with pytest.raises(ToolError, match='does not contain subsections'):
                 await read_sections_impl(
                     _ctx(), 'https://docs.aws.amazon.com/t.html', ['Overview'], 'uuid'
                 )

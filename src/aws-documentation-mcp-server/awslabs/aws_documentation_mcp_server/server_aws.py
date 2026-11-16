@@ -28,6 +28,7 @@ from awslabs.aws_documentation_mcp_server.models import (
     SearchTableResponse,
 )
 from awslabs.aws_documentation_mcp_server.server_utils import (
+    DEFAULT_MAX_LENGTH,
     DEFAULT_USER_AGENT,
     add_search_result_cache_item,
     read_documentation_impl,
@@ -40,6 +41,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     DocumentationToolError,
     add_search_intent_to_search_request,
     parse_recommendation_results,
+    to_html_page_url,
 )
 from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
@@ -116,12 +118,33 @@ mcp = MCPServer(
 )
 
 
+async def _require_supported_domain(ctx: Context, url_str: str) -> None:
+    """Reject URLs outside docs.aws.amazon.com and the search term domain modifiers."""
+    supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
+    for modifier in SEARCH_TERM_DOMAIN_MODIFIERS:
+        supported_domains_regex.append(modifier['regex'])
+
+    if not any(re.match(domain_regex, url_str) for domain_regex in supported_domains_regex):
+        await ctx.error(f'Invalid URL: {url_str}. URL must be from list of supported domains')
+        raise DocumentationToolError('URL must be from list of supported domains')
+
+
+async def _require_page_url(ctx: Context, url_str: str) -> str:
+    """Return the '.html' page URL to fetch, rejecting URLs that name no documentation page."""
+    await _require_supported_domain(ctx, url_str)
+    page_url = to_html_page_url(url_str)
+    if page_url is None:
+        await ctx.error(f'Invalid URL: {url_str}. URL must end with .html or .md')
+        raise DocumentationToolError('URL must end with .html or .md')
+    return page_url
+
+
 @mcp.tool()
 async def read_documentation(
     ctx: Context,
     url: str = Field(description='URL of the AWS documentation page to read'),
     max_length: int = Field(
-        default=5000,
+        default=DEFAULT_MAX_LENGTH,
         description='Maximum number of characters to return.',
         gt=0,
         lt=1000000,
@@ -143,7 +166,7 @@ async def read_documentation(
     ## URL Requirements
 
     - Must be from the docs.aws.amazon.com domain
-    - Must end with .html
+    - Must end with .html or .md
 
     ## Example URLs
 
@@ -156,6 +179,8 @@ async def read_documentation(
     - Preserved headings and structure
     - Code blocks for examples
     - Lists and tables converted to markdown format
+    - Links to other pages kept as published, often relative (e.g. `invocation-sync.md`);
+      resolve a relative link against the page URL before reading it
 
     ## Large Tables
 
@@ -179,19 +204,7 @@ async def read_documentation(
     Returns:
         Markdown content of the AWS documentation
     """
-    # Validate that URL is from docs.aws.amazon.com and ends with .html
-    url_str = str(url)
-
-    supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
-    for modifier in SEARCH_TERM_DOMAIN_MODIFIERS:
-        supported_domains_regex.append(modifier['regex'])
-
-    if not any(re.match(domain_regex, url_str) for domain_regex in supported_domains_regex):
-        await ctx.error(f'Invalid URL: {url_str}. URL must be from list of supported domains')
-        raise DocumentationToolError('URL must be from list of supported domains')
-    if not url_str.endswith('.html'):
-        await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
-        raise DocumentationToolError('URL must end with .html')
+    url_str = await _require_page_url(ctx, str(url))
 
     return await read_documentation_impl(ctx, url_str, max_length, start_index, SESSION_UUID)
 
@@ -209,8 +222,13 @@ async def read_sections(
     Retrieves a page, converts to markdown, and returns only matching sections.
     Section matching is case-insensitive and handles whitespace differences.
 
+    A title can be a heading at any level. Each section runs to the next heading at the same or
+    a higher level, so it includes its subsections. A title that names only the page returns
+    the whole page, paginated like read_documentation; if the page title is also a section
+    heading, those sections are returned instead.
+
     ## URL Requirements
-    - Must end with .html
+    - Must end with .html or .md
 
     ## Large Tables
 
@@ -223,6 +241,8 @@ async def read_sections(
     - Use exact section titles from search results 'sections' field when available
     - Section matching is case-insensitive and handles whitespace differences
     - Include multiple related sections in one call for comprehensive coverage
+    - Links to other pages are kept as published, often relative (e.g. `invocation-sync.md`);
+      resolve a relative link against the page URL before reading it
 
     ## Example Usage
 
@@ -255,19 +275,7 @@ async def read_sections(
     Returns:
         Filtered markdown content containing only the requested sections
     """
-    # Validate that URL is from docs.aws.amazon.com and ends with .html
-    url_str = str(url)
-
-    supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
-    for modifier in SEARCH_TERM_DOMAIN_MODIFIERS:
-        supported_domains_regex.append(modifier['regex'])
-
-    if not any(re.match(domain_regex, url_str) for domain_regex in supported_domains_regex):
-        await ctx.error(f'Invalid URL: {url_str}. URL must be from list of supported domains')
-        raise DocumentationToolError('URL must be from list of supported domains')
-    if not url_str.endswith('.html'):
-        await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
-        raise DocumentationToolError('URL must end with .html')
+    url_str = await _require_page_url(ctx, str(url))
 
     if not section_titles:
         await ctx.error('section_titles parameter cannot be empty')
@@ -314,7 +322,7 @@ async def search_table(
     ## URL Requirements
 
     - Must be from the docs.aws.amazon.com domain
-    - Must end with .html
+    - Must end with .html or .md
 
     ## Example Usage
 
@@ -352,7 +360,7 @@ async def search_table(
 
     Args:
         ctx: MCP context for logging and error handling
-        url: AWS documentation page URL (must end with .html)
+        url: AWS documentation page URL (must end with .html or .md)
         section_title: The section heading containing the table (optional — omit to search all tables on the page)
         query: Search term to filter rows (all words must match, case-insensitive)
         max_rows: Maximum matching rows to return per table (default 20)
@@ -360,18 +368,7 @@ async def search_table(
     Returns:
         SearchTableResponse with matching rows grouped by table
     """
-    url_str = str(url)
-
-    supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
-    for modifier in SEARCH_TERM_DOMAIN_MODIFIERS:
-        supported_domains_regex.append(modifier['regex'])
-
-    if not any(re.match(domain_regex, url_str) for domain_regex in supported_domains_regex):
-        await ctx.error(f'Invalid URL: {url_str}. URL must be from list of supported domains')
-        raise DocumentationToolError('URL must be from list of supported domains')
-    if not url_str.endswith('.html'):
-        await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
-        raise DocumentationToolError('URL must end with .html')
+    url_str = await _require_page_url(ctx, str(url))
 
     if not query or not query.strip():
         await ctx.error('query parameter cannot be empty')
@@ -679,6 +676,11 @@ async def recommend(
     2. Call this tool with that URL
     3. Look specifically at the **New** recommendation type in the results
 
+    ## URL Requirements
+
+    - Must be from the docs.aws.amazon.com domain
+    - A .md page URL, such as a link followed from read_documentation output, is looked up as its .html page
+
     ## Result Interpretation
 
     Each recommendation includes:
@@ -694,14 +696,16 @@ async def recommend(
         List of recommended pages with URLs, titles, and context
     """
     url_str = str(url)
+    await _require_supported_domain(ctx, url_str)
+    # Recommendations are indexed by '.html' page, so a followed '.md' link must map to one.
+    url_str = to_html_page_url(url_str) or url_str
     logger.debug(f'Getting recommendations for: {url_str}')
-
-    recommendation_url = f'{RECOMMENDATIONS_API_URL}?path={url_str}&session={SESSION_UUID}'
 
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
-                recommendation_url,
+                RECOMMENDATIONS_API_URL,
+                params={'path': url_str, 'session': SESSION_UUID},
                 headers={'User-Agent': DEFAULT_USER_AGENT},
                 timeout=30,
             )

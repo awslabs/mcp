@@ -14,12 +14,17 @@
 """Document Loader MCP Server."""
 
 import asyncio
+import contextlib
+import functools
 import os
 import pdfplumber
+import secrets
 import shutil
+import stat
 import subprocess  # nosec B404 - subprocess used with fixed command, no shell=True
 import sys
 import tempfile
+import threading
 from fastmcp import FastMCP
 from fastmcp.server.context import Context
 from fastmcp.utilities.types import Image
@@ -28,7 +33,7 @@ from markitdown import MarkItDown
 from pathlib import Path
 from pdf2image import convert_from_path
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import Any, Callable, List, Optional, TypeVar
 
 
 # Set up logging
@@ -166,11 +171,90 @@ class SlidesExtractionResponse(BaseModel):
     error_message: Optional[str] = Field(None, description='Error message if operation failed')
 
 
-def _extract_pdf_text_sync(file_path: str) -> str:
+T = TypeVar('T')
+
+
+class WorkCancelledError(Exception):
+    """Raised inside a worker thread after its tool call has timed out."""
+
+
+class _CancelToken:
+    """Stops a worker thread at its next checkpoint once its tool call has timed out.
+
+    The lock makes cancel() and finish() exclusive: either the worker finishes
+    first and its result is kept, or the call is cancelled first and finish()
+    raises, so a worker never reports success after its timeout fired.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._cancelled = False
+        self._finished = False
+
+    def check(self) -> None:
+        """Raise WorkCancelledError if the call has been cancelled."""
+        if self._cancelled:
+            raise WorkCancelledError('work cancelled after the tool call timed out')
+
+    def finish(self) -> None:
+        """Mark the work finished, or raise WorkCancelledError if it was cancelled first."""
+        with self._lock:
+            self.check()
+            self._finished = True
+
+    def cancel(self) -> bool:
+        """Cancel the work. Return False if the worker had already finished."""
+        with self._lock:
+            if self._finished:
+                return False
+            self._cancelled = True
+            return True
+
+
+def _check_cancelled(cancel: Optional[_CancelToken]) -> None:
+    if cancel is not None:
+        cancel.check()
+
+
+def _discard_result(future: 'asyncio.Future[Any]') -> None:
+    # Retrieve the abandoned worker's outcome so asyncio does not log it as unhandled.
+    if not future.cancelled():
+        future.exception()
+
+
+async def _run_with_timeout(func: Callable[..., T], *args: Any, timeout_seconds: float) -> T:
+    """Run blocking work in a thread, and stop it at its next checkpoint on timeout.
+
+    ``func`` must accept a ``cancel`` keyword argument and call ``cancel.check()``
+    between steps. Raises ``asyncio.TimeoutError`` if the work does not finish in time.
+
+    The timeout error is returned right away; the worker stops at its next checkpoint,
+    so any cleanup it does (such as removing written slides) completes shortly after.
+    A single blocking step, such as one markitdown conversion, runs to its end.
+    """
+    cancel = _CancelToken()
+    loop = asyncio.get_running_loop()
+    future = loop.run_in_executor(None, functools.partial(func, *args, cancel=cancel))
+    try:
+        return await asyncio.wait_for(asyncio.shield(future), timeout=timeout_seconds)
+    except asyncio.TimeoutError:
+        if cancel.cancel():
+            future.add_done_callback(_discard_result)
+            raise
+        # The worker finished just as the timeout fired, so its result is complete.
+        return await future
+    except asyncio.CancelledError:
+        cancel.cancel()
+        future.add_done_callback(_discard_result)
+        raise
+
+
+def _extract_pdf_text_sync(file_path: str, cancel: Optional[_CancelToken] = None) -> str:
     """Synchronous PDF text extraction for thread pool execution."""
     text_content = ''
     with pdfplumber.open(file_path) as pdf:
         for page_num, page in enumerate(pdf.pages, 1):
+            _check_cancelled(cancel)
             text_content += f'\n--- Page {page_num} ---\n'
             page_text = page.extract_text()
             if page_text:
@@ -178,15 +262,17 @@ def _extract_pdf_text_sync(file_path: str) -> str:
     return text_content.strip()
 
 
-def _convert_document_sync(file_path: str) -> str:
+def _convert_document_sync(file_path: str, cancel: Optional[_CancelToken] = None) -> str:
     """Synchronous document conversion for thread pool execution."""
+    _check_cancelled(cancel)
     md = MarkItDown()
     result = md.convert(file_path)
     return result.text_content
 
 
-def _load_image_sync(file_path: str) -> Image:
+def _load_image_sync(file_path: str, cancel: Optional[_CancelToken] = None) -> Image:
     """Synchronous image loading for thread pool execution."""
+    _check_cancelled(cancel)
     return Image(path=file_path)
 
 
@@ -284,9 +370,8 @@ async def _convert_with_markitdown(
 
     try:
         # Run conversion in thread pool with timeout
-        loop = asyncio.get_event_loop()
-        content = await asyncio.wait_for(
-            loop.run_in_executor(None, _convert_document_sync, file_path), timeout=timeout_seconds
+        content = await _run_with_timeout(
+            _convert_document_sync, file_path, timeout_seconds=timeout_seconds
         )
 
         return DocumentReadResponse(
@@ -331,9 +416,8 @@ async def _read_pdf_content(
 
     try:
         # Run PDF extraction in thread pool with timeout
-        loop = asyncio.get_event_loop()
-        text_content = await asyncio.wait_for(
-            loop.run_in_executor(None, _extract_pdf_text_sync, file_path), timeout=timeout_seconds
+        text_content = await _run_with_timeout(
+            _extract_pdf_text_sync, file_path, timeout_seconds=timeout_seconds
         )
 
         return DocumentReadResponse(
@@ -428,9 +512,8 @@ async def read_image(
 
     try:
         # Run image loading in thread pool with timeout
-        loop = asyncio.get_event_loop()
-        image = await asyncio.wait_for(
-            loop.run_in_executor(None, _load_image_sync, file_path), timeout=timeout_seconds
+        image = await _run_with_timeout(
+            _load_image_sync, file_path, timeout_seconds=timeout_seconds
         )
         return image
 
@@ -514,21 +597,235 @@ def _convert_to_pdf_with_soffice(
     return pdf_path
 
 
+class UnsafeOutputPathError(PermissionError):
+    """Raised when a slide output path is not safe to write to."""
+
+
+# Prefix for the temporary files slides are written to before being moved
+# into place. Hidden, and distinct from the final slide_N names.
+_SLIDE_TEMP_PREFIX = '.docloader_slide_'
+
+# Windows reparse tags with this bit set are "name surrogates" (symbolic
+# links, junctions/mount points): they redirect to another location. Other
+# reparse points (for example cloud file placeholders) do not, and are allowed.
+_REPARSE_TAG_NAME_SURROGATE = 0x20000000
+
+
+def _is_link_or_reparse_point(st: os.stat_result) -> bool:
+    """Return True if an lstat result is a symlink or a redirecting reparse point."""
+    if stat.S_ISLNK(st.st_mode):
+        return True
+    attributes = getattr(st, 'st_file_attributes', 0)
+    reparse_flag = getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0x400)
+    if attributes & reparse_flag:
+        return bool(getattr(st, 'st_reparse_tag', 0) & _REPARSE_TAG_NAME_SURROGATE)
+    return False
+
+
+def _supports_fd_relative_writes() -> bool:
+    """Return True if the OS supports no-follow, directory-relative file operations."""
+    # os.replace shares its implementation with os.rename, but CPython lists only
+    # os.rename in os.supports_dir_fd. Checking os.replace here would always fail.
+    return (
+        hasattr(os, 'O_NOFOLLOW')
+        and hasattr(os, 'O_DIRECTORY')
+        and {os.open, os.mkdir, os.stat, os.unlink, os.rename} <= os.supports_dir_fd
+    )
+
+
+def _resolve_output_dir(output_dir: str) -> tuple[Path, Path]:
+    """Resolve the output directory once and re-check it is inside the base directory.
+
+    Returns:
+        A ``(base_dir, resolved_output_dir)`` tuple of resolved paths.
+    """
+    base_dir = _get_base_directory()
+    resolved = Path(output_dir).resolve()
+    try:
+        resolved.relative_to(base_dir)
+    except ValueError:
+        logger.warning(
+            f'Output dir outside base directory blocked: {output_dir} -> {resolved}, '
+            f'base directory {base_dir}'
+        )
+        raise UnsafeOutputPathError(
+            'Access denied: output directory outside allowed directory'
+        ) from None
+    return base_dir, resolved
+
+
+# Mode for output directories this tool creates (the umask still applies).
+_OUTPUT_DIR_MODE = 0o755
+
+
+def _open_output_dir_fd(base_dir: Path, resolved_dir: Path) -> int:
+    """Create (if needed) and open the output directory without following links.
+
+    Walks from the base directory one component at a time, opening each with
+    O_NOFOLLOW relative to its parent's descriptor, so a component replaced by
+    a symlink after validation is refused rather than followed.
+    """
+    flags = os.O_RDONLY | os.O_DIRECTORY | getattr(os, 'O_CLOEXEC', 0)
+    fd = os.open(base_dir, flags)
+    try:
+        for part in resolved_dir.relative_to(base_dir).parts:
+            with contextlib.suppress(FileExistsError):
+                os.mkdir(part, _OUTPUT_DIR_MODE, dir_fd=fd)
+            try:
+                next_fd = os.open(part, flags | os.O_NOFOLLOW, dir_fd=fd)
+            except OSError:
+                st = os.stat(part, dir_fd=fd, follow_symlinks=False)
+                if _is_link_or_reparse_point(st):
+                    raise UnsafeOutputPathError(
+                        'Access denied: output directory path contains a symbolic link'
+                    ) from None
+                raise
+            os.close(fd)
+            fd = next_fd
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def _prepare_output_dir_path(base_dir: Path, resolved_dir: Path) -> None:
+    """Portable fallback: create the output directory and verify it has no links.
+
+    Used where directory-relative, no-follow operations are not available
+    (for example Windows).
+    """
+    # os.makedirs applies `mode` only to the last directory, so create each one.
+    current = base_dir
+    for part in resolved_dir.relative_to(base_dir).parts:
+        current = current / part
+        with contextlib.suppress(FileExistsError):
+            os.mkdir(current, _OUTPUT_DIR_MODE)
+    _verify_output_dir_path(base_dir, resolved_dir)
+
+
+def _verify_output_dir_path(base_dir: Path, resolved_dir: Path) -> None:
+    """Portable fallback: check that no component of the output directory is a link.
+
+    Run when the directory is prepared and again before each slide write, to
+    narrow the window in which a component could be swapped. Path-based APIs
+    cannot close that window fully.
+    """
+    current = base_dir
+    for part in resolved_dir.relative_to(base_dir).parts:
+        current = current / part
+        if _is_link_or_reparse_point(os.lstat(current)):
+            raise UnsafeOutputPathError(
+                'Access denied: output directory path contains a symbolic link'
+            )
+    if resolved_dir.resolve(strict=True) != resolved_dir:
+        raise UnsafeOutputPathError('Access denied: output directory changed during extraction')
+
+
+def _check_slide_target(name: str, dir_fd: Optional[int], dir_path: Path) -> None:
+    """Refuse to write a slide whose final path already exists as a link."""
+    try:
+        if dir_fd is not None:
+            st = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+        else:
+            st = os.lstat(dir_path / name)
+    except FileNotFoundError:
+        return
+    if _is_link_or_reparse_point(st):
+        raise UnsafeOutputPathError(
+            f'Access denied: {name} in output directory is a symbolic link'
+        )
+
+
+def _write_slide(
+    page,
+    name: str,
+    image_format: str,
+    dir_fd: Optional[int],
+    dir_path: Path,
+    base_dir: Optional[Path] = None,
+):
+    """Write one slide image safely.
+
+    The image is saved to a new, exclusively created temporary file in the
+    output directory and then atomically moved onto the final name. A link
+    placed at the final name after the check is replaced, not followed.
+    """
+    if dir_fd is None and base_dir is not None:
+        _verify_output_dir_path(base_dir, dir_path)
+    _check_slide_target(name, dir_fd, dir_path)
+    temp_name = f'{_SLIDE_TEMP_PREFIX}{secrets.token_hex(8)}.tmp'
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, 'O_NOFOLLOW', 0)
+        | getattr(os, 'O_CLOEXEC', 0)
+        | getattr(os, 'O_BINARY', 0)
+    )
+    if dir_fd is not None:
+        fd = os.open(temp_name, flags, 0o666, dir_fd=dir_fd)
+    else:
+        fd = os.open(dir_path / temp_name, flags, 0o666)
+    try:
+        with os.fdopen(fd, 'wb') as temp_file:
+            page.save(temp_file, image_format)
+        if dir_fd is not None:
+            os.replace(temp_name, name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+        else:
+            if base_dir is not None:
+                _verify_output_dir_path(base_dir, dir_path)
+            os.replace(dir_path / temp_name, dir_path / name)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            if dir_fd is not None:
+                os.unlink(temp_name, dir_fd=dir_fd)
+            else:
+                os.unlink(dir_path / temp_name)
+        raise
+
+
+def _remove_slides(
+    names: List[str], dir_fd: Optional[int], dir_path: Path, base_dir: Path
+) -> None:
+    """Best-effort removal of slides written by a failed extraction."""
+    if dir_fd is None:
+        try:
+            _verify_output_dir_path(base_dir, dir_path)
+        except OSError:
+            return
+    for name in names:
+        with contextlib.suppress(OSError):
+            if dir_fd is not None:
+                os.unlink(name, dir_fd=dir_fd)
+            else:
+                os.unlink(dir_path / name)
+
+
 def _extract_slides_sync(
     file_path: str,
     output_dir: str,
     dpi: int = 200,
     output_format: str = 'png',
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+    cancel: Optional[_CancelToken] = None,
 ) -> List[str]:
     """Synchronous slide extraction for thread pool execution.
 
     Converts PPTX to PDF via soffice, then PDF pages to images via pdf2image.
     For PDF input, converts pages to images directly.
+
+    Slides are written only inside the resolved output directory, which must
+    be inside the base directory. Existing symlinks at slide paths are refused.
+
+    If ``cancel`` fires, no further slide is started and the slides this call
+    wrote are removed before WorkCancelledError propagates. This happens as the
+    worker stops, so shortly after the caller's timeout error is returned.
     """
     suffix = Path(file_path).suffix.lower()
     temp_dir = None
+    dir_fd = None
     try:
+        _check_cancelled(cancel)
         if suffix in {'.pptx', '.ppt'}:
             temp_dir = tempfile.mkdtemp(prefix='docloader_soffice_')
             pdf_path = _convert_to_pdf_with_soffice(file_path, temp_dir, timeout_seconds)
@@ -537,15 +834,37 @@ def _extract_slides_sync(
         else:
             raise ValueError(f'Unsupported file type for slide extraction: {suffix}')
 
-        os.makedirs(output_dir, exist_ok=True)
-        pages = convert_from_path(pdf_path, dpi=dpi)
-        output_files = []
-        for i, page in enumerate(pages):
-            output_file = os.path.join(output_dir, f'slide_{i + 1}.{output_format}')
-            page.save(output_file, output_format.upper())
-            output_files.append(output_file)
-        return output_files
+        base_dir, resolved_dir = _resolve_output_dir(output_dir)
+        if _supports_fd_relative_writes():
+            dir_fd = _open_output_dir_fd(base_dir, resolved_dir)
+        else:
+            _prepare_output_dir_path(base_dir, resolved_dir)
+
+        _check_cancelled(cancel)
+        pages = convert_from_path(pdf_path, dpi=dpi, timeout=timeout_seconds)
+        _check_cancelled(cancel)
+        names = [f'slide_{i + 1}.{output_format}' for i in range(len(pages))]
+        # Check every target before writing any, so a refused link does not
+        # leave a partial set of slides behind.
+        for name in names:
+            _check_slide_target(name, dir_fd, resolved_dir)
+
+        written = []
+        try:
+            for page, name in zip(pages, names):
+                _check_cancelled(cancel)
+                _write_slide(page, name, output_format.upper(), dir_fd, resolved_dir, base_dir)
+                written.append(name)
+            if cancel is not None:
+                cancel.finish()
+        except BaseException:
+            # An error response reports no slides, so remove the ones this call wrote.
+            _remove_slides(written, dir_fd, resolved_dir, base_dir)
+            raise
+        return [os.path.join(output_dir, name) for name in written]
     finally:
+        if dir_fd is not None:
+            os.close(dir_fd)
         if temp_dir and os.path.exists(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -602,12 +921,14 @@ async def extract_slides_as_images(
         )
 
     try:
-        loop = asyncio.get_event_loop()
-        slide_files = await asyncio.wait_for(
-            loop.run_in_executor(
-                None, _extract_slides_sync, file_path, output_dir, dpi, 'png', timeout_seconds
-            ),
-            timeout=timeout_seconds,
+        slide_files = await _run_with_timeout(
+            _extract_slides_sync,
+            file_path,
+            output_dir,
+            dpi,
+            'png',
+            timeout_seconds,
+            timeout_seconds=timeout_seconds,
         )
         return SlidesExtractionResponse(
             status='success',
@@ -616,6 +937,17 @@ async def extract_slides_as_images(
             file_path=file_path,
             output_dir=output_dir,
             error_message=None,
+        )
+    except UnsafeOutputPathError as e:
+        error_msg = str(e)
+        logger.warning(f'Slide extraction refused for {output_dir}: {error_msg}')
+        await ctx.error(error_msg)
+        return SlidesExtractionResponse(
+            status='error',
+            slide_count=0,
+            file_path=file_path,
+            output_dir='',
+            error_message=error_msg,
         )
     except asyncio.TimeoutError:
         error_msg = f'Slide extraction timed out after {timeout_seconds} seconds for {file_path}'

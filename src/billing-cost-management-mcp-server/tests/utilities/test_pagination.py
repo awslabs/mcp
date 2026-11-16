@@ -29,6 +29,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.error_contract import 
     add_retry_guidance,
 )
 from botocore.exceptions import ClientError
+from types import SimpleNamespace
 from typing import Any, Dict, List
 from unittest.mock import AsyncMock, MagicMock
 
@@ -368,7 +369,11 @@ class TestPagingLimits:
 
         monkeypatch.setattr(constants, 'PAGINATION_MAX_SECONDS', 10)
         clock = iter([0.0, 11.0, 11.0])
-        monkeypatch.setattr(aws_service_base.time, 'monotonic', lambda: next(clock))
+        # Patch only this module's clock: patching time.monotonic itself also feeds the
+        # event loop, which reads it again at teardown and exhausts the iterator.
+        monkeypatch.setattr(
+            aws_service_base, 'time', SimpleNamespace(monotonic=lambda: next(clock))
+        )
         api = MagicMock(side_effect=_pages(5, 5, 5))
 
         items, _, pagination = await paginate_aws_items(ctx, 'op', api, {}, SERVER_SIZED)

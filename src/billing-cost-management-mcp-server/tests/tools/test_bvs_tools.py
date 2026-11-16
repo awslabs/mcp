@@ -737,3 +737,15 @@ async def test_list_billing_views_description_explains_the_time_range_rules():
     assert 'A date-only active_before_inclusive means 00:00:00' in tool.description
     # No example may teach a date-only end, which drops most of the last day.
     assert not re.search(r'"active_before_inclusive": "\d{4}-\d{2}-\d{2}"', tool.description)
+
+
+@pytest.mark.asyncio
+async def test_description_says_empty_cost_category_value_is_uncategorized():
+    """A cost-category value of "" in a view filter matches uncategorized costs."""
+    tool = await bvs_server.get_tool('get-billing-view')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert (
+        'a value of "" matches the costs no rule of that cost category assigns a value to'
+        in description
+    )

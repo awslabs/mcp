@@ -51,9 +51,9 @@ This MCP server provides tools for:
 
 ### Workflow Execution Tools
 
-1. **StartAHORun** - Start workflow runs with custom parameters, resource configuration, optional VPC networking mode with a named configuration, optional tags, and an optional inline IAM session policy to scope down the run role
+1. **StartAHORun** - Start workflow runs with custom parameters, resource configuration, optional VPC networking mode with a named configuration, optional tags, an optional inline IAM session policy to scope down the run role, and an optional output path layout: `SERVICE_DEFINED` (the default) writes outputs under a run ID folder, while `NONE_WITH_OVERWRITE` writes them directly under the output URI and overwrites same-named files from earlier runs without warning, so use a unique output URI per run unless overwriting is intended
 2. **ListAHORuns** - List workflow runs with filtering by status and date ranges
-3. **GetAHORun** - Retrieve detailed run information including status and metadata
+3. **GetAHORun** - Retrieve detailed run information including status, metadata, and the output path layout when the service returns it
 4. **ListAHORunTasks** - List tasks for specific runs with status filtering
 5. **GetAHORunTask** - Get detailed information about specific workflow tasks
 

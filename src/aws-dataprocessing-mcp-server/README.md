@@ -132,6 +132,52 @@ For write operations, we recommend the following IAM policies:
 
 * AWSGlueServiceRole: Enables Glue service operations including job execution, crawler runs, and data catalog modifications
 
+### IAM Role Management Permissions
+The `create_data_processing_role` and `add_inline_policy` tools manage IAM roles and policies in your account. They are only available with `--allow-write` and require the following IAM permissions, which are **not** included in AWSGlueServiceRole. Grant them only if you plan to use these tools:
+
+| Tool | Required IAM actions |
+|------|----------------------|
+| create_data_processing_role | `iam:CreateRole`, `iam:AttachRolePolicy` (when `managed_policy_arns` is set), `iam:PutRolePolicy` (when `inline_policy` is set) |
+| add_inline_policy | `iam:GetRolePolicy`, `iam:PutRolePolicy` |
+
+We recommend scoping these permissions to a role name prefix and to the managed policies the server supports. For example:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["iam:CreateRole", "iam:PutRolePolicy", "iam:GetRolePolicy"],
+      "Resource": "arn:aws:iam::<account-id>:role/<role-prefix>*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "iam:AttachRolePolicy",
+      "Resource": "arn:aws:iam::<account-id>:role/<role-prefix>*",
+      "Condition": {
+        "ArnEquals": {
+          "iam:PolicyARN": [
+            "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole",
+            "arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole",
+            "arn:aws:iam::aws:policy/service-role/AmazonEMRServicePolicy_v2",
+            "arn:aws:iam::aws:policy/AmazonAthenaFullAccess"
+          ]
+        }
+      }
+    }
+  ]
+}
+```
+
+The server also applies the following restrictions to these tools:
+* `create_data_processing_role` only attaches the AWS managed policies supported for the selected service type:
+  * glue: `AWSGlueServiceRole`
+  * emr: `AmazonElasticMapReduceRole`, `AmazonEMRServicePolicy_v2`
+  * athena: `AmazonAthenaFullAccess`
+* Inline policies (`inline_policy` and `add_inline_policy`) cannot use `NotAction` in Allow statements, cannot grant `*` or wildcard service prefixes, and can only include the IAM actions `iam:PassRole`, `iam:GetRole` and `iam:ListRoles`.
+
+
 **Important Security Note**: Users should exercise caution when --allow-write and --allow-sensitive-data-access modes are enabled with these broad permissions, as this combination grants significant privileges to the MCP server. Only enable these flags when necessary and in trusted environments.
 
 **Resource Management Limitation**: The DataProcessing MCP Server can only update or delete resources that were originally created through it. Resources created by other means cannot be modified or deleted using the DataProcessing MCP Server.
@@ -474,9 +520,9 @@ Controls whether the MCP server adds and verifies MCP-managed tags on resources.
 
 | Tool Name | Description | Key Operations | Requirements |
 |-----------|-------------|----------------|--------------|
-| add_inline_policy | Add a new inline policy to an IAM role | Create inline policies with custom permissions for data processing services | --allow-write flag, role must exist, policy name must be unique |
+| add_inline_policy | Add a new inline policy to an IAM role | Create inline policies with custom permissions for data processing services | --allow-write flag, role must exist, policy name must be unique, `iam:PutRolePolicy` permission |
 | get_policies_for_role | Get all policies attached to an IAM role | Retrieve managed and inline policies, assume role policy document, role metadata | Role must exist, valid AWS credentials |
-| create_data_processing_role | Create a new IAM role for data processing services | Create roles for Glue/EMR/Athena with trust relationships, attach managed policies, add inline policies | --allow-write flag, unique role name, valid service type (glue/emr/athena) |
+| create_data_processing_role | Create a new IAM role for data processing services | Create roles for Glue/EMR/Athena with trust relationships, attach managed policies, add inline policies | --allow-write flag, unique role name, valid service type (glue/emr/athena), supported managed policies only, `iam:CreateRole` / `iam:AttachRolePolicy` / `iam:PutRolePolicy` permissions |
 | get_roles_for_service | Get all IAM roles that can be assumed by a specific AWS service | List roles with trust relationships for Glue/EMR/Athena services, filter by service principal | Valid AWS credentials, service type parameter |
 
 #### S3 Management Tools

@@ -14,9 +14,10 @@
 
 """Every AWS resource the harness owns, and its lifecycle.
 
-Two IAM roles, one provisioned cluster, one Serverless namespace and workgroup. `up` creates
-whatever is missing, resumes a paused cluster, seeds whichever warehouse is unseeded, and grants
-the server's own identity what it needs.
+Two IAM roles, one provisioned cluster, two Serverless namespaces each with its workgroup. `up`
+creates whatever is missing, resumes a paused cluster, seeds the cluster and the first workgroup
+if unseeded, and grants the server's own identity what it needs on them. The second workgroup is
+the guide scenario's, neither seeded nor granted.
 
 Resources are addressed by the names in the config, so a name that collides with something real
 would have this harness adopt it. Each is created carrying a purpose tag, and every path that
@@ -30,8 +31,8 @@ seeding interrupted partway is the one step a retry does not repair, since the t
 `COPY` appends to them.
 
 `pause` stops compute billing on the cluster. Serverless exposes no Pause, Resume, Suspend or
-Stop operation, so it is left running; its compute scales to zero when idle, while the namespace
-keeps billing storage by the GB-month. `down` deletes the lot.
+Stop operation, so both workgroups are left running; their compute scales to zero when idle,
+while each namespace keeps billing storage by the GB-month. `down` deletes the lot.
 """
 
 import json
@@ -531,6 +532,23 @@ def destroy_cluster(redshift, identifier: str) -> bool:
 # --- Serverless namespace and workgroup ---
 
 
+def workgroups(config: Config) -> list[tuple[str, str]]:
+    """Name each Serverless namespace the harness owns, paired with its workgroup.
+
+    The guide scenario's namespace and workgroup share one name.
+
+    Args:
+        config: The harness config.
+
+    Returns:
+        (namespace, workgroup) names, the seeded pair first.
+    """
+    return [
+        (config.namespace_name, config.workgroup_name),
+        (config.guide_workgroup_name, config.guide_workgroup_name),
+    ]
+
+
 def describe_workgroup(serverless, name: str) -> dict | None:
     """Return the workgroup, or None when it does not exist.
 
@@ -597,8 +615,10 @@ def _wait_for_workgroup(serverless, name: str, status: str) -> dict:
         time.sleep(_POLL_SECONDS)
 
 
-def ensure_workgroup(serverless, config: Config, s3_read_role_arn: str) -> dict:
-    """Bring the namespace and workgroup up, creating whichever is missing.
+def ensure_workgroup(
+    serverless, config: Config, s3_read_role_arn: str, namespace_name: str, workgroup_name: str
+) -> dict:
+    """Bring one namespace and its workgroup up, creating whichever is missing.
 
     The sample-data role is attached at namespace creation, which is why Serverless needs no
     equivalent of the cluster's role-association wait.
@@ -607,6 +627,8 @@ def ensure_workgroup(serverless, config: Config, s3_read_role_arn: str) -> dict:
         serverless: A redshift-serverless client.
         config: The harness config.
         s3_read_role_arn: Role attached to the namespace, so COPY can read the sample data.
+        namespace_name: Namespace name.
+        workgroup_name: Workgroup name.
 
     Returns:
         The available workgroup.
@@ -614,16 +636,16 @@ def ensure_workgroup(serverless, config: Config, s3_read_role_arn: str) -> dict:
     Raises:
         DeployError: If it cannot be brought up.
     """
-    namespace = describe_namespace(serverless, config.namespace_name)
+    namespace = describe_namespace(serverless, namespace_name)
     if namespace is not None:
         _assert_ours(
             'namespace',
-            config.namespace_name,
+            namespace_name,
             _serverless_tags(serverless, namespace['namespaceArn']),
         )
     else:
         serverless.create_namespace(
-            namespaceName=config.namespace_name,
+            namespaceName=namespace_name,
             dbName=config.database,
             iamRoles=[s3_read_role_arn],
             defaultIamRoleArn=s3_read_role_arn,
@@ -631,33 +653,34 @@ def ensure_workgroup(serverless, config: Config, s3_read_role_arn: str) -> dict:
             tags=_TAGS_LOWER,
         )
 
-    workgroup = describe_workgroup(serverless, config.workgroup_name)
+    workgroup = describe_workgroup(serverless, workgroup_name)
     if workgroup is not None:
         _assert_ours(
             'workgroup',
-            config.workgroup_name,
+            workgroup_name,
             _serverless_tags(serverless, workgroup['workgroupArn']),
         )
     else:
         serverless.create_workgroup(
-            workgroupName=config.workgroup_name,
-            namespaceName=config.namespace_name,
+            workgroupName=workgroup_name,
+            namespaceName=namespace_name,
             baseCapacity=config.base_capacity,
             publiclyAccessible=False,
             tags=_TAGS_LOWER,
         )
 
-    return _wait_for_workgroup(serverless, config.workgroup_name, 'AVAILABLE')
+    return _wait_for_workgroup(serverless, workgroup_name, 'AVAILABLE')
 
 
-def destroy_workgroup(serverless, config: Config) -> bool:
-    """Delete the workgroup and then its namespace.
+def destroy_workgroup(serverless, namespace_name: str, workgroup_name: str) -> bool:
+    """Delete one workgroup and then its namespace.
 
     Order matters: a namespace holding a workgroup cannot be deleted.
 
     Args:
         serverless: A redshift-serverless client.
-        config: The harness config.
+        namespace_name: Namespace name.
+        workgroup_name: Workgroup name.
 
     Returns:
         True if either resource existed and deletion was requested.
@@ -667,30 +690,30 @@ def destroy_workgroup(serverless, config: Config) -> bool:
     """
     deleted = False
 
-    workgroup = describe_workgroup(serverless, config.workgroup_name)
+    workgroup = describe_workgroup(serverless, workgroup_name)
     if workgroup is not None:
         _assert_ours(
             'workgroup',
-            config.workgroup_name,
+            workgroup_name,
             _serverless_tags(serverless, workgroup['workgroupArn']),
         )
-        serverless.delete_workgroup(workgroupName=config.workgroup_name)
+        serverless.delete_workgroup(workgroupName=workgroup_name)
         deadline = time.monotonic() + _TRANSITION_TIMEOUT
-        while describe_workgroup(serverless, config.workgroup_name) is not None:
+        while describe_workgroup(serverless, workgroup_name) is not None:
             if time.monotonic() >= deadline:
-                raise DeployError(f'workgroup {config.workgroup_name} did not delete')
+                raise DeployError(f'workgroup {workgroup_name} did not delete')
             time.sleep(_POLL_SECONDS)
         deleted = True
 
-    namespace = describe_namespace(serverless, config.namespace_name)
+    namespace = describe_namespace(serverless, namespace_name)
     if namespace is not None:
         _assert_ours(
             'namespace',
-            config.namespace_name,
+            namespace_name,
             _serverless_tags(serverless, namespace['namespaceArn']),
         )
         # Naming no final snapshot skips it, which is what we want for data reloadable from S3.
-        serverless.delete_namespace(namespaceName=config.namespace_name)
+        serverless.delete_namespace(namespaceName=namespace_name)
         deleted = True
 
     return deleted
@@ -747,25 +770,26 @@ def check_ownership(session, config: Config) -> None:
     if cluster is not None:
         _assert_ours('cluster', config.cluster_identifier, cluster.get('Tags', []))
 
-    namespace = describe_namespace(aws['serverless'], config.namespace_name)
-    if namespace is not None:
-        _assert_ours(
-            'namespace',
-            config.namespace_name,
-            _serverless_tags(aws['serverless'], namespace['namespaceArn']),
-        )
+    for namespace_name, workgroup_name in workgroups(config):
+        namespace = describe_namespace(aws['serverless'], namespace_name)
+        if namespace is not None:
+            _assert_ours(
+                'namespace',
+                namespace_name,
+                _serverless_tags(aws['serverless'], namespace['namespaceArn']),
+            )
 
-    workgroup = describe_workgroup(aws['serverless'], config.workgroup_name)
-    if workgroup is not None:
-        _assert_ours(
-            'workgroup',
-            config.workgroup_name,
-            _serverless_tags(aws['serverless'], workgroup['workgroupArn']),
-        )
+        workgroup = describe_workgroup(aws['serverless'], workgroup_name)
+        if workgroup is not None:
+            _assert_ours(
+                'workgroup',
+                workgroup_name,
+                _serverless_tags(aws['serverless'], workgroup['workgroupArn']),
+            )
 
 
 def up(session, config: Config, log=print) -> dict[str, Warehouse]:
-    """Bring both warehouses to a state an agent can be pointed at.
+    """Bring every warehouse to a state an agent can be pointed at.
 
     Args:
         session: A boto3 session for the configured profile and region.
@@ -773,7 +797,7 @@ def up(session, config: Config, log=print) -> dict[str, Warehouse]:
         log: Where to report progress.
 
     Returns:
-        Both warehouses, seeded and granted, keyed by kind.
+        The cluster and the first workgroup, seeded and granted, keyed by kind.
     """
     aws = clients(session)
 
@@ -784,8 +808,11 @@ def up(session, config: Config, log=print) -> dict[str, Warehouse]:
     cluster = ensure_cluster(aws['redshift'], config, s3_role)
     log(f'cluster    {config.cluster_identifier} {cluster["ClusterStatus"]}')
 
-    workgroup = ensure_workgroup(aws['serverless'], config, s3_role)
-    log(f'workgroup  {config.workgroup_name} {workgroup["status"]}')
+    for namespace_name, workgroup_name in workgroups(config):
+        workgroup = ensure_workgroup(
+            aws['serverless'], config, s3_role, namespace_name, workgroup_name
+        )
+        log(f'workgroup  {workgroup_name} {workgroup["status"]}')
 
     warehouses = {
         'provisioned': Warehouse(
@@ -841,11 +868,12 @@ def status(session, config: Config, log=print) -> None:
         f'{cluster["ClusterStatus"] if cluster else "absent"}'
     )
 
-    workgroup = describe_workgroup(aws['serverless'], config.workgroup_name)
-    log(f'workgroup  {config.workgroup_name} {workgroup["status"] if workgroup else "absent"}')
+    for namespace_name, workgroup_name in workgroups(config):
+        workgroup = describe_workgroup(aws['serverless'], workgroup_name)
+        log(f'workgroup  {workgroup_name} {workgroup["status"] if workgroup else "absent"}')
 
-    namespace = describe_namespace(aws['serverless'], config.namespace_name)
-    log(f'namespace  {config.namespace_name} {namespace["status"] if namespace else "absent"}')
+        namespace = describe_namespace(aws['serverless'], namespace_name)
+        log(f'namespace  {namespace_name} {namespace["status"] if namespace else "absent"}')
 
     for name in (config.s3_read_role_name, config.denied_batch_role_name):
         try:
@@ -870,7 +898,8 @@ def pause(session, config: Config, log=print) -> None:
     else:
         log(f'cluster    {config.cluster_identifier} not running, nothing to pause')
 
-    log(f'workgroup  {config.workgroup_name} left alone, Serverless has no pause')
+    for _, workgroup_name in workgroups(config):
+        log(f'workgroup  {workgroup_name} left alone, Serverless has no pause')
 
 
 def down(session, config: Config, log=print) -> None:
@@ -886,8 +915,9 @@ def down(session, config: Config, log=print) -> None:
     cluster_gone = destroy_cluster(aws['redshift'], config.cluster_identifier)
     log(f'cluster    {config.cluster_identifier} {"deleting" if cluster_gone else "absent"}')
 
-    serverless_gone = destroy_workgroup(aws['serverless'], config)
-    log(f'serverless {config.workgroup_name} {"deleting" if serverless_gone else "absent"}')
+    for namespace_name, workgroup_name in workgroups(config):
+        serverless_gone = destroy_workgroup(aws['serverless'], namespace_name, workgroup_name)
+        log(f'serverless {workgroup_name} {"deleting" if serverless_gone else "absent"}')
 
     for name in (config.s3_read_role_name, config.denied_batch_role_name):
         log(f'iam        {name} {"deleted" if delete_role(aws["iam"], name) else "absent"}')
