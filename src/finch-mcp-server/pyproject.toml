@@ -1,7 +1,7 @@
 [project]
 name = "awslabs.finch-mcp-server"
 version = "0.2.1"
-description = "A Model Context Protocol server for Finch to build and push container images"
+description = "[DEPRECATED] A Model Context Protocol server for Finch to build and push container images"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
@@ -10,6 +10,7 @@ authors = [
 ]
 license = { text = "Apache-2.0" }
 classifiers = [
+    "Development Status :: 7 - Inactive",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",

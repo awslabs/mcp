@@ -1,6 +1,8 @@
 ---
-title: "Finch MCPサーバー"
+title: "Finch MCPサーバー（非推奨）"
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。エージェントが自身のシェルから直接実行できる [Finch CLI](https://github.com/runfinch/finch)（`finch image build`、`finch image push`、`finch vm start`）と、Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。AWS MCP サーバーは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて Amazon ECR の API を呼び出します。ツールの対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-finch.md) を参照してください。
 
 Finch 向けの Model Context Protocol (MCP) サーバーです。生成 AI モデルが、finch cli を活用した MCP ツールを通じてコンテナイメージのビルドとプッシュを行えるようにします。
 

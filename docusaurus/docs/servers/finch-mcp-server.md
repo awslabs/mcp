@@ -1,5 +1,5 @@
 ---
-title: Finch MCP Server
+title: Finch MCP Server (Deprecated)
 ---
 
 import ReadmeContent from "../../../src/finch-mcp-server/README.md";
