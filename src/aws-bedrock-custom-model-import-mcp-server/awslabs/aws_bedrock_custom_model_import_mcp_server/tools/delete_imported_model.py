@@ -48,7 +48,7 @@ class DeleteImportedModel:
         mcp.tool(self.delete_imported_model)
 
     async def delete_imported_model(self, ctx: Optional[Context], model_identifier: str) -> str:
-        """Delete an imported model from Amazon Bedrock.
+        """[DEPRECATED] Delete an imported model from Amazon Bedrock.
 
         This tool permanently deletes a custom model that was previously imported into Amazon Bedrock.
         This operation cannot be undone and will permanently remove the model from your AWS account.

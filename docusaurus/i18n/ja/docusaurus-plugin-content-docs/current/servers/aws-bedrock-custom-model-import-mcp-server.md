@@ -1,6 +1,8 @@
 ---
-title: AWS Bedrock Custom Model Import MCP サーバー
+title: AWS Bedrock Custom Model Import MCP サーバー（非推奨）
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。こちらは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて同じ Amazon Bedrock Custom Model Import API（`CreateModelImportJob`、`GetModelImportJob`、`ListImportedModels` など）を呼び出し、完全なレスポンスを返します。ツールの対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-bedrock-custom-model-import.md) を参照してください。
 
 ## 概要 {#overview}
 

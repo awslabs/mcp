@@ -14,9 +14,16 @@
 
 """Tests for the server."""
 
+import os
 import pytest
-from awslabs.aws_bedrock_custom_model_import_mcp_server.server import main
+import warnings
+from awslabs.aws_bedrock_custom_model_import_mcp_server import server
+from awslabs.aws_bedrock_custom_model_import_mcp_server.server import DEPRECATION_NOTICE, main
+from fastmcp import FastMCP
 from unittest.mock import MagicMock, patch
+
+
+EXPECTED_TOOL_COUNT = 6
 
 
 class TestServer:
@@ -108,7 +115,8 @@ class TestServer:
             patch('awslabs.aws_bedrock_custom_model_import_mcp_server.server.mcp.run'),
         ):
             # Call the main function
-            main()
+            with pytest.warns(FutureWarning):
+                main()
 
             # Verify client initialization
             mock_client_class.assert_called_once_with(
@@ -138,3 +146,50 @@ class TestServer:
         source = inspect.getsource(server)
         assert "if __name__ == '__main__':" in source
         assert 'main()' in source
+
+
+class TestDeprecation:
+    """Tests for the runtime deprecation signals."""
+
+    def _run_main(self, mcp_instance):
+        """Run main() against the given FastMCP instance with startup side effects mocked."""
+        with (
+            patch('sys.argv', ['server.py']),
+            patch.dict(os.environ),
+            patch('awslabs.aws_bedrock_custom_model_import_mcp_server.server.logger'),
+            patch(
+                'awslabs.aws_bedrock_custom_model_import_mcp_server.server.BedrockModelImportClient'
+            ),
+            patch('awslabs.aws_bedrock_custom_model_import_mcp_server.server.mcp', mcp_instance),
+            patch.object(mcp_instance, 'run') as mock_run,
+        ):
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter('always')
+                main()
+        mock_run.assert_called_once_with()
+        return caught
+
+    def test_main_emits_one_future_warning(self):
+        """main() emits exactly one FutureWarning carrying the deprecation notice."""
+        caught = self._run_main(FastMCP(name='test'))
+
+        future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
+        assert len(future_warnings) == 1
+        assert DEPRECATION_NOTICE in str(future_warnings[0].message)
+
+    def test_instructions_start_with_deprecation_notice(self):
+        """The server instructions start with the deprecation notice."""
+        assert server.mcp.instructions is not None
+        assert server.mcp.instructions.startswith(f'{DEPRECATION_NOTICE}\n\n')
+
+    async def test_every_tool_description_is_marked_deprecated(self):
+        """Every tool that main() registers has a description starting with [DEPRECATED]."""
+        mcp_instance = FastMCP(name='test')
+        self._run_main(mcp_instance)
+
+        tools = await mcp_instance.list_tools()
+
+        assert len(tools) == EXPECTED_TOOL_COUNT
+        for tool in tools:
+            assert tool.description is not None
+            assert tool.description.startswith('[DEPRECATED] '), tool.name

@@ -423,7 +423,7 @@
       "description": "Manage custom models in Bedrock for on-demand inference",
       "icon": "\ud83e\udd16",
       "id": "aws-bedrock-custom-model-import-mcp-server",
-      "name": "Amazon Bedrock Custom Model Import MCP Server",
+      "name": "Amazon Bedrock Custom Model Import MCP Server (Deprecated)",
       "source_path": "src/aws-bedrock-custom-model-import-mcp-server/",
       "subcategory": "Model Orchestration",
       "tags": [
