@@ -1,7 +1,7 @@
 [project]
 name = "awslabs.iam-mcp-server"
 version = "1.1.4"
-description = "An AWS Labs Model Context Protocol (MCP) server for managing AWS IAM resources including users, roles, policies, and permissions"
+description = "[DEPRECATED] An AWS Labs Model Context Protocol (MCP) server for managing AWS IAM resources including users, roles, policies, and permissions"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -18,6 +18,7 @@ authors = [
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
 ]
 classifiers = [
+    "Development Status :: 7 - Inactive",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",

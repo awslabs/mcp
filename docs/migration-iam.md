@@ -4,7 +4,7 @@ This guide helps you migrate from `awslabs.iam-mcp-server` to the [AWS MCP Serve
 
 ## Why We're Deprecating
 
-The IAM MCP Server wrapped 29 individual IAM API operations as separate MCP tools. The AWS MCP Server covers all of them, and the rest of the IAM API, through a single `run_script` tool. `run_script` executes sandboxed Python that calls AWS APIs through its built-in `call_boto3` helper, using your own IAM credentials. IAM-specific guidance comes from the `aws-iam` Agent Skill, which covers trust policy pitfalls, confused deputy protection, service role creation, condition operator safety, and least-privilege policy generation. You no longer need a separate server for each AWS service.
+The IAM MCP Server wrapped IAM API operations as 29 separate MCP tools. The AWS MCP Server covers all of them, and the rest of the IAM API, through a single `run_script` tool. `run_script` executes sandboxed Python that calls AWS APIs through its built-in `call_boto3` helper, using your own IAM credentials. IAM-specific guidance comes from the `aws-iam` Agent Skill, which covers trust policy pitfalls, confused deputy protection, service role creation, condition operator safety, and least-privilege policy generation. You no longer need a separate server for each AWS service.
 
 ## Installing the Replacement
 
@@ -121,7 +121,7 @@ result
 |-----------------|-----------------|------------------|
 | `simulate_principal_policy` | `SimulatePrincipalPolicy` | `run_script` with `call_boto3(service_name="iam", operation_name="SimulatePrincipalPolicy", params={"PolicySourceArn": ..., "ActionNames": [...], "ResourceArns": [...], "ContextEntries": [...]})` |
 
-Because `run_script` exposes the full IAM API, operations the IAM server never had (for example `AttachRolePolicy`, `UpdateAssumeRolePolicy`, `CreatePolicy`, or `ListAccessKeys`) are also available.
+Because `run_script` exposes the full IAM API, operations the IAM server never had (for example `AttachRolePolicy`, `UpdateAssumeRolePolicy`, `CreatePolicy`, or `DeleteRole`) are also available.
 
 ## Workflow Change
 
@@ -151,10 +151,16 @@ The AWS MCP Server does not re-implement the IAM server's client-side guardrails
 | Two-phase `confirmed=True` handshake for write operations (disable with `--no-confirmation`) | Not available | Use your MCP client's per-tool approval for `run_script`, and rely on IAM permissions boundaries and SCPs as the enforcement layer |
 | Automatic cleanup when deleting users and groups (`force=True`) | Not available | Ask the agent to remove group memberships, policies, and access keys before the delete call in the same `run_script` |
 
+## What Deprecation Means
+
+- The final release keeps working. It prints a `FutureWarning` at startup, and its server instructions and tool descriptions are marked deprecated.
+- The package stays on PyPI and gets no further updates.
+- Configurations that use `awslabs.iam-mcp-server@latest` get that final release.
+- The `src/iam-mcp-server` folder may later be removed from this repository, as the folders of earlier deprecated servers were.
+
 ## Removing the Old Server
 
 Once you've verified the replacement meets your needs:
 
 1. Remove `awslabs.iam-mcp-server` from your MCP configuration
 2. Uninstall the package: `pip uninstall awslabs.iam-mcp-server`
-3. The old package will remain on PyPI but will not receive updates

@@ -1023,17 +1023,19 @@ def test_main_function():
     """Test main function argument parsing."""
     from awslabs.iam_mcp_server.server import main
 
-    # Test without --allow-write (default: read-only)
+    # Test without --allow-write (default: read-only); main() warns that the server is deprecated
     with patch('sys.argv', ['server.py']):
         with patch('awslabs.iam_mcp_server.server.mcp.run') as mock_run:
-            main()
+            with pytest.warns(FutureWarning):
+                main()
             mock_run.assert_called_once()
             assert Context.is_readonly()
 
     # Test with --allow-write flag
     with patch('sys.argv', ['server.py', '--allow-write']):
         with patch('awslabs.iam_mcp_server.server.mcp.run') as mock_run:
-            main()
+            with pytest.warns(FutureWarning):
+                main()
             mock_run.assert_called_once()
             assert not Context.is_readonly()
 
@@ -2491,7 +2493,8 @@ def test_main_no_confirmation_flag():
 
     with patch('sys.argv', ['server.py', '--allow-write', '--no-confirmation']):
         with patch('awslabs.iam_mcp_server.server.mcp.run') as mock_run:
-            main()
+            with pytest.warns(FutureWarning):
+                main()
             mock_run.assert_called_once()
             assert not Context.is_readonly()
             assert not Context.requires_confirmation()
