@@ -241,7 +241,7 @@ def test_normal_extraction_output_unchanged(sandbox, write_mode):
     with patch.object(server, 'convert_from_path', return_value=pages) as mock_convert:
         result = _extract_slides_sync('/docs/deck.pdf', str(out), 150, 'png')
 
-    mock_convert.assert_called_once_with('/docs/deck.pdf', dpi=150)
+    mock_convert.assert_called_once_with('/docs/deck.pdf', dpi=150, timeout=30)
     assert result == [os.path.join(str(out), f'slide_{i}.png') for i in (1, 2, 3)]
     assert sorted(p.name for p in out.iterdir()) == ['slide_1.png', 'slide_2.png', 'slide_3.png']
     for i, page in enumerate(pages, 1):
