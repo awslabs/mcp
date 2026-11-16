@@ -76,6 +76,8 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
       - [`.vscode/mcp.json`](#vscodemcpjson)
     - [Getting Started with Claude Code](#getting-started-with-claude-code)
       - [`.mcp.json`](#mcpjson)
+    - [Getting Started with OpenCode](#getting-started-with-opencode)
+      - [`opencode.jsonc`](#opencodejsonc)
     - [Getting Started with fx](#getting-started-with-fx)
       - [`~/.fx/mcp.json`](#fxmcpjson)
   - [Samples](#samples)
@@ -1029,6 +1031,68 @@ For macOS/Linux:
   }
 }
 ```
+</details>
+
+### Getting Started with OpenCode
+
+<details>
+<summary>Getting Started with OpenCode</summary>
+
+1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
+
+2. Add the MCP server to your OpenCode configuration. OpenCode reads `opencode.jsonc` (project) or your global config; see the [OpenCode MCP servers docs](https://opencode.ai/docs/mcp-servers/) for more info. You can also add a local server from the terminal with `opencode mcp add <name> -- <command>`.
+
+#### `opencode.jsonc`
+
+For macOS/Linux:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "awslabs-core-mcp-server": {
+        "type": "local",
+        "command": ["uvx", "awslabs.core-mcp-server@latest"],
+        "environment": {
+          "FASTMCP_LOG_LEVEL": "ERROR"
+        }
+      }
+    }
+  }
+}
+```
+
+For Windows:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "awslabs-core-mcp-server": {
+        "type": "local",
+        "command": [
+          "uv",
+          "tool",
+          "run",
+          "--from",
+          "awslabs.core-mcp-server@latest",
+          "awslabs.core-mcp-server.exe"
+        ],
+        "environment": {
+          "FASTMCP_LOG_LEVEL": "ERROR"
+        }
+      }
+    }
+  }
+}
+```
+
+> **Note:** This example uses the `mcp.servers` layout of OpenCode V2 (latest). If you are on OpenCode V1, see "Migrate from V1" in the [OpenCode docs](https://opencode.ai/docs/mcp-servers/) for the equivalent configuration.
+
+3. Run `opencode mcp list` to check that the server is connected.
+
 </details>
 
 ### Getting Started with fx
