@@ -170,8 +170,8 @@ with pytest.MonkeyPatch().context() as CTX:
             # Get the function that was decorated
             decorated_function = mock_decorator.call_args[0][0]
 
-            # Check that the function has the correct docstring
-            assert decorated_function.__doc__ == description
+            # Check that the function has the correct docstring, marked deprecated
+            assert decorated_function.__doc__ == f'[DEPRECATED] {description}'
 
         @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_PREFIX', 'test-')
         @patch('awslabs.lambda_tool_mcp_server.server.mcp')
@@ -429,10 +429,9 @@ with pytest.MonkeyPatch().context() as CTX:
         @patch('awslabs.lambda_tool_mcp_server.server.mcp')
         def test_main_stdio(self, mock_mcp, mock_register_lambda_functions):
             """Test main function with stdio transport."""
-            # Set up the mock
-
-            # Call the function
-            main()
+            # Call the function; it warns that the server is deprecated
+            with pytest.warns(FutureWarning):
+                main()
 
             # Check that register_lambda_functions was called
             mock_register_lambda_functions.assert_called_once()
@@ -444,8 +443,9 @@ with pytest.MonkeyPatch().context() as CTX:
         @patch('sys.argv', ['awslabs.lambda-tool-mcp-server'])
         def test_main_default(self, mock_run):
             """Test main function with default arguments."""
-            # Call the main function
-            main()
+            # Call the main function; it warns that the server is deprecated
+            with pytest.warns(FutureWarning):
+                main()
 
             # Check that mcp.run was called with the correct arguments
             mock_run.assert_called_once()

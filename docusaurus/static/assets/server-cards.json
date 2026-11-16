@@ -278,7 +278,7 @@
       "description": "Execute Lambda functions as AI tools for private resource access",
       "icon": "\ud83c\udfd7\ufe0f",
       "id": "lambda-tool-mcp-server",
-      "name": "AWS Lambda Tool MCP Server",
+      "name": "AWS Lambda Tool MCP Server (Deprecated)",
       "source_path": "src/lambda-tool-mcp-server/",
       "subcategory": "Serverless & Functions",
       "tags": [

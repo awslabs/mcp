@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import re
+import warnings
 from mcp.server.mcpserver import Context, MCPServer
 from typing import Optional
 
@@ -57,9 +58,17 @@ session = boto3.Session(profile_name=AWS_PROFILE, region_name=AWS_REGION)
 lambda_client = session.client('lambda')
 schemas_client = session.client('schemas')
 
+DEPRECATION_NOTICE = (
+    'awslabs.lambda-tool-mcp-server is deprecated and will not receive further updates. '
+    'Use the AWS MCP Server (https://github.com/aws/agent-toolkit-for-aws) instead. '
+    'Migration guide: https://github.com/awslabs/mcp/blob/main/docs/migration-lambda-tool.md'
+)
+
 mcp = MCPServer(
     'awslabs.lambda-tool-mcp-server',
-    instructions="""Use AWS Lambda functions to improve your answers.
+    instructions=DEPRECATION_NOTICE
+    + '\n\n'
+    + """Use AWS Lambda functions to improve your answers.
     These Lambda functions give you additional capabilities and access to AWS services and resources in an AWS account.""",
     dependencies=['pydantic', 'boto3'],
 )
@@ -177,6 +186,9 @@ def create_lambda_tool(function_name: str, description: str, schema_arn: Optiona
     """
     # Create a meaningful tool name
     tool_name = sanitize_tool_name(function_name)
+
+    # Mark every tool as deprecated
+    description = f'[DEPRECATED] {description}'
 
     # Define the inner function
     async def lambda_function(parameters: dict, ctx: Context) -> str:
@@ -323,6 +335,7 @@ def register_lambda_functions():
 
 def main():
     """Run the MCP server with CLI argument support."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     register_lambda_functions()
 
     mcp.run()

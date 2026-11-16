@@ -1,7 +1,7 @@
 [project]
 name = "awslabs.lambda-tool-mcp-server"
 version = "2.1.2"
-description = "An AWS Labs Model Context Protocol (MCP) server for AWS Lambda Tools"
+description = "[DEPRECATED] An AWS Labs Model Context Protocol (MCP) server for AWS Lambda Tools"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -17,6 +17,7 @@ authors = [
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
 ]
 classifiers = [
+    "Development Status :: 7 - Inactive",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",

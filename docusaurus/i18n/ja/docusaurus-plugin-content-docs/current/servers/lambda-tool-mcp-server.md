@@ -1,6 +1,8 @@
 ---
-title: "AWS Lambda Tool MCP サーバー"
+title: "AWS Lambda Tool MCP サーバー（非推奨）"
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。こちらは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて Lambda 関数の一覧表示と呼び出しを行い、エラーメッセージを含む各関数のレスポンスを返します。選択した関数を入力スキーマ付きの名前付き MCP ツールとして公開するには、Lambda ターゲットを持つ Amazon Bedrock AgentCore Gateway を使用してください。このサーバーの各動作が新しい構成にどう対応するかについては [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-lambda-tool.md) を参照してください。
 
 コード変更なしで Lambda 関数を選択して MCP ツールとして実行するための、AWS Lambda 向け Model Context Protocol (MCP) サーバーです。
 
@@ -94,7 +96,7 @@ Windows ユーザーの場合、MCP サーバーの設定形式が若干異な�
 }
 ```
 
-または、`docker build -t awslabs/bedrock-kb-retrieval-mcp-server .` が成功した後に docker を使用します:
+または、`docker build -t awslabs/lambda-tool-mcp-server .` が成功した後に docker を使用します:
 
 ```file
 # fictitious `.env` file with AWS temporary credentials
