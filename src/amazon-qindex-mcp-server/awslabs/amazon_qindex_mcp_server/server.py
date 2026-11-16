@@ -17,12 +17,19 @@
 import boto3
 import os
 import sys
+import warnings
 from awslabs.amazon_qindex_mcp_server.clients import QBusinessClient, QBusinessClientError
 from loguru import logger
 from mcp.server.mcpserver import MCPServer
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Dict, List, Optional
 
+
+DEPRECATION_NOTICE = (
+    'awslabs.amazon-qindex-mcp-server is deprecated and will not receive further updates. '
+    'Use the AWS MCP Server (https://github.com/aws/agent-toolkit-for-aws) instead. '
+    'Migration guide: https://github.com/awslabs/mcp/blob/main/docs/migration-qindex.md'
+)
 
 # Configure logging
 logger.remove()
@@ -116,7 +123,7 @@ AttributeFilter.model_rebuild()
 # Initialize MCP server
 mcp = MCPServer(
     'awslabs.amazon-qindex-mcp-server',
-    instructions="Amazon Q index for ISVs MCP server provides access to your customers' enterprise data into your applications.",
+    instructions=f"{DEPRECATION_NOTICE}\n\nAmazon Q index for ISVs MCP server provides access to your customers' enterprise data into your applications.",
     dependencies=[
         'pydantic',
         'loguru',
@@ -138,7 +145,7 @@ async def authorize_qindex(
         description='The Amazon Q Business application ID provided by the customer'
     ),
 ) -> Dict:
-    """Generate the OIDC authorization URL for Q index authentication.
+    """[DEPRECATED] Generate the OIDC authorization URL for Q index authentication.
 
     This tool generates the URL that users need to visit to authenticate with their
     Amazon Q Business application through their OIDC provider.
@@ -179,7 +186,7 @@ async def create_token_with_iam(
     idc_region: str = Field(description='The AWS region for IAM Identity Center'),
     role_arn: str = Field(description='The ARN of the IAM role to assume'),
 ) -> Dict:
-    """Get a token using the authorization code through IAM.
+    """[DEPRECATED] Get a token using the authorization code through IAM.
 
     This tool calls the CreateTokenWithIAM API to get a token using the authorization code
     received from the OIDC endpoint.
@@ -255,7 +262,7 @@ async def assume_role_with_identity_context(
         default='qbusiness-session', description='An identifier for the assumed role session'
     ),
 ) -> Dict:
-    """Assume an IAM role using the identity context from the token.
+    """[DEPRECATED] Assume an IAM role using the identity context from the token.
 
     This tool calls the AssumeRole API with the identity context extracted from the token
     to get temporary credentials.
@@ -342,7 +349,7 @@ async def search_relevant_content(
         default=None, description='AWS session token from temporary credentials'
     ),
 ) -> SearchRelevantContentResponse:
-    """Search for relevant content in an Amazon Q Business application.
+    """[DEPRECATED] Search for relevant content in an Amazon Q Business application.
 
     This operation searches for content within a Q Business application based on the provided
     query text and returns relevant matches.
@@ -451,6 +458,7 @@ async def search_relevant_content(
 
 def main():
     """Run the MCP server with CLI argument support."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     mcp.run()
 
 

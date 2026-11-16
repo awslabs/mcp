@@ -1,5 +1,5 @@
 ---
-title: Amazon Q Index MCP Server
+title: Amazon Q Index MCP Server (Deprecated)
 ---
 
 import ReadmeContent from "../../../src/amazon-qindex-mcp-server/README.md";

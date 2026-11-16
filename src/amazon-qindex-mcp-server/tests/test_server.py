@@ -376,6 +376,7 @@ class TestMainFunction:
 
         from awslabs.amazon_qindex_mcp_server.server import main
 
-        main()
+        with pytest.warns(FutureWarning, match='deprecated'):
+            main()
 
         mock_mcp.run.assert_called_once_with()

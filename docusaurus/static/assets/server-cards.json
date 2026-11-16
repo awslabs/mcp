@@ -381,7 +381,7 @@
       "description": "Data accessors to search through enterprise's Q index",
       "icon": "\ud83e\udd16",
       "id": "amazon-qindex-mcp-server",
-      "name": "Amazon Q index MCP Server",
+      "name": "Amazon Q index MCP Server (Deprecated)",
       "source_path": "src/amazon-qindex-mcp-server/",
       "subcategory": "Knowledge & Search",
       "tags": [

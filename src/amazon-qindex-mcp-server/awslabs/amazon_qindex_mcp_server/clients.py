@@ -17,12 +17,13 @@ from awslabs.amazon_qindex_mcp_server import __version__
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
-from mypy_boto3_qbusiness.type_defs import SearchRelevantContentResponseTypeDef
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 
-if TYPE_CHECKING:
+# The mypy_boto3_qbusiness stubs are a dev dependency, so import them for type checking only.
+if TYPE_CHECKING:  # pragma: no cover
     from mypy_boto3_qbusiness.client import QBusinessClient as Boto3QBusinessClient
+    from mypy_boto3_qbusiness.type_defs import SearchRelevantContentResponseTypeDef
 else:
     Boto3QBusinessClient = object
 
@@ -254,7 +255,7 @@ class QBusinessClient:
         content_source: Optional[Dict] = None,
         max_results: Optional[int] = None,
         next_token: Optional[str] = None,
-    ) -> SearchRelevantContentResponseTypeDef:
+    ) -> 'SearchRelevantContentResponseTypeDef':
         """Search for relevant content in a Q Business application.
 
         Args:
