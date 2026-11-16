@@ -1178,7 +1178,7 @@ def test_extract_slides_sync_pdf():
             assert 'slide_2.png' in result[1]
             mock_page1.save.assert_called_once()
             mock_page2.save.assert_called_once()
-            mock_convert.assert_called_once_with('/test/doc.pdf', dpi=200)
+            mock_convert.assert_called_once_with('/test/doc.pdf', dpi=200, timeout=30)
             print('✓ _extract_slides_sync works for PDF')
 
 
@@ -1202,7 +1202,7 @@ def test_extract_slides_sync_pptx():
                 assert len(result) == 1
                 assert 'slide_1.png' in result[0]
                 mock_soffice.assert_called_once()
-                mock_convert.assert_called_once_with('/tmp/converted.pdf', dpi=200)
+                mock_convert.assert_called_once_with('/tmp/converted.pdf', dpi=200, timeout=30)
                 print('✓ _extract_slides_sync works for PPTX')
 
 
