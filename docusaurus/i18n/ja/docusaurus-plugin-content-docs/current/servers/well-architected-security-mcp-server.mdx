@@ -1,6 +1,8 @@
 ---
-title: "AWS Well-Architected セキュリティ評価ツール MCPサーバー"
+title: "AWS Well-Architected セキュリティ評価ツール MCPサーバー（非推奨）"
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。こちらは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて、GuardDuty、Security Hub、Inspector、IAM Access Analyzer、Macie、Trusted Advisor、およびストレージとネットワークの各サービスに対する同じ読み取り API を呼び出します。`aws-security` と `aws-well-architected-review` の Agent Skills が、セキュリティサービスの検出結果と Well-Architected レビューを扱います。ツールの対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-well-architected-security.md) を参照してください。
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.well-architected-security-mcp-server.svg)](https://pypi.org/project/awslabs.well-architected-security-mcp-server/)
 

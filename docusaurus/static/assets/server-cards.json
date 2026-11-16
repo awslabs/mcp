@@ -1239,7 +1239,7 @@
       "description": "Assess AWS environments against the Well-Architected Framework Security Pillar",
       "icon": "\ud83d\udcb0",
       "id": "well-architected-security-mcp-server",
-      "name": "AWS Well-Architected Security Assessment Tool MCP Server",
+      "name": "AWS Well-Architected Security Assessment Tool MCP Server (Deprecated)",
       "source_path": "src/well-architected-security-mcp-server/",
       "subcategory": "Security Assessment",
       "tags": [

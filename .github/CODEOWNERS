@@ -80,7 +80,8 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/stepfunctions-tool-mcp-server                             @awslabs/mcp-admins @awslabs/mcp-maintainers  @mmouniro
 /src/timestream-for-influxdb-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @lokendrp-aws @mhchengaws @sandeep94pr
 /src/valkey-mcp-server                                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @swarnaprakash @madolson @allenss-amazon @kevinmcgehee
-/src/well-architected-security-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @juntinyeh
+# DEPRECATED: use the AWS MCP Server
+/src/well-architected-security-mcp-server                      @awslabs/mcp-admins
 
 ## Samples
 
