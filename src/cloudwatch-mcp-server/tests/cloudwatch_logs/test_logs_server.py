@@ -273,6 +273,47 @@ class TestExecuteLogInsightsQuery:
         assert result['results'] == []
         assert 'Error executing CloudWatch Logs Insights query' in result['message']
 
+    async def test_query_with_log_group_data_source(self, ctx, cloudwatch_tools, logs_client):
+        """Query by data source ARN instead of enumerating log groups."""
+        logs_client.start_query = MagicMock(return_value={'queryId': 'test-query-id'})
+        logs_client.get_query_results = MagicMock(
+            return_value={'status': 'Complete', 'results': [], 'statistics': {}}
+        )
+
+        data_source = 'arn:aws:logs:us-east-1:123456789012:log-group:my-data-source'
+
+        result = await cloudwatch_tools.execute_log_insights_query(
+            ctx,
+            log_group_data_source=data_source,
+            start_time='2023-01-01T00:00:00+00:00',
+            end_time='2023-01-01T01:00:00+00:00',
+            query_string='fields @timestamp, @message | limit 10',
+            limit=10,
+            max_timeout=30,
+        )
+
+        assert result['status'] == 'Complete'
+        kwargs = logs_client.start_query.call_args.kwargs
+        assert kwargs['logGroupDataSource'] == data_source
+        assert 'logGroupNames' not in kwargs
+        assert 'logGroupIdentifiers' not in kwargs
+
+    async def test_data_source_with_names_is_rejected(self, ctx, cloudwatch_tools):
+        """Two selectors at once must fail like two list selectors do."""
+        result = await cloudwatch_tools.execute_log_insights_query(
+            ctx,
+            log_group_names=['/aws/test/group1'],
+            log_group_data_source='arn:aws:logs:us-east-1:123456789012:log-group:my-data-source',
+            start_time='2023-01-01T00:00:00+00:00',
+            end_time='2023-01-01T01:00:00+00:00',
+            query_string='fields @timestamp, @message | limit 10',
+            limit=10,
+            max_timeout=30,
+        )
+
+        assert result['status'] == 'Error'
+        assert 'Exactly one of log_group_names' in result['message']
+
 
 @pytest.mark.asyncio
 class TestGetQueryResults:
