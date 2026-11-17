@@ -665,8 +665,8 @@ async def _begin_transaction(
     """Open a named transaction, optionally running its first statement.
 
     The transaction holds a Data API session for as long as it stays open. The access mode
-    picks the transaction's own mode: read-only callers get `BEGIN READ ONLY`, so the engine
-    refuses a write inside it just as it does outside one.
+    picks the transaction's own mode: read-only callers get `BEGIN READ ONLY`, and
+    `_execute_statement_in_transaction` ends it with `ROLLBACK` whichever closer they name.
 
     Args:
         cluster_identifier: The cluster identifier to query.
@@ -802,8 +802,9 @@ async def _execute_statement_in_transaction(
     """Execute a statement on an open transaction's session, optionally closing it.
 
     A statement inside a transaction is sent bare: the transaction is already the wrapper,
-    so wrapping again would nest a `BEGIN`. The guard still runs on it, which is what keeps a
-    read-only caller from writing inside a transaction just as outside one.
+    so wrapping again would nest a `BEGIN`. The guard still runs on it, and a read-only
+    transaction ends in `ROLLBACK` whatever `closer` says, so a read-only caller persists
+    nothing inside a transaction, just as outside one.
 
     Args:
         cluster_identifier: The cluster identifier to query.
@@ -824,6 +825,11 @@ async def _execute_statement_in_transaction(
     """
     if sql is not None:
         assert_executable(sql, enforce_read_only=enforce_read_only, in_transaction=True)
+
+    # A read-only transaction ends in ROLLBACK, as the standalone wrapper does, whichever closer
+    # the caller named. One that only reads ends the same either way.
+    if enforce_read_only and closer is not None:
+        closer = 'ROLLBACK'
 
     # Answered from the stored discovery, so the common case costs nothing.
     cluster_info = await clusters.resolve_cluster(cluster_identifier, cluster_type)
