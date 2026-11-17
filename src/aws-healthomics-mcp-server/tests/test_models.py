@@ -74,7 +74,9 @@ def test_run_status_enum():
     assert RunStatus.PENDING == 'PENDING'
     assert RunStatus.STARTING == 'STARTING'
     assert RunStatus.RUNNING == 'RUNNING'
+    assert RunStatus.STOPPING == 'STOPPING'
     assert RunStatus.COMPLETED == 'COMPLETED'
+    assert RunStatus.DELETED == 'DELETED'
     assert RunStatus.FAILED == 'FAILED'
     assert RunStatus.CANCELLED == 'CANCELLED'
 
