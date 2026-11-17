@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   away and the cleanup completes as the worker stops, shortly after. A single
   markitdown conversion cannot be stopped partway, and the PDF to image
   timeout counts from when poppler starts.
+- `extract_slides_as_images` now stops the soffice conversion when the tool
+  times out or the call is cancelled. soffice runs in its own process group and
+  the whole process tree, including any process it started, is killed before the
+  conversion's temporary folder is removed. A conversion that finishes, or that
+  fails or exceeds `SOFFICE_TIMEOUT_SECONDS`, behaves as before (#5104).
 
 ### Changed
 - `extract_slides_as_images` now returns an error if a slide file path in the
