@@ -794,3 +794,145 @@ async def test_create_jump_host_serverless_default_vpc_map_public_ip():
         assert result['SubnetId'] == 'subnet-1234'
         assert result['SecurityGroupId'] == 'sg-1234'
         assert result['ServerlessCacheName'] == 'cache-1'
+
+
+PUBLIC_CACHE = {
+    'ServerlessCacheName': 'public-cache',
+    'ConnectionType': 'public',
+    'Engine': 'valkey',
+    'MajorEngineVersion': '9',
+    'Endpoint': {
+        'Address': 'public-cache-x2e9hv.public.serverless.use1.cache.amazonaws.com',
+        'Port': 6379,
+    },
+}
+
+
+@pytest.mark.asyncio
+async def test_configure_security_groups_rejects_public_cache():
+    """A public-endpoint cache is rejected before any security group work."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+    mock_elasticache.describe_serverless_caches.return_value = {'ServerlessCaches': [PUBLIC_CACHE]}
+
+    with pytest.raises(ValueError) as exc_info:
+        await _configure_security_groups('public-cache', 'i-1234', mock_ec2, mock_elasticache)
+
+    assert 'public endpoint' in str(exc_info.value)
+    assert PUBLIC_CACHE['Endpoint']['Address'] in str(exc_info.value)
+    mock_ec2.describe_subnets.assert_not_called()
+    mock_ec2.authorize_security_group_ingress.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_connect_jump_host_serverless_rejects_public_cache():
+    """connect-jump-host returns an error for a public-endpoint cache."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+    mock_elasticache.describe_serverless_caches.return_value = {'ServerlessCaches': [PUBLIC_CACHE]}
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+    ):
+        result = await connect_jump_host_serverless('public-cache', 'i-1234')
+
+    assert 'error' in result
+    assert 'public endpoint' in result['error']
+    mock_ec2.authorize_security_group_ingress.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_get_ssh_tunnel_command_serverless_rejects_public_cache():
+    """get-ssh-tunnel-command returns an error for a public-endpoint cache."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+    mock_ec2.describe_instances.return_value = {
+        'Reservations': [
+            {
+                'Instances': [
+                    {
+                        'KeyName': 'my-key',
+                        'PublicDnsName': 'ec2-1-2-3-4.compute-1.amazonaws.com',
+                        'Platform': '',
+                    }
+                ]
+            }
+        ]
+    }
+    mock_elasticache.describe_serverless_caches.return_value = {'ServerlessCaches': [PUBLIC_CACHE]}
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+    ):
+        result = await get_ssh_tunnel_command_serverless('public-cache', 'i-1234')
+
+    assert 'error' in result
+    assert 'public endpoint' in result['error']
+    assert 'command' not in result
+
+
+@pytest.mark.asyncio
+async def test_create_jump_host_serverless_rejects_public_cache_before_launch():
+    """create-jump-host returns an error for a public-endpoint cache and launches nothing."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+    mock_ec2.describe_key_pairs.return_value = {'KeyPairs': [{'KeyName': 'my-key'}]}
+    mock_elasticache.describe_serverless_caches.return_value = {'ServerlessCaches': [PUBLIC_CACHE]}
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+    ):
+        result = await create_jump_host_serverless('public-cache', 'my-key')
+
+    assert 'error' in result
+    assert 'public endpoint' in result['error']
+    mock_ec2.run_instances.assert_not_called()
+    mock_ec2.describe_subnets.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_configure_security_groups_vpc_cache_without_connection_type_field():
+    """Caches created before ConnectionType existed are treated as VPC caches."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+    mock_elasticache.describe_serverless_caches.return_value = {
+        'ServerlessCaches': [
+            {'SecurityGroupIds': ['sg-cache'], 'SubnetIds': ['subnet-1234'], 'Engine': 'valkey'}
+        ]
+    }
+    mock_ec2.describe_subnets.return_value = {'Subnets': [{'VpcId': 'vpc-1234'}]}
+    mock_ec2.describe_instances.return_value = {
+        'Reservations': [
+            {'Instances': [{'VpcId': 'vpc-1234', 'SecurityGroups': [{'GroupId': 'sg-instance'}]}]}
+        ]
+    }
+    mock_ec2.describe_security_groups.return_value = {'SecurityGroups': [{'IpPermissions': []}]}
+
+    success, vpc_id, port = await _configure_security_groups(
+        'cache-1', 'i-1234', mock_ec2, mock_elasticache
+    )
+
+    assert success is True
+    assert vpc_id == 'vpc-1234'
+    assert port == 6379

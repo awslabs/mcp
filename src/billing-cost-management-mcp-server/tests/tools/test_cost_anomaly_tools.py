@@ -29,6 +29,8 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_anomaly_tools import 
     cost_anomaly_server,
     get_anomalies,
 )
+from botocore.exceptions import ClientError, NoCredentialsError
+from datetime import date, datetime, timezone
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -541,11 +543,38 @@ def test_cost_anomaly_server_initialization():
     )
 
 
+@pytest.mark.asyncio
+async def test_description_documents_end_date_matching():
+    """The description says the range matches end_date, so earlier-starting anomalies are kept."""
+    tool = await cost_anomaly_server.get_tool('cost-anomaly')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert 'its end_date (the last day it was detected)' in description
+    assert (
+        'began before the range and was still being detected inside it is in range' in description
+    )
+    assert 'do not drop results whose start_date is before the range' in description
+
+
 def _assert_validation_error(res):
     """Local validation failures carry a top-level classification."""
     assert res['error_type'] == 'validation_error'
     assert res['operation'] == 'cost_anomaly'
     assert res['service'] == 'Cost Explorer'
+
+
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_cost_anomaly_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import cost_anomaly_tools as module
+
+    importlib.reload(module)
 
 
 def _reload_cost_anomaly_with_identity_decorator():
@@ -613,60 +642,6 @@ class TestCostAnomalyFastMCP:
             assert res['status'] == 'error'
             assert 'start_date must be before or equal to end_date' in res['message']
             _assert_validation_error(res)
-
-    async def test_ca_real_future_end_date(self, mock_context):
-        """Test cost_anomaly with future end_date."""
-        ca_mod = _reload_cost_anomaly_with_identity_decorator()
-        real_fn = ca_mod.cost_anomaly
-
-        with patch.object(ca_mod, 'get_context_logger') as mock_get_logger:
-            mock_logger = AsyncMock()
-            mock_get_logger.return_value = mock_logger
-
-            from datetime import datetime, timedelta
-
-            future_date = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
-
-            res = await real_fn(mock_context, start_date='2023-01-01', end_date=future_date)  # type: ignore[reportCallIssue]
-            assert res['status'] == 'error'
-            assert 'Cannot request anomalies for future dates' in res['message']
-            _assert_validation_error(res)
-
-    async def test_ca_real_old_start_date_warning(self, mock_context):
-        """Test cost_anomaly with start_date more than 90 days old triggers warning."""
-        ca_mod = _reload_cost_anomaly_with_identity_decorator()
-        real_fn = ca_mod.cost_anomaly
-
-        with (
-            patch.object(ca_mod, 'get_context_logger') as mock_get_logger,
-            patch.object(ca_mod, 'create_aws_client') as mock_create_client,
-            patch.object(ca_mod, 'get_anomalies', new_callable=AsyncMock) as mock_get_anomalies,
-        ):
-            mock_logger = AsyncMock()
-            mock_get_logger.return_value = mock_logger
-            mock_client = MagicMock()
-            mock_create_client.return_value = mock_client
-            mock_get_anomalies.return_value = {'status': 'success', 'data': {'anomalies': []}}
-
-            from datetime import datetime, timedelta
-
-            now = datetime.now()
-            recent_date = now - timedelta(days=1)
-
-            # Avoid early January dates (Jan 1-15) which trigger a separate warning
-            if recent_date.month == 1 and recent_date.day <= 15:
-                # Move back to December of previous year to avoid the early January warning
-                recent_date = recent_date.replace(year=recent_date.year - 1, month=12, day=20)
-
-            old_date = (recent_date - timedelta(days=100)).strftime('%Y-%m-%d')
-            recent_date_str = recent_date.strftime('%Y-%m-%d')
-
-            res = await real_fn(mock_context, start_date=old_date, end_date=recent_date_str)  # type: ignore[reportCallIssue]
-            assert res['status'] == 'success'
-            # Check that warning was logged
-            mock_logger.warning.assert_called_once()
-            warning_call = mock_logger.warning.call_args[0][0]
-            assert '90-day data retention' in warning_call
 
     async def test_ca_real_current_year_early_january_warning(self, mock_context):
         """Test cost_anomaly with current year data in early January triggers warning."""
@@ -787,69 +762,75 @@ class TestCostAnomalyFastMCP:
             assert 'Date validation error' in res['message']
             _assert_validation_error(res)
 
-    async def test_ca_real_client_error_2024_data(self, mock_context):
-        """Test cost_anomaly ClientError with 2024 data issue."""
+    @pytest.mark.parametrize(
+        'code,message',
+        [
+            ('ValidationException', 'Invalid date range for 2024 data'),
+            ('AccessDeniedException', 'not authorized'),
+        ],
+    )
+    async def test_ca_real_service_error_returns_error_envelope(self, mock_context, code, message):
+        """A service error from GetAnomalies comes back as an error response, not an exception."""
         ca_mod = _reload_cost_anomaly_with_identity_decorator()
         real_fn = ca_mod.cost_anomaly
 
         with (
             patch.object(ca_mod, 'get_context_logger') as mock_get_logger,
             patch.object(ca_mod, 'create_aws_client') as mock_create_client,
+            patch.object(ca_mod, '_utc_today', return_value=date(2024, 2, 1)),
         ):
-            mock_logger = AsyncMock()
-            mock_get_logger.return_value = mock_logger
+            mock_get_logger.return_value = AsyncMock()
 
             from botocore.exceptions import ClientError
 
-            error = ClientError(
-                error_response={
-                    'Error': {
-                        'Code': 'ValidationException',
-                        'Message': 'Invalid date range for 2024 data',
-                    }
-                },
+            mock_create_client.return_value.get_anomalies.side_effect = ClientError(
+                error_response={'Error': {'Code': code, 'Message': message}},
                 operation_name='GetAnomalies',
             )
-            mock_create_client.side_effect = error
 
             res = await real_fn(mock_context, start_date='2024-01-01', end_date='2024-01-31')  # type: ignore[reportCallIssue]
             assert res['status'] == 'error'
-            assert '2024 data' in res['message']
-            assert '24-48 hours in the past' in res['message']
-            assert res['error_type'] == 'ValidationException'
-            assert res['operation'] == 'cost_anomaly'
-            assert res['service'] == 'Cost Explorer'
-            assert res['data'] == {'error_code': 'ValidationException'}
+            assert res['error_type'] == code
+            assert message in res['message']
 
-    async def test_ca_real_client_error_validation(self, mock_context):
-        """Test cost_anomaly ClientError with general validation exception."""
+    @pytest.mark.parametrize(
+        'error,error_type,message',
+        [
+            (
+                ClientError(
+                    {'Error': {'Code': 'AccessDeniedException', 'Message': 'not authorized'}},
+                    'GetAnomalies',
+                ),
+                'AccessDeniedException',
+                'not authorized',
+            ),
+            (NoCredentialsError(), 'aws_connection_error', 'NoCredentialsError'),
+            (RuntimeError('boom'), 'unknown_runtimeerror', 'boom'),
+        ],
+        ids=['client-error', 'no-credentials', 'unexpected'],
+    )
+    async def test_ca_real_client_creation_error_returns_error_envelope(
+        self, mock_context, error, error_type, message
+    ):
+        """An error creating the CE client is returned as cost_anomaly's error response."""
         ca_mod = _reload_cost_anomaly_with_identity_decorator()
         real_fn = ca_mod.cost_anomaly
 
         with (
-            patch.object(ca_mod, 'get_context_logger') as mock_get_logger,
-            patch.object(ca_mod, 'create_aws_client') as mock_create_client,
+            patch.object(ca_mod, 'get_context_logger', return_value=AsyncMock()),
+            patch.object(ca_mod, 'create_aws_client', side_effect=error) as create,
+            patch.object(ca_mod, 'get_anomalies', new_callable=AsyncMock) as mock_get_anomalies,
+            patch.object(ca_mod, '_utc_today', return_value=date(2024, 2, 1)),
         ):
-            mock_logger = AsyncMock()
-            mock_get_logger.return_value = mock_logger
+            res = await real_fn(mock_context, start_date='2024-01-01', end_date='2024-01-31')  # type: ignore[reportCallIssue]
 
-            from botocore.exceptions import ClientError
-
-            error = ClientError(
-                error_response={
-                    'Error': {'Code': 'ValidationException', 'Message': 'Invalid parameters'}
-                },
-                operation_name='GetAnomalies',
-            )
-            mock_create_client.side_effect = error
-
-            res = await real_fn(mock_context, start_date='2023-01-01', end_date='2023-01-31')  # type: ignore[reportCallIssue]
-            assert res['status'] == 'error'
-            assert 'validation error' in res['message']
-            assert res['error_type'] == 'ValidationException'
-            assert res['operation'] == 'cost_anomaly'
-            assert res['service'] == 'Cost Explorer'
-            assert res['data'] == {'error_code': 'ValidationException'}
+        create.assert_called_once_with('ce', region_name='us-east-1')
+        mock_get_anomalies.assert_not_called()
+        assert res['status'] == 'error'
+        assert res['error_type'] == error_type
+        assert message in res['message']
+        assert res['operation'] == 'cost_anomaly'
+        assert res['service'] == 'Cost Explorer'
 
     async def test_ca_real_successful_call(self, mock_context):
         """Test cost_anomaly successful call."""
@@ -859,6 +840,7 @@ class TestCostAnomalyFastMCP:
         with (
             patch.object(ca_mod, 'get_context_logger') as mock_get_logger,
             patch.object(ca_mod, 'create_aws_client') as mock_create_client,
+            patch.object(ca_mod, '_utc_today', return_value=date(2023, 2, 1)),
             patch.object(ca_mod, 'get_anomalies', new_callable=AsyncMock) as mock_get_anomalies,
         ):
             mock_logger = AsyncMock()
@@ -881,6 +863,174 @@ class TestCostAnomalyFastMCP:
             assert res['status'] == 'success'
             mock_get_anomalies.assert_called_once()
             assert mock_get_anomalies.call_args.args[6:8] == (50, 'tok')
+
+
+async def _call_with_today(mock_context, today, **kwargs):
+    """Call the real cost_anomaly with UTC today pinned and a mocked CE client.
+
+    Returns (response, client) so a test can read the DateInterval actually sent.
+    """
+    ca_mod = _reload_cost_anomaly_with_identity_decorator()
+    mock_client = MagicMock()
+    mock_client.get_anomalies.return_value = {'Anomalies': []}
+    with (
+        patch.object(ca_mod, 'get_context_logger', return_value=AsyncMock()),
+        patch.object(ca_mod, 'create_aws_client', return_value=mock_client) as create,
+        patch.object(ca_mod, '_utc_today', return_value=today),
+    ):
+        res = await ca_mod.cost_anomaly(mock_context, **kwargs)  # type: ignore[reportCallIssue]
+    return res, mock_client, create
+
+
+@pytest.mark.asyncio
+class TestDateWindow:
+    """GetAnomalies serves only UTC today minus 90 days through today; the tool limits to that."""
+
+    TODAY = date(2026, 10, 28)
+
+    async def test_start_before_window_is_limited(self, mock_context):
+        """A start_date older than 90 days is moved to the window start, and the response says so."""
+        res, client, _ = await _call_with_today(
+            mock_context, self.TODAY, start_date='2026-06-30', end_date='2026-10-27'
+        )
+        assert res['status'] == 'success'
+        assert client.get_anomalies.call_args.kwargs['DateInterval'] == {
+            'StartDate': '2026-07-30',
+            'EndDate': '2026-10-27',
+        }
+        assert res['data']['time_range'] == {
+            'start_date': '2026-07-30',
+            'end_date': '2026-10-27',
+            'limited_from_request': True,
+            'requested_start_date': '2026-06-30',
+            'requested_end_date': '2026-10-27',
+            'max_lookback_days': 90,
+        }
+
+    async def test_future_end_is_limited_to_today(self, mock_context):
+        """An end_date after today (for example tomorrow) is limited to today, not rejected."""
+        res, client, _ = await _call_with_today(
+            mock_context, self.TODAY, start_date='2026-10-21', end_date='2026-10-29'
+        )
+        assert res['status'] == 'success'
+        assert client.get_anomalies.call_args.kwargs['DateInterval']['EndDate'] == '2026-10-28'
+        assert res['data']['time_range']['end_date'] == '2026-10-28'
+        assert res['data']['time_range']['requested_end_date'] == '2026-10-29'
+        assert res['data']['time_range']['limited_from_request'] is True
+
+    async def test_window_edges_pass_unchanged(self, mock_context):
+        """Both edges (today - 90 and today) are served, so a range on them is not limited."""
+        res, client, _ = await _call_with_today(
+            mock_context, self.TODAY, start_date='2026-07-30', end_date='2026-10-28'
+        )
+        assert res['status'] == 'success'
+        assert client.get_anomalies.call_args.kwargs['DateInterval'] == {
+            'StartDate': '2026-07-30',
+            'EndDate': '2026-10-28',
+        }
+        assert res['data']['time_range']['limited_from_request'] is False
+
+    @pytest.mark.parametrize(
+        'start_date,end_date,sent_start,sent_end',
+        [
+            ('2026-06-01', '2026-07-30', '2026-07-30', '2026-07-30'),  # ends on the first day
+            ('2026-10-28', '2026-10-30', '2026-10-28', '2026-10-28'),  # starts on today
+            ('2026-06-01', '2026-11-15', '2026-07-30', '2026-10-28'),  # both ends limited
+        ],
+    )
+    async def test_range_touching_window_is_limited_not_rejected(
+        self, mock_context, start_date, end_date, sent_start, sent_end
+    ):
+        """A range sharing even one day with the window is limited to it, not rejected."""
+        res, client, _ = await _call_with_today(
+            mock_context, self.TODAY, start_date=start_date, end_date=end_date
+        )
+        assert res['status'] == 'success'
+        assert client.get_anomalies.call_args.kwargs['DateInterval'] == {
+            'StartDate': sent_start,
+            'EndDate': sent_end,
+        }
+        assert res['data']['time_range']['limited_from_request'] is True
+
+    async def test_time_range_precedes_anomalies(self, mock_context):
+        """time_range sits ahead of the anomaly list, so a trimmed result still carries it."""
+        res, _, _ = await _call_with_today(
+            mock_context, self.TODAY, start_date='2026-10-01', end_date='2026-10-27'
+        )
+        keys = list(res['data'])
+        assert keys.index('time_range') < keys.index('anomalies')
+
+    @pytest.mark.parametrize(
+        'start_date,end_date',
+        [
+            ('2026-06-01', '2026-07-29'),  # ends the day before the window opens
+            ('2026-10-29', '2026-10-30'),  # starts after today
+        ],
+    )
+    async def test_range_outside_window_is_rejected(self, mock_context, start_date, end_date):
+        """A range with no day inside the window is a local error that states the window."""
+        res, _, create = await _call_with_today(
+            mock_context, self.TODAY, start_date=start_date, end_date=end_date
+        )
+        assert res['status'] == 'error'
+        _assert_validation_error(res)
+        assert '2026-07-30 to 2026-10-28' in res['message']
+        assert res['data'] == {
+            'start_date': start_date,
+            'end_date': end_date,
+            'earliest_start_date': '2026-07-30',
+            'latest_end_date': '2026-10-28',
+        }
+        create.assert_not_called()
+
+    async def test_today_is_utc_not_local(self, mock_context):
+        """Today is the UTC date the service uses, not the host's local date.
+
+        At 01:00 UTC on 2026-10-29 a host at UTC-7 still reads 2026-10-28; the service already
+        serves 2026-10-29, so an end_date of 2026-10-29 is in range.
+        """
+        ca_mod = _reload_cost_anomaly_with_identity_decorator()
+        utc_now = datetime(2026, 10, 29, 1, 0, tzinfo=timezone.utc)
+        local_now = datetime(2026, 10, 28, 18, 0)
+        mock_client = MagicMock()
+        mock_client.get_anomalies.return_value = {'Anomalies': []}
+        with (
+            patch.object(ca_mod, 'get_context_logger', return_value=AsyncMock()),
+            patch.object(ca_mod, 'create_aws_client', return_value=mock_client),
+            patch.object(ca_mod, 'datetime') as mock_datetime,
+        ):
+            mock_datetime.now.side_effect = (
+                lambda tz=None: utc_now if tz is not None else local_now
+            )
+            mock_datetime.strptime.side_effect = datetime.strptime
+            res = await ca_mod.cost_anomaly(  # type: ignore[reportCallIssue]
+                mock_context, start_date='2026-10-22', end_date='2026-10-29'
+            )
+        assert res['status'] == 'success'
+        assert (
+            mock_client.get_anomalies.call_args.kwargs['DateInterval']['EndDate'] == '2026-10-29'
+        )
+        assert res['data']['time_range']['limited_from_request'] is False
+
+
+@pytest.mark.asyncio
+async def test_description_documents_window_and_total_impact():
+    """The description states the date window, the time_range check, total impact and unknown ARNs."""
+    tool = await cost_anomaly_server.get_tool('cost-anomaly')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+
+    assert 'today minus 90 days through today (UTC)' in description
+    assert 'anomalies that ended earlier cannot be retrieved' in description
+    assert 'With next_token, pass the same start_date and end_date' in description
+    assert 'when limited_from_request is true' in description
+    assert 'returns a validation_error that states the window' in description
+    assert 'impact.total_impact is in dollars: actual spend minus expected spend' in description
+    assert 'BETWEEN includes both bounds' in description
+    assert 'Every comparison uses the unrounded value (responses round it to cents)' in description
+    assert 'so EQUAL rarely matches' in description
+    assert 'EQUAL is an exact match on the unrounded value' not in description
+    assert 'matches no monitor returns an empty list, not an error' in description
 
 
 @pytest.mark.asyncio
@@ -1027,3 +1177,121 @@ class TestGetAnomaliesAdditional:
         assert 'score' not in anomaly
         assert 'impact' not in anomaly
         assert 'root_causes' not in anomaly
+
+
+async def _call_cost_anomaly_capturing_request(mock_context, **kwargs):
+    """Call the real cost_anomaly with a mocked CE client; return (response, client)."""
+    ca_mod = _reload_cost_anomaly_with_identity_decorator()
+    mock_client = MagicMock()
+    mock_client.get_anomalies.return_value = {'Anomalies': []}
+    with (
+        patch.object(ca_mod, 'get_context_logger', return_value=AsyncMock()),
+        patch.object(ca_mod, 'create_aws_client', return_value=mock_client),
+        patch.object(ca_mod, '_utc_today', return_value=date(2023, 2, 1)),
+    ):
+        res = await ca_mod.cost_anomaly(  # type: ignore[reportCallIssue]
+            mock_context, start_date='2023-01-01', end_date='2023-01-31', **kwargs
+        )
+    return res, mock_client
+
+
+@pytest.mark.asyncio
+class TestTotalImpactFilter:
+    """total_impact_* arguments must reach the API or be rejected, never be dropped."""
+
+    @pytest.mark.parametrize(
+        'kwargs,expected',
+        [
+            (
+                {'total_impact_start': 1000.0},
+                {'NumericOperator': 'GREATER_THAN_OR_EQUAL', 'StartValue': 1000.0},
+            ),
+            (
+                {'total_impact_start': 0.0},
+                {'NumericOperator': 'GREATER_THAN_OR_EQUAL', 'StartValue': 0.0},
+            ),
+            (
+                {'total_impact_start': 100.0, 'total_impact_end': 500.0},
+                {'NumericOperator': 'BETWEEN', 'StartValue': 100.0, 'EndValue': 500.0},
+            ),
+            (
+                {'total_impact_start': 0.0, 'total_impact_end': 0.0},
+                {'NumericOperator': 'BETWEEN', 'StartValue': 0.0, 'EndValue': 0.0},
+            ),
+            (
+                {'total_impact_operator': '', 'total_impact_start': 10.0},
+                {'NumericOperator': 'GREATER_THAN_OR_EQUAL', 'StartValue': 10.0},
+            ),
+            (
+                {'total_impact_operator': 'GREATER_THAN', 'total_impact_start': 200.0},
+                {'NumericOperator': 'GREATER_THAN', 'StartValue': 200.0},
+            ),
+            (
+                {
+                    'total_impact_operator': 'BETWEEN',
+                    'total_impact_start': 100.0,
+                    'total_impact_end': 500.0,
+                },
+                {'NumericOperator': 'BETWEEN', 'StartValue': 100.0, 'EndValue': 500.0},
+            ),
+        ],
+    )
+    async def test_filter_sent(self, mock_context, kwargs, expected):
+        """A start value without an operator defaults the operator instead of being dropped."""
+        res, client = await _call_cost_anomaly_capturing_request(mock_context, **kwargs)
+        assert res['status'] == 'success'
+        assert client.get_anomalies.call_args.kwargs['TotalImpact'] == expected
+
+    async def test_no_filter_sends_no_total_impact(self, mock_context):
+        """No total_impact_* arguments sends no TotalImpact."""
+        res, client = await _call_cost_anomaly_capturing_request(mock_context)
+        assert res['status'] == 'success'
+        assert 'TotalImpact' not in client.get_anomalies.call_args.kwargs
+
+    @pytest.mark.parametrize(
+        'kwargs,parameter,text',
+        [
+            (
+                {'total_impact_operator': 'GREATER_THAN'},
+                'total_impact_start',
+                'total_impact_operator needs total_impact_start',
+            ),
+            (
+                {'total_impact_operator': 'LESS_THAN', 'total_impact_end': 50.0},
+                'total_impact_start',
+                'total_impact_end is only used with BETWEEN',
+            ),
+            (
+                {'total_impact_operator': 'BETWEEN', 'total_impact_end': 50.0},
+                'total_impact_start',
+                'total_impact_operator needs total_impact_start',
+            ),
+            (
+                {'total_impact_end': 50.0},
+                'total_impact_start',
+                "total_impact_operator='LESS_THAN_OR_EQUAL' and total_impact_start=50.0",
+            ),
+            (
+                {'total_impact_end': 0.0},
+                'total_impact_start',
+                'total_impact_end needs total_impact_start',
+            ),
+            (
+                {
+                    'total_impact_operator': 'GREATER_THAN',
+                    'total_impact_start': 100.0,
+                    'total_impact_end': 500.0,
+                },
+                'total_impact_end',
+                'total_impact_end is only used with BETWEEN',
+            ),
+        ],
+    )
+    async def test_rejected_locally(self, mock_context, kwargs, parameter, text):
+        """Incomplete or ignored total impact arguments fail before any API call."""
+        res, client = await _call_cost_anomaly_capturing_request(mock_context, **kwargs)
+        assert res['status'] == 'error'
+        _assert_validation_error(res)
+        assert res['data']['invalid_parameter'] == parameter
+        assert text in res['message']
+        client.get_anomalies.assert_not_called()

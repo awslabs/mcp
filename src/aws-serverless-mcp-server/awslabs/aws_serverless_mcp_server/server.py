@@ -287,7 +287,7 @@ def main() -> int:
     Returns:
         int: Exit code (0 for success, non-zero for failure)
     """
-    os.makedirs(DEPLOYMENT_STATUS_DIR, exist_ok=True)
+    os.makedirs(DEPLOYMENT_STATUS_DIR, mode=0o700, exist_ok=True)
     logger.remove()
     logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 

@@ -28,11 +28,6 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 
-[tool.uv]
-override-dependencies = [
-  "virtualenv>=20.36.1", # Temporary forced a higher version because 20.33.1 from CVE-2026-22702
-]
-
 [project.scripts]
 "awslabs.bedrock-kb-retrieval-mcp-server" = "awslabs.bedrock_kb_retrieval_mcp_server.server:main"
 
@@ -47,7 +42,7 @@ Changelog = "https://github.com/awslabs/mcp/blob/main/src/bedrock-kb-retrieval-m
 dev = [
     "boto3-stubs[bedrock-agent,bedrock-agent-runtime]>=1.43.32",
     "commitizen>=4.4.1",
-    "pre-commit>=4.2.0",
+    "pre-commit>=4.2.0; python_version >= '3.11'",
     "pyright>=1.1.398",
     "ruff>=0.11.2",
     "pytest>=7.4.0",

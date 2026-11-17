@@ -17,6 +17,4 @@
 The tests are not written here. They are written by an agent, at run time, against live
 warehouses: the harness provisions the AWS resources, hands an agent the server under test
 over MCP, gives it a scenario in prose, and records what it did and concluded.
-
-See README.md for the commands and what a run costs.
 """

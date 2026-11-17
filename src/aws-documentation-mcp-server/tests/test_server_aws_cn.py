@@ -443,3 +443,21 @@ class TestMain:
                 main()
                 mock_logger.assert_called_once_with('Starting AWS China Documentation MCP Server')
                 mock_run.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_read_documentation_china_fetches_html_page_for_md_url():
+    """A .md URL reads the .html page at the same path."""
+    with patch(
+        'awslabs.aws_documentation_mcp_server.server_aws_cn.read_documentation_impl',
+        new_callable=AsyncMock,
+    ) as impl:
+        await read_documentation_china(
+            MockContext(),
+            url='https://docs.amazonaws.cn/en_us/lambda/latest/dg/invocation-sync.md',
+            max_length=1000,
+            start_index=0,
+        )
+    assert impl.call_args.args[1] == (
+        'https://docs.amazonaws.cn/en_us/lambda/latest/dg/invocation-sync.html'
+    )

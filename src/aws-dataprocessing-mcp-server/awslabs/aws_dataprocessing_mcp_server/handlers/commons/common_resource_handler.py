@@ -40,6 +40,30 @@ from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional, Union
 
 
+# AWS managed policies that can be attached by create_data_processing_role, per service type
+SUPPORTED_MANAGED_POLICIES: Dict[str, List[str]] = {
+    'glue': [
+        'arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole',
+    ],
+    'emr': [
+        'arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole',
+        'arn:aws:iam::aws:policy/service-role/AmazonEMRServicePolicy_v2',
+    ],
+    'athena': [
+        'arn:aws:iam::aws:policy/AmazonAthenaFullAccess',
+    ],
+}
+
+# IAM actions that may be granted through inline policies created by this server
+SUPPORTED_INLINE_IAM_ACTIONS = frozenset(
+    {
+        'iam:passrole',
+        'iam:getrole',
+        'iam:listroles',
+    }
+)
+
+
 class CommonResourceHandler:
     """Handler for AWS Common Resource operations in the Data Processing MCP Server.
 
@@ -206,6 +230,11 @@ class CommonResourceHandler:
         - The policy name must be unique within the role
         - You cannot modify existing policies with this tool
 
+        ## Policy Restrictions
+        - Statements cannot use `NotAction` with `Effect: Allow`
+        - Actions cannot be `*` or use a wildcard in the service prefix
+        - IAM actions are limited to iam:PassRole, iam:GetRole and iam:ListRoles
+
         ## Permission Format
         The permissions parameter can be either a single policy statement or a list of statements.
 
@@ -229,10 +258,18 @@ class CommonResourceHandler:
                 "s3:GetObject",
                 "s3:PutObject",
                 "s3:DeleteObject",
-                "s3:ListBucket",
-                "iam:PassRole"
+                "s3:ListBucket"
             ],
             "Resource": "*"
+        }
+        ```
+
+        ### Pass Role Permissions
+        ```json
+        {
+            "Effect": "Allow",
+            "Action": "iam:PassRole",
+            "Resource": "arn:aws:iam::123456789012:role/GlueJobRole"
         }
         ```
 
@@ -300,6 +337,15 @@ class CommonResourceHandler:
                     content=[TextContent(type='text', text=error_message)],
                 )
 
+            # Validate the policy statements
+            validation_error = self._validate_policy_statements(permissions)
+            if validation_error:
+                log_with_request_id(ctx, LogLevel.ERROR, validation_error)
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=validation_error)],
+                )
+
             # Create the inline policy
             return self._create_inline_policy(ctx, role_name, policy_name, permissions)
 
@@ -362,10 +408,17 @@ class CommonResourceHandler:
         - **emr**: Creates a role that can be assumed by the EMR service
         - **athena**: Creates a role that can be assumed by the Athena service
 
-        ## Common Managed Policies. add these policies
+        ## Supported Managed Policies
+        Only the following AWS managed policies can be attached, based on service type:
         - Glue: 'arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole'
-        - EMR: 'arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole'
-        - Athena: 'arn:aws:iam::aws:policy/service-role/AmazonAthenaFullAccess'
+        - EMR: 'arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole',
+          'arn:aws:iam::aws:policy/service-role/AmazonEMRServicePolicy_v2'
+        - Athena: 'arn:aws:iam::aws:policy/AmazonAthenaFullAccess'
+
+        ## Inline Policy Restrictions
+        - Statements cannot use `NotAction` with `Effect: Allow`
+        - Actions cannot be `*` or use a wildcard in the service prefix
+        - IAM actions are limited to iam:PassRole, iam:GetRole and iam:ListRoles
 
         ## Usage Tips
         - Always provide a descriptive name and description for the role
@@ -410,6 +463,31 @@ class CommonResourceHandler:
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
                 )
+
+            # Validate managed policies and inline policy before creating the role
+            if managed_policy_arns:
+                supported_policies = SUPPORTED_MANAGED_POLICIES[service_type]
+                unsupported = [arn for arn in managed_policy_arns if arn not in supported_policies]
+                if unsupported:
+                    error_message = (
+                        f'Unsupported managed policies for service type {service_type}: '
+                        f'{", ".join(unsupported)}. Supported policies: '
+                        f'{", ".join(supported_policies)}. Use inline_policy for custom permissions.'
+                    )
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                    return CallToolResult(
+                        isError=True,
+                        content=[TextContent(type='text', text=error_message)],
+                    )
+
+            if inline_policy:
+                validation_error = self._validate_policy_statements(inline_policy)
+                if validation_error:
+                    log_with_request_id(ctx, LogLevel.ERROR, validation_error)
+                    return CallToolResult(
+                        isError=True,
+                        content=[TextContent(type='text', text=validation_error)],
+                    )
 
             # Create the trust relationship based on service type
             trust_relationship = self._get_trust_relationship_for_service(service_type)
@@ -1434,6 +1512,57 @@ class CommonResourceHandler:
                         return True
 
         return False
+
+    def _validate_policy_statements(
+        self, permissions: Union[Dict[str, Any], List[Dict[str, Any]]]
+    ) -> Optional[str]:
+        """Validate policy statements before they are added to a role.
+
+        Args:
+            permissions: A single policy statement or a list of policy statements
+
+        Returns:
+            Optional[str]: An error message if a statement is not supported, otherwise None
+        """
+        statements = permissions if isinstance(permissions, list) else [permissions]
+
+        for statement in statements:
+            if not isinstance(statement, dict):
+                return 'Each policy statement must be a JSON object'
+
+            # Deny statements only remove permissions
+            if statement.get('Effect') != 'Allow':
+                continue
+
+            if 'NotAction' in statement:
+                return 'Policy statements with Effect Allow cannot use NotAction'
+
+            actions = statement.get('Action', [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if not isinstance(actions, list):
+                return 'Policy statement Action must be a string or a list of strings'
+
+            for action in actions:
+                if not isinstance(action, str):
+                    return 'Policy statement Action must be a string or a list of strings'
+
+                normalized = action.strip().lower()
+                service_prefix, _, _ = normalized.partition(':')
+
+                if normalized == '*' or '*' in service_prefix or '?' in service_prefix:
+                    return (
+                        f'Unsupported action {action}: actions must specify a service prefix, '
+                        'for example s3:GetObject'
+                    )
+
+                if service_prefix == 'iam' and normalized not in SUPPORTED_INLINE_IAM_ACTIONS:
+                    return (
+                        f'Unsupported IAM action {action}. Supported IAM actions: '
+                        'iam:PassRole, iam:GetRole, iam:ListRoles'
+                    )
+
+        return None
 
     def _add_permissions_to_document(self, policy_document, permissions):
         """Add permissions to a policy document.

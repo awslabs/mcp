@@ -54,7 +54,28 @@ BILLING_GET_BILLING_PREFERENCES = PageSpec(
     token_key_in_response='nextToken',
     page_max=50,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
+
+
+def _feature_list(features: Union[str, List[str]]) -> List[str]:
+    """The features list the API expects, from a feature name, a list, or a JSON array string.
+
+    Raises:
+        ValueError: If a list or JSON array string is malformed, empty, or not of feature names
+    """
+    if isinstance(features, str):
+        if not features.strip().startswith('['):
+            return [features]
+        features = parse_json(features.strip(), 'features')
+    if (
+        not isinstance(features, list)
+        or not features
+        or not all(isinstance(f, str) for f in features)
+    ):
+        raise ValueError('features must be a feature name or a non-empty list of names')
+    return list(features)
 
 
 async def get_billing_preferences(
@@ -69,7 +90,8 @@ async def get_billing_preferences(
     Args:
         ctx: The MCP context object.
         features: The feature to retrieve (required). The API accepts exactly one;
-            a bare string is wrapped into the single-item list it expects.
+            a bare string is wrapped into the single-item list it expects, and a JSON array
+            string is decoded.
         filters: Filters as a JSON string, for example
             ``[{"name": "PREFERENCE_KEY", "value": ["credit/4242"]}]``.
         max_items: Most billing preferences to return. None fetches every page.
@@ -80,9 +102,7 @@ async def get_billing_preferences(
         block, or a standardized error response.
     """
     try:
-        request_params: Dict[str, Any] = {
-            'features': [features] if isinstance(features, str) else list(features)
-        }
+        request_params: Dict[str, Any] = {'features': _feature_list(features)}
         if filters:
             request_params['filters'] = parse_json(filters, 'filters')
 

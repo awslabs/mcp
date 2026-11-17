@@ -43,6 +43,8 @@ LIST_INVOICE_UNITS_PAGE_SPEC = PageSpec(
     token_key_in_response='NextToken',
     page_max=500,
     page_size_param='MaxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 
@@ -82,8 +84,11 @@ async def list_invoice_units(
         invoice_receivers: Return only invoice units whose receiver is one of
             these AWS account IDs (12 digits).
         accounts: Return only invoice units that reference one of these AWS
-            account IDs anywhere — as the receiver, a linked (member) account,
-            or a bill-source account (a global search across all three roles).
+            account IDs as the receiver or as a linked (member) account. An
+            empty result does not establish that the account belongs to no
+            invoice unit: bill-source membership is filtered by
+            ``bill_source_accounts`` and reported in
+            ``Rule.BillSourceAccounts``.
         bill_source_accounts: Return only invoice units with one of these AWS
             account IDs as a bill-source account.
         as_of: Return the invoice unit definitions as they existed at this

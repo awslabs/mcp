@@ -88,7 +88,8 @@ def test_register_all_prompts():
     register_all_prompts(mock_mcp)
 
     # Check that mcp.prompt was called at least once
-    # (we have at least two prompts: graviton_migration and savings_plans)
+    # (we have at least two prompts: analyze_graviton_opportunities and
+    # analyze_savings_plans_opportunities)
     assert mock_mcp.prompt.call_count >= 2
 
     # Check that the prompt decorator was called with the correct arguments
@@ -107,9 +108,8 @@ def test_graviton_migration_prompt():
 
     # Call the function with test parameters
     account_ids = '123456789012'
-    lookback_days = 7
     region = 'us-west-2'
-    messages = graviton_migration_analysis(account_ids, lookback_days, region)
+    messages = graviton_migration_analysis(account_ids, region)
 
     # Check that the result is a list of messages
     assert isinstance(messages, list)
@@ -132,9 +132,11 @@ def test_graviton_migration_prompt():
 
     # Check that the content contains the expected information
     assert '123456789012' in content_text
-    assert '7 days' in content_text
     assert 'us-west-2' in content_text
-    assert 'compute_optimizer_get_ec2_instance_recommendations' in content_text
+    assert '`cost-optimization` `list_recommendation_summaries`' in content_text
+    assert 'MigrateToGraviton' in content_text
+    assert '`compute-optimizer` `get_ec2_instance_recommendations`' in content_text
+    assert 'AWS_ARM64' in content_text
 
     # Check the assistant message
     assistant_message = messages[1]
@@ -190,7 +192,9 @@ def test_savings_plans_prompt():
     assert '123456789012' in content_text
     assert '60 days' in content_text
     assert '3 years' in content_text
-    assert 'cost_explorer_get_savings_plans_purchase_recommendation' in content_text
+    assert '`sp-recommendation` `get_savings_plans_purchase_recommendation`' in content_text
+    assert 'SIXTY_DAYS' in content_text
+    assert 'THREE_YEARS' in content_text
 
     # Check the assistant message
     assistant_message = messages[1]

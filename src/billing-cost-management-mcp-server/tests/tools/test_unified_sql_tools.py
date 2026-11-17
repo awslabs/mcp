@@ -81,6 +81,19 @@ def test_unified_sql_server_initialization():
     assert unified_sql_server.name == 'unified-sql-tools'
 
 
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_unified_sql_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import unified_sql_tools as module
+
+    importlib.reload(module)
+
+
 def _reload_unified_sql_with_identity_decorator():
     """Reload unified_sql_tools with FastMCP.tool patched to return the original function unchanged (identity decorator).
 
@@ -187,3 +200,13 @@ async def test_unified_sql_real_exception_flow_calls_handle_error_reload_identit
         assert res['status'] == 'error'
         assert 'kaboom' in res.get('message', '')
         mock_handle.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_description_names_no_nonexistent_tool():
+    """session-sql points at the offload fields, not a cost_explorer_sql tool that does not exist."""
+    tool = await unified_sql_server.get_tool('session-sql')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert 'cost_explorer_sql' not in description
+    assert '`data.data_stored: true` and names the table in `data.table_name`' in description
