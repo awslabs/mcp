@@ -73,6 +73,7 @@ class GetResourceType(str, Enum):
     asset = 'asset'
     messages = 'messages'
     plan = 'plan'
+    engagement = 'engagement'
 
 
 # ── Session helper (inlined from session.ts) ───────────────────────────────
@@ -104,10 +105,12 @@ TOOL_DESCRIPTION = (
     '- job → workspaceId, jobId. Returns basic job metadata. To check job status or '
     'determine next steps, use send_message scoped to the job instead.\n'
     '- connector → workspaceId, connectorId\n'
+    '- engagement → engagementId\n'
     '- task → workspaceId, jobId, taskId\n'
     '- artifact → workspaceId, jobId, artifactId\n'
     '- asset → workspaceId, jobId, connectorId, assetKey\n'
-    '- messages → workspaceId, messageIds (array of strings, e.g. ["msg-abc", "msg-def"]). '
+    '- messages → workspaceId or engagementId, plus messageIds '
+    '(array of strings, e.g. ["msg-abc", "msg-def"]). engagementId takes precedence. '
     'Use this after list_resources(resource="messages") to hydrate message IDs into full content. '
     'When retrying after a send_message timeout, look for parentMessageId matching the '
     'sentMessageId and messageType="FINAL_RESPONSE".\n'
@@ -156,6 +159,15 @@ class GetResourceHandler:
             Optional[str],
             Field(description='Connector ID. REQUIRED for: connector, asset'),
         ] = None,
+        engagementId: Annotated[
+            Optional[str],
+            Field(
+                description=(
+                    'Engagement ID. REQUIRED for: engagement. Alternate scope for: messages; '
+                    'takes precedence over workspaceId.'
+                )
+            ),
+        ] = None,
         taskId: Annotated[
             Optional[str],
             Field(description='Task ID. REQUIRED for: task'),
@@ -201,12 +213,17 @@ class GetResourceHandler:
 
         # Nudge: if a jobId is provided but load_instructions hasn't been called for it.
         # Need to remove this when we add agent plugins.
-        nudge = job_needs_check(jobId)
+        nudge = (
+            None
+            if resource == GetResourceType.messages and engagementId
+            else job_needs_check(jobId)
+        )
         if nudge and resource not in (
             GetResourceType.session,
             GetResourceType.workspace,
             GetResourceType.connector,
             GetResourceType.job,
+            GetResourceType.engagement,
         ):
             return error_result(
                 'INSTRUCTIONS_REQUIRED',
@@ -264,6 +281,20 @@ class GetResourceHandler:
                     await call_transform_api(
                         'GetConnector',
                         GetConnectorRequest(workspaceId=workspaceId, connectorId=connectorId),
+                    )
+                )
+
+            # ── engagement ────────────────────────────────────────────────
+            elif resource == GetResourceType.engagement:
+                if not engagementId:
+                    return error_result(
+                        'VALIDATION_ERROR',
+                        'engagementId is required for getting an engagement.',
+                    )
+                return success_result(
+                    await call_transform_api(
+                        'GetEngagement',
+                        {'engagementId': engagementId},
                     )
                 )
 
@@ -464,9 +495,10 @@ class GetResourceHandler:
 
             # ── messages ───────────────────────────────────────────────────
             elif resource == GetResourceType.messages:
-                if not workspaceId:
+                if not workspaceId and not engagementId:
                     return error_result(
-                        'VALIDATION_ERROR', 'workspaceId is required for getting messages.'
+                        'VALIDATION_ERROR',
+                        'workspaceId or engagementId is required for getting messages.',
                     )
 
                 # If messageIds is a string, parse it as JSON
@@ -487,7 +519,8 @@ class GetResourceHandler:
                         'BatchGetMessage',
                         BatchGetMessageRequest(
                             messageIds=resolved_ids,
-                            workspaceId=workspaceId,
+                            engagementId=engagementId,
+                            workspaceId=workspaceId if not engagementId else None,
                         ),
                     )
                 )
