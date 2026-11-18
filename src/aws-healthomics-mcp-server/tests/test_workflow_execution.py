@@ -430,9 +430,9 @@ async def test_list_runs_invalid_status():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('status', ['STOPPING', 'DELETED'])
-async def test_list_runs_accepts_all_service_run_statuses(status):
-    """STOPPING and DELETED are valid ListRuns status filters and must reach the API."""
+@pytest.mark.parametrize('status', ['STOPPING'])
+async def test_list_runs_accepts_stopping_status(status):
+    """STOPPING is a valid ListRuns status filter and must reach the API."""
     mock_ctx = AsyncMock()
     mock_client = MagicMock()
     mock_client.list_runs.return_value = {'items': []}

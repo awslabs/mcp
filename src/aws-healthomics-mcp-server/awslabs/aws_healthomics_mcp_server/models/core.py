@@ -110,7 +110,6 @@ class RunStatus(str, Enum):
     RUNNING = 'RUNNING'
     STOPPING = 'STOPPING'
     COMPLETED = 'COMPLETED'
-    DELETED = 'DELETED'
     FAILED = 'FAILED'
     CANCELLED = 'CANCELLED'
 

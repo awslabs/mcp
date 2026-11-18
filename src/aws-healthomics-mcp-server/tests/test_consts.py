@@ -150,12 +150,11 @@ class TestRunStatuses:
             'RUNNING',
             'STOPPING',
             'COMPLETED',
-            'DELETED',
             'FAILED',
             'CANCELLED',
         ]
         assert consts.RUN_STATUSES == expected_statuses
-        assert len(consts.RUN_STATUSES) == 8
+        assert len(consts.RUN_STATUSES) == 7
 
         # Verify all individual constants are in the list
         assert consts.RUN_STATUS_PENDING in consts.RUN_STATUSES
@@ -163,7 +162,6 @@ class TestRunStatuses:
         assert consts.RUN_STATUS_RUNNING in consts.RUN_STATUSES
         assert consts.RUN_STATUS_STOPPING in consts.RUN_STATUSES
         assert consts.RUN_STATUS_COMPLETED in consts.RUN_STATUSES
-        assert consts.RUN_STATUS_DELETED in consts.RUN_STATUSES
         assert consts.RUN_STATUS_FAILED in consts.RUN_STATUSES
         assert consts.RUN_STATUS_CANCELLED in consts.RUN_STATUSES
 
@@ -312,7 +310,6 @@ class TestConstantsIntegration:
             consts.RUN_STATUS_RUNNING,
             consts.RUN_STATUS_STOPPING,
             consts.RUN_STATUS_COMPLETED,
-            consts.RUN_STATUS_DELETED,
             consts.RUN_STATUS_FAILED,
             consts.RUN_STATUS_CANCELLED,
         ]
