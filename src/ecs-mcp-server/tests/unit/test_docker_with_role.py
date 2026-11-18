@@ -10,7 +10,7 @@ import pytest
 from awslabs.ecs_mcp_server.utils.docker import build_and_push_image
 
 
-class TestDockerWithRole(unittest.TestCase):
+class TestDockerWithRole(unittest.IsolatedAsyncioTestCase):
     """Tests for Docker utility functions with role-based auth."""
 
     @pytest.mark.anyio

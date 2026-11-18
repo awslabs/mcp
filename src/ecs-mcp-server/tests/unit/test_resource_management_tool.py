@@ -45,7 +45,7 @@ class MockFastMCP:
 # So we've moved the functionality into the TestResourceManagementTool class below
 
 
-class TestResourceManagementTool(unittest.TestCase):
+class TestResourceManagementTool(unittest.IsolatedAsyncioTestCase):
     """Test the ecs_resource_management tool in main.py."""
 
     def test_ecs_resource_management_tool_registration(self):
