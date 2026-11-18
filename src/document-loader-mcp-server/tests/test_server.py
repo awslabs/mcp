@@ -1098,8 +1098,9 @@ def test_convert_to_pdf_with_soffice_success():
         with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
             mock_find.return_value = '/usr/bin/soffice'
 
-            with patch('awslabs.document_loader_mcp_server.server.subprocess.run') as mock_run:
-                mock_run.return_value = MagicMock(returncode=0)
+            with patch('awslabs.document_loader_mcp_server.server.subprocess.Popen') as mock_popen:
+                mock_popen.return_value = MagicMock(returncode=0)
+                mock_popen.return_value.communicate.return_value = (b'', b'')
 
                 # Create a fake PDF output file that soffice would produce
                 pdf_path = os.path.join(temp_dir, 'test.pdf')
@@ -1108,32 +1109,37 @@ def test_convert_to_pdf_with_soffice_success():
 
                 result = _convert_to_pdf_with_soffice('/input/test.pptx', temp_dir)
                 assert result == pdf_path
-                mock_run.assert_called_once()
-                # Verify timeout is passed to subprocess.run
-                call_kwargs = mock_run.call_args[1]
+                mock_popen.assert_called_once()
+                # Verify a timeout is passed to the wait on soffice
+                call_kwargs = mock_popen.return_value.communicate.call_args[1]
                 assert 'timeout' in call_kwargs
                 print('✓ _convert_to_pdf_with_soffice succeeds')
 
 
 def test_convert_to_pdf_with_soffice_custom_timeout():
-    """Test _convert_to_pdf_with_soffice passes custom timeout to subprocess.run."""
+    """Test _convert_to_pdf_with_soffice enforces a custom timeout and stops soffice."""
+    import subprocess
     import tempfile
 
     with tempfile.TemporaryDirectory() as temp_dir:
         with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
             mock_find.return_value = '/usr/bin/soffice'
 
-            with patch('awslabs.document_loader_mcp_server.server.subprocess.run') as mock_run:
-                mock_run.return_value = MagicMock(returncode=0)
+            with patch('awslabs.document_loader_mcp_server.server.subprocess.Popen') as mock_popen:
+                with patch(
+                    'awslabs.document_loader_mcp_server.server._kill_process_tree'
+                ) as mock_kill:
+                    mock_popen.return_value.communicate.side_effect = subprocess.TimeoutExpired(
+                        'soffice', 1
+                    )
 
-                pdf_path = os.path.join(temp_dir, 'test.pdf')
-                with open(pdf_path, 'w') as f:
-                    f.write('fake pdf')
-
-                _convert_to_pdf_with_soffice('/input/test.pptx', temp_dir, timeout_seconds=60)
-                call_kwargs = mock_run.call_args[1]
-                assert call_kwargs['timeout'] == 60
-                print('✓ _convert_to_pdf_with_soffice passes custom timeout')
+                    with pytest.raises(subprocess.TimeoutExpired) as excinfo:
+                        _convert_to_pdf_with_soffice(
+                            '/input/test.pptx', temp_dir, timeout_seconds=1
+                        )
+                    assert excinfo.value.timeout == 1
+                    mock_kill.assert_called_once_with(mock_popen.return_value)
+                    print('✓ _convert_to_pdf_with_soffice enforces custom timeout')
 
 
 def test_convert_to_pdf_with_soffice_not_found():
@@ -1153,8 +1159,9 @@ def test_convert_to_pdf_with_soffice_no_output():
         with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
             mock_find.return_value = '/usr/bin/soffice'
 
-            with patch('awslabs.document_loader_mcp_server.server.subprocess.run') as mock_run:
-                mock_run.return_value = MagicMock(returncode=0)
+            with patch('awslabs.document_loader_mcp_server.server.subprocess.Popen') as mock_popen:
+                mock_popen.return_value = MagicMock(returncode=0)
+                mock_popen.return_value.communicate.return_value = (b'', b'')
                 # Don't create the PDF file — simulates soffice failing silently
                 with pytest.raises(FileNotFoundError, match='PDF file not found'):
                     _convert_to_pdf_with_soffice('/input/test.pptx', temp_dir)
