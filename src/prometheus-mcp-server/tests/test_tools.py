@@ -451,6 +451,52 @@ class TestTools:
             assert mock_get_workspace_details.call_count == 2
 
     @pytest.mark.asyncio
+    async def test_get_available_workspaces_follows_next_token(self, mock_context):
+        """Test that get_available_workspaces returns workspaces from every page."""
+        mock_client = MagicMock()
+        mock_client.list_workspaces.side_effect = [
+            {
+                'workspaces': [
+                    {
+                        'workspaceId': 'ws-12345',
+                        'alias': 'workspace1',
+                        'status': {'statusCode': 'CREATING'},
+                    },
+                ],
+                'nextToken': 'page-2',
+            },
+            {
+                'workspaces': [
+                    {
+                        'workspaceId': 'ws-67890',
+                        'alias': 'workspace2',
+                        'status': {'statusCode': 'CREATING'},
+                    },
+                ],
+            },
+        ]
+
+        with (
+            patch(
+                'awslabs.prometheus_mcp_server.server.get_prometheus_client',
+                return_value=mock_client,
+            ),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+            patch.dict(os.environ, {'AWS_REGION': '', 'AWS_PROFILE': ''}, clear=True),
+        ):
+            result = await get_available_workspaces(
+                ctx=mock_context, region='us-east-1', profile='test-profile'
+            )
+
+            assert result['count'] == 2
+            assert [ws['workspace_id'] for ws in result['workspaces']] == [
+                'ws-12345',
+                'ws-67890',
+            ]
+            assert mock_client.list_workspaces.call_count == 2
+            assert mock_client.list_workspaces.call_args_list[1].kwargs == {'nextToken': 'page-2'}
+
+    @pytest.mark.asyncio
     async def test_get_available_workspaces_with_configured_workspace_id(self, mock_context):
         """Test that get_available_workspaces correctly handles a configured workspace ID from URL."""
         mock_client = MagicMock()
