@@ -26,6 +26,7 @@ Environment Variables:
 import argparse
 import os
 import sys
+import warnings
 from awslabs.sagemaker_ai_mcp_server.sagemaker_hyperpod.hyperpod_cluster_node_handler import (
     HyperPodClusterNodeHandler,
 )
@@ -36,8 +37,15 @@ from loguru import logger
 from mcp.server.mcpserver import MCPServer
 
 
+DEPRECATION_NOTICE = (
+    'awslabs.sagemaker-ai-mcp-server is deprecated and will not receive further updates. '
+    'Use the AWS MCP Server (https://github.com/aws/agent-toolkit-for-aws) instead. '
+    'Migration guide: https://github.com/awslabs/mcp/blob/main/docs/migration-sagemaker-ai.md'
+)
+
 # Define server instructions and dependencies
-SERVER_INSTRUCTIONS = """
+SERVER_INSTRUCTIONS = f"""{DEPRECATION_NOTICE}
+
 # Amazon SageMaker AI MCP Server
 
 This MCP server provides comprehensive tools for managing Amazon SageMaker AI resources, currently including HyperPod cluster management.
@@ -151,6 +159,8 @@ def create_server():
 def main():
     """Run the MCP server with CLI argument support."""
     global mcp
+
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
 
     # Configure loguru logging
     logger.remove()

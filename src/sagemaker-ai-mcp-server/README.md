@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [AWS MCP Server](https://github.com/aws/agent-toolkit-for-aws), part of the Agent Toolkit for AWS, which makes the same Amazon SageMaker HyperPod and AWS CloudFormation API calls through its `run_script` tool (sandboxed Python that calls AWS APIs with your own IAM credentials) and also reaches HyperPod operations this server didn't have, such as rebooting or replacing nodes. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-sagemaker-ai.md) for the tool mapping.
+
 # Amazon SageMaker AI MCP Server
 
 The Amazon SageMaker AI MCP server provides agents with tools to enable high-performance, low-cost AI/ML model development. Currently, this server includes tools for managing SageMaker HyperPod clusters.

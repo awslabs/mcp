@@ -1,6 +1,8 @@
 ---
-title: "Amazon SageMaker AI MCPサーバー"
+title: "Amazon SageMaker AI MCPサーバー（非推奨）"
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。こちらは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて同じ Amazon SageMaker HyperPod と AWS CloudFormation の API を呼び出し、ノードの再起動や置き換えなど、このサーバーにはなかった HyperPod の操作も行えます。ツールの対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-sagemaker-ai.md) を参照してください。
 
 Amazon SageMaker AI MCP サーバーは、高性能かつ低コストな AI/ML モデル開発を実現するためのツールをエージェントに提供します。現在、このサーバーには SageMaker HyperPod クラスターを管理するためのツールが含まれています。
 
