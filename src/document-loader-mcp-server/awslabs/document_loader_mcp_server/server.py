@@ -16,15 +16,18 @@
 import asyncio
 import contextlib
 import functools
+import ntpath
 import os
 import pdfplumber
 import secrets
 import shutil
+import signal
 import stat
 import subprocess  # nosec B404 - subprocess used with fixed command, no shell=True
 import sys
 import tempfile
 import threading
+import time
 from fastmcp import FastMCP
 from fastmcp.server.context import Context
 from fastmcp.utilities.types import Image
@@ -569,10 +572,61 @@ def _check_soffice_available() -> Optional[str]:
     return None
 
 
+# How often a running soffice conversion checks whether its call was cancelled.
+SOFFICE_POLL_INTERVAL_SECONDS = 0.2
+# How long to wait for output pipes to close after the soffice process tree is killed.
+SOFFICE_REAP_TIMEOUT_SECONDS = 5
+
+
+def _taskkill_path() -> str:
+    """Return the full path of taskkill.exe, so a copy in the working directory is never run."""
+    system_root = os.environ.get('SystemRoot') or os.environ.get('windir') or 'C:\\Windows'
+    return ntpath.join(system_root, 'System32', 'taskkill.exe')
+
+
+def _kill_process_tree(proc: 'subprocess.Popen[bytes]') -> None:
+    """Kill a process and every process it started, then reap it.
+
+    ``proc`` must have been started in its own session (POSIX) or process group
+    (Windows). The tree is only signalled while ``proc`` has not been reaped: after that its
+    pid may belong to an unrelated process.
+    """
+    try:
+        if proc.returncode is None:
+            if sys.platform == 'win32':
+                # /T also ends the child processes soffice started.
+                subprocess.run(  # nosec B603 - fixed command, pid is an int from Popen
+                    [_taskkill_path(), '/F', '/T', '/PID', str(proc.pid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=SOFFICE_REAP_TIMEOUT_SECONDS,
+                )
+            else:
+                os.killpg(proc.pid, signal.SIGKILL)
+    except (OSError, subprocess.SubprocessError) as e:
+        logger.warning(f'Could not stop the soffice process tree, killing soffice only: {e}')
+    with contextlib.suppress(OSError):
+        proc.kill()
+    try:
+        proc.communicate(timeout=SOFFICE_REAP_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        logger.warning('soffice output pipes did not close after the process tree was killed')
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            proc.wait(timeout=SOFFICE_REAP_TIMEOUT_SECONDS)
+
+
 def _convert_to_pdf_with_soffice(
-    file_path: str, temp_dir: str, timeout_seconds: Optional[int] = None
+    file_path: str,
+    temp_dir: str,
+    timeout_seconds: Optional[int] = None,
+    cancel: Optional[_CancelToken] = None,
 ) -> str:
-    """Convert a PPTX file to PDF using LibreOffice/OpenOffice headless mode."""
+    """Convert a PPTX file to PDF using LibreOffice/OpenOffice headless mode.
+
+    soffice runs in its own process group. If it exceeds ``timeout_seconds`` or
+    ``cancel`` fires, the whole process tree is killed, including processes
+    soffice started, before TimeoutExpired or WorkCancelledError is raised.
+    """
     if timeout_seconds is None:
         timeout_seconds = _get_soffice_timeout()
     soffice_path = _find_soffice()
@@ -587,9 +641,33 @@ def _convert_to_pdf_with_soffice(
         '--outdir',
         temp_dir,
     ]
-    subprocess.run(
-        cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout_seconds
-    )  # nosec B603 - fixed command with no shell=True, args are not user-controlled
+    _check_cancelled(cancel)
+    # Start soffice in its own group so the whole tree can be killed together.
+    proc = subprocess.Popen(  # nosec B603 - fixed command with no shell=True, args are not user-controlled
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0,
+        start_new_session=sys.platform != 'win32',
+    )
+    deadline = time.monotonic() + timeout_seconds
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(cmd, timeout_seconds)
+            try:
+                stdout, stderr = proc.communicate(
+                    timeout=min(SOFFICE_POLL_INTERVAL_SECONDS, remaining)
+                )
+                break
+            except subprocess.TimeoutExpired:
+                _check_cancelled(cancel)
+    except BaseException:
+        _kill_process_tree(proc)
+        raise
+    if proc.returncode:
+        raise subprocess.CalledProcessError(proc.returncode, cmd, output=stdout, stderr=stderr)
     pdf_filename = Path(file_path).stem + '.pdf'
     pdf_path = os.path.join(temp_dir, pdf_filename)
     if not os.path.isfile(pdf_path):
@@ -828,7 +906,7 @@ def _extract_slides_sync(
         _check_cancelled(cancel)
         if suffix in {'.pptx', '.ppt'}:
             temp_dir = tempfile.mkdtemp(prefix='docloader_soffice_')
-            pdf_path = _convert_to_pdf_with_soffice(file_path, temp_dir, timeout_seconds)
+            pdf_path = _convert_to_pdf_with_soffice(file_path, temp_dir, timeout_seconds, cancel)
         elif suffix == '.pdf':
             pdf_path = file_path
         else:
