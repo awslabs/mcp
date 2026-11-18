@@ -235,8 +235,11 @@ def test_windows_stops_process_tree_with_taskkill(monkeypatch, tmp_path):
     """On Windows the whole tree is stopped with taskkill /T, and soffice gets its own group."""
     monkeypatch.setattr(server, '_find_soffice', lambda: 'C:/soffice.exe')
     monkeypatch.setattr(sys, 'platform', 'win32')
+    # subprocess.CREATE_NEW_PROCESS_GROUP only exists on Windows; raising=False keeps this test portable.
+    monkeypatch.setattr(server.subprocess, 'CREATE_NEW_PROCESS_GROUP', 0x00000200, raising=False)
+    monkeypatch.setenv('SystemRoot', 'C:\\Windows')
     cancel = _CancelToken()
-    proc = MagicMock(pid=4321)
+    proc = MagicMock(pid=4321, returncode=None)
 
     def communicate(timeout=None):
         if not communicate.called:
@@ -256,13 +259,19 @@ def test_windows_stops_process_tree_with_taskkill(monkeypatch, tmp_path):
         _convert_to_pdf_with_soffice('in.pptx', str(tmp_path), timeout_seconds=30, cancel=cancel)
 
     assert popen.call_args.kwargs['creationflags'] == 0x00000200  # CREATE_NEW_PROCESS_GROUP
-    assert run.call_args.args[0] == ['taskkill', '/F', '/T', '/PID', '4321']
+    assert run.call_args.args[0] == [
+        'C:\\Windows\\System32\\taskkill.exe',
+        '/F',
+        '/T',
+        '/PID',
+        '4321',
+    ]
 
 
 def test_kill_process_tree_falls_back_to_killing_soffice(monkeypatch):
     """If the tree cannot be killed, soffice itself is still killed and reaped."""
     monkeypatch.setattr(sys, 'platform', 'win32')
-    proc = MagicMock(pid=4321)
+    proc = MagicMock(pid=4321, returncode=None)
     proc.communicate.side_effect = subprocess.TimeoutExpired('soffice', 1)
     proc.wait.side_effect = subprocess.TimeoutExpired('soffice', 1)
     monkeypatch.setattr(server.subprocess, 'run', MagicMock(side_effect=OSError('no taskkill')))
@@ -282,7 +291,7 @@ def test_posix_stops_process_group_with_killpg(monkeypatch, tmp_path):
     monkeypatch.setattr(os, 'killpg', killpg, raising=False)
     monkeypatch.setattr(server.signal, 'SIGKILL', 9, raising=False)
     cancel = _CancelToken()
-    proc = MagicMock(pid=4321)
+    proc = MagicMock(pid=4321, returncode=None)
 
     def communicate(timeout=None):
         if not communicate.called:
@@ -302,3 +311,29 @@ def test_posix_stops_process_group_with_killpg(monkeypatch, tmp_path):
     assert popen.call_args.kwargs['start_new_session'] is True
     assert popen.call_args.kwargs['creationflags'] == 0
     killpg.assert_called_once_with(4321, 9)
+
+
+def test_taskkill_is_run_from_the_system_directory(monkeypatch):
+    """taskkill.exe is resolved under SystemRoot, never from the working directory or PATH."""
+    monkeypatch.setenv('SystemRoot', 'D:\\Win')
+    assert server._taskkill_path() == 'D:\\Win\\System32\\taskkill.exe'
+    monkeypatch.delenv('SystemRoot')
+    monkeypatch.delenv('windir', raising=False)
+    assert server._taskkill_path() == 'C:\\Windows\\System32\\taskkill.exe'
+
+
+@pytest.mark.parametrize('platform', ['win32', 'linux'])
+def test_kill_process_tree_does_not_signal_a_reaped_process(monkeypatch, platform):
+    """Once the process is reaped its pid may belong to someone else, so nothing is signalled."""
+    monkeypatch.setattr(sys, 'platform', platform)
+    killpg = MagicMock()
+    monkeypatch.setattr(os, 'killpg', killpg, raising=False)
+    run = MagicMock()
+    monkeypatch.setattr(server.subprocess, 'run', run)
+    proc = MagicMock(pid=4321, returncode=0)
+    proc.communicate.return_value = (b'', b'')
+
+    server._kill_process_tree(proc)
+
+    killpg.assert_not_called()
+    run.assert_not_called()

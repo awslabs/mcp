@@ -16,6 +16,7 @@
 import asyncio
 import contextlib
 import functools
+import ntpath
 import os
 import pdfplumber
 import secrets
@@ -577,23 +578,31 @@ SOFFICE_POLL_INTERVAL_SECONDS = 0.2
 SOFFICE_REAP_TIMEOUT_SECONDS = 5
 
 
+def _taskkill_path() -> str:
+    """Return the full path of taskkill.exe, so a copy in the working directory is never run."""
+    system_root = os.environ.get('SystemRoot') or os.environ.get('windir') or 'C:\\Windows'
+    return ntpath.join(system_root, 'System32', 'taskkill.exe')
+
+
 def _kill_process_tree(proc: 'subprocess.Popen[bytes]') -> None:
     """Kill a process and every process it started, then reap it.
 
     ``proc`` must have been started in its own session (POSIX) or process group
-    (Windows) and must not have been reaped yet, so that its pid is still valid.
+    (Windows). The tree is only signalled while ``proc`` has not been reaped: after that its
+    pid may belong to an unrelated process.
     """
     try:
-        if sys.platform == 'win32':
-            # /T also ends the child processes soffice started.
-            subprocess.run(  # nosec B603 B607 - fixed command, pid is an int from Popen
-                ['taskkill', '/F', '/T', '/PID', str(proc.pid)],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=SOFFICE_REAP_TIMEOUT_SECONDS,
-            )
-        else:
-            os.killpg(proc.pid, signal.SIGKILL)
+        if proc.returncode is None:
+            if sys.platform == 'win32':
+                # /T also ends the child processes soffice started.
+                subprocess.run(  # nosec B603 - fixed command, pid is an int from Popen
+                    [_taskkill_path(), '/F', '/T', '/PID', str(proc.pid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=SOFFICE_REAP_TIMEOUT_SECONDS,
+                )
+            else:
+                os.killpg(proc.pid, signal.SIGKILL)
     except (OSError, subprocess.SubprocessError) as e:
         logger.warning(f'Could not stop the soffice process tree, killing soffice only: {e}')
     with contextlib.suppress(OSError):
