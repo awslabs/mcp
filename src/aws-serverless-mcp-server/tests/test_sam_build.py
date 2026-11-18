@@ -37,7 +37,7 @@ class TestSamBuild:
             return_value=(mock_result.stdout, mock_result.stderr),
         ) as mock_run:
             # Call the function
-            result = await SamBuildTool(MagicMock()).handle_sam_build(
+            result = await SamBuildTool(MagicMock(), allow_write=True).handle_sam_build(
                 AsyncMock(),
                 project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
                 template_file=None,
@@ -84,7 +84,7 @@ class TestSamBuild:
             return_value=(mock_result.stdout, mock_result.stderr),
         ) as mock_run:
             # Call the function
-            result = await SamBuildTool(MagicMock()).handle_sam_build(
+            result = await SamBuildTool(MagicMock(), allow_write=True).handle_sam_build(
                 AsyncMock(),
                 project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
                 template_file='template.yaml',
@@ -138,7 +138,7 @@ class TestSamBuild:
             side_effect=subprocess.CalledProcessError(1, 'sam build', stderr=error_message),
         ):
             # Call the function
-            result = await SamBuildTool(MagicMock()).handle_sam_build(
+            result = await SamBuildTool(MagicMock(), allow_write=True).handle_sam_build(
                 AsyncMock(),
                 project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
                 template_file=None,
@@ -172,7 +172,7 @@ class TestSamBuild:
             side_effect=Exception(error_message),
         ):
             # Call the function
-            result = await SamBuildTool(MagicMock()).handle_sam_build(
+            result = await SamBuildTool(MagicMock(), allow_write=True).handle_sam_build(
                 AsyncMock(),
                 project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
                 template_file=None,
@@ -209,7 +209,7 @@ class TestSamBuild:
             return_value=(mock_result.stdout, mock_result.stderr),
         ) as mock_run:
             # Call the function with default parallel parameter (True)
-            result = await SamBuildTool(MagicMock()).handle_sam_build(
+            result = await SamBuildTool(MagicMock(), allow_write=True).handle_sam_build(
                 AsyncMock(),
                 project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
                 template_file=None,
@@ -253,7 +253,7 @@ class TestSamBuild:
             return_value=(mock_result.stdout, mock_result.stderr),
         ) as mock_run:
             # Call the function with parallel=False
-            result = await SamBuildTool(MagicMock()).handle_sam_build(
+            result = await SamBuildTool(MagicMock(), allow_write=True).handle_sam_build(
                 AsyncMock(),
                 project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
                 template_file=None,
@@ -284,3 +284,25 @@ class TestSamBuild:
 
             # Check that --parallel flag is NOT included when disabled
             assert '--parallel' not in cmd
+
+    @pytest.mark.asyncio
+    async def test_sam_build_allow_write_false(self):
+        """Test that sam_build is blocked and runs no command when allow_write is False."""
+        tool = SamBuildTool(MagicMock(), allow_write=False)
+
+        with patch(
+            'awslabs.aws_serverless_mcp_server.tools.sam.sam_build.run_command',
+        ) as mock_run:
+            with pytest.raises(Exception) as exc_info:
+                await tool.handle_sam_build(
+                    AsyncMock(),
+                    project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                    build_dir=os.path.join(tempfile.gettempdir(), 'victim'),
+                )
+
+            mock_run.assert_not_called()
+
+        assert (
+            'Write operations are not allowed. Set --allow-write flag to true to enable write operations.'
+            in str(exc_info.value)
+        )

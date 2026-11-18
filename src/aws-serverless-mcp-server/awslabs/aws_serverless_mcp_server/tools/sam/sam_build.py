@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.process import run_command
 from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
@@ -19,11 +20,12 @@ from pydantic import Field
 from typing import Any, Dict, Optional
 
 
-class SamBuildTool:
+class SamBuildTool(BaseTool):
     """Tool to build AWS Serverless Application Model (SAM) projects using the SAM CLI."""
 
-    def __init__(self, mcp: MCPServer):
+    def __init__(self, mcp: MCPServer, allow_write: bool):
         """Initialize the SAM build tool."""
+        super().__init__(allow_write=allow_write)
         mcp.tool(name='sam_build')(self.handle_sam_build)
 
     async def handle_sam_build(
@@ -140,6 +142,8 @@ class SamBuildTool:
         Returns:
             Dict: SAM init command output
         """
+        self.checkToolAccess()
+
         await ctx.info(f'Building SAM project in {project_directory}')
         cmd = ['sam', 'build']
 

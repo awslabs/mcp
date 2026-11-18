@@ -37,7 +37,7 @@ class TestSamInit:
             return_value=(mock_result.stdout, mock_result.stderr),
         ) as mock_run:
             # Call the function
-            result = await SamInitTool(MagicMock()).handle_sam_init(
+            result = await SamInitTool(MagicMock(), allow_write=True).handle_sam_init(
                 AsyncMock(),
                 project_name='test-project',
                 runtime='nodejs18.x',
@@ -95,7 +95,7 @@ class TestSamInit:
             return_value=(mock_result.stdout, mock_result.stderr),
         ) as mock_run:
             # Call the function
-            result = await SamInitTool(MagicMock()).handle_sam_init(
+            result = await SamInitTool(MagicMock(), allow_write=True).handle_sam_init(
                 AsyncMock(),
                 project_name='test-project',
                 runtime='python3.9',
@@ -145,7 +145,7 @@ class TestSamInit:
             side_effect=subprocess.CalledProcessError(1, 'sam init', stderr=error_message),
         ):
             # Call the function
-            result = await SamInitTool(MagicMock()).handle_sam_init(
+            result = await SamInitTool(MagicMock(), allow_write=True).handle_sam_init(
                 AsyncMock(),
                 project_name='test-project',
                 runtime='nodejs18.x',
@@ -182,7 +182,7 @@ class TestSamInit:
             side_effect=Exception(error_message),
         ):
             # Call the function
-            result = await SamInitTool(MagicMock()).handle_sam_init(
+            result = await SamInitTool(MagicMock(), allow_write=True).handle_sam_init(
                 AsyncMock(),
                 project_name='test-project',
                 runtime='nodejs18.x',
@@ -208,3 +208,27 @@ class TestSamInit:
             assert result['success'] is False
             assert 'Failed to initialize SAM project' in result['message']
             assert error_message in result['message']
+
+    @pytest.mark.asyncio
+    async def test_sam_init_allow_write_false(self):
+        """Test that sam_init is blocked and runs no command when allow_write is False."""
+        tool = SamInitTool(MagicMock(), allow_write=False)
+
+        with patch(
+            'awslabs.aws_serverless_mcp_server.tools.sam.sam_init.run_command',
+        ) as mock_run:
+            with pytest.raises(Exception) as exc_info:
+                await tool.handle_sam_init(
+                    AsyncMock(),
+                    project_name='test-project',
+                    runtime='python3.12',
+                    project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                    dependency_manager='pip',
+                )
+
+            mock_run.assert_not_called()
+
+        assert (
+            'Write operations are not allowed. Set --allow-write flag to true to enable write operations.'
+            in str(exc_info.value)
+        )
