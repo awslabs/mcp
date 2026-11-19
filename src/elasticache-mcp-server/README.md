@@ -186,7 +186,9 @@ Configure AWS credentials and region:
 
 ```bash
 # AWS settings
-AWS_PROFILE=default              # AWS credential profile to use
+# AWS_PROFILE is optional. When set, that named profile is used.
+# When unset, boto3's default credential chain is used
+# (environment variables, container credentials, instance role, and so on).
 AWS_REGION=us-east-1            # AWS region to connect to
 ```
 

@@ -1,4 +1,5 @@
 # pyright: reportPrivateUsage=false, reportAttributeAccessIssue=false, reportFunctionMemberAccess=false, reportGeneralTypeIssues=false
+import os
 import unittest
 from awslabs.amazon_sns_sqs_mcp_server.generator import AWSToolGenerator
 from unittest.mock import MagicMock, patch
@@ -134,7 +135,8 @@ class TestAWSToolGenerator(unittest.TestCase):
         # Configure the session mock to return different clients based on region
         session_instances = {}
 
-        def get_session(profile_name, region_name):
+        def get_session(*args, **kwargs):
+            region_name = kwargs['region_name']
             if region_name not in session_instances:
                 session_mock = MagicMock()
                 if region_name == 'us-west-2':
@@ -146,6 +148,35 @@ class TestAWSToolGenerator(unittest.TestCase):
 
         mock_session.side_effect = get_session
 
+        env = {key: value for key, value in os.environ.items() if key != 'AWS_PROFILE'}
+        with patch.dict(os.environ, env, clear=True):
+            generator = AWSToolGenerator(
+                service_name='sqs',
+                service_display_name='SQS',
+                mcp=self.mcp_mock,
+                mcp_server_version='10.15.99',
+            )
+
+            # Access private method for testing
+            client1 = generator._AWSToolGenerator__get_client('us-west-2')
+            client2 = generator._AWSToolGenerator__get_client('us-west-2')
+            client3 = generator._AWSToolGenerator__get_client('us-east-1')
+
+        # Verify client caching works
+        self.assertEqual(client1, client2)
+        self.assertNotEqual(client1, client3)
+
+        # With no AWS_PROFILE, use the default credential chain (no profile_name)
+        mock_session.assert_any_call(region_name='us-west-2')
+        mock_session.assert_any_call(region_name='us-east-1')
+
+    @patch('awslabs.amazon_sns_sqs_mcp_server.generator.os.environ.get')
+    @patch('awslabs.amazon_sns_sqs_mcp_server.generator.boto3.Session')
+    def test_get_client_with_custom_aws_profile(self, mock_session, mock_env_get):
+        """Honor AWS_PROFILE when it is set."""
+        mock_env_get.return_value = 'custom-profile'
+        mock_session.return_value = self.boto3_session_mock
+
         generator = AWSToolGenerator(
             service_name='sqs',
             service_display_name='SQS',
@@ -153,18 +184,29 @@ class TestAWSToolGenerator(unittest.TestCase):
             mcp_server_version='10.15.99',
         )
 
-        # Access private method for testing
-        client1 = generator._AWSToolGenerator__get_client('us-west-2')
-        client2 = generator._AWSToolGenerator__get_client('us-west-2')
-        client3 = generator._AWSToolGenerator__get_client('us-east-1')
+        generator._AWSToolGenerator__get_client('us-east-1')
 
-        # Verify client caching works
-        self.assertEqual(client1, client2)
-        self.assertNotEqual(client1, client3)
+        mock_env_get.assert_called_with('AWS_PROFILE')
+        mock_session.assert_called_with(profile_name='custom-profile', region_name='us-east-1')
 
-        # Verify boto3 Session was called with correct parameters
-        mock_session.assert_any_call(profile_name='default', region_name='us-west-2')
-        mock_session.assert_any_call(profile_name='default', region_name='us-east-1')
+    @patch('awslabs.amazon_sns_sqs_mcp_server.generator.os.environ.get')
+    @patch('awslabs.amazon_sns_sqs_mcp_server.generator.boto3.Session')
+    def test_get_client_without_aws_profile(self, mock_session, mock_env_get):
+        """Use the default credential chain when AWS_PROFILE is not set."""
+        mock_env_get.return_value = None
+        mock_session.return_value = self.boto3_session_mock
+
+        generator = AWSToolGenerator(
+            service_name='sqs',
+            service_display_name='SQS',
+            mcp=self.mcp_mock,
+            mcp_server_version='10.15.99',
+        )
+
+        generator._AWSToolGenerator__get_client('us-east-1')
+
+        mock_env_get.assert_called_with('AWS_PROFILE')
+        mock_session.assert_called_with(region_name='us-east-1')
 
     @patch('awslabs.amazon_sns_sqs_mcp_server.generator.boto3.Session')
     @patch('awslabs.amazon_sns_sqs_mcp_server.generator.botocore.session.get_session')
