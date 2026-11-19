@@ -84,6 +84,11 @@ class TestAbstractDBConnection:
         conn.proxy_endpoint = None
         assert conn.proxy_endpoint is None
 
+    def test_requires_serving_loop_defaults_false(self):
+        """Connectors with no loop-bound state stay on the synchronous startup path."""
+        conn = ConcreteDBConnection(readonly=True)
+        assert type(conn).requires_serving_loop is False
+
     def test_proxy_endpoint_is_per_instance(self):
         """Two connections must not share proxy state."""
         first, second = ConcreteDBConnection(readonly=True), ConcreteDBConnection(readonly=True)

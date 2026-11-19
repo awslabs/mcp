@@ -29,13 +29,31 @@ class TestSafeArgs:
     def test_filters_sensitive_params(self):
         from awslabs.aws_transform_mcp_server.audit import _safe_args
 
-        def my_func(workspaceId, token, content, jobId):
+        def my_func(
+            workspaceId,
+            token,
+            content,
+            migrationExecutiveSponsorName,
+            customerEmail,
+            customerWebsite,
+            customerAddress,
+            jobId,
+        ):
             pass
 
         result = _safe_args(
             my_func,
             (),
-            {'workspaceId': 'ws-1', 'token': 'secret', 'content': 'data', 'jobId': 'j-1'},
+            {
+                'workspaceId': 'ws-1',
+                'token': 'secret',
+                'content': 'data',
+                'migrationExecutiveSponsorName': 'Executive Name',
+                'customerEmail': 'customer@example.com',
+                'customerWebsite': 'https://customer.example.com',
+                'customerAddress': '123 Customer Street',
+                'jobId': 'j-1',
+            },
         )
         assert result == {'workspaceId': 'ws-1', 'jobId': 'j-1'}
 
@@ -128,6 +146,50 @@ class TestExtractError:
 
 class TestAuditedTool:
     """Tests for audited_tool decorator wrapper."""
+
+    async def test_manage_engagement_logs_only_allowlisted_params(self):
+        from awslabs.aws_transform_mcp_server.audit import audited_tool
+
+        mcp = MagicMock()
+        mcp.tool = MagicMock(side_effect=lambda **kwargs: lambda fn: fn)
+
+        async def manage_engagement(
+            action,
+            engagementId,
+            tenantType,
+            role,
+            confirm,
+            name,
+            futureField,
+        ):
+            return {'content': [{'type': 'text', 'text': '{}'}], 'isError': False}
+
+        with patch(f'{_MOD}.logger') as mock_logger:
+            wrapped = audited_tool(mcp, 'manage_engagement')(manage_engagement)
+            await wrapped(
+                action='add_user',
+                engagementId='e-1',
+                tenantType='CUSTOMER',
+                role='LEAD',
+                confirm=False,
+                name='Customer migration',
+                futureField={
+                    'customerEmail': 'customer@example.com',
+                    'nested': {'privateValue': 'must-not-be-logged'},
+                },
+            )
+
+        mock_logger.info.assert_called_once_with(
+            '[tool:{}] invoked | {}',
+            'manage_engagement',
+            {
+                'action': 'add_user',
+                'engagementId': 'e-1',
+                'tenantType': 'CUSTOMER',
+                'role': 'LEAD',
+                'confirm': False,
+            },
+        )
 
     async def test_logs_invocation_and_returns_result(self):
         from awslabs.aws_transform_mcp_server.audit import audited_tool

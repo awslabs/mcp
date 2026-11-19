@@ -879,3 +879,59 @@ class TestGetResourceMessagesParsing:
         )
         parsed = _parse_result(result)
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available',
+        return_value=True,
+    )
+    async def test_engagement_success(self, _, mock_fes, handler, ctx):
+        mock_fes.return_value = {'engagementId': 'e-1', 'status': 'ACTIVE'}
+
+        result = await handler.get_resource(
+            ctx,
+            resource=GetResourceType.engagement,
+            engagementId='e-1',
+        )
+
+        assert _parse_result(result)['success'] is True
+        mock_fes.assert_awaited_once_with('GetEngagement', {'engagementId': 'e-1'})
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available',
+        return_value=True,
+    )
+    async def test_engagement_requires_id(self, _, handler, ctx):
+        result = await handler.get_resource(ctx, resource=GetResourceType.engagement)
+
+        parsed = _parse_result(result)
+        assert parsed['error']['code'] == 'VALIDATION_ERROR'
+        assert 'engagementId' in parsed['error']['message']
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available',
+        return_value=True,
+    )
+    async def test_messages_use_engagement_scope(self, _, mock_fes, handler, ctx):
+        mock_fes.return_value = {'messages': []}
+
+        result = await handler.get_resource(
+            ctx,
+            resource=GetResourceType.messages,
+            engagementId='e-1',
+            messageIds=['m-1'],
+        )
+
+        assert _parse_result(result)['success'] is True
+        request = mock_fes.call_args[0][1].model_dump(by_alias=True, exclude_none=True)
+        assert request == {'engagementId': 'e-1', 'messageIds': ['m-1']}
