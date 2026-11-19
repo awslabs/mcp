@@ -66,18 +66,34 @@ def price_usage(model_id: str, input_tokens: int, output_tokens: int) -> dict:
 
 
 @mcp.tool()
-def estimate_run_cost(model_id: str, input_tokens: int, output_tokens: int) -> dict:
+def estimate_run_cost(
+    model_id: str,
+    input_tokens: int,
+    output_tokens: int,
+    expected_attempts: float | None = None,
+    attempts_source: str | None = None,
+) -> dict:
     """Estimate what one run of a workload will cost on a model.
 
     Args:
         model_id: Model to price the workload on.
         input_tokens: Expected input tokens for one run.
         output_tokens: Expected output tokens for one run.
+        expected_attempts: Optional expected attempts per solved task
+            (at least 1.0). When given, the response also carries
+            cost_per_solved_task_usd — the per-run cost times the
+            attempts term — kept separate from the per-run cost.
+        attempts_source: Where expected_attempts comes from: 'measured'
+            for observed run history, 'prior' for an assumption. The
+            label is returned with the estimate.
 
     Returns the model's cost plus the same workload priced on every
-    other model in the snapshot, cheapest first.
+    other model in the snapshot, cheapest first. Every priced response
+    carries the price source date and confidence.
     """
-    return pricing.estimate_run_cost(_table, model_id, input_tokens, output_tokens)
+    return pricing.estimate_run_cost(
+        _table, model_id, input_tokens, output_tokens, expected_attempts, attempts_source
+    )
 
 
 @mcp.tool()
@@ -85,6 +101,7 @@ def compare_models_for_task(
     input_tokens: int,
     output_tokens: int,
     success_rates: dict[str, float] | None = None,
+    quality_floor: float | None = None,
 ) -> dict:
     """Rank models for a task by expected cost per successful task.
 
@@ -92,13 +109,20 @@ def compare_models_for_task(
     that fails half its tasks costs more per success than a pricier,
     reliable one. Pass measured success rates (0-1 per model_id) if you
     have them; models without a supplied rate are ranked on raw cost.
+    Each row carries expected_attempts (1 / success rate).
 
     Args:
         input_tokens: Input tokens for one attempt at the task.
         output_tokens: Output tokens for one attempt at the task.
         success_rates: Optional map of model_id to success rate in (0, 1].
+        quality_floor: Optional hard floor on the success rate in
+            (0, 1]. Models below it — and models with no supplied rate
+            to check against it — are excluded before ranking and
+            reported in excluded_by_quality_floor.
     """
-    return pricing.compare_models_for_task(_table, input_tokens, output_tokens, success_rates)
+    return pricing.compare_models_for_task(
+        _table, input_tokens, output_tokens, success_rates, quality_floor
+    )
 
 
 @mcp.tool()

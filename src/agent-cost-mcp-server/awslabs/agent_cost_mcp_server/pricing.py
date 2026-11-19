@@ -100,21 +100,52 @@ def _check_tokens(input_tokens: int, output_tokens: int) -> None:
         raise ValueError('token counts must be non-negative')
 
 
+def _price_meta(table: PricingTable) -> dict:
+    """Provenance carried on every priced response.
+
+    Prices are provider list prices captured in the bundled snapshot, so
+    the confidence label is 'list': the rates are the published list
+    rates as of the snapshot date, not negotiated or measured prices.
+    """
+    return {
+        'price_source_date': table.snapshot_date,
+        'price_confidence': 'list',
+    }
+
+
 def price_usage(table: PricingTable, model_id: str, input_tokens: int, output_tokens: int) -> dict:
     """Price one concrete usage record at a model's list rates."""
     _check_tokens(input_tokens, output_tokens)
-    return table.get(model_id).breakdown(input_tokens, output_tokens)
+    return {**table.get(model_id).breakdown(input_tokens, output_tokens), **_price_meta(table)}
 
 
 def estimate_run_cost(
-    table: PricingTable, model_id: str, input_tokens: int, output_tokens: int
+    table: PricingTable,
+    model_id: str,
+    input_tokens: int,
+    output_tokens: int,
+    expected_attempts: float | None = None,
+    attempts_source: str | None = None,
 ) -> dict:
     """Price an expected workload on one model.
 
     Also prices the same workload on every other model in the snapshot
     so callers can compare without a second call.
+
+    Cost per run is not cost per solved task: a workload that needs
+    several attempts per success costs proportionally more. Pass
+    expected_attempts (with attempts_source 'measured' if it comes from
+    observed run history, 'prior' if it is an assumption) to get
+    cost_per_solved_task_usd alongside the per-run cost. The source is
+    carried in the response because a measured attempts term and an
+    assumed one deserve different confidence.
     """
     _check_tokens(input_tokens, output_tokens)
+    if expected_attempts is not None and expected_attempts < 1.0:
+        raise ValueError(f'expected_attempts must be at least 1.0, got {expected_attempts}')
+    if attempts_source is not None and attempts_source not in ('prior', 'measured'):
+        raise ValueError(f"attempts_source must be 'prior' or 'measured', got {attempts_source!r}")
+    attempts = expected_attempts if expected_attempts is not None else 1.0
     primary = table.get(model_id).breakdown(input_tokens, output_tokens)
     alternatives = sorted(
         (m.breakdown(input_tokens, output_tokens) for m in table.all() if m.model_id != model_id),
@@ -122,8 +153,12 @@ def estimate_run_cost(
     )
     return {
         **primary,
+        'expected_attempts': attempts,
+        'attempts_source': attempts_source or 'prior',
+        'cost_per_solved_task_usd': round(primary['cost_usd'] * attempts, 6),
         'alternatives': [{'model': a['model'], 'cost_usd': a['cost_usd']} for a in alternatives],
         'pricing_snapshot': f'v{table.snapshot_version} ({table.snapshot_date})',
+        **_price_meta(table),
     }
 
 
@@ -132,21 +167,40 @@ def compare_models_for_task(
     input_tokens: int,
     output_tokens: int,
     success_rates: dict[str, float] | None = None,
+    quality_floor: float | None = None,
 ) -> dict:
     """Rank models by expected cost per successful task.
 
     A model that costs $0.01 per attempt but only succeeds half the time
     costs $0.02 per success in expectation. Where the caller supplies no
     success rate for a model, its rate is taken as 1.0 (ranked on raw
-    cost) — callers who have measured rates get the true ranking.
+    cost) — callers who have measured rates get the true ranking. Each
+    row also carries expected_attempts (1 / success rate), the attempts
+    term behind the per-success cost.
+
+    quality_floor is a hard filter on the success rate, applied before
+    ranking: a model below the floor is excluded no matter how cheap it
+    is, and so is a model with no supplied rate, because the floor
+    cannot be checked for it. Excluded models are reported in
+    excluded_by_quality_floor with the reason, never silently dropped.
     """
     _check_tokens(input_tokens, output_tokens)
     rates = success_rates or {}
     for mid, rate in rates.items():
         if not 0.0 < rate <= 1.0:
             raise ValueError(f'success rate for {mid!r} must be in (0, 1], got {rate}')
+    if quality_floor is not None and not 0.0 < quality_floor <= 1.0:
+        raise ValueError(f'quality_floor must be in (0, 1], got {quality_floor}')
     rows = []
+    excluded = []
     for model in table.all():
+        if quality_floor is not None:
+            if model.model_id not in rates:
+                excluded.append({'model': model.model_id, 'reason': 'no_success_rate'})
+                continue
+            if rates[model.model_id] < quality_floor:
+                excluded.append({'model': model.model_id, 'reason': 'below_quality_floor'})
+                continue
         per_run = model.cost(input_tokens, output_tokens)
         rate = rates.get(model.model_id, 1.0)
         rows.append(
@@ -155,6 +209,7 @@ def compare_models_for_task(
                 'display_name': model.display_name,
                 'cost_per_run_usd': round(per_run, 6),
                 'success_rate': rate,
+                'expected_attempts': round(1.0 / rate, 4),
                 'cost_per_success_usd': round(per_run / rate, 6),
             }
         )
@@ -163,5 +218,8 @@ def compare_models_for_task(
         'input_tokens': input_tokens,
         'output_tokens': output_tokens,
         'ranked': rows,
+        'quality_floor': quality_floor,
+        'excluded_by_quality_floor': excluded,
         'pricing_snapshot': f'v{table.snapshot_version} ({table.snapshot_date})',
+        **_price_meta(table),
     }

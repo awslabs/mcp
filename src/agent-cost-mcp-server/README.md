@@ -116,7 +116,7 @@ Price a concrete usage record at a model's list rates.
 | `input_tokens` | integer | Input (prompt) tokens consumed |
 | `output_tokens` | integer | Output (completion) tokens consumed |
 
-**Returns:** The model, token counts, and the input, output, and total cost in USD.
+**Returns:** The model, token counts, and the input, output, and total cost in USD. Every priced response also carries `price_source_date` (the pricing snapshot date) and `price_confidence` (`list`: provider list rates from the snapshot).
 
 ### estimate_run_cost
 
@@ -129,8 +129,10 @@ Estimate what one run of a workload will cost on a model.
 | `model_id` | string | Model to price the workload on |
 | `input_tokens` | integer | Expected input tokens for one run |
 | `output_tokens` | integer | Expected output tokens for one run |
+| `expected_attempts` | number | Optional expected attempts per solved task (at least 1.0) |
+| `attempts_source` | string | Optional source of the attempts term: `measured` (observed run history) or `prior` (an assumption) |
 
-**Returns:** The model's cost for the run, plus the same workload priced on every other model in the snapshot, cheapest first, and the pricing snapshot version.
+**Returns:** The model's cost for the run, plus the same workload priced on every other model in the snapshot, cheapest first, and the pricing snapshot version. When `expected_attempts` is given, the response also carries `cost_per_solved_task_usd` — the per-run cost times the attempts term — kept separate from the per-run cost, with the attempts source labeled.
 
 ### compare_models_for_task
 
@@ -145,8 +147,9 @@ Cost per token is the wrong ranking for agent work: a cheap model that fails hal
 | `input_tokens` | integer | Input tokens for one attempt at the task |
 | `output_tokens` | integer | Output tokens for one attempt at the task |
 | `success_rates` | object | Optional map of `model_id` to success rate in (0, 1] |
+| `quality_floor` | number | Optional hard floor on the success rate in (0, 1], applied before ranking |
 
-**Returns:** All models ranked by cost per successful task, with cost per run and the success rate used for each.
+**Returns:** All models ranked by cost per successful task, with cost per run, the success rate used for each, and each row's `expected_attempts` (1 / success rate). When `quality_floor` is set, models below it — and models with no supplied rate to check against it — are excluded before ranking and reported in `excluded_by_quality_floor` with the reason.
 
 ### record_spend
 
