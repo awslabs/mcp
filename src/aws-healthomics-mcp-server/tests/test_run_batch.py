@@ -342,7 +342,7 @@ class TestStartRunBatch:
                 output_uri='s3://output-bucket/results/',
                 batch_run_settings=sample_s3_batch_run_settings,
                 batch_name='my-batch',
-                workflow_type='WDL',
+                workflow_type='PRIVATE',
                 workflow_version_name='v1.0',
                 parameters={'ref_genome': 's3://bucket/ref.fa'},
                 storage_type='DYNAMIC',
@@ -358,7 +358,7 @@ class TestStartRunBatch:
 
         # Verify all optional params in defaultRunSetting
         default_setting = call_kwargs['defaultRunSetting']
-        assert default_setting['workflowType'] == 'WDL'
+        assert default_setting['workflowType'] == 'PRIVATE'
         assert default_setting['workflowVersionName'] == 'v1.0'
         assert default_setting['parameters'] == {'ref_genome': 's3://bucket/ref.fa'}
         assert default_setting['storageType'] == 'DYNAMIC'
@@ -605,6 +605,176 @@ class TestStartRunBatchSessionPolicy:
             .input_shape
         )
         # requestId is an idempotency token that boto3 auto-populates on real clients
+        params = {'requestId': 'test-token', **mock_client.start_run_batch.call_args.kwargs}
+        report = ParamValidator().validate(params, input_shape)
+        assert not report.has_errors(), report.generate_report()
+
+
+class TestStartRunBatchDefaultRunSettings:
+    """start_run_batch forwarding of the remaining defaultRunSetting fields."""
+
+    _all_settings = {
+        'networking_mode': 'VPC',
+        'configuration_name': 'my-vpc-config',
+        'log_level': 'ALL',
+        'engine_settings': {'profiles': ['docker', 'test']},
+        'workflow_owner_id': '111122223333',
+        'output_bucket_owner_id': '444455556666',
+        'priority': 10,
+        'run_name': 'sample-run',
+        'run_tags': {'project': 'genomics'},
+    }
+
+    _expected_default_run_setting = {
+        'networkingMode': 'VPC',
+        'configurationName': 'my-vpc-config',
+        'logLevel': 'ALL',
+        'engineSettings': {'profiles': ['docker', 'test']},
+        'workflowOwnerId': '111122223333',
+        'outputBucketOwnerId': '444455556666',
+        'priority': 10,
+        'name': 'sample-run',
+        'runTags': {'project': 'genomics'},
+    }
+
+    async def _call(self, mock_client, batch_run_settings, **kwargs):
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.run_batch.get_omics_client',
+            return_value=mock_client,
+        ):
+            return await start_run_batch_wrapper.call(
+                ctx=AsyncMock(),
+                workflow_id='1234567',
+                role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+                output_uri='s3://output-bucket/results/',
+                batch_run_settings=batch_run_settings,
+                **kwargs,
+            )
+
+    @pytest.mark.asyncio
+    async def test_all_settings_forwarded_in_default_run_setting(
+        self, sample_start_run_batch_response, sample_inline_batch_run_settings
+    ):
+        """Every new setting lands in defaultRunSetting under its API name."""
+        mock_client = MagicMock()
+        mock_client.start_run_batch.return_value = sample_start_run_batch_response
+
+        result = await self._call(
+            mock_client,
+            sample_inline_batch_run_settings,
+            tags={'batch': 'x'},
+            **self._all_settings,
+        )
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        call_kwargs = mock_client.start_run_batch.call_args.kwargs
+        default_setting = call_kwargs['defaultRunSetting']
+        for key, value in self._expected_default_run_setting.items():
+            assert default_setting[key] == value
+        # Batch tags stay on the batch; run tags go to the runs
+        assert call_kwargs['tags'] == {'batch': 'x'}
+        for key in self._expected_default_run_setting:
+            assert key not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_settings_omitted_by_default(
+        self, sample_start_run_batch_response, sample_inline_batch_run_settings
+    ):
+        """No new setting is sent when the caller leaves it unset."""
+        mock_client = MagicMock()
+        mock_client.start_run_batch.return_value = sample_start_run_batch_response
+
+        await self._call(mock_client, sample_inline_batch_run_settings)
+
+        default_setting = mock_client.start_run_batch.call_args.kwargs['defaultRunSetting']
+        for key in self._expected_default_run_setting:
+            assert key not in default_setting
+
+    @pytest.mark.asyncio
+    async def test_priority_zero_is_forwarded(
+        self, sample_start_run_batch_response, sample_inline_batch_run_settings
+    ):
+        """A falsy but valid priority of 0 is still sent."""
+        mock_client = MagicMock()
+        mock_client.start_run_batch.return_value = sample_start_run_batch_response
+
+        await self._call(mock_client, sample_inline_batch_run_settings, priority=0)
+
+        default_setting = mock_client.start_run_batch.call_args.kwargs['defaultRunSetting']
+        assert default_setting['priority'] == 0
+
+    @pytest.mark.asyncio
+    async def test_explicit_restricted_networking_is_forwarded(
+        self, sample_start_run_batch_response, sample_inline_batch_run_settings
+    ):
+        """RESTRICTED without a configuration name is valid and forwarded."""
+        mock_client = MagicMock()
+        mock_client.start_run_batch.return_value = sample_start_run_batch_response
+
+        result = await self._call(
+            mock_client, sample_inline_batch_run_settings, networking_mode='RESTRICTED'
+        )
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        default_setting = mock_client.start_run_batch.call_args.kwargs['defaultRunSetting']
+        assert default_setting['networkingMode'] == 'RESTRICTED'
+        assert 'configurationName' not in default_setting
+
+    @pytest.mark.parametrize(
+        'kwargs, expected',
+        [
+            ({'networking_mode': 'PUBLIC'}, 'Invalid networking mode'),
+            ({'networking_mode': 'VPC'}, 'configuration_name is required'),
+            (
+                {'networking_mode': 'VPC', 'configuration_name': ''},
+                'configuration_name is required',
+            ),
+            ({'configuration_name': 'cfg'}, 'requires networking_mode to be VPC'),
+            (
+                {'networking_mode': 'RESTRICTED', 'configuration_name': 'cfg'},
+                'requires networking_mode to be VPC',
+            ),
+            ({'log_level': 'DEBUG'}, 'Invalid log level'),
+            ({'workflow_type': 'WDL'}, 'Invalid workflow type'),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_invalid_settings_return_error_without_api_call(
+        self, kwargs, expected, sample_inline_batch_run_settings
+    ):
+        """Invalid networking, log level or workflow type settings fail before any API call."""
+        mock_client = MagicMock()
+
+        result = await self._call(mock_client, sample_inline_batch_run_settings, **kwargs)
+
+        assert 'error' in result
+        assert expected in result['error']
+        mock_client.start_run_batch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_params_validate_against_botocore_model(
+        self, sample_start_run_batch_response, sample_inline_batch_run_settings
+    ):
+        """The forwarded params with every new setting satisfy the real StartRunBatch shape."""
+        import botocore.session
+        from botocore.validate import ParamValidator
+
+        mock_client = MagicMock()
+        mock_client.start_run_batch.return_value = sample_start_run_batch_response
+
+        await self._call(
+            mock_client,
+            sample_inline_batch_run_settings,
+            workflow_type='PRIVATE',
+            **self._all_settings,
+        )
+
+        input_shape = (
+            botocore.session.get_session()
+            .get_service_model('omics')
+            .operation_model('StartRunBatch')
+            .input_shape
+        )
         params = {'requestId': 'test-token', **mock_client.start_run_batch.call_args.kwargs}
         report = ParamValidator().validate(params, input_shape)
         assert not report.has_errors(), report.generate_report()

@@ -55,6 +55,7 @@ EXPECTED_TOOL_NAMES = [
     'load_instructions',
     'create_connector',
     'accept_connector',
+    'manage_engagement',
     'list_resources',
     'get_resource',
     'manage_collaborator',

@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.aws-location-mcp-server"
-version = "2.1.1"
+version = "2.1.2"
 description = "An AWS Labs Model Context Protocol (MCP) server for AWS Location Service"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -41,7 +41,7 @@ Changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-location-mcp-serve
 [dependency-groups]
 dev = [
     "commitizen>=4.2.2",
-    "pre-commit>=4.1.0",
+    "pre-commit>=4.1.0; python_version >= '3.11'",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
     "pytest>=7.4.0",
