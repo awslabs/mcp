@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for server helper functions."""
 
+import pytest
 from awslabs.postgres_mcp_server.server import extract_cell, parse_execute_response
 
 
@@ -153,3 +154,33 @@ class TestParseExecuteResponse:
         result = parse_execute_response(response)
         # Should handle missing records gracefully
         assert result == []
+
+    def test_parse_duplicate_column_names_raises(self):
+        """Test that duplicate column names raise instead of silently dropping a column."""
+        response = {
+            'columnMetadata': [{'name': 'id'}, {'name': 'name'}, {'name': 'id'}, {'name': 'name'}],
+            'records': [
+                [
+                    {'longValue': 1},
+                    {'stringValue': 'Alice'},
+                    {'longValue': 1},
+                    {'stringValue': 'Sales'},
+                ]
+            ],
+        }
+        with pytest.raises(ValueError, match=r'duplicate column names \(id, name\)'):
+            parse_execute_response(response)
+
+    def test_parse_duplicate_column_names_raises_without_rows(self):
+        """Test that duplicate column names raise even when the result has no rows."""
+        response = {'columnMetadata': [{'name': 'a'}, {'name': 'a'}], 'records': []}
+        with pytest.raises(ValueError, match='Alias the duplicates'):
+            parse_execute_response(response)
+
+    def test_parse_distinct_names_with_same_prefix_unchanged(self):
+        """Test that aliased columns such as id and id_2 are still returned in full."""
+        response = {
+            'columnMetadata': [{'name': 'id'}, {'name': 'id_2'}],
+            'records': [[{'longValue': 1}, {'longValue': 2}]],
+        }
+        assert parse_execute_response(response) == [{'id': 1, 'id_2': 2}]
