@@ -56,15 +56,20 @@ AWS_REGION = _resolve_region()
 logger.debug(f'Using AWS region: {AWS_REGION}')
 
 
-def _initialize_aws_clients():
-    """Initialize AWS clients with proper configuration."""
+def _client_config() -> Config:
+    """Build the botocore config shared by all clients."""
     # Add caller suffix if MCP_RUN_FROM is set
     mcp_source = os.environ.get('MCP_RUN_FROM')
     user_agent_suffix = f'/{mcp_source}' if mcp_source else ''
 
-    config = Config(
+    return Config(
         user_agent_extra=f'awslabs.cloudwatch-applicationsignals-mcp-server/{__version__}{user_agent_suffix}'
     )
+
+
+def _initialize_aws_clients():
+    """Initialize AWS clients with proper configuration."""
+    config = _client_config()
 
     # Get endpoint URLs from environment variables
     applicationsignals_endpoint = os.environ.get('MCP_APPLICATIONSIGNALS_ENDPOINT')
@@ -162,6 +167,24 @@ def get_applicationsignals_client():
     which lets ``mock.patch`` of the module attribute propagate in tests.
     """
     return applicationsignals_client
+
+
+def get_synthetics_client(region: str):
+    """Return a Synthetics client for ``region``.
+
+    The module-level client is reused for the configured region. Any other region
+    gets a new client built with the same profile, user agent and endpoint override.
+    """
+    if region == AWS_REGION:
+        return synthetics_client
+
+    endpoint_url = os.environ.get('MCP_SYNTHETICS_ENDPOINT')
+    if aws_profile := os.environ.get('AWS_PROFILE'):
+        session = boto3.Session(profile_name=aws_profile, region_name=region)
+        return session.client('synthetics', config=_client_config(), endpoint_url=endpoint_url)
+    return boto3.client(
+        'synthetics', region_name=region, config=_client_config(), endpoint_url=endpoint_url
+    )
 
 
 def get_cloudwatch_client():
