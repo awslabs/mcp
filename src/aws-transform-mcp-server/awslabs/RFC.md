@@ -3,11 +3,11 @@ No existing issue. This is a new MCP server proposal for AWS Transform.
 
 ### Summary
 
-An MCP server for AWS Transform that enables AI assistants to manage the full transformation lifecycle — workspaces, jobs, connectors, human-in-the-loop (HITL) tasks, artifacts, and chat — directly from the IDE and CLI.
+An MCP server for AWS Transform that enables AI assistants to manage the full transformation lifecycle — workspaces, jobs, connectors, engagements, human-in-the-loop (HITL) tasks, artifacts, and chat — directly from the IDE and CLI.
 
 AWS Transform accelerates migration and modernization of enterprise workloads using specialized AI agents. It supports mainframe modernization, VMware migration to EC2, .NET modernization to cross-platform .NET, full-stack Windows modernization, and custom code transformations (Java, Node.js, Python).
 
-The server exposes **19 tools** across workspace management, job lifecycle, HITL task handling with dynamic output schema validation, artifact upload/download, connector management, resource browsing, agent registry queries, collaborator management, tool approval workflows (via HITL), chat with integrated polling, and job status monitoring. It is built in Python using FastMCP (`mcp[cli]>=1.23.0`) and distributed via PyPI as `awslabs.aws-transform-mcp-server`.
+The server exposes **21 tools** across workspace management, job lifecycle, HITL task handling with dynamic output schema validation, artifact upload/download, connector and engagement management, resource browsing, agent registry queries, collaborator management, tool approval workflows (via HITL), chat with integrated polling, and job status monitoring. It is built in Python using the MCP Python SDK (`mcp[cli]>=2.0.0,<3.0.0`) and distributed via PyPI as `awslabs.aws-transform-mcp-server`.
 
 ### Use Cases
 
@@ -69,7 +69,7 @@ class WorkspaceHandler:
         return success_result(result.get('workspace', result))
 ```
 
-### Tool Inventory (19 active)
+### Tool Inventory (21 active)
 
 | # | Tool | Category | Description | Auth Required |
 |---|------|----------|-------------|---------------|
@@ -83,15 +83,17 @@ class WorkspaceHandler:
 | 8 | `delete_job` | Jobs | Permanently delete a job (requires confirm) | FES (any auth) |
 | 9 | `complete_task` | HITL Tasks | Submit HITL task response (APPROVE/REJECT/SEND_FOR_APPROVAL/SAVE_DRAFT) | FES (any auth) |
 | 10 | `upload_artifact` | Artifacts | Upload file or raw content, returns artifactId | FES (any auth) |
-| 11 | `send_message` | Chat | Send message to Transform assistant, polls up to 60s for reply | FES (any auth) |
-| 12 | `create_connector` | Connectors | Create S3/CODE connector in a workspace | FES (any auth) |
-| 13 | `accept_connector` | Connectors | Activate connector by associating IAM role (SigV4 + FES) | FES + AWS credentials |
-| 14 | `list_resources` | Resource Access | List workspaces/jobs/connectors/tasks/artifacts/messages/worklogs/plan/agents/collaborators/users | FES (any auth) |
-| 15 | `get_resource` | Resource Access | Get single resource: session/workspace/job/connector/task/artifact/asset/messages/plan | FES (any auth) |
-| 16 | `load_instructions` | Job Instructions | Load job-specific workflow instructions (required before other job operations) | FES (any auth) |
-| 17 | `get_job_status` | Job Status | Concise assistant summary or full raw snapshot (job/tasks/worklogs/messages/plan) | FES (any auth) |
-| 18 | `manage_collaborator` | Collaborators | Add/update/remove workspace collaborators (put/remove/leave) | FES (any auth) |
-| 19 | `adaptive_poll` | Polling | Sleep N seconds then return follow-up message for polling loops | None |
+| 11 | `download_artifact` | Artifacts | Stream a job/user artifact or connector asset to a local file | FES (any auth) |
+| 12 | `send_message` | Chat | Send message to Transform assistant, polls up to 60s for reply | FES (any auth) |
+| 13 | `create_connector` | Connectors | Create S3/CODE connector in a workspace | FES (any auth) |
+| 14 | `accept_connector` | Connectors | Activate connector by associating IAM role (SigV4 + FES) | FES + AWS credentials |
+| 15 | `manage_engagement` | Engagements | Create/update engagements and manage invitations, tenants, users, and workspaces | FES (any auth) |
+| 16 | `list_resources` | Resource Access | List workspaces/jobs/connectors/tasks/artifacts/messages/worklogs/plan/agents/collaborators/users/engagement resources | FES (any auth) |
+| 17 | `get_resource` | Resource Access | Get single resource: session/workspace/job/connector/engagement/task/artifact/asset/messages/plan | FES (any auth) |
+| 18 | `load_instructions` | Job Instructions | Load job-specific workflow instructions (required before other job operations) | FES (any auth) |
+| 19 | `get_job_status` | Job Status | Concise assistant summary or full raw snapshot (job/tasks/worklogs/messages/plan) | FES (any auth) |
+| 20 | `manage_collaborator` | Collaborators | Add/update/remove workspace collaborators (put/remove/leave) | FES (any auth) |
+| 21 | `adaptive_poll` | Polling | Sleep N seconds then return follow-up message for polling loops | None |
 
 **Tool approval workflows** are handled via `complete_task` with `category=TOOL_APPROVAL` — the server detects TOOL_APPROVAL tasks and uses a fast path (direct approve/reject without artifact upload).
 
@@ -132,7 +134,7 @@ The HITL system is the most complex subsystem:
 The server enforces several behavioral constraints via its instructions and tool logic:
 
 1. **INSTRUCTIONS_REQUIRED gate** — `load_instructions` must be called before any job operation; tools return `INSTRUCTIONS_REQUIRED` error otherwise (`guidance_nudge.py`)
-2. **Destructive action confirmation** — `delete_workspace`, `delete_job`, and `manage_collaborator` (remove/leave) require explicit `confirm=true`
+2. **Destructive action confirmation** — `delete_workspace`, `delete_job`, `manage_collaborator` (remove/leave), and destructive `manage_engagement` actions require explicit `confirm=true`
 3. **HITL human-confirmation mandate** — `complete_task` docstring explicitly states: "REQUIRES EXPLICIT USER CONFIRMATION. Before calling this tool you MUST present the full task details..."
 4. **Audit logging** — every tool invocation is logged with non-sensitive parameters; error responses are logged at WARNING level
 5. **File validation** — `validate_read_path()` prevents path traversal on file uploads
@@ -183,6 +185,6 @@ Published to PyPI as `awslabs.aws-transform-mcp-server`:
 
 1. **Standalone awslabs repo** — Publish as `awslabs/atx-mcp-server` outside the monorepo. Reduces discoverability compared to being listed alongside the other 40+ servers. Would also miss the monorepo's shared CI, release tooling, and PyPI publishing workflow.
 
-2. **Contribute to managed AWS MCP Server** — The 19 tools require deterministic API orchestration with correct sequencing (job lifecycle with polling, connector setup with acceptance flow, HITL validation against 114 dynamic schemas) which does not fit the SOP model.
+2. **Contribute to managed AWS MCP Server** — The 21 tools require deterministic API orchestration with correct sequencing (job lifecycle with polling, connector setup with acceptance flow, HITL validation against 114 dynamic schemas) which does not fit the SOP model.
 
-3. **Separate tools for each resource operation** — Instead of the consolidated `list_resources` (11 resource types) and `get_resource` (9 resource types) pattern, individual tools could be created. The consolidated approach was chosen to stay within MCP client tool limits while providing comprehensive resource access.
+3. **Separate tools for each resource operation** — Instead of the consolidated `list_resources` and `get_resource` pattern, individual tools could be created. The consolidated approach was chosen to stay within MCP client tool limits while providing comprehensive resource access.
