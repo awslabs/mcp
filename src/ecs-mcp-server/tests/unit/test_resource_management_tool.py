@@ -3,9 +3,11 @@ Unit tests for the ECS resource management tool in main.py.
 """
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
+
+from awslabs.ecs_mcp_server.modules import resource_management
 
 
 # We need to patch the imports before importing the module under test
@@ -46,38 +48,37 @@ class MockFastMCP:
 class TestResourceManagementTool(unittest.TestCase):
     """Test the ecs_resource_management tool in main.py."""
 
-    @pytest.mark.anyio
-    @patch("mcp.server.mcpserver.MCPServer", MockFastMCP)
-    @patch("awslabs.ecs_mcp_server.api.resource_management.ecs_api_operation")
-    async def test_ecs_resource_management_tool_registration(self, mock_ecs_api_operation):
+    def test_ecs_resource_management_tool_registration(self):
         """Test that the ecs_resource_management tool is properly registered."""
-        # Import the patched module
-        from awslabs.ecs_mcp_server.main import mcp
+        mcp = MockFastMCP("AWS ECS MCP Server")
+        resource_management.register_module(mcp)
 
         # Verify the tool is registered
         tool_names = [tool["name"] for tool in mcp.tools]
         self.assertIn("ecs_resource_management", tool_names)
 
     @pytest.mark.anyio
-    @patch("mcp.server.mcpserver.MCPServer", MockFastMCP)
-    @patch("awslabs.ecs_mcp_server.api.resource_management.ecs_api_operation")
+    @patch.object(resource_management, "ecs_api_operation", new_callable=AsyncMock)
     async def test_ecs_resource_management_tool_function(self, mock_ecs_api_operation):
         """Test that the ecs_resource_management tool function works correctly."""
-        # Import the patched module
-        from awslabs.ecs_mcp_server.modules.resource_management import mcp_ecs_resource_management
+        mcp = MockFastMCP("AWS ECS MCP Server")
+        resource_management.register_module(mcp)
+        mcp_ecs_resource_management = next(
+            tool["function"] for tool in mcp.tools if tool["name"] == "ecs_resource_management"
+        )
 
         # Setup mock
         mock_ecs_api_operation.return_value = {"test": "result"}
 
         # Test with different parameter combinations
         await mcp_ecs_resource_management("ListClusters", {})
-        mock_ecs_api_operation.assert_called_with("ListClusters", {})
+        mock_ecs_api_operation.assert_awaited_with("ListClusters", {})
 
         await mcp_ecs_resource_management(
             "DescribeServices",
             {"cluster": "my-cluster", "services": ["my-service"], "include": ["TAGS"]},
         )
-        mock_ecs_api_operation.assert_called_with(
+        mock_ecs_api_operation.assert_awaited_with(
             "DescribeServices",
             {"cluster": "my-cluster", "services": ["my-service"], "include": ["TAGS"]},
         )

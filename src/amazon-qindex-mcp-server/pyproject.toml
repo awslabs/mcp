@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.amazon-qindex-mcp-server"
-version = "0.1.0"
+version = "0.1.1"
 description = "This is an AWS Labs Model Context Protocol (MCP) server implementation that enables Independent Software Vendors (ISVs) to interact with Amazon Q Business's search capabilities. The server facilitates searching across enterprise customers' Q index using the SearchRelevantContent API."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -43,7 +43,7 @@ changelog = "https://github.com/awslabs/mcp/blob/main/src/amazon-qindex-mcp-serv
 dev = [
     "boto3-stubs[qbusiness]>=1.38.4",
     "commitizen>=4.2.2",
-    "pre-commit>=4.1.0",
+    "pre-commit>=4.1.0; python_version >= '3.11'",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
     "pytest>=8.0.0",

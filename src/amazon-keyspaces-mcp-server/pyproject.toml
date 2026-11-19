@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.amazon-keyspaces-mcp-server"
-version = "0.0.19"
+version = "0.0.20"
 description = "An Amazon Keyspaces (for Apache Cassandra) MCP server for interacting with Amazon Keyspaces and Apache Cassandra."
 readme = "README.md"
 requires-python = ">=3.10,<3.12"
@@ -47,7 +47,7 @@ changelog = "https://github.com/awslabs/mcp/blob/main/src/amazon-keyspaces-mcp-s
 [dependency-groups]
 dev = [
     "commitizen>=4.2.2",
-    "pre-commit>=4.1.0",
+    "pre-commit>=4.1.0; python_version >= '3.11'",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
     "pytest>=8.0.0",

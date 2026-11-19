@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.aurora-dsql-mcp-server"
-version = "1.1.5"
+version = "1.1.6"
 description = "An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -47,7 +47,7 @@ changelog = "https://github.com/awslabs/mcp/blob/main/src/aurora-dsql-mcp-server
 [dependency-groups]
 dev = [
     "commitizen>=4.2.2",
-    "pre-commit>=4.1.0",
+    "pre-commit>=4.1.0; python_version >= '3.11'",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
     "pytest>=8.0.0",
