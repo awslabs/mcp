@@ -6,12 +6,12 @@ in ECS deployments. It can be used to verify that the enhanced troubleshooting
 tools correctly identify and diagnose image pull issues.
 """
 
+import importlib
 import os
 import sys
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import boto3
 import pytest
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -23,33 +23,17 @@ from awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_gu
     validate_container_images,
 )
 
+detect_image_pull_failures_module = importlib.import_module(
+    "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures"
+)
+
 
 class TestImagePullFailureDetection(unittest.TestCase):
     """Test the image pull failure detection functionality."""
 
     @pytest.mark.anyio
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_guidance.boto3.client"
-    )
-    async def test_validate_container_images(self, mock_boto3_client):
+    async def test_validate_container_images(self):
         """Test validating container images."""
-        # Mock the ECR client
-        mock_ecr = MagicMock()
-
-        # Configure the mock to fail for the test repo
-        def mock_describe_repositories(repositoryNames):
-            if repositoryNames[0] == "non-existent-image":
-                error = {"Error": {"Code": "RepositoryNotFoundException"}}
-                raise boto3.client("ecr").exceptions.RepositoryNotFoundException(
-                    error, "DescribeRepositories"
-                )
-            return {"repositories": [{"repositoryName": repositoryNames[0]}]}
-
-        mock_ecr.describe_repositories.side_effect = mock_describe_repositories
-
-        # Configure mock boto3 client to return our mock
-        mock_boto3_client.return_value = mock_ecr
-
         # Create test task definitions
         task_defs = [
             {
@@ -73,12 +57,8 @@ class TestImagePullFailureDetection(unittest.TestCase):
         assert result[0]["repository_type"] == "external"
 
     @pytest.mark.anyio
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures.get_task_definitions"
-    )
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures.validate_container_images"
-    )
+    @patch.object(detect_image_pull_failures_module, "_find_task_definitions")
+    @patch.object(detect_image_pull_failures_module, "_validate_container_images")
     async def test_detect_image_pull_failures(self, mock_validate_images, mock_find_task_defs):
         """Test the detect_image_pull_failures function."""
         # Mock the task definitions
@@ -109,7 +89,7 @@ class TestImagePullFailureDetection(unittest.TestCase):
         ]
 
         # Call the function
-        result = await detect_image_pull_failures("test-failure-prbqv")
+        result = await detect_image_pull_failures(family_prefix="test-failure-prbqv")
 
         # Verify the result
         assert "success" in result["status"]

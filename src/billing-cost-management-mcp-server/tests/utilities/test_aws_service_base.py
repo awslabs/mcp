@@ -320,6 +320,51 @@ class TestHandleAwsError:
         assert result['message'] == 'Resource not found'
 
     @pytest.mark.asyncio
+    async def test_handle_client_error_returns_service_fields(self):
+        """The service's per-field detail ('fields') is returned, not only its message."""
+        from botocore.exceptions import ClientError
+
+        fields = [
+            {
+                'fieldName': 'resourceTypes',
+                'message': 'Member must satisfy constraint: [Member must satisfy enum value '
+                'set: [EcsService, Ec2Instance]]',
+            }
+        ]
+        error = ClientError(
+            {
+                'Error': {
+                    'Code': 'ValidationException',
+                    'Message': 'Input validation failed. Please check the field list for more details.',
+                },
+                'reason': 'FieldValidationFailed',
+                'fields': fields,
+            },
+            'ListRecommendations',
+        )
+
+        result = await handle_aws_error(
+            AsyncMock(), error, 'list_recommendations', 'Cost Optimization Hub'
+        )
+
+        assert result['error_type'] == 'ValidationException'
+        assert result['fields'] == fields
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('extra', [{}, {'fields': []}, {'fields': 'not a list'}])
+    async def test_handle_client_error_without_fields(self, extra):
+        """No 'fields' key when the service sent none, an empty list, or a non-list."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {'Error': {'Code': 'ValidationException', 'Message': 'bad'}, **extra}, 'Op'
+        )
+
+        result = await handle_aws_error(AsyncMock(), error, 'op', 'Service')
+
+        assert 'fields' not in result
+
+    @pytest.mark.asyncio
     async def test_handle_client_error_with_empty_message(self):
         """An empty AWS Message falls back to the default text rather than ''."""
         from botocore.exceptions import ClientError

@@ -28,6 +28,7 @@ from awslabs.aws_documentation_mcp_server.models import (
     SearchTableResponse,
 )
 from awslabs.aws_documentation_mcp_server.server_utils import (
+    DEFAULT_MAX_LENGTH,
     DEFAULT_USER_AGENT,
     add_search_result_cache_item,
     read_documentation_impl,
@@ -143,7 +144,7 @@ async def read_documentation(
     ctx: Context,
     url: str = Field(description='URL of the AWS documentation page to read'),
     max_length: int = Field(
-        default=5000,
+        default=DEFAULT_MAX_LENGTH,
         description='Maximum number of characters to return.',
         gt=0,
         lt=1000000,
@@ -220,6 +221,11 @@ async def read_sections(
 
     Retrieves a page, converts to markdown, and returns only matching sections.
     Section matching is case-insensitive and handles whitespace differences.
+
+    A title can be a heading at any level. Each section runs to the next heading at the same or
+    a higher level, so it includes its subsections. A title that names only the page returns
+    the whole page, paginated like read_documentation; if the page title is also a section
+    heading, those sections are returned instead.
 
     ## URL Requirements
     - Must end with .html or .md

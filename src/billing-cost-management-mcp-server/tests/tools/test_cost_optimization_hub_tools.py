@@ -1594,10 +1594,10 @@ async def test_coh_local_validation_errors_carry_telemetry_fields(
         ({'resource_types': ['Ec2Instance']}, {'resourceTypes': ['Ec2Instance']}),
         # A bare value is wrapped in a list.
         ({'resourceTypes': 'ebsvolume'}, {'resourceTypes': ['EbsVolume']}),
-        # Values the botocore model lacks but the API accepts fold too.
+        # Values the botocore model lacks pass through unchanged; the service decides.
         (
-            {'resourceTypes': ['database_savings_plans']},
-            {'resourceTypes': ['DatabaseSavingsPlans']},
+            {'resourceTypes': ['database_savings_plans', 'DatabaseSavingsPlans']},
+            {'resourceTypes': ['database_savings_plans', 'DatabaseSavingsPlans']},
         ),
         ({'regions': 'us-east-1'}, {'regions': ['us-east-1']}),
         # Unknown values, non-enum lists, non-string items, booleans, and unknown keys pass through.
@@ -1685,8 +1685,8 @@ def test_filter_model_unavailable_skips_normalization():
         coh_mod._filter_members.cache_clear()
 
 
-def test_filter_model_adds_supplemental_resource_types():
-    """Values the botocore enum lacks are merged in, once, and the botocore values stay."""
+def test_filter_model_lists_only_botocore_resource_types():
+    """The resourceTypes values are the botocore enum as is, with nothing added."""
     from awslabs.billing_cost_management_mcp_server.tools import (
         cost_optimization_hub_tools as coh_mod,
     )
@@ -1695,13 +1695,12 @@ def test_filter_model_adds_supplemental_resource_types():
 
     assert resource_types is not None
     assert 'Ec2Instance' in resource_types
-    assert resource_types.count('DatabaseSavingsPlans') == 1
+    assert 'DatabaseSavingsPlans' not in resource_types
 
-    # A botocore model that already lists the value does not duplicate it.
     shape = MagicMock(type_name='list')
-    shape.member.enum = ['Ec2Instance', 'DatabaseSavingsPlans']
+    shape.member.enum = ['Ec2Instance', 'LambdaFunction']
     with patch.object(coh_mod, '_filter_members', return_value={'resourceTypes': shape}):
-        assert coh_mod._filter_model()['resourceTypes'] == ['Ec2Instance', 'DatabaseSavingsPlans']
+        assert coh_mod._filter_model()['resourceTypes'] == ['Ec2Instance', 'LambdaFunction']
 
 
 def test_add_valid_filter_values():
@@ -1715,6 +1714,7 @@ def test_add_valid_filter_values():
         error, {'resourceTypes': ['NotAType'], 'regions': ['us-east-1']}
     )
     assert list(result['valid_filter_values']) == ['resourceTypes']
+    assert 'DatabaseSavingsPlans' not in result['valid_filter_values']['resourceTypes']
 
     # No enum filter sent: nothing to add.
     error = {'status': 'error', 'error_type': 'ValidationException'}
@@ -1862,6 +1862,7 @@ async def test_coh_validation_exception_adds_valid_filter_values(mock_context, o
     assert sent_filters == {'resourceTypes': ['Ec2Instance', 'NotAType']}
     assert res['error_type'] == 'ValidationException'
     assert 'Ec2Instance' in res['valid_filter_values']['resourceTypes']
+    assert 'DatabaseSavingsPlans' not in res['valid_filter_values']['resourceTypes']
 
 
 @pytest.mark.asyncio
@@ -1883,7 +1884,8 @@ async def test_description_warns_that_summing_recommendation_savings_double_coun
     for filter_name in ('actionTypes', 'resourceTypes', 'implementationEfforts'):
         assert filter_name in description.split('SAVINGS TOTALS:')[1].split('CRITICAL')[0]
     assert 'include_all_recommendations=true' in description
-    assert 'do not include DatabaseSavingsPlans' in description
+    totals = description.split('SAVINGS TOTALS:')[1].split('CRITICAL')[0]
+    assert 'DatabaseSavingsPlans' not in totals
 
 
 @pytest.mark.parametrize(
@@ -1939,7 +1941,11 @@ def test_filter_item_fields_unavailable():
 
 @pytest.mark.asyncio
 async def test_description_documents_region_and_database_savings_plans_behavior():
-    """The description says how regions and DatabaseSavingsPlans differ between list and summaries."""
+    """The description covers regions in list vs summaries, and Database Savings Plans.
+
+    It no longer lists DatabaseSavingsPlans as a resourceTypes value (the service rejects it
+    for accounts without access) and points to sp-recommendation instead.
+    """
     from awslabs.billing_cost_management_mcp_server.tools import (
         cost_optimization_hub_tools as coh_mod,
     )
@@ -1952,10 +1958,25 @@ async def test_description_documents_region_and_database_savings_plans_behavior(
 
     assert 'regions=["Global"] returns them' in description
     assert '"Global" returns $0' in description
-    assert (
-        'DatabaseSavingsPlans: list_recommendations returns these recommendations' in description
+    assert 'DatabaseSavingsPlans: list_recommendations returns these recommendations' not in (
+        description
     )
-    assert "'DatabaseSavingsPlans']" in description
+    assert (
+        'list_recommendation_summaries accepts the filter but returns nothing' not in description
+    )
+    assert 'DatabaseSavingsPlans' not in description
+    assert 'Database Savings Plans recommendations it hides' not in description
+    assert (
+        "'WorkSpaces', 'SageMakerEndpoint'] For Database Savings Plans purchase recommendations, "
+        'use sp-recommendation with savings_plans_type DATABASE_SP.'
+    ) in description
+    assert 'One rejected value fails the whole request.' in description
+    assert (
+        'For a value that matches no documented type (case and underscores aside, see below), '
+        "the error's 'fields' lists every type in the service's model, including types the "
+        'account cannot use'
+    ) in description
+    assert 'choose from valid_filter_values (the documented types)' in description
 
 
 @pytest.mark.parametrize(
@@ -2080,7 +2101,7 @@ async def test_coh_list_recommendations_string_boolean_filter(mock_context):
 
 @pytest.mark.asyncio
 async def test_tool_description_documents_filters_and_metrics():
-    """The description documents the ID filters, DatabaseSavingsPlans and savings_percentage."""
+    """The description documents the ID filters, the DATABASE_SP pointer and savings_percentage."""
     from awslabs.billing_cost_management_mcp_server.tools import (
         cost_optimization_hub_tools as coh_mod,
     )
@@ -2094,7 +2115,7 @@ async def test_tool_description_documents_filters_and_metrics():
         'resourceIds',
         'resourceArns',
         'recommendationIds',
-        "'DatabaseSavingsPlans'",
+        'savings_plans_type DATABASE_SP',
         'savings_percentage',
         'savings_percentage_unavailable_reason',
         'AfterDiscounts',

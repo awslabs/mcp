@@ -284,10 +284,13 @@ class TestSendJobId:
         from awslabs.aws_transform_mcp_server.tools.chat.send_message import send_message
 
         mock_fes.return_value = {'message': {'messageId': 'msg-1'}}
-        await send_message(ctx, workspaceId='ws-1', text='hi', jobId='job-1', skipPolling=True)
+        result = await send_message(
+            ctx, workspaceId='ws-1', text='hi', jobId='job-1', skipPolling=True
+        )
         call_body = mock_fes.call_args[0][1].model_dump(by_alias=True, exclude_none=True)
         jobs = call_body['metadata']['resourcesOnScreen']['workspace']['jobs']
         assert jobs == [{'jobId': 'job-1', 'focusState': 'ACTIVE'}]
+        assert 'workspaceId="ws-1", jobId="job-1"' in _parse(result)['data']['note']
 
     @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
@@ -438,3 +441,68 @@ class TestSendMessageIdExtraction:
         assert parsed['success'] is False
         assert parsed['error']['code'] == 'MESSAGE_ID_EXTRACTION_FAILED'
         assert 'list_resources' in parsed['error']['suggestedAction']
+
+
+class TestEngagementChat:
+    def test_timeout_guidance_uses_engagement_scope(self):
+        from awslabs.aws_transform_mcp_server.tools.chat._common import build_timeout_data
+
+        data = build_timeout_data(
+            timeout_secs=60,
+            last_thinking=None,
+            workspaceId='ws-ignored',
+            jobId='job-ignored',
+            engagementId='eng-1',
+            sentMessageId='msg-sent',
+        )
+
+        assert 'engagementId="eng-1"' in data['note']
+        assert 'workspaceId=' not in data['note']
+        assert 'jobId=' not in data['note']
+
+    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_transform_api', new_callable=AsyncMock)
+    @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
+    @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
+    async def test_send_and_poll_uses_engagement_scope(
+        self, mock_send_fes, _mock_configured, mock_poll_fes, mock_sleep, ctx
+    ):
+        from awslabs.aws_transform_mcp_server.tools.chat.send_message import send_message
+
+        mock_send_fes.return_value = {'message': {'messageId': 'msg-sent'}}
+        mock_poll_fes.side_effect = [
+            {'messageIds': ['msg-final']},
+            {
+                'messages': [
+                    {
+                        'messageId': 'msg-final',
+                        'parentMessageId': 'msg-sent',
+                        'messageOrigin': 'SYSTEM',
+                        'processingInfo': {'messageType': 'FINAL_RESPONSE'},
+                        'text': 'Done!',
+                    }
+                ]
+            },
+        ]
+
+        result = await send_message(ctx, text='status?', engagementId='eng-1')
+
+        assert _parse(result)['success'] is True
+        send_body = mock_send_fes.call_args[0][1].model_dump(by_alias=True, exclude_none=True)
+        assert send_body['metadata']['resourcesOnScreen'] == {
+            'engagement': {'engagementId': 'eng-1'}
+        }
+        batch_body = mock_poll_fes.call_args_list[1][0][1].model_dump(
+            by_alias=True, exclude_none=True
+        )
+        assert batch_body == {'engagementId': 'eng-1', 'messageIds': ['msg-final']}
+        assert mock_sleep.call_count == 0
+
+    async def test_requires_workspace_or_engagement_scope(self, ctx):
+        from awslabs.aws_transform_mcp_server.tools.chat.send_message import send_message
+
+        result = await send_message(ctx, text='hello')
+
+        parsed = _parse(result)
+        assert parsed['error']['code'] == 'VALIDATION_ERROR'
+        assert 'scope' in parsed['error']['message']

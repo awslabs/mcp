@@ -113,6 +113,8 @@ FILTER VALUES (exact, case-sensitive spellings):
 RATE BASIS (all three operations):
 - Coverage OnDemandCost, TotalCost and SpendCoveredBySavingsPlans, and utilization
   OnDemandCostEquivalent and NetSavings, price usage at public On-Demand rates.
+- A negative NetSavings means the Savings Plans cost more than the usage they covered
+  would have cost at public On-Demand rates.
 - So on an account with private pricing, OnDemandCost is not what was billed at
   On-Demand rates, and NetSavings is not the saving against the account's own rates.
   Label these figures "at public On-Demand rates".
