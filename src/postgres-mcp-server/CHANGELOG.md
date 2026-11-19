@@ -40,6 +40,13 @@ not always obvious from the entries below.
 
 ### Fixed
 
+- `run_query` now rejects result sets with duplicate column names instead of
+  silently overwriting earlier columns in each row. A join or `SELECT *` over
+  tables that both expose `id` or `name` previously returned only the last
+  value for the repeated name, so an agent could attribute one table's value to
+  another. The error lists the duplicated names and asks the caller to alias
+  them, matching the db2 MCP server's existing guard.
+
 - A query using both an array slice and `query_parameters` no longer fails at
   execution on the direct (psycopg / PG Wire) path. The SQL policy guard and the
   psycopg executor each carried their own rule for deciding which `:name`

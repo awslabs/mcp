@@ -48,6 +48,7 @@ from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
 from awslabs.postgres_mcp_server.connection.rds_api_connection import RDSDataAPIConnection
 from awslabs.postgres_mcp_server.sql_guard import SqlPolicyError, assert_executable
 from botocore.exceptions import ClientError
+from collections import Counter
 from contextlib import asynccontextmanager
 from datetime import datetime
 from loguru import logger
@@ -192,6 +193,16 @@ def extract_cell(cell: dict):
 def parse_execute_response(response: dict) -> list[dict]:
     """Convert RDS Data API execute_statement response to list of rows."""
     columns = [col['name'] for col in response.get('columnMetadata', [])]
+    duplicate_columns = sorted(name for name, count in Counter(columns).items() if count > 1)
+    if duplicate_columns:
+        names = ', '.join(f"'{name}'" for name in duplicate_columns)
+        raise ValueError(
+            f'Query returned duplicate column names: {names}. '
+            'Rows are keyed by column name, so duplicate names would silently '
+            'overwrite earlier values. Alias each duplicate to a unique name, '
+            'e.g. SELECT e.name AS employee_name, d.name AS department_name.'
+        )
+
     records = []
 
     for row in response.get('records', []):

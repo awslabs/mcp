@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for server helper functions."""
 
+import pytest
 from awslabs.postgres_mcp_server.server import extract_cell, parse_execute_response
 
 
@@ -153,3 +154,30 @@ class TestParseExecuteResponse:
         result = parse_execute_response(response)
         # Should handle missing records gracefully
         assert result == []
+
+
+def test_parse_execute_response_rejects_duplicate_column_names():
+    """Duplicate names raise instead of silently overwriting earlier columns."""
+    response = {
+        'columnMetadata': [{'name': 'name'}, {'name': 'name'}],
+        'records': [[{'stringValue': 'Alice'}, {'stringValue': 'Sales'}]],
+    }
+
+    with pytest.raises(ValueError, match=r"duplicate column names: 'name'"):
+        parse_execute_response(response)
+
+
+def test_parse_execute_response_reports_each_duplicate_name_once():
+    """The error names every duplicated column once, not every occurrence."""
+    response = {
+        'columnMetadata': [{'name': 'id'}, {'name': 'name'}, {'name': 'id'}, {'name': 'id'}],
+        'records': [],
+    }
+
+    with pytest.raises(ValueError) as exc_info:
+        parse_execute_response(response)
+
+    message = str(exc_info.value)
+    assert message.count("'id'") == 1
+    assert "'name'" not in message
+    assert 'Alias each duplicate' in message
