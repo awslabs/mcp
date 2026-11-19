@@ -103,6 +103,7 @@ async def detect_image_pull_failures(
                 "status": "error",
                 "error": str(e),
                 "assessment": f"Error checking for image pull failures: {str(e)}",
+                "image_issues": [],
             }
 
         if not task_definitions:
