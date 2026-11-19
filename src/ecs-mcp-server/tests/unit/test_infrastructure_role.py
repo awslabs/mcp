@@ -17,8 +17,11 @@ class TestInfrastructureWithRole(unittest.TestCase):
     """Tests for infrastructure module with ECR role support."""
 
     @pytest.mark.anyio
+    @patch("awslabs.ecs_mcp_server.api.infrastructure.get_aws_account_id")
     @patch("awslabs.ecs_mcp_server.api.infrastructure.get_aws_client")
-    async def test_create_ecr_infrastructure_role_output(self, mock_get_client):
+    async def test_create_ecr_infrastructure_role_output(
+        self, mock_get_client, mock_get_account_id
+    ):
         """Test create_ecr_infrastructure returns the role ARN."""
         # Mock get_aws_client
         mock_cloudformation = MagicMock()
@@ -47,6 +50,8 @@ class TestInfrastructureWithRole(unittest.TestCase):
         # Call create_ecr_infrastructure
         result = await create_ecr_infrastructure("test-app", '{"template":"content"}')
 
+        mock_get_account_id.assert_awaited_once()
+
         # Verify get_aws_client was called with the correct parameters
         mock_get_client.assert_called_with("cloudformation")
 
@@ -69,18 +74,14 @@ class TestInfrastructureWithRole(unittest.TestCase):
         )
 
     @pytest.mark.anyio
-    @patch("awslabs.ecs_mcp_server.api.infrastructure.validate_cloudformation_template")
     @patch("awslabs.ecs_mcp_server.api.infrastructure.prepare_template_files")
-    @patch("awslabs.ecs_mcp_server.api.infrastructure.create_ecr_infrastructure")
-    @patch("awslabs.ecs_mcp_server.api.infrastructure.build_and_push_image")
-    @patch("awslabs.ecs_mcp_server.api.infrastructure.create_ecs_infrastructure")
+    @patch("awslabs.ecs_mcp_server.api.infrastructure.get_aws_client")
+    @patch("awslabs.ecs_mcp_server.utils.docker.build_and_push_image")
     async def test_create_infrastructure_uses_role(
         self,
-        mock_create_ecs,
         mock_build_push,
-        mock_create_ecr,
+        mock_get_client,
         mock_prepare_templates,
-        mock_validate,
     ):
         """Test create_infrastructure uses the ECR role ARN for Docker images."""
         # Set up mocks
@@ -91,46 +92,44 @@ class TestInfrastructureWithRole(unittest.TestCase):
             "ecs_template_content": '{"template":"ecs content"}',
         }
 
-        mock_create_ecr.return_value = {
-            "stack_name": "test-app-ecr-infrastructure",
-            "operation": "create",
-            "resources": {
-                "ecr_repository": "test-app-repo",
-                "ecr_repository_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/test-app-repo",
-                "ecr_push_pull_role_arn": (
-                    "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role"
-                ),
-            },
+        mock_cloudformation = MagicMock()
+        mock_cloudformation.describe_stacks.return_value = {
+            "Stacks": [
+                {
+                    "Outputs": [
+                        {
+                            "OutputKey": "ECRRepositoryURI",
+                            "OutputValue": (
+                                "123456789012.dkr.ecr.us-east-1.amazonaws.com/test-app-repo"
+                            ),
+                        },
+                        {
+                            "OutputKey": "ECRPushPullRoleArn",
+                            "OutputValue": (
+                                "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role"
+                            ),
+                        },
+                    ]
+                }
+            ]
         }
+        mock_get_client.return_value = mock_cloudformation
 
         mock_build_push.return_value = "1.0.0"
 
-        mock_create_ecs.return_value = {
-            "stack_name": "test-app-ecs-infrastructure",
-            "operation": "create",
-            "vpc_id": "vpc-12345",
-            "resources": {
-                "cluster": "test-app-cluster",
-                "service": "test-app-service",
-            },
-        }
-
-        # Call create_infrastructure
+        # Run the image-build step using the role returned by the existing ECR stack.
         result = await create_infrastructure(
-            app_name="test-app", app_path="/path/to/app", force_deploy=True
-        )
-
-        # Verify prepare_template_files was called
-        mock_prepare_templates.assert_called_once_with("test-app", "/path/to/app")
-
-        # Verify create_ecr_infrastructure was called
-        mock_create_ecr.assert_called_once_with(
             app_name="test-app",
-            template_content='{"template":"ecr content"}',
+            app_path="/path/to/app",
+            force_deploy=True,
+            deployment_step=2,
         )
+
+        mock_prepare_templates.assert_called_once_with("test-app", "/path/to/app")
+        mock_get_client.assert_awaited_once_with("cloudformation")
 
         # Verify build_and_push_image was called with the role ARN
-        mock_build_push.assert_called_once()
+        mock_build_push.assert_awaited_once()
         args, kwargs = mock_build_push.call_args
         self.assertEqual(kwargs["app_path"], "/path/to/app")
         self.assertEqual(
@@ -140,12 +139,9 @@ class TestInfrastructureWithRole(unittest.TestCase):
             kwargs["role_arn"], "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role"
         )
 
-        # Verify create_ecs_infrastructure was called
-        mock_create_ecs.assert_called_once()
-
         # Verify the result
-        self.assertEqual(result["stack_name"], "test-app-ecs-infrastructure")
-        self.assertEqual(result["step"], 3)  # Step 3 is the final step
+        self.assertEqual(result["step"], 2)
+        self.assertEqual(result["operation"], "build_and_push")
         self.assertIn("resources", result)
         self.assertIn("ecr_repository", result["resources"])
         self.assertEqual(result["resources"]["ecr_repository"], "test-app-repo")
