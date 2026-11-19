@@ -1071,7 +1071,7 @@ class TestSectionsAtAnyHeadingLevel:
         )
 
     def test_available_subsections_are_listed_once(self):
-        """Repeated headings, such as tab labels, are offered once when a title misses."""
+        """Repeated headings are offered once when a title misses."""
         markdown = '# Page\n\n### [ JSON ]\n\nA.\n\n### [ YAML ]\n\nB.\n\n### [ JSON ]\n\nC.\n'
         with pytest.raises(ValueError) as exc_info:
             extract_sections_from_markdown(markdown, ['Missing'])
@@ -1367,3 +1367,197 @@ class TestToHtmlPageUrl:
     def test_other_urls_are_rejected(self, url):
         """Anything not ending in .html or .md has no page URL."""
         assert to_html_page_url(url) is None
+
+
+class TestCodeFencesInConvertedHtml:
+    """markdownify opens a fence after the ':' markers of a <dd>; the indented closer must close it."""
+
+    # Shaped on IAM/latest/UserGuide/reference_policies_elements_condition_operators.html
+    HTML = (
+        '<html><body><main><h1>Condition operators</h1>'
+        '<h2>String condition operators</h2><p>Intro.</p>'
+        '<div class="collapsible"><dl><dt>JSON</dt><dd><dl><dd>'
+        '<pre class="programlisting"><code>{\n  "Condition": {}\n}</code></pre>'
+        '</dd></dl></dd></dl></div>'
+        '<h2>Numeric condition operators</h2><p>Numbers.</p>'
+        '<h2>ARN condition operators</h2><p>ARNs.</p>'
+        '</main></body></html>'
+    )
+
+    def test_headings_after_a_definition_list_fence_are_found(self):
+        """A heading after the code sample is still a section."""
+        markdown = extract_content_from_html(self.HTML)
+        assert ':   :   ```' in markdown
+        selection = select_sections(markdown, ['ARN condition operators'])
+        assert selection.markdown == '## ARN condition operators\n\nARNs.'
+
+    def test_section_before_the_next_heading_ends_there(self):
+        """The section holding the code sample ends at the next heading."""
+        markdown = extract_content_from_html(self.HTML)
+        selection = select_sections(markdown, ['String condition operators'])
+        assert selection.markdown.startswith('## String condition operators')
+        assert 'Numeric' not in selection.markdown
+
+    def test_headings_after_a_list_item_fence_in_a_definition_are_found(self):
+        """A fence after ':   1. ' (a list item inside a <dd>) also opens a block."""
+        # Shaped on bedrock-agentcore/latest/devguide/runtime-filesystem-configurations.html
+        html = (
+            '<html><body><main><h1>T</h1><h2>Setup</h2><dl><dt>Steps</dt><dd><ol><li>'
+            '<pre><code>pip install x</code></pre>'
+            '</li></ol></dd></dl><h2>Cleanup</h2><p>Bye.</p></main></body></html>'
+        )
+        markdown = extract_content_from_html(html)
+        assert ':   1. ```' in markdown
+        assert select_sections(markdown, ['Cleanup']).markdown == '## Cleanup\n\nBye.'
+
+    @pytest.mark.parametrize('opener', ['- ```', '> ```', '1. ```', ':   ```'])
+    def test_code_after_a_list_or_quote_marker_is_not_a_heading(self, opener):
+        """A '#' line inside a fence opened after a marker is code."""
+        closer = '> ```' if opener.startswith('>') else '```'
+        markdown = f'## A\n\n{opener}\n## inside\n{closer}\n\n## B\n\nB body.\n'
+        with pytest.raises(ValueError, match='Available sections: "A", "B".'):
+            select_sections(markdown, ['inside'])
+
+    def test_inline_triple_backticks_do_not_open_a_fence(self):
+        """'``` x ```' on one line is inline code, so the next heading still counts."""
+        markdown = '## One\n\n``` inline ```\n\n## Two\n\nTwo body.\n'
+        assert select_sections(markdown, ['Two']).markdown == '## Two\n\nTwo body.'
+
+    def test_fence_with_info_string_does_not_close_the_block(self):
+        """'```json' inside a block is content; the next bare fence closes it."""
+        markdown = '## A\n\n```\nprompt = """\n```json\n## inside\n```\n## B\n\nB body.\n'
+        assert select_sections(markdown, ['B']).markdown == '## B\n\nB body.'
+        with pytest.raises(ValueError, match='Available sections: "A", "B".'):
+            select_sections(markdown, ['inside'])
+
+    @pytest.mark.parametrize('line', ['- ```', '1. ```', ':   ```'])
+    def test_marker_before_a_fence_inside_a_block_is_code(self, line):
+        """Only a bare or blockquoted fence closes a block, so '- ```' inside one is code."""
+        markdown = f'## A\n\n```\n{line}\n## inside\n```\n\n## B\n\nB body.\n'
+        with pytest.raises(ValueError, match='Available sections: "A", "B".'):
+            select_sections(markdown, ['inside'])
+
+    @pytest.mark.parametrize('line', ['> ```', '>```'])
+    def test_blockquoted_fence_does_not_close_a_block_outside_a_quote(self, line):
+        """A closer must sit at the same blockquote depth as its opener."""
+        markdown = f'## A\n\n```\n{line}\n## inside\n```\n\n## B\n\nB body.\n'
+        with pytest.raises(ValueError, match='Available sections: "A", "B".'):
+            select_sections(markdown, ['inside'])
+
+    def test_closing_fence_with_a_carriage_return_closes_the_block(self):
+        """CRLF text leaves a carriage return after the closing fence."""
+        markdown = '## A\r\n\r\n```\r\n## inside\r\n```\r\n\r\n## B\r\n\r\nB body.\r\n'
+        with pytest.raises(ValueError, match='Available sections: "A", "B".'):
+            select_sections(markdown, ['inside'])
+
+    def test_shorter_fence_does_not_close_a_longer_block(self):
+        """A block opened with four backticks stays open through a three-backtick line."""
+        markdown = '## One\n\n````\n```\n## inside\n```\n````\n\n## Two\n\nTwo body.\n'
+        with pytest.raises(ValueError, match='Available sections: "One", "Two".'):
+            select_sections(markdown, ['inside'])
+
+    def test_fence_of_the_other_kind_does_not_close_the_block(self):
+        """A '~~~' line inside a backtick block is content."""
+        markdown = '## A\n\n```\n~~~\n## inside\n```\n\n## B\n\nB body.\n'
+        with pytest.raises(ValueError, match='Available sections: "A", "B".'):
+            select_sections(markdown, ['inside'])
+
+    def test_closing_fence_followed_by_an_anchor_closes_the_block(self):
+        """Published Markdown can put the next element's anchor on the closing fence's line."""
+        # Shaped on cdk/v2/guide/bootstrapping-env.md
+        markdown = '## A\n\n```\ncode\n```<a name="b"></a>  \n## B\n\nB body.\n'
+        assert select_sections(markdown, ['B']).markdown == '## B\n\nB body.'
+
+
+class TestCodeSampleTabs:
+    """Published Markdown starts each tab with a '------' rule and a '#### [ JSON ]' line."""
+
+    # Shaped on amazondynamodb/latest/developerguide/specifying-conditions.md
+    MARKDOWN = (
+        '# Conditions\n\n'
+        '#### Example 4: Allow access to specific attributes\n\nPolicy intro.\n\n'
+        '------\n#### [ JSON ]\n\n```\n{"Effect": "Allow"}\n```\n\n------\n\n'
+        'After the sample.\n\n'
+        '#### Example 5: Limit returned attributes\n\nExample 5 body.\n'
+    )
+
+    def test_tab_label_does_not_end_a_section(self):
+        """A section at the tab label's level keeps its code sample."""
+        selection = select_sections(
+            self.MARKDOWN, ['Example 4: Allow access to specific attributes']
+        )
+        assert '{"Effect": "Allow"}' in selection.markdown
+        assert 'After the sample.' in selection.markdown
+        assert 'Example 5 body' not in selection.markdown
+
+    def test_tab_label_is_not_offered_as_a_section(self):
+        """Tab labels are not listed among the available sections."""
+        with pytest.raises(ValueError) as error:
+            select_sections(self.MARKDOWN, ['Missing'])
+        assert '[ JSON ]' not in str(error.value)
+
+    def test_tab_label_requested_by_name_returns_its_tabs(self):
+        """An agent can still ask for '[ JSON ]' and get each tab with that label."""
+        selection = select_sections(self.MARKDOWN, ['[ JSON ]'])
+        assert selection.markdown.startswith('#### [ JSON ]')
+        assert '{"Effect": "Allow"}' in selection.markdown
+        assert 'Example 5 body' not in selection.markdown
+
+    def test_a_repeated_label_returns_each_tab_and_stops_at_the_next(self):
+        """Each tab carrying the label is returned, and ends at the following label."""
+        markdown = (
+            '#### Create\n\n------\n#### [ JSON ]\n\nCreate JSON.\n\n'
+            '------\n#### [ YAML ]\n\nCreate YAML.\n\n'
+            '#### Update\n\n------\n#### [ JSON ]\n\nUpdate JSON.\n'
+        )
+        selection = select_sections(markdown, ['[ JSON ]'])
+        assert 'Create JSON.' in selection.markdown
+        assert 'Update JSON.' in selection.markdown
+        assert 'Create YAML.' not in selection.markdown
+
+    def test_tab_inside_a_selected_section_is_returned_once(self):
+        """A requested tab already inside a requested section is not repeated."""
+        selection = select_sections(
+            self.MARKDOWN, ['Example 4: Allow access to specific attributes', '[ JSON ]']
+        )
+        assert selection.markdown.count('#### [ JSON ]') == 1
+
+    def test_tab_label_followed_by_an_anchor_is_not_a_section(self):
+        """A label such as '#### [ Console ]<a name="x"></a>' is still a tab."""
+        # Shaped on AWSEC2/latest/UserGuide/attach-iam-role.md
+        markdown = (
+            '#### Attach a role\n\n------\n#### [ Console ]<a name="console"></a>\n\nClick.\n\n'
+            '------\n#### [ AWS CLI ]\n\nRun.\n\n------\n'
+        )
+        selection = select_sections(markdown, ['Attach a role'])
+        assert 'Click.' in selection.markdown and 'Run.' in selection.markdown
+        assert select_sections(markdown, ['[ Console ]']).markdown.startswith('#### [ Console ]')
+        anchored = select_sections(markdown, ['[ Console ]<a name="console"></a>'])
+        assert anchored.markdown.startswith('#### [ Console ]')
+        with pytest.raises(ValueError, match='Available sections: "Attach a role". '):
+            select_sections(markdown, ['Missing'])
+
+    def test_bracketed_heading_at_another_level_is_a_section(self):
+        """Tab labels are level 4, so a bracketed h2 after a rule ends the section before it."""
+        markdown = '## Intro\n\nText.\n\n------\n## [ Draft ]\n\nDraft body.\n'
+        assert select_sections(markdown, ['Intro']).markdown == '## Intro\n\nText.\n\n------'
+        assert select_sections(markdown, ['[ Draft ]']).markdown == '## [ Draft ]\n\nDraft body.'
+
+    def test_bracketed_heading_without_a_rule_is_a_section(self):
+        """Only a label directly after a '------' rule is a tab."""
+        markdown = '#### Intro\n\nText.\n\n#### [ Draft ]\n\nDraft body.\n'
+        assert select_sections(markdown, ['Intro']).markdown == '#### Intro\n\nText.'
+        assert select_sections(markdown, ['[ Draft ]']).markdown == '#### [ Draft ]\n\nDraft body.'
+
+    def test_bracketed_heading_after_a_short_rule_is_a_section(self):
+        """Only a six-dash rule starts a tab, so a heading after a '---' break is a section."""
+        markdown = '#### A\n\nText.\n\n---\n#### [ X ]\n\nX body.\n'
+        assert select_sections(markdown, ['A']).markdown == '#### A\n\nText.\n\n---'
+        with pytest.raises(ValueError, match='Available sections: "A", "\\[ X \\]".'):
+            select_sections(markdown, ['Missing'])
+
+    def test_heading_after_a_rule_without_brackets_is_a_section(self):
+        """Only a bracketed label after a '------' rule is a tab."""
+        markdown = '#### A\n\nText.\n\n------\n#### B\n\nB body.\n'
+        assert select_sections(markdown, ['A']).markdown == '#### A\n\nText.\n\n------'
+        assert select_sections(markdown, ['B']).markdown == '#### B\n\nB body.'
