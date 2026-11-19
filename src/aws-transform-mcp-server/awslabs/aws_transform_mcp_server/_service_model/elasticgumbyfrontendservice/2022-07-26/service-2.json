@@ -18,6 +18,45 @@
     "uid": "elasticgumbyfrontend-2022-07-26"
   },
   "operations": {
+    "AcceptEngagementInvitation": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "AcceptEngagementInvitationRequest"
+      },
+      "name": "AcceptEngagementInvitation",
+      "output": {
+        "shape": "AcceptEngagementInvitationResponse"
+      }
+    },
     "AddCaseCommunication": {
       "errors": [
         {
@@ -55,6 +94,123 @@
       "name": "AddCaseCommunication",
       "output": {
         "shape": "AddCaseCommunicationResponse"
+      }
+    },
+    "AddEngagementTenant": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "AddEngagementTenantRequest"
+      },
+      "name": "AddEngagementTenant",
+      "output": {
+        "shape": "AddEngagementTenantResponse"
+      }
+    },
+    "AddEngagementUser": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "AddEngagementUserRequest"
+      },
+      "name": "AddEngagementUser",
+      "output": {
+        "shape": "AddEngagementUserResponse"
+      }
+    },
+    "AddEngagementWorkspace": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "AddEngagementWorkspaceRequest"
+      },
+      "name": "AddEngagementWorkspace",
+      "output": {
+        "shape": "AddEngagementWorkspaceResponse"
       }
     },
     "BatchGetMessage": {
@@ -333,6 +489,45 @@
       "name": "CreateConnector",
       "output": {
         "shape": "CreateConnectorResponse"
+      }
+    },
+    "CreateEngagement": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "CreateEngagementRequest"
+      },
+      "name": "CreateEngagement",
+      "output": {
+        "shape": "CreateEngagementResponse"
       }
     },
     "CreateFeedback": {
@@ -813,6 +1008,46 @@
         "shape": "GetConnectorResponse"
       }
     },
+    "GetEngagement": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "GetEngagementRequest"
+      },
+      "name": "GetEngagement",
+      "output": {
+        "shape": "GetEngagementResponse"
+      },
+      "readonly": true
+    },
     "GetFeedbackQuestions": {
       "errors": [
         {
@@ -1291,6 +1526,246 @@
         "shape": "ListConnectorsResponse"
       }
     },
+    "ListEngagementInvitations": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListEngagementInvitationsRequest"
+      },
+      "name": "ListEngagementInvitations",
+      "output": {
+        "shape": "ListEngagementInvitationsResponse"
+      },
+      "readonly": true
+    },
+    "ListEngagementTenants": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListEngagementTenantsRequest"
+      },
+      "name": "ListEngagementTenants",
+      "output": {
+        "shape": "ListEngagementTenantsResponse"
+      },
+      "readonly": true
+    },
+    "ListEngagementUsers": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListEngagementUsersRequest"
+      },
+      "name": "ListEngagementUsers",
+      "output": {
+        "shape": "ListEngagementUsersResponse"
+      },
+      "readonly": true
+    },
+    "ListEngagementWorkspaces": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListEngagementWorkspacesRequest"
+      },
+      "name": "ListEngagementWorkspaces",
+      "output": {
+        "shape": "ListEngagementWorkspacesResponse"
+      },
+      "readonly": true
+    },
+    "ListEngagements": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListEngagementsRequest"
+      },
+      "name": "ListEngagements",
+      "output": {
+        "shape": "ListEngagementsResponse"
+      },
+      "readonly": true
+    },
+    "ListEngagementsForWorkspace": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListEngagementsForWorkspaceRequest"
+      },
+      "name": "ListEngagementsForWorkspace",
+      "output": {
+        "shape": "ListEngagementsForWorkspaceResponse"
+      },
+      "readonly": true
+    },
     "ListHitlTasks": {
       "errors": [
         {
@@ -1448,6 +1923,46 @@
       "name": "ListMessages",
       "output": {
         "shape": "ListMessagesResponse"
+      },
+      "readonly": true
+    },
+    "ListPartnerTypes": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListPartnerTypesRequest"
+      },
+      "name": "ListPartnerTypes",
+      "output": {
+        "shape": "ListPartnerTypesResponse"
       },
       "readonly": true
     },
@@ -1727,6 +2242,165 @@
       "name": "PutUserRoleMappings",
       "output": {
         "shape": "PutUserRoleMappingsResponse"
+      }
+    },
+    "RejectEngagementInvitation": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "RejectEngagementInvitationRequest"
+      },
+      "name": "RejectEngagementInvitation",
+      "output": {
+        "shape": "RejectEngagementInvitationResponse"
+      }
+    },
+    "RemoveEngagementTenant": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "RemoveEngagementTenantRequest"
+      },
+      "name": "RemoveEngagementTenant",
+      "output": {
+        "shape": "RemoveEngagementTenantResponse"
+      }
+    },
+    "RemoveEngagementUser": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "RemoveEngagementUserRequest"
+      },
+      "name": "RemoveEngagementUser",
+      "output": {
+        "shape": "RemoveEngagementUserResponse"
+      }
+    },
+    "RemoveEngagementWorkspace": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "RemoveEngagementWorkspaceRequest"
+      },
+      "name": "RemoveEngagementWorkspace",
+      "output": {
+        "shape": "RemoveEngagementWorkspaceResponse"
       }
     },
     "ResolveSupportCase": {
@@ -2128,6 +2802,46 @@
         "shape": "SubmitStandardHitlTaskResponse"
       }
     },
+    "UpdateEngagement": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "UpdateEngagementRequest"
+      },
+      "name": "UpdateEngagement",
+      "output": {
+        "shape": "UpdateEngagementResponse"
+      }
+    },
     "UpdateHitlTask": {
       "errors": [
         {
@@ -2291,6 +3005,40 @@
     }
   },
   "shapes": {
+    "AcceptEngagementInvitationRequest": {
+      "members": {
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "partnerType": {
+          "documentation": "<p>Required when the accepting tenant is PARTNER; chosen from ListPartnerTypes. Null for CUSTOMER.</p>",
+          "shape": "PartnerType"
+        }
+      },
+      "required": [
+        "engagementId"
+      ],
+      "type": "structure"
+    },
+    "AcceptEngagementInvitationResponse": {
+      "members": {
+        "invitationStatus": {
+          "shape": "InvitationStatus"
+        },
+        "partnerType": {
+          "documentation": "<p>The accepting tenant's selected partner role. Null for the customer.</p>",
+          "shape": "PartnerType"
+        },
+        "role": {
+          "shape": "UserRole"
+        }
+      },
+      "required": [
+        "invitationStatus",
+        "role"
+      ],
+      "type": "structure"
+    },
     "AccessControl": {
       "enum": [
         "ENABLED",
@@ -2422,6 +3170,114 @@
       },
       "required": [
         "result"
+      ],
+      "type": "structure"
+    },
+    "AddEngagementTenantRequest": {
+      "members": {
+        "customerConsent": {
+          "shape": "CustomerConsent"
+        },
+        "description": {
+          "shape": "EngagementDescription"
+        },
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "partnerIntent": {
+          "shape": "PartnerIntent"
+        },
+        "targetTenantId": {
+          "shape": "TenantId"
+        },
+        "type": {
+          "shape": "TenantType"
+        }
+      },
+      "required": [
+        "engagementId",
+        "targetTenantId",
+        "type",
+        "description"
+      ],
+      "type": "structure"
+    },
+    "AddEngagementTenantResponse": {
+      "members": {
+        "invitationStatus": {
+          "shape": "InvitationStatus"
+        }
+      },
+      "required": [
+        "invitationStatus"
+      ],
+      "type": "structure"
+    },
+    "AddEngagementUserRequest": {
+      "members": {
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "role": {
+          "shape": "UserRole"
+        },
+        "targetUserId": {
+          "shape": "UserId"
+        }
+      },
+      "required": [
+        "engagementId",
+        "targetUserId",
+        "role"
+      ],
+      "type": "structure"
+    },
+    "AddEngagementUserResponse": {
+      "members": {
+        "role": {
+          "shape": "UserRole"
+        },
+        "userId": {
+          "shape": "UserId"
+        }
+      },
+      "required": [
+        "userId",
+        "role"
+      ],
+      "type": "structure"
+    },
+    "AddEngagementWorkspaceRequest": {
+      "members": {
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "engagementId",
+        "workspaceId"
+      ],
+      "type": "structure"
+    },
+    "AddEngagementWorkspaceResponse": {
+      "members": {
+        "status": {
+          "shape": "WorkspaceStatus"
+        },
+        "tenantId": {
+          "shape": "TenantId"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "tenantId",
+        "status"
       ],
       "type": "structure"
     },
@@ -2740,6 +3596,10 @@
     },
     "BatchGetMessageRequest": {
       "members": {
+        "engagementId": {
+          "documentation": "<p>The engagement ID to scope the message retrieval to an engagement chat session.</p>",
+          "shape": "EngagementId"
+        },
         "messageIds": {
           "documentation": "<p>A list of identifiers for messages being requested</p>",
           "shape": "BatchGetMessageRequestMessageIdsList"
@@ -2871,6 +3731,17 @@
         "shape": "ConnectorMetadata"
       },
       "type": "list"
+    },
+    "ChatEngagementMetadata": {
+      "members": {
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "focusState": {
+          "shape": "FocusState"
+        }
+      },
+      "type": "structure"
     },
     "ChatFeedback": {
       "members": {
@@ -3299,6 +4170,86 @@
       },
       "type": "structure"
     },
+    "CreateEngagementRequest": {
+      "members": {
+        "atxProfileId": {
+          "shape": "String"
+        },
+        "customerAddress": {
+          "shape": "CreateEngagementRequestCustomerAddressString"
+        },
+        "customerEmail": {
+          "shape": "CreateEngagementRequestCustomerEmailString"
+        },
+        "customerWebsite": {
+          "shape": "CreateEngagementRequestCustomerWebsiteString"
+        },
+        "description": {
+          "shape": "EngagementDescription"
+        },
+        "migrationExecutiveSponsorName": {
+          "shape": "CreateEngagementRequestMigrationExecutiveSponsorNameString"
+        },
+        "name": {
+          "shape": "EngagementName"
+        },
+        "partnerType": {
+          "documentation": "<p>The partner's role in the engagement; the caller selects one of the values from ListPartnerTypes at engagement creation. Null for CUSTOMER tenants.</p>",
+          "shape": "PartnerType"
+        },
+        "tenantDescription": {
+          "shape": "EngagementDescription"
+        },
+        "tenantType": {
+          "shape": "TenantType"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "tenantType"
+      ],
+      "type": "structure"
+    },
+    "CreateEngagementRequestCustomerAddressString": {
+      "max": 512,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "CreateEngagementRequestCustomerEmailString": {
+      "max": 254,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "CreateEngagementRequestCustomerWebsiteString": {
+      "max": 2048,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "CreateEngagementRequestMigrationExecutiveSponsorNameString": {
+      "max": 128,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "CreateEngagementResponse": {
+      "members": {
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "status": {
+          "shape": "EngagementStatus"
+        }
+      },
+      "required": [
+        "engagementId",
+        "status"
+      ],
+      "type": "structure"
+    },
     "CreateFeedbackRequest": {
       "members": {
         "feedback": {
@@ -3484,6 +4435,12 @@
       "enum": [
         "ACCESS_DENIED",
         "NOT_FOUND"
+      ],
+      "type": "string"
+    },
+    "CustomerConsent": {
+      "enum": [
+        "GRANTED"
       ],
       "type": "string"
     },
@@ -3682,6 +4639,202 @@
         "DISABLED"
       ],
       "type": "string"
+    },
+    "EngagementDescription": {
+      "max": 512,
+      "min": 1,
+      "type": "string"
+    },
+    "EngagementId": {
+      "max": 256,
+      "min": 1,
+      "pattern": "^[a-z0-9-]+$",
+      "type": "string"
+    },
+    "EngagementListItem": {
+      "members": {
+        "createdAt": {
+          "shape": "Timestamp"
+        },
+        "customerAccountId": {
+          "shape": "String"
+        },
+        "customerAddress": {
+          "shape": "EngagementListItemCustomerAddressString"
+        },
+        "customerEmail": {
+          "shape": "EngagementListItemCustomerEmailString"
+        },
+        "customerWebsite": {
+          "shape": "EngagementListItemCustomerWebsiteString"
+        },
+        "description": {
+          "shape": "EngagementDescription"
+        },
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "migrationExecutiveSponsorName": {
+          "shape": "EngagementListItemMigrationExecutiveSponsorNameString"
+        },
+        "name": {
+          "shape": "EngagementName"
+        },
+        "partnerType": {
+          "shape": "PartnerType"
+        },
+        "role": {
+          "shape": "UserRole"
+        },
+        "status": {
+          "shape": "EngagementStatus"
+        },
+        "tenantId": {
+          "shape": "TenantId"
+        },
+        "tenantType": {
+          "shape": "TenantType"
+        }
+      },
+      "required": [
+        "engagementId",
+        "name",
+        "description",
+        "status",
+        "role",
+        "tenantId",
+        "tenantType",
+        "createdAt"
+      ],
+      "type": "structure"
+    },
+    "EngagementListItemCustomerAddressString": {
+      "max": 512,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "EngagementListItemCustomerEmailString": {
+      "max": 254,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "EngagementListItemCustomerWebsiteString": {
+      "max": 2048,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "EngagementListItemList": {
+      "member": {
+        "shape": "EngagementListItem"
+      },
+      "type": "list"
+    },
+    "EngagementListItemMigrationExecutiveSponsorNameString": {
+      "max": 128,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "EngagementName": {
+      "max": 128,
+      "min": 1,
+      "type": "string"
+    },
+    "EngagementProgram": {
+      "members": {
+        "programId": {
+          "shape": "String"
+        },
+        "programType": {
+          "shape": "ProgramType"
+        }
+      },
+      "required": [
+        "programType",
+        "programId"
+      ],
+      "type": "structure"
+    },
+    "EngagementProgramList": {
+      "member": {
+        "shape": "EngagementProgram"
+      },
+      "type": "list"
+    },
+    "EngagementStatus": {
+      "enum": [
+        "ACTIVE",
+        "TERMINATED"
+      ],
+      "type": "string"
+    },
+    "EngagementUserSummary": {
+      "members": {
+        "displayName": {
+          "documentation": "<p>User display name, recorded when the user is added to the engagement. Null when no name was found.</p>",
+          "shape": "String"
+        },
+        "email": {
+          "shape": "Email"
+        },
+        "role": {
+          "shape": "UserRole"
+        },
+        "status": {
+          "shape": "UserStatus"
+        },
+        "tenantId": {
+          "shape": "TenantId"
+        },
+        "userId": {
+          "shape": "UserId"
+        }
+      },
+      "required": [
+        "userId",
+        "tenantId",
+        "role",
+        "status"
+      ],
+      "type": "structure"
+    },
+    "EngagementUserSummaryList": {
+      "member": {
+        "shape": "EngagementUserSummary"
+      },
+      "type": "list"
+    },
+    "EngagementWorkspaceSummary": {
+      "members": {
+        "partnerTenantId": {
+          "documentation": "<p>The PARTNER tenant this workspace is associated with. Null for workspace rows created before partnerTenantId was introduced.</p>",
+          "shape": "TenantId"
+        },
+        "status": {
+          "shape": "WorkspaceStatus"
+        },
+        "tenantId": {
+          "shape": "TenantId"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "tenantId",
+        "status"
+      ],
+      "type": "structure"
+    },
+    "EngagementWorkspaceSummaryList": {
+      "member": {
+        "shape": "EngagementWorkspaceSummary"
+      },
+      "type": "list"
     },
     "ErrorReason": {
       "enum": [
@@ -3894,6 +5047,108 @@
         }
       },
       "type": "structure"
+    },
+    "GetEngagementRequest": {
+      "members": {
+        "engagementId": {
+          "shape": "EngagementId"
+        }
+      },
+      "required": [
+        "engagementId"
+      ],
+      "type": "structure"
+    },
+    "GetEngagementResponse": {
+      "members": {
+        "callerAccountId": {
+          "shape": "String"
+        },
+        "callerPartnerType": {
+          "shape": "PartnerType"
+        },
+        "callerRole": {
+          "shape": "UserRole"
+        },
+        "callerTenantId": {
+          "shape": "TenantId"
+        },
+        "callerTenantType": {
+          "shape": "TenantType"
+        },
+        "createdAt": {
+          "shape": "Timestamp"
+        },
+        "customerAccountId": {
+          "shape": "String"
+        },
+        "customerAddress": {
+          "shape": "GetEngagementResponseCustomerAddressString"
+        },
+        "customerEmail": {
+          "shape": "GetEngagementResponseCustomerEmailString"
+        },
+        "customerWebsite": {
+          "shape": "GetEngagementResponseCustomerWebsiteString"
+        },
+        "description": {
+          "shape": "EngagementDescription"
+        },
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "migrationExecutiveSponsorName": {
+          "shape": "GetEngagementResponseMigrationExecutiveSponsorNameString"
+        },
+        "name": {
+          "shape": "EngagementName"
+        },
+        "programs": {
+          "shape": "EngagementProgramList"
+        },
+        "status": {
+          "shape": "EngagementStatus"
+        },
+        "updatedAt": {
+          "shape": "Timestamp"
+        }
+      },
+      "required": [
+        "engagementId",
+        "name",
+        "description",
+        "status",
+        "callerRole",
+        "callerTenantId",
+        "callerTenantType",
+        "programs",
+        "createdAt"
+      ],
+      "type": "structure"
+    },
+    "GetEngagementResponseCustomerAddressString": {
+      "max": 512,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "GetEngagementResponseCustomerEmailString": {
+      "max": 254,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "GetEngagementResponseCustomerWebsiteString": {
+      "max": 2048,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "GetEngagementResponseMigrationExecutiveSponsorNameString": {
+      "max": 128,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
     },
     "GetFeedbackQuestionsRequest": {
       "members": {
@@ -4416,6 +5671,104 @@
       },
       "type": "structure"
     },
+    "InvitationStatus": {
+      "enum": [
+        "PENDING_APPROVAL",
+        "ACTIVE",
+        "REJECTED"
+      ],
+      "type": "string"
+    },
+    "InvitationSummary": {
+      "members": {
+        "createdAt": {
+          "shape": "Timestamp"
+        },
+        "customerAddress": {
+          "shape": "InvitationSummaryCustomerAddressString"
+        },
+        "customerEmail": {
+          "shape": "InvitationSummaryCustomerEmailString"
+        },
+        "customerWebsite": {
+          "shape": "InvitationSummaryCustomerWebsiteString"
+        },
+        "description": {
+          "deprecated": true,
+          "documentation": "<p>Deprecated: superseded by engagementDescription / invitationDescription. Retained as an empty string for backward compatibility; will be removed in a future revision.</p>",
+          "shape": "EngagementDescription"
+        },
+        "engagementDescription": {
+          "shape": "EngagementDescription"
+        },
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "engagementName": {
+          "shape": "EngagementName"
+        },
+        "invitationDescription": {
+          "shape": "EngagementDescription"
+        },
+        "invitationStatus": {
+          "shape": "InvitationStatus"
+        },
+        "invitedTenantType": {
+          "documentation": "<p>The role the invited tenant is being added as in THIS engagement (PARTNER or CUSTOMER), decided by the inviter at AddTenant time. The accept-invitation client must use this per-invitation role \u2014 not the invitee's global partner status (session isPartner) \u2014 to decide whether partnerType applies. Optional; null only on legacy rows with no persisted type.</p>",
+          "shape": "TenantType"
+        },
+        "invitingTenantDescription": {
+          "shape": "EngagementDescription"
+        },
+        "invitingTenantId": {
+          "shape": "TenantId"
+        },
+        "migrationExecutiveSponsorName": {
+          "shape": "InvitationSummaryMigrationExecutiveSponsorNameString"
+        }
+      },
+      "required": [
+        "engagementId",
+        "engagementName",
+        "engagementDescription",
+        "invitationDescription",
+        "invitingTenantId",
+        "invitingTenantDescription",
+        "invitationStatus",
+        "createdAt"
+      ],
+      "type": "structure"
+    },
+    "InvitationSummaryCustomerAddressString": {
+      "max": 512,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "InvitationSummaryCustomerEmailString": {
+      "max": 254,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "InvitationSummaryCustomerWebsiteString": {
+      "max": 2048,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "InvitationSummaryList": {
+      "member": {
+        "shape": "InvitationSummary"
+      },
+      "type": "list"
+    },
+    "InvitationSummaryMigrationExecutiveSponsorNameString": {
+      "max": 128,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
     "InvokeApi": {
       "members": {
         "label": {
@@ -4911,6 +6264,225 @@
       },
       "type": "structure"
     },
+    "ListEngagementInvitationsRequest": {
+      "members": {
+        "maxResults": {
+          "shape": "ListEngagementInvitationsRequestMaxResultsInteger"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "type": "structure"
+    },
+    "ListEngagementInvitationsRequestMaxResultsInteger": {
+      "box": true,
+      "max": 50,
+      "min": 1,
+      "type": "integer"
+    },
+    "ListEngagementInvitationsResponse": {
+      "members": {
+        "invitations": {
+          "shape": "InvitationSummaryList"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "required": [
+        "invitations"
+      ],
+      "type": "structure"
+    },
+    "ListEngagementTenantsRequest": {
+      "members": {
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "maxResults": {
+          "shape": "ListEngagementTenantsRequestMaxResultsInteger"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "required": [
+        "engagementId"
+      ],
+      "type": "structure"
+    },
+    "ListEngagementTenantsRequestMaxResultsInteger": {
+      "box": true,
+      "max": 50,
+      "min": 1,
+      "type": "integer"
+    },
+    "ListEngagementTenantsResponse": {
+      "members": {
+        "nextToken": {
+          "shape": "PaginationToken"
+        },
+        "tenants": {
+          "shape": "TenantSummaryList"
+        }
+      },
+      "required": [
+        "tenants"
+      ],
+      "type": "structure"
+    },
+    "ListEngagementUsersRequest": {
+      "members": {
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "filterRole": {
+          "shape": "UserRole"
+        },
+        "filterTenantId": {
+          "shape": "TenantId"
+        },
+        "maxResults": {
+          "shape": "ListEngagementUsersRequestMaxResultsInteger"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "required": [
+        "engagementId"
+      ],
+      "type": "structure"
+    },
+    "ListEngagementUsersRequestMaxResultsInteger": {
+      "box": true,
+      "max": 50,
+      "min": 1,
+      "type": "integer"
+    },
+    "ListEngagementUsersResponse": {
+      "members": {
+        "nextToken": {
+          "shape": "PaginationToken"
+        },
+        "users": {
+          "shape": "EngagementUserSummaryList"
+        }
+      },
+      "required": [
+        "users"
+      ],
+      "type": "structure"
+    },
+    "ListEngagementWorkspacesRequest": {
+      "members": {
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "filterTenantId": {
+          "shape": "TenantId"
+        },
+        "maxResults": {
+          "shape": "ListEngagementWorkspacesRequestMaxResultsInteger"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "required": [
+        "engagementId"
+      ],
+      "type": "structure"
+    },
+    "ListEngagementWorkspacesRequestMaxResultsInteger": {
+      "box": true,
+      "max": 50,
+      "min": 1,
+      "type": "integer"
+    },
+    "ListEngagementWorkspacesResponse": {
+      "members": {
+        "nextToken": {
+          "shape": "PaginationToken"
+        },
+        "workspaces": {
+          "shape": "EngagementWorkspaceSummaryList"
+        }
+      },
+      "required": [
+        "workspaces"
+      ],
+      "type": "structure"
+    },
+    "ListEngagementsForWorkspaceRequest": {
+      "members": {
+        "maxResults": {
+          "shape": "ListEngagementsForWorkspaceRequestMaxResultsInteger"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId"
+      ],
+      "type": "structure"
+    },
+    "ListEngagementsForWorkspaceRequestMaxResultsInteger": {
+      "box": true,
+      "max": 50,
+      "min": 1,
+      "type": "integer"
+    },
+    "ListEngagementsForWorkspaceResponse": {
+      "members": {
+        "items": {
+          "shape": "WorkspaceEngagementList"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "structure"
+    },
+    "ListEngagementsRequest": {
+      "members": {
+        "maxResults": {
+          "shape": "ListEngagementsRequestMaxResultsInteger"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "type": "structure"
+    },
+    "ListEngagementsRequestMaxResultsInteger": {
+      "box": true,
+      "max": 50,
+      "min": 1,
+      "type": "integer"
+    },
+    "ListEngagementsResponse": {
+      "members": {
+        "engagements": {
+          "shape": "EngagementListItemList"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "required": [
+        "engagements"
+      ],
+      "type": "structure"
+    },
     "ListHitlTasksRequest": {
       "members": {
         "jobId": {
@@ -5065,6 +6637,22 @@
           "shape": "String"
         }
       },
+      "type": "structure"
+    },
+    "ListPartnerTypesRequest": {
+      "members": {},
+      "type": "structure"
+    },
+    "ListPartnerTypesResponse": {
+      "members": {
+        "partnerTypes": {
+          "documentation": "<p>The fixed set of partner roles a caller can choose from. The caller picks one of these values to pass as <code>partnerType</code> on CreateEngagement and AddEngagementTenant.</p>",
+          "shape": "PartnerTypeList"
+        }
+      },
+      "required": [
+        "partnerTypes"
+      ],
       "type": "structure"
     },
     "ListPlanUpdatesRequest": {
@@ -5496,6 +7084,38 @@
       "min": 1,
       "type": "string"
     },
+    "PartnerIntent": {
+      "enum": [
+        "PERFORM_MIGRATE_ONLY",
+        "PERFORM_ASSESSMENT_ONLY",
+        "PERFORM_ASSESSMENT_AND_MIGRATION"
+      ],
+      "type": "string"
+    },
+    "PartnerLegalName": {
+      "documentation": "<p>Partner organization's legal name, as registered in AWS Partner Central.</p>",
+      "max": 80,
+      "min": 1,
+      "sensitive": true,
+      "type": "string"
+    },
+    "PartnerType": {
+      "documentation": "<p>The partner's role in the engagement, selected when creating or accepting an engagement.</p>",
+      "enum": [
+        "DISTRIBUTOR",
+        "SOLUTION_PROVIDER_MSP",
+        "CONSULTING_PARTNER",
+        "HYBRID_SYSTEMS_INTEGRATOR",
+        "ISV"
+      ],
+      "type": "string"
+    },
+    "PartnerTypeList": {
+      "member": {
+        "shape": "PartnerType"
+      },
+      "type": "list"
+    },
     "PlanStepId": {
       "max": 64,
       "min": 1,
@@ -5650,6 +7270,12 @@
       ],
       "type": "string"
     },
+    "ProgramType": {
+      "enum": [
+        "MAP"
+      ],
+      "type": "string"
+    },
     "PutUserPreferencesRequest": {
       "members": {
         "notificationSettings": {
@@ -5742,6 +7368,107 @@
       "pattern": "(us(?:-gov)?|af|ap|ca|cn|eu|sa)-(central|(?:north|south)?(?:east|west)?)-(\\d+)",
       "type": "string"
     },
+    "RejectEngagementInvitationRequest": {
+      "members": {
+        "engagementId": {
+          "shape": "EngagementId"
+        }
+      },
+      "required": [
+        "engagementId"
+      ],
+      "type": "structure"
+    },
+    "RejectEngagementInvitationResponse": {
+      "members": {
+        "invitationStatus": {
+          "shape": "InvitationStatus"
+        }
+      },
+      "required": [
+        "invitationStatus"
+      ],
+      "type": "structure"
+    },
+    "RemoveEngagementTenantRequest": {
+      "members": {
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "targetTenantId": {
+          "documentation": "<p>The partner tenant to evict from the engagement. The caller's own tenant is taken from the session, not this request.</p>",
+          "shape": "TenantId"
+        }
+      },
+      "required": [
+        "engagementId",
+        "targetTenantId"
+      ],
+      "type": "structure"
+    },
+    "RemoveEngagementTenantResponse": {
+      "members": {
+        "removed": {
+          "shape": "Boolean"
+        }
+      },
+      "required": [
+        "removed"
+      ],
+      "type": "structure"
+    },
+    "RemoveEngagementUserRequest": {
+      "members": {
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "targetUserId": {
+          "shape": "UserId"
+        }
+      },
+      "required": [
+        "engagementId",
+        "targetUserId"
+      ],
+      "type": "structure"
+    },
+    "RemoveEngagementUserResponse": {
+      "members": {
+        "removed": {
+          "shape": "Boolean"
+        }
+      },
+      "required": [
+        "removed"
+      ],
+      "type": "structure"
+    },
+    "RemoveEngagementWorkspaceRequest": {
+      "members": {
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "engagementId",
+        "workspaceId"
+      ],
+      "type": "structure"
+    },
+    "RemoveEngagementWorkspaceResponse": {
+      "members": {
+        "status": {
+          "shape": "WorkspaceStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "structure"
+    },
     "RequestHeaders": {
       "key": {
         "shape": "HeaderKey"
@@ -5790,6 +7517,9 @@
     },
     "ResourcesOnScreen": {
       "members": {
+        "engagement": {
+          "shape": "ChatEngagementMetadata"
+        },
         "workspace": {
           "shape": "WorkspaceMetadata"
         }
@@ -6346,6 +8076,90 @@
       "pattern": "[0-9a-z]+",
       "type": "string"
     },
+    "TenantStatus": {
+      "enum": [
+        "ACTIVE",
+        "TERMINATED"
+      ],
+      "type": "string"
+    },
+    "TenantSummary": {
+      "members": {
+        "atxProfileId": {
+          "shape": "String"
+        },
+        "awsAccountId": {
+          "documentation": "<p>AWS account ID of a PARTNER tenant. Null for CUSTOMER tenants. Use the engagement's customerAccountId for the customer.</p>",
+          "shape": "AccountId"
+        },
+        "consentedAt": {
+          "documentation": "<p>When the customer consented. Returned only to the customer.</p>",
+          "shape": "Timestamp"
+        },
+        "consentedByUserId": {
+          "documentation": "<p>The customer user who consented to sharing data with this partner. Returned only to the customer.</p>",
+          "shape": "UserId"
+        },
+        "createdAt": {
+          "shape": "Timestamp"
+        },
+        "description": {
+          "shape": "EngagementDescription"
+        },
+        "invitationStatus": {
+          "shape": "InvitationStatus"
+        },
+        "invitedByUserId": {
+          "documentation": "<p>The user who sent the invite. Returned only to the customer.</p>",
+          "shape": "UserId"
+        },
+        "partnerIntent": {
+          "documentation": "<p>Why the customer invited this partner. Returned to the customer, and to the partner for its own row.</p>",
+          "shape": "PartnerIntent"
+        },
+        "partnerLegalName": {
+          "documentation": "<p>Partner organization's legal name from AWS Partner Central, for PARTNER tenants. Null for CUSTOMER tenants.</p>",
+          "shape": "PartnerLegalName"
+        },
+        "partnerType": {
+          "shape": "PartnerType"
+        },
+        "status": {
+          "shape": "TenantStatus"
+        },
+        "tenantConnectorId": {
+          "documentation": "<p>The tenant-level connector ID of the tenant.</p>",
+          "shape": "UUID"
+        },
+        "tenantId": {
+          "shape": "TenantId"
+        },
+        "type": {
+          "shape": "TenantType"
+        }
+      },
+      "required": [
+        "tenantId",
+        "type",
+        "description",
+        "invitationStatus",
+        "status"
+      ],
+      "type": "structure"
+    },
+    "TenantSummaryList": {
+      "member": {
+        "shape": "TenantSummary"
+      },
+      "type": "list"
+    },
+    "TenantType": {
+      "enum": [
+        "CUSTOMER",
+        "PARTNER"
+      ],
+      "type": "string"
+    },
     "TextResponse": {
       "max": 1000,
       "min": 1,
@@ -6391,6 +8205,70 @@
     "UUID": {
       "pattern": "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
       "type": "string"
+    },
+    "UpdateEngagementRequest": {
+      "members": {
+        "customerAddress": {
+          "shape": "UpdateEngagementRequestCustomerAddressString"
+        },
+        "customerEmail": {
+          "shape": "UpdateEngagementRequestCustomerEmailString"
+        },
+        "customerWebsite": {
+          "shape": "UpdateEngagementRequestCustomerWebsiteString"
+        },
+        "description": {
+          "shape": "EngagementDescription"
+        },
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "migrationExecutiveSponsorName": {
+          "shape": "UpdateEngagementRequestMigrationExecutiveSponsorNameString"
+        },
+        "name": {
+          "shape": "EngagementName"
+        }
+      },
+      "required": [
+        "engagementId"
+      ],
+      "type": "structure"
+    },
+    "UpdateEngagementRequestCustomerAddressString": {
+      "max": 512,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "UpdateEngagementRequestCustomerEmailString": {
+      "max": 254,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "UpdateEngagementRequestCustomerWebsiteString": {
+      "max": 2048,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "UpdateEngagementRequestMigrationExecutiveSponsorNameString": {
+      "max": 128,
+      "min": 0,
+      "sensitive": true,
+      "type": "string"
+    },
+    "UpdateEngagementResponse": {
+      "members": {
+        "updatedAt": {
+          "shape": "Timestamp"
+        }
+      },
+      "required": [
+        "updatedAt"
+      ],
+      "type": "structure"
     },
     "UpdateHitlTaskRequest": {
       "members": {
@@ -6575,6 +8453,12 @@
       "sensitive": true,
       "type": "string"
     },
+    "UserRole": {
+      "enum": [
+        "LEAD"
+      ],
+      "type": "string"
+    },
     "UserSearchKey": {
       "enum": [
         "USERNAME",
@@ -6587,6 +8471,13 @@
       "min": 1,
       "pattern": "[\\p{L}\\p{M}\\p{S}\\p{N}\\p{P}\\t\\n\\r  \u3000]+",
       "sensitive": true,
+      "type": "string"
+    },
+    "UserStatus": {
+      "enum": [
+        "ACTIVE",
+        "REMOVED"
+      ],
       "type": "string"
     },
     "UxComponentId": {
@@ -6710,6 +8601,31 @@
       "sensitive": true,
       "type": "string"
     },
+    "WorkspaceEngagement": {
+      "documentation": "<p>Slim engagement summary returned by the workspace reverse-lookup. Keyed only on workspaceId, so it has no caller-tenant context \u2014 only the engagement's own fields.</p>",
+      "members": {
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "name": {
+          "shape": "EngagementName"
+        },
+        "status": {
+          "shape": "EngagementStatus"
+        }
+      },
+      "required": [
+        "engagementId",
+        "status"
+      ],
+      "type": "structure"
+    },
+    "WorkspaceEngagementList": {
+      "member": {
+        "shape": "WorkspaceEngagement"
+      },
+      "type": "list"
+    },
     "WorkspaceList": {
       "member": {
         "shape": "Workspace"
@@ -6735,6 +8651,13 @@
       "min": 3,
       "pattern": "[a-zA-Z0-9]+(?:[-_\\.][a-zA-Z0-9]+)*",
       "sensitive": true,
+      "type": "string"
+    },
+    "WorkspaceStatus": {
+      "enum": [
+        "ACTIVE",
+        "REMOVED"
+      ],
       "type": "string"
     }
   },

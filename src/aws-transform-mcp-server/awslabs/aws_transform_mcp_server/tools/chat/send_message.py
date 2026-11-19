@@ -39,13 +39,30 @@ from typing import Annotated, Optional
 
 async def send_message(
     ctx: Context,
-    workspaceId: Annotated[str, Field(description='Workspace ID (UUID format)')],
     text: Annotated[
         str,
         Field(
             description='The message to send to the Transform assistant (max 7000 chars)',
         ),
     ],
+    workspaceId: Annotated[
+        Optional[str],
+        Field(
+            description=(
+                'Workspace ID (UUID format). Required unless engagementId is provided. '
+                'Ignored when engagementId is provided.'
+            ),
+        ),
+    ] = None,
+    engagementId: Annotated[
+        Optional[str],
+        Field(
+            description=(
+                'Engagement ID for engagement-scoped chat. Takes precedence over workspaceId; '
+                'jobId is ignored.'
+            ),
+        ),
+    ] = None,
     jobId: Annotated[
         Optional[str],
         Field(
@@ -75,16 +92,29 @@ async def send_message(
             'Pass text="your message here".',
         )
 
+    if not workspaceId and not engagementId:
+        return error_result(
+            'VALIDATION_ERROR',
+            'Missing chat scope. Provide either "workspaceId" or "engagementId".',
+            'Pass workspaceId="<workspace UUID>" or engagementId="<engagement ID>".',
+        )
+
     if not is_fes_available():
         return not_configured_error()
 
-    nudge = job_needs_check(jobId)
+    nudge = job_needs_check(jobId) if not engagementId else None
     if nudge:
         return error_result('INSTRUCTIONS_REQUIRED', nudge)
 
     try:
-        metadata = build_metadata(workspaceId, jobId)
+        metadata = build_metadata(workspaceId, jobId, engagementId)
         start_timestamp = time.time()
+        if engagementId:
+            scope_arg = f'engagementId="{engagementId}"'
+        else:
+            scope_arg = f'workspaceId="{workspaceId}"'
+            if jobId:
+                scope_arg += f', jobId="{jobId}"'
 
         send_result = await call_transform_api(
             'SendMessage',
@@ -105,14 +135,17 @@ async def send_message(
             return error_result(
                 'MESSAGE_ID_EXTRACTION_FAILED',
                 'SendMessage succeeded but messageId could not be extracted from the response.',
-                'Use list_resources(resource="messages") to check for a reply.',
+                f'Use list_resources(resource="messages", {scope_arg}) to check for a reply.',
             )
 
         if skipPolling:
             return success_result(
                 {
                     'sentMessage': sent_msg,
-                    'note': 'Polling skipped. Call send_message again to follow up.',
+                    'note': (
+                        'Polling skipped. '
+                        f'Use list_resources(resource="messages", {scope_arg}) to check for a reply.'
+                    ),
                 }
             )
 
@@ -122,6 +155,7 @@ async def send_message(
             sent_message_id,
             max_attempts=30,
             start_timestamp=start_timestamp,
+            engagementId=engagementId,
         )
 
         if result['terminal']:
@@ -130,12 +164,17 @@ async def send_message(
                 return error_result(
                     'ASSISTANT_ERROR',
                     resp.get('text') or 'The assistant returned an error.',
-                    f'sentMessageId={sent_message_id}, workspaceId={workspaceId}',
+                    f'sentMessageId={sent_message_id}, {scope_arg}',
                 )
             return success_result({'sentMessage': sent_msg, 'response': resp})
 
         timeout_data = build_timeout_data(
-            60, result['last_thinking'], workspaceId, sent_message_id, jobId
+            60,
+            result['last_thinking'],
+            workspaceId,
+            sent_message_id,
+            jobId,
+            engagementId,
         )
         timeout_data['sentMessage'] = sent_msg
         return success_result(timeout_data)
