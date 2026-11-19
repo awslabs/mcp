@@ -17,6 +17,42 @@
       "output_token": "nextToken",
       "result_key": "connectors"
     },
+    "ListEngagementInvitations": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "invitations"
+    },
+    "ListEngagementTenants": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "tenants"
+    },
+    "ListEngagementUsers": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "users"
+    },
+    "ListEngagementWorkspaces": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "workspaces"
+    },
+    "ListEngagements": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "engagements"
+    },
+    "ListEngagementsForWorkspace": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "items"
+    },
     "ListHitlTasks": {
       "input_token": "nextToken",
       "limit_key": "maxResults",
