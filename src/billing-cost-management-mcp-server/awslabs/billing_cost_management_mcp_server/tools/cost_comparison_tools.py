@@ -202,10 +202,10 @@ _FILTER_MATCH_OPTIONS = {
     'Tags': ('EQUALS', 'CASE_SENSITIVE', 'ABSENT'),
     'CostCategories': ('EQUALS', 'CASE_SENSITIVE', 'ABSENT'),
 }
-# A filter nested this deep fails in Cost Explorer: getCostComparisonDrivers returns
-# InternalFailure at 97 levels and both operations reject 98 ("Value is too deeply
-# nested"). Checked here also so the walk below cannot exhaust Python's recursion limit.
-MAX_FILTER_DEPTH = 97
+# Both comparison APIs reject a filter nested this many And/Or/Not levels deep
+# (ValidationException "Filter expression is nested too deeply"); 89 levels pass.
+# Checked here also so the walk below cannot exhaust Python's recursion limit.
+MAX_FILTER_DEPTH = 90
 
 
 def validate_comparison_filter(expression: Any, depth: int = 0) -> None:
@@ -343,7 +343,7 @@ AWS call:
   value would silently return $0 or no drivers (or everything under Not)
 - ABSENT together with Values: the comparison APIs drop the Values
 - A RESOURCE_ID filter
-- Nesting of 97 or more And/Or/Not levels, which fails in Cost Explorer
+- Nesting of 90 or more And/Or/Not levels, which Cost Explorer rejects
 A filter holds at most 200 values in total, counted across all its leaves (Cost Explorer
 returns ValidationException beyond that; getCostAndUsage allows 6,000).
 In group_by, Cost Explorer itself rejects RESOURCE_ID and USAGE_TYPE_GROUP.

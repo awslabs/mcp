@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.ccapi-mcp-server"
-version = "1.1.1"
+version = "1.1.2"
 description = "An AWS Labs Model Context Protocol (MCP) server for managing AWS resources via Cloud Control API"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -46,7 +46,6 @@ changelog = "https://github.com/awslabs/mcp/blob/main/src/ccapi-mcp-server/CHANG
 [dependency-groups]
 dev = [
     "commitizen>=4.2.2",
-    "pre-commit>=4.1.0",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
     "pytest>=8.0.0",

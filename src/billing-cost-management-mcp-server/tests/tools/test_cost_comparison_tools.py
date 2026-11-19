@@ -30,7 +30,6 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_comparison_tools impo
     DRIVER_METRICS,
     GET_COST_AND_USAGE_COMPARISONS,
     GET_COST_COMPARISON_DRIVERS,
-    MAX_FILTER_DEPTH,
     _months_before,
     _utc_today,
     cost_comparison,
@@ -1443,36 +1442,47 @@ class TestCostComparisonFilterValidation:
         )
         _assert_local_validation_error(result, dispatch_ce_client, 'ABSENT ignores its Values')
 
-    async def test_filter_nested_too_deep_rejected(self, mock_context, dispatch_ce_client):
-        """A filter nested deep enough to fail in Cost Explorer fails locally; one level less passes.
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    @pytest.mark.parametrize('operator', ['Not', 'And', 'Or'])
+    async def test_filter_nested_too_deep_rejected(
+        self, mock_context, dispatch_ce_client, operation, operator
+    ):
+        """A filter nested 90 And/Or/Not levels fails locally; 89 levels reaches Cost Explorer.
 
-        Live, getCostComparisonDrivers accepts 96 Not, And or Or levels and returns
-        InternalFailure at 97; both operations reject 98 with "Value is too deeply nested".
+        Live, both operations accept 89 levels and reject 90 with ValidationException
+        "Filter expression is nested too deeply" for Not, And and Or alike.
         """
-        assert MAX_FILTER_DEPTH == 97
-        deepest_allowed = _service([EC2])
-        for _ in range(MAX_FILTER_DEPTH - 1):
-            deepest_allowed = {'Not': deepest_allowed}
-        validate_comparison_filter(deepest_allowed)
-        too_deep = (
-            '{"Not": ' * MAX_FILTER_DEPTH + json.dumps(_service([EC2])) + '}' * MAX_FILTER_DEPTH
-        )
+
+        def nest(levels):
+            flt = _service([EC2])
+            for _ in range(levels):
+                flt = {'Not': flt} if operator == 'Not' else {operator: [_service([EC2]), flt]}
+            return flt
+
+        method = {
+            'getCostAndUsageComparisons': dispatch_ce_client.get_cost_and_usage_comparisons,
+            'getCostComparisonDrivers': dispatch_ce_client.get_cost_comparison_drivers,
+        }[operation]
         result = await _call(
             mock_context,
             dispatch_ce_client,
-            'getCostAndUsageComparisons',
+            operation,
             month(2),
             month(1),
-            filter=too_deep,
+            filter=json.dumps(nest(89)),
         )
-        _assert_local_validation_error(
-            result, dispatch_ce_client, f'nested {MAX_FILTER_DEPTH} or more'
+        assert result['status'] == 'success', result
+        assert method.call_args.kwargs['Filter'] == nest(89)
+        dispatch_ce_client.reset_mock()
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            operation,
+            month(2),
+            month(1),
+            filter=json.dumps(nest(90)),
         )
-        too_wide_and = _service([EC2])
-        for _ in range(MAX_FILTER_DEPTH):
-            too_wide_and = {'And': [_service([EC2]), too_wide_and]}
-        with pytest.raises(ValueError, match='or more And/Or/Not levels'):
-            validate_comparison_filter(too_wide_and)
+        _assert_local_validation_error(result, dispatch_ce_client, 'nested 90 or more')
 
     @pytest.mark.parametrize('operation', OPERATIONS)
     @pytest.mark.parametrize('how', NESTINGS)
@@ -1657,7 +1667,8 @@ async def test_description_states_the_enforced_rules():
     assert 'MatchOptions other than EQUALS and CASE_SENSITIVE (the default)' in description
     assert 'ABSENT together with Values' in description
     assert 'A RESOURCE_ID filter' in description
-    assert 'Nesting of 97 or more And/Or/Not levels' in description
+    assert 'Nesting of 90 or more And/Or/Not levels' in description
+    assert '97 or more' not in description
     assert 'Keys and values match exactly, including case' in description
     assert (
         'A filter holds at most 200 values in total, counted across all its leaves' in description

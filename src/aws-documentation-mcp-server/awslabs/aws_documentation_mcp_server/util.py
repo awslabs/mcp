@@ -17,6 +17,7 @@ import httpx
 import markdownify
 import re
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
+from dataclasses import dataclass, field
 from mcp.server.mcpserver.exceptions import ToolError
 from typing import Any, Dict, List, Optional, Sequence
 from urllib.parse import quote_plus, urljoin, urlsplit, urlunsplit
@@ -297,81 +298,149 @@ def _heading_text(title: str) -> str:
     return ' '.join(re.sub(r'[*`\\\u00b6]', '', text).split())  # markers, escapes, pilcrow
 
 
-def extract_sections_from_markdown(markdown: str, section_titles: List[str]) -> str:
-    """Extract requested level-2 sections from Markdown.
+@dataclass(frozen=True)
+class _Heading:
+    line: int
+    level: int
+    text: str
+
+
+@dataclass(frozen=True)
+class SectionSelection:
+    """What read_sections returns for a page: the matched sections, or the page itself."""
+
+    markdown: str
+    whole_page: bool  # every title that matched named only the page's level-1 heading
+    missing: List[str]
+    page_titles: List[str] = field(default_factory=list)  # set only alongside sections
+
+    @property
+    def notes(self) -> str:
+        """Notes on requested titles that matched no heading or were not returned as sections."""
+        notes = ''
+        if self.missing:
+            missing_list = ', '.join(f'"{title}"' for title in self.missing)
+            notes += (
+                f'\n\n> **Note**: The following requested sections were not found: {missing_list}'
+            )
+        if self.page_titles:
+            page_list = ', '.join(f'"{title}"' for title in self.page_titles)
+            verb = 'names' if len(self.page_titles) == 1 else 'name'
+            notes += (
+                f'\n\n> **Note**: {page_list} also {verb} the whole page. Use the'
+                ' read_documentation tool to read all of it.'
+            )
+        return notes
+
+
+def _markdown_headings(lines: List[str]) -> List[_Heading]:
+    """List the page's headings. Only the first level-1 heading counts as the page title."""
+    headings = []
+    in_code_block = False
+    seen_title = False
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        # Track fenced code blocks — '#' lines inside them are not headings
+        if stripped.startswith('```') or stripped.startswith('~~~'):
+            in_code_block = not in_code_block
+        heading = None if in_code_block else _MARKDOWN_HEADING.match(line)
+        if not heading:
+            continue
+        level = len(heading.group(1))
+        # Converted HTML leaves a paragraph such as '# of hosts' unescaped, so a later
+        # level-1 line is text
+        if level == 1:
+            if seen_title:
+                continue
+            seen_title = True
+        headings.append(_Heading(i, level, _heading_text(heading.group(2))))
+    return headings
+
+
+def select_sections(markdown: str, section_titles: List[str]) -> SectionSelection:
+    """Select the requested sections of a page, matching headings at any level.
+
+    A title selects every heading below level 1 that carries it. A section runs until the next
+    heading at the same or a higher level. When the titles that match name only the page's
+    level-1 heading, the whole page is selected; otherwise a title that also names the page is
+    reported in a note.
 
     Args:
         markdown: Markdown content of the whole page
         section_titles: List of section titles to extract
 
     Returns:
-        Markdown content containing only the requested sections
+        The selected sections in page order, or the page when whole_page is set
     """
     if not markdown.strip():
         raise UnreadablePageError('The page carries no readable content.')
 
     if not section_titles:
-        return 'No content or section titles provided'
+        return SectionSelection('No content or section titles provided', False, [])
 
-    normalized_titles = {}
-    for title in section_titles:
-        # Normalize like page headings, so a title copied with its markup still matches
-        normalized_titles[_heading_text(title).lower()] = title.strip()
+    lines = markdown.split('\n')
+    headings = _markdown_headings(lines)
 
-    available_level2_sections = []
-    matched_sections = []
-    found_sections = set()
-    current = None  # lines of the matched section being collected
-    in_code_block = False
+    # Normalize like page headings, so a title copied with its markup still matches
+    requested = [(title.strip(), _heading_text(title).lower()) for title in section_titles]
+    sections_for: Dict[str, List[_Heading]] = {}
+    names_page: Dict[str, bool] = {}
+    for _, key in requested:
+        if key in sections_for:
+            continue
+        matches = [h for h in headings if key and h.text.lower() == key]
+        sections_for[key] = [h for h in matches if h.level > 1]
+        names_page[key] = any(h.level == 1 for h in matches)
 
-    for line in markdown.split('\n'):
-        stripped = line.strip()
-        # Track fenced code blocks — '#' lines inside them are not headings
-        if stripped.startswith('```') or stripped.startswith('~~~'):
-            in_code_block = not in_code_block
-        heading = None if in_code_block else _MARKDOWN_HEADING.match(line)
+    selected = {h.line for matched in sections_for.values() for h in matched}
 
-        # A section runs until the next level-2 heading. A level-1 line does not end it:
-        # converted HTML leaves a paragraph such as '# of hosts' unescaped.
-        if heading and len(heading.group(1)) == 2:
-            if current is not None:
-                matched_sections.append('\n'.join(current).strip())
-                current = None
-            h2_text = _heading_text(heading.group(2))
-            available_level2_sections.append(h2_text)
-            normalized_h2 = h2_text.lower()
-            if normalized_h2 in normalized_titles:
-                current = []
-                found_sections.add(normalized_titles[normalized_h2])
-
-        if current is not None:
-            current.append(line)
-
-    if current is not None:
-        matched_sections.append('\n'.join(current).strip())
-
-    if not found_sections:
+    if not selected and not any(names_page.values()):
         section_list = ', '.join(f'"{title}"' for title in section_titles)
-        if available_level2_sections:
-            available_list = ', '.join(f'"{section}"' for section in available_level2_sections)
+        # Level-6 headings are callout titles such as "Note" in converted HTML, not sections
+        offered = [h for h in headings if 1 < h.level < 6 and h.text]
+        top_level = min((h.level for h in offered), default=None)
+        if top_level == 2:  # repeated h2 titles stay listed, as they always have
+            available = [h.text for h in offered if h.level == 2]
+        else:
+            available = list(dict.fromkeys(h.text for h in offered if h.level == top_level))
+        if available:
+            available_list = ', '.join(f'"{section}"' for section in available)
             error_msg = f'No matching sections were found: {section_list}. Available sections: {available_list}. Please retry with one or more of these sections or use the read_documentation tool instead to get the full document content.'
             raise DocumentationToolError(error_msg)
         else:
             error_msg = 'This document does not contain subsections. Please use the read_documentation tool instead to get the full document content.'
             raise DocumentationToolError(error_msg)
 
-    result = '\n\n'.join(matched_sections)
+    # One note entry per normalized title, spelled as first requested
+    unmatched: Dict[str, str] = {}
+    page_named: Dict[str, str] = {}
+    for title, key in requested:
+        if not sections_for[key] and not names_page[key]:
+            unmatched.setdefault(key, title)
+        elif names_page[key]:
+            page_named.setdefault(key, title)
+    missing = list(unmatched.values())
 
-    if len(found_sections) < len(section_titles):
-        missing_sections = [
-            title.strip() for title in section_titles if title.strip() not in found_sections
-        ]
-        missing_list = ', '.join(f'"{title}"' for title in missing_sections)
-        result += (
-            f'\n\n> **Note**: The following requested sections were not found: {missing_list}'
-        )
+    if not selected:
+        return SectionSelection(markdown, True, missing)
 
-    return result
+    page_titles = list(page_named.values())
+
+    sections = []
+    open_section = None  # (first line, level) of the section being collected
+    for heading in headings:
+        if heading.level == 1:
+            continue
+        if open_section is not None and heading.level <= open_section[1]:
+            sections.append('\n'.join(lines[open_section[0] : heading.line]).strip())
+            open_section = None
+        # A selected heading nested in an open section is already part of it
+        if open_section is None and heading.line in selected:
+            open_section = (heading.line, heading.level)
+    if open_section is not None:
+        sections.append('\n'.join(lines[open_section[0] :]).strip())
+
+    return SectionSelection('\n\n'.join(sections), False, missing, page_titles)
 
 
 def truncate_large_tables(

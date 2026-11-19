@@ -16,6 +16,7 @@
 import httpx
 import uuid
 from awslabs.aws_documentation_mcp_server.server_utils import (
+    DEFAULT_MAX_LENGTH,
     DEFAULT_USER_AGENT,
     read_documentation_impl,
 )
@@ -74,7 +75,7 @@ async def read_documentation(
     ctx: Context,
     url: Union[AnyUrl, str] = Field(description='URL of the AWS China documentation page to read'),
     max_length: int = Field(
-        default=5000,
+        default=DEFAULT_MAX_LENGTH,
         description='Maximum number of characters to return.',
         gt=0,
         lt=1000000,
