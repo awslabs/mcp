@@ -32,11 +32,32 @@ _SENSITIVE_PARAMS = frozenset(
         'content',
         'clientSecretArn',
         'startUrl',
+        'migrationExecutiveSponsorName',
+        'customerEmail',
+        'customerWebsite',
+        'customerAddress',
     }
 )
 
+# Tool-specific allowlists prevent newly added parameters from being logged by default.
+_TOOL_PARAM_ALLOWLISTS = {
+    'manage_engagement': frozenset(
+        {
+            'action',
+            'engagementId',
+            'targetTenantId',
+            'targetUserId',
+            'workspaceId',
+            'tenantType',
+            'partnerType',
+            'role',
+            'confirm',
+        }
+    ),
+}
 
-def _safe_args(func, args, kwargs):
+
+def _safe_args(func, args, kwargs, allowed_params=None):
     """Extract non-sensitive keyword arguments for logging."""
     sig = inspect.signature(func)
     bound = sig.bind_partial(*args, **kwargs)
@@ -44,7 +65,10 @@ def _safe_args(func, args, kwargs):
     return {
         k: v
         for k, v in bound.arguments.items()
-        if k not in _SENSITIVE_PARAMS and k not in ('self', 'ctx') and v is not None
+        if k not in _SENSITIVE_PARAMS
+        and k not in ('self', 'ctx')
+        and v is not None
+        and (allowed_params is None or k in allowed_params)
     }
 
 
@@ -59,7 +83,7 @@ def audited_tool(mcp, name, **tool_kwargs):
         async def wrapper(*args, **kwargs):
             safe: dict = {}
             try:
-                safe = _safe_args(func, args, kwargs)
+                safe = _safe_args(func, args, kwargs, _TOOL_PARAM_ALLOWLISTS.get(name))
                 logger.info('[tool:{}] invoked | {}', name, safe)
             except Exception:
                 logger.warning('[tool:{}] invoked (audit args failed)', name)
