@@ -42,6 +42,7 @@ from awslabs.aws_transform_mcp_server.tools.collaborator import CollaboratorHand
 from awslabs.aws_transform_mcp_server.tools.configure import ConfigureHandler
 from awslabs.aws_transform_mcp_server.tools.connector import ConnectorHandler
 from awslabs.aws_transform_mcp_server.tools.download_artifact import DownloadArtifactHandler
+from awslabs.aws_transform_mcp_server.tools.engagement import EngagementHandler
 from awslabs.aws_transform_mcp_server.tools.get_resource import GetResourceHandler
 from awslabs.aws_transform_mcp_server.tools.hitl import HitlHandler
 from awslabs.aws_transform_mcp_server.tools.job import JobHandler
@@ -61,7 +62,7 @@ from pathlib import Path
 # tool behavior belongs in each tool's description, not here.
 # ---------------------------------------------------------------------------
 
-INSTRUCTIONS = """AWS Transform MCP Server — manage workspaces, jobs, tasks, connectors, artifacts, and agents.
+INSTRUCTIONS = """AWS Transform MCP Server — manage workspaces, jobs, tasks, connectors, engagements, artifacts, and agents.
 
 # Authentication
 
@@ -90,6 +91,7 @@ If `get_status` shows a valid connection (any method), do NOT call `configure`.
 - Chat with the Transform assistant → `send_message`
 - Browse collections → `list_resources`
 - Fetch a single resource with full details → `get_resource`
+- Create or modify an engagement → `manage_engagement`
 - Check connection health → `get_status`
 
 # Workflows
@@ -128,7 +130,8 @@ may still be generating.
 
 # Constraints
 
-- MUST NOT delete workspaces or jobs without explicit user confirmation.
+- MUST NOT delete workspaces or jobs, reject engagement invitations, or remove engagement
+  resources without explicit user confirmation.
 """
 
 
@@ -159,6 +162,7 @@ def _register_handlers(mcp: MCPServer) -> None:
     DownloadArtifactHandler(mcp)
     ChatHandler(mcp)
     ConnectorHandler(mcp)
+    EngagementHandler(mcp)
     ListResourcesHandler(mcp)
     GetResourceHandler(mcp)
     CollaboratorHandler(mcp)

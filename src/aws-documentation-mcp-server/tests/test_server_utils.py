@@ -18,6 +18,7 @@ import pytest
 from awslabs.aws_documentation_mcp_server.models import SearchResponse, SearchResult
 from awslabs.aws_documentation_mcp_server.server_utils import (
     COMMERCIAL_ALLOWED_DOMAIN_REGEXES,
+    DEFAULT_MAX_LENGTH,
     DEFAULT_USER_AGENT,
     SEARCH_RESULT_CACHE,
     Page,
@@ -456,7 +457,7 @@ class TestReadDocumentationImpl:
 
     @pytest.mark.asyncio
     async def test_markdown_response_skips_html_conversion(self):
-        """A negotiated Markdown response is used as-is and still gets the cleanup pass."""
+        """Negotiated Markdown is used as-is, links included, with tables truncated."""
         url = 'https://docs.aws.amazon.com/test.html'
         ctx = MagicMock(spec=Context)
         ctx.error = AsyncMock()
@@ -488,8 +489,8 @@ class TestReadDocumentationImpl:
             mock_client.get.assert_called_once()
             assert result.startswith(f'AWS Documentation from {url}:\n\n# Test')
             assert 'Table truncated (showing 5 of 30 rows)' in result
+            assert 'See [other](other.md).' in result
             assert '| row29 |' not in result
-            assert '[other](https://docs.aws.amazon.com/other.html)' in result
 
 
 def _install_mock_transport(monkeypatch, routes, target_module):
@@ -1777,12 +1778,12 @@ class TestRedirectOnNonHtmlContent:
 
     @pytest.mark.asyncio
     async def test_read_sections_non_html_names_the_redirect(self):
-        """The non-HTML message does not hide that the page moved."""
+        """A non-HTML page with no sections does not hide that the page moved."""
         ctx = MagicMock(spec=Context)
         ctx.error = AsyncMock()
         patcher = self._client_for(self._redirected_non_html())
         try:
-            with pytest.raises(ValueError, match='non-HTML content') as excinfo:
+            with pytest.raises(ValueError, match='does not contain subsections') as excinfo:
                 await read_sections_impl(ctx, self.URL, ['Service endpoints'], 'test-uuid')
         finally:
             patcher.stop()
@@ -2106,3 +2107,166 @@ class TestRecoverableFailuresNameANextStep:
         finally:
             patcher.stop()
         assert 'search_documentation' not in str(excinfo.value)
+
+
+async def _run_against(call, url, text, content_type):
+    """Run a tool against one mocked response; return its result and the mocked client."""
+    import awslabs.aws_documentation_mcp_server.server_utils as server_utils
+
+    # A cached query_id would extend the URL; other tests reload the module, rebinding it
+    server_utils.SEARCH_RESULT_CACHE.clear()
+    ctx = MagicMock(spec=Context)
+    ctx.error = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.url = url
+    mock_response.text = text
+    mock_response.headers = {'content-type': content_type}
+    with patch('httpx.AsyncClient') as mock_client_class:
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value = mock_client
+        return await call(ctx), mock_client
+
+
+class TestAcceptNegotiation:
+    """Each tool asks for the form its processing needs."""
+
+    URL = 'https://docs.aws.amazon.com/test.html'
+
+    @pytest.mark.asyncio
+    async def test_read_sections_prefers_markdown(self):
+        """read_sections negotiates the same way read_documentation does."""
+        _, client = await _run_against(
+            lambda ctx: read_sections_impl(ctx, self.URL, ['Intro', 'Two Words'], 'test-uuid'),
+            self.URL,
+            '## Intro\n\nBody.',
+            'text/markdown',
+        )
+        assert client.get.call_args.kwargs['headers']['Accept'] == (
+            'text/markdown, text/html;q=0.9'
+        )
+        assert client.get.call_args.args[0] == (
+            f'{self.URL}?session=test-uuid&sections=Intro,Two%20Words'
+        )
+
+    @pytest.mark.asyncio
+    async def test_search_table_asks_for_html(self):
+        """search_table needs table structure that published Markdown flattens."""
+        html = '<html><body><table><tr><th>A</th></tr><tr><td>x</td></tr></table></body></html>'
+        _, client = await _run_against(
+            lambda ctx: search_table_impl(ctx, self.URL, 'My Section', 'x y', 10, 'test-uuid'),
+            self.URL,
+            html,
+            'text/html',
+        )
+        assert client.get.call_args.kwargs['headers']['Accept'] == 'text/html'
+        assert client.get.call_args.args[0] == (
+            f'{self.URL}?session=test-uuid&tool=search_table&query=x%20y&section=My%20Section'
+        )
+
+
+class TestReadSectionsOnConvertedHtml:
+    """HTML pages are converted first, so sections come from the page as a reader sees it."""
+
+    URL = 'https://docs.aws.amazon.com/lambda/latest/dg/example.html'
+
+    HTML = (
+        '<html><body><div id="main-content"><h1>Example</h1>'
+        '<div class="section"><div class="titlepage"><h2>Quotas</h2></div>'
+        '<p>See <a href="./other.html">other</a>.</p>'
+        '<div class="section"><h3>Details</h3><p># of hosts is 3</p></div></div>'
+        '<div class="section"><div class="titlepage"><h2>Other</h2></div><p>Elsewhere.</p></div>'
+        '</div></body></html>'
+    )
+
+    async def _read(self, text, content_type, titles):
+        """Run read_sections_impl against a single mocked response."""
+        result, _ = await _run_against(
+            lambda ctx: read_sections_impl(ctx, self.URL, titles, 'test-uuid'),
+            self.URL,
+            text,
+            content_type,
+        )
+        return result
+
+    @pytest.mark.asyncio
+    async def test_section_nested_in_wrapper_divs_is_found_whole(self):
+        """An h2 inside AWS 'titlepage' wrappers still owns the content after it."""
+        result = await self._read(self.HTML, 'text/html', ['Quotas'])
+        assert '## Quotas' in result
+        assert '### Details' in result
+        assert '# of hosts is 3' in result
+        assert 'Elsewhere.' not in result
+
+    @pytest.mark.asyncio
+    async def test_markdown_section_links_are_kept_as_published(self):
+        """Section results keep relative .md links rather than expanding them to full URLs."""
+        markdown = '## Quotas\n\nSee [other](other.md).\n\n## Other\n\nElsewhere.\n'
+        result = await self._read(markdown, 'text/markdown', ['Quotas'])
+        assert '[other](other.md)' in result
+        assert 'https://docs.aws.amazon.com/lambda/latest/dg/other' not in result
+
+
+class TestReadSectionsPageTitle:
+    """A title naming the page returns the page the way read_documentation serves it."""
+
+    URL = 'https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ServiceQuotas.html'
+
+    @staticmethod
+    def _page(body_length):
+        return '# Quotas in Amazon DynamoDB\n\n' + 'x' * body_length + '\n\n## Tables\n\nBody.\n'
+
+    @pytest.mark.asyncio
+    async def test_long_page_is_paginated_like_read_documentation(self):
+        """The first page and the start_index hint match read_documentation's defaults."""
+        page = self._page(DEFAULT_MAX_LENGTH * 2)
+        sections, _ = await _run_against(
+            lambda ctx: read_sections_impl(
+                ctx, self.URL, ['Quotas in Amazon DynamoDB'], 'test-uuid'
+            ),
+            self.URL,
+            page,
+            'text/markdown',
+        )
+        documentation, _ = await _run_against(
+            lambda ctx: read_documentation_impl(ctx, self.URL, DEFAULT_MAX_LENGTH, 0, 'test-uuid'),
+            self.URL,
+            page,
+            'text/markdown',
+        )
+        assert sections == documentation
+        assert f'start_index={DEFAULT_MAX_LENGTH}' in sections
+
+    @pytest.mark.asyncio
+    async def test_short_page_is_returned_whole_with_missing_titles_noted(self):
+        """A page under the page size comes back complete, after the not-found note."""
+        page = self._page(10)
+        result, _ = await _run_against(
+            lambda ctx: read_sections_impl(
+                ctx, self.URL, ['Quotas in Amazon DynamoDB', 'Service quotas'], 'test-uuid'
+            ),
+            self.URL,
+            page,
+            'text/markdown',
+        )
+        assert result == (
+            '> **Note**: The following requested sections were not found: "Service quotas"'
+            f'\n\nAWS Documentation from {self.URL}:\n\n{page}'
+        )
+        assert 'Content truncated' not in result
+
+    @pytest.mark.asyncio
+    async def test_deeper_section_is_not_paginated(self):
+        """Only a whole-page match is paged; a section returns whole, as an h2 does."""
+        page = '# Page\n\n## Group\n\n### Detail\n\n' + 'y' * (DEFAULT_MAX_LENGTH * 2) + '\n'
+        result, _ = await _run_against(
+            lambda ctx: read_sections_impl(ctx, self.URL, ['Detail'], 'test-uuid'),
+            self.URL,
+            page,
+            'text/markdown',
+        )
+        assert result.startswith(f'AWS Documentation from {self.URL}:\n\n### Detail')
+        assert 'Content truncated' not in result

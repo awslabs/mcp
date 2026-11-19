@@ -28,6 +28,7 @@ import fastmcp
 import importlib
 import json
 import jsonschema
+import mcp.types
 import pytest
 import re
 from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations import (
@@ -47,6 +48,9 @@ from botocore.validate import ParamValidator
 from datetime import date, datetime, timedelta
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
+
+
+REGION_FILTER = '{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}'
 
 
 @pytest.fixture(scope='module', autouse=True)
@@ -198,6 +202,29 @@ async def test_cost_explorer_get_dimension_values(
     )
     assert result['status'] == 'success'
     assert [v['Value'] for v in result['data']['DimensionValues']] == ['AWS Lambda', 'Amazon S3']
+
+
+@pytest.mark.asyncio
+async def test_cost_explorer_get_dimension_values_forwards_dimension_key(
+    mock_context, mock_ce_client, real_cost_explorer
+):
+    """The tool passes dimension_key through, so a product attribute's values can be listed."""
+    with patch.object(real_cost_explorer, 'create_aws_client', return_value=mock_ce_client):
+        result = await real_cost_explorer.cost_explorer(  # type: ignore[reportCallIssue]
+            mock_context,
+            operation='getDimensionValues',
+            dimension='PRODUCT_ATTRIBUTE',
+            dimension_key='model',
+            start_date='2026-10-01',
+            end_date='2026-11-01',
+        )
+
+    mock_ce_client.get_dimension_values.assert_called_once_with(
+        TimePeriod={'Start': '2026-10-01', 'End': '2026-11-01'},
+        Dimension='PRODUCT_ATTRIBUTE',
+        DimensionKey='model',
+    )
+    assert result['status'] == 'success'
 
 
 @pytest.mark.asyncio
@@ -766,6 +793,7 @@ async def test_ce_real_get_dimension_values_passes_args_reload_identity_decorato
             2,
             None,
             None,
+            dimension_key=None,
         )
 
 
@@ -955,6 +983,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             end_date='2023-01-31',
             search_string='Env',
             tag_key='Environment',
+            filter=REGION_FILTER,
             next_token='n2',
             max_items=3,
         )
@@ -969,6 +998,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             '2023-01-31',
             'Env',
             None,
+            None,
             'n1',
             2,
             None,
@@ -980,6 +1010,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             '2023-01-31',
             'Env',
             'Environment',
+            REGION_FILTER,
             'n2',
             3,
             None,
@@ -1024,6 +1055,7 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
             end_date='2023-01-31',
             search_string='Dept',
             cost_category_name='Department',
+            filter=REGION_FILTER,
             next_token='p2',
             max_items=4,
         )
@@ -1037,6 +1069,7 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
             '2023-01-31',
             'Dept',
             None,  # cost_category_name omitted on the first call
+            None,
             'p1',
             2,
             None,
@@ -1048,6 +1081,7 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
             '2023-01-31',
             'Dept',
             'Department',
+            REGION_FILTER,
             'p2',
             4,
             None,
@@ -1077,11 +1111,8 @@ async def test_ce_real_get_savings_plans_utilization_passes_args_reload_identity
             end_date='2023-01-31',
             granularity='MONTHLY',
             filter='{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}',
-            next_token='tkn',
-            max_items=5,
         )
 
-        # The API is not paginated, so next_token and max_items are not passed on.
         assert res['status'] == 'success'
         mock_create_client.assert_called_once_with('ce')
         mock_impl.assert_awaited_once_with(
@@ -1215,6 +1246,7 @@ async def test_ce_real_get_dimension_values_with_billing_view_arn(
             None,
             sample_billing_view_arn,
             None,
+            dimension_key=None,
         )
 
 
@@ -1322,6 +1354,7 @@ async def test_ce_real_get_tags_with_billing_view_arn(mock_context, sample_billi
             None,
             None,
             None,
+            None,
             sample_billing_view_arn,
         )
 
@@ -1352,6 +1385,7 @@ async def test_ce_real_get_cost_categories_with_billing_view_arn(
         mock_impl.assert_awaited_once_with(
             mock_context,
             fake_client,
+            None,
             None,
             None,
             None,
@@ -1607,6 +1641,12 @@ CE_DIMENSIONS_BY_CONTEXT = {
         }
     ),
 }
+
+
+# DIMENSION REFERENCE keys the service enables per account, so they are in none of the lists
+# here. Live (2026-11-02, two accounts with it enabled), PAYER_ACCOUNT worked as a filter key,
+# a group_by key and a getDimensionValues dimension; the forecast filter's allowed list names it.
+CE_PER_ACCOUNT_KEYS = frozenset({'PAYER_ACCOUNT'})
 
 
 # Keys Cost Explorer accepts, as listed by the service in its ValidationException for an
@@ -1992,8 +2032,13 @@ class TestCostExplorerDescriptionContract:
 
         TAG is the note that TAG is no dimension; SCOPE is listed to say it is a RESERVATIONS
         dimension only, so an agent does not filter getCostAndUsage or a forecast on it.
+        PRODUCT_ATTRIBUTE is enabled per account, so it is left out of CE_DIMENSIONS_BY_CONTEXT.
         """
-        keys = set(_dimension_reference_keys(tool.description)) - {'TAG'}
+        keys = (
+            set(_dimension_reference_keys(tool.description))
+            - {'TAG', 'PRODUCT_ATTRIBUTE'}
+            - CE_PER_ACCOUNT_KEYS
+        )
         context_only = {}
         for key in keys:
             entry = re.search(rf'^- {key}:.*(?:\n  .*)*', tool.description, re.MULTILINE)
@@ -2012,10 +2057,10 @@ class TestCostExplorerDescriptionContract:
     def test_dimension_reference_preamble_holds_for_every_unqualified_key(self, tool):
         """Keys with no "where accepted" note are filter, group_by and forecast filter keys.
 
-        The preamble says so; the four keys accepted in fewer places say where instead.
+        The preamble says so; the five keys accepted in fewer places say where instead.
         """
-        keys = set(_dimension_reference_keys(tool.description))
-        qualified = {'RESOURCE_ID', 'SCOPE', 'TAG', 'USAGE_TYPE_GROUP'}
+        keys = set(_dimension_reference_keys(tool.description)) - CE_PER_ACCOUNT_KEYS
+        qualified = {'PRODUCT_ATTRIBUTE', 'RESOURCE_ID', 'SCOPE', 'TAG', 'USAGE_TYPE_GROUP'}
         for key in keys - qualified:
             assert key in CE_GROUP_BY_DIMENSIONS, key
             assert key in CE_FILTER_DIMENSIONS, key
@@ -2026,6 +2071,17 @@ class TestCostExplorerDescriptionContract:
         for key in ('RESOURCE_ID', 'SCOPE'):
             assert key not in CE_FILTER_DIMENSIONS | CE_GROUP_BY_DIMENSIONS, key
             assert key not in CE_FORECAST_FILTER_DIMENSIONS, key
+
+    def test_per_account_keys_say_they_may_be_unavailable(self, tool):
+        """A per-account key is documented with its fallback, so a rejection is expected."""
+        assert CE_PER_ACCOUNT_KEYS <= set(_dimension_reference_keys(tool.description))
+        for key in CE_PER_ACCOUNT_KEYS:
+            assert key not in CE_DIMENSIONS_BY_CONTEXT['COST_AND_USAGE'], key
+            entry = re.search(rf'^- {key}:.*(?:\n  .*)*', tool.description, re.MULTILINE)
+            assert entry is not None, key
+            text = ' '.join(entry.group(0).split())
+            assert 'Not available in every account' in text, key
+            assert 'use LINKED_ACCOUNT' in text, key
 
     @pytest.mark.parametrize('context', ['RESERVATIONS', 'SAVINGS_PLANS'])
     def test_get_dimension_values_notes_list_each_context(self, tool, context):
@@ -2104,8 +2160,9 @@ class TestCostExplorerDescriptionContract:
             'levels deep; a 5th is rejected.' in limits
         )
         assert (
-            'getDimensionValues (default COST_AND_USAGE context): `And` only; `Or` and `Not` are '
-            'rejected.' in limits
+            'getDimensionValues (default COST_AND_USAGE context), getTagsOrValues and '
+            'getCostCategories: `And` of leaves only (an `And` inside it is rejected); `Or` and '
+            '`Not` are rejected.' in limits
         )
         assert 'getSavingsPlansUtilization: `And` and `Not` only; `Or` is rejected.' in limits
 
@@ -2240,7 +2297,8 @@ async def test_ce_get_savings_plans_utilization_rejects_billing_view_arn(
         assert res['error_type'] == 'validation_error'
         assert 'billing_view_arn' in res['message']
         assert 'getSavingsPlansUtilization' in res['message']
-        assert 'billing_view_arn' in res['hint']
+        assert 'not scoped to the requested view' in res['message']
+        assert 'Do **NOT** retry' in res['hint']
         mock_impl.assert_not_awaited()
 
 
@@ -2365,6 +2423,21 @@ async def test_ce_get_dimension_values_billing_view_arn_allowed_cases(
         assert await_args.args[-2:] == (billing_view_arn, context)
 
 
+@pytest.mark.asyncio
+async def test_description_says_a_forecast_filter_can_match_nothing():
+    """The forecast notes say an unmatched filter returns the same 'too little history' error."""
+    tool = await cost_explorer_server.get_tool('cost-explorer')
+    assert tool is not None and tool.description
+    description = tool.description
+    assert 'A filter that matches no past costs returns the same' in description
+    assert 'CASE_INSENSITIVE are accepted but not applied' in description
+    assert 'match exactly, including case' in description
+    assert (
+        'STARTS_WITH' in description.split('4. getCostForecast')[1].split('5. getUsageForecast')[0]
+    )
+    assert 'Filter values match as for getCostForecast' in description
+
+
 # Operations whose AWS API has no GroupBy, with the arguments each needs to reach its handler.
 NO_GROUP_BY_OPERATIONS = {
     'getCostForecast': ('get_cost_forecast', {'metric': 'UNBLENDED_COST'}),
@@ -2386,7 +2459,9 @@ REGION_GROUP_BY = '[{"Type": "DIMENSION", "Key": "REGION"}]'
 @pytest.mark.asyncio
 @pytest.mark.parametrize('operation', sorted(NO_GROUP_BY_OPERATIONS))
 @pytest.mark.parametrize(
-    'group_by', [REGION_GROUP_BY, [{'Type': 'DIMENSION', 'Key': 'REGION'}]], ids=['json', 'list']
+    'group_by',
+    [REGION_GROUP_BY, [{'Type': 'DIMENSION', 'Key': 'REGION'}], 'SERVICE', ' '],
+    ids=['json', 'list', 'not-json', 'blank'],
 )
 async def test_group_by_is_rejected_where_the_api_has_no_group_by(
     mock_context, real_cost_explorer, operation, group_by
@@ -2414,8 +2489,41 @@ async def test_group_by_is_rejected_where_the_api_has_no_group_by(
     message = res['data']['message']
     assert f'group_by is not supported for {operation}' in message
     assert 'getCostAndUsage and getCostAndUsageWithResources' in message
-    assert 'Remove group_by' in res['hint']
-    assert 'once per value' in res['hint']
+    assert 'one forecast or utilization call per value' in message
+    assert 'Do **NOT** retry' in res['hint']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('operation', sorted(NO_GROUP_BY_OPERATIONS))
+@pytest.mark.parametrize('group_by', ['[]', ' [] ', 'null'], ids=repr)
+async def test_empty_group_by_json_is_no_grouping(
+    mock_context, real_cost_explorer, operation, group_by
+):
+    """group_by '[]' is no grouping, as getCostAndUsage reads it, so the call goes through."""
+    handler, args = NO_GROUP_BY_OPERATIONS[operation]
+    with (
+        patch.object(real_cost_explorer, 'create_aws_client', return_value=MagicMock()),
+        patch.object(real_cost_explorer, handler, new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+        res = await real_cost_explorer.cost_explorer(
+            mock_context, operation=operation, group_by=group_by, **args
+        )
+
+    assert res['status'] == 'success'
+    mock_impl.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_description_lists_filter_for_tags_and_cost_categories():
+    """The tags and cost category operations list filter as optional."""
+    tool = await cost_explorer_server.get_tool('cost-explorer')
+    assert tool is not None and tool.description
+    description = ' '.join(tool.description.split())
+    assert 'Optional: start_date, end_date, tag_key, search_string, filter,' in description
+    assert (
+        'Optional: start_date, end_date, cost_category_name, search_string, filter,' in description
+    )
 
 
 @pytest.mark.asyncio
@@ -2472,7 +2580,7 @@ def test_examples_pass_group_by_only_where_it_is_used():
     assert any('group_by' in call for call in examples)
     for call in examples:
         if 'group_by' in call:
-            assert call['operation'] not in cost_explorer_tools.OPERATIONS_WITHOUT_GROUP_BY, call
+            assert 'group_by' in cost_explorer_tools.OPERATION_ARGUMENTS[call['operation']], call
     flat = ' '.join(description.split())
     assert (
         'group_by works only with getCostAndUsage and getCostAndUsageWithResources; the other '
@@ -2481,18 +2589,20 @@ def test_examples_pass_group_by_only_where_it_is_used():
 
 
 def test_every_documented_operation_is_classified_for_group_by():
-    """Each documented operation either takes group_by or is in OPERATIONS_WITHOUT_GROUP_BY.
+    """Only getCostAndUsage and getCostAndUsageWithResources accept group_by.
 
-    A new operation added without classifying it would silently drop group_by again.
+    A new operation added to the table with group_by would silently drop it again.
     """
     from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
 
     operations_block = cost_explorer_tools.COST_EXPLORER_DESCRIPTION.split('## OPERATIONS')[1]
     documented = set(re.findall(r'^\d+[.)] (\w+)', operations_block, flags=re.MULTILINE))
     assert len(documented) == 8
-    takes_group_by = {'getCostAndUsage', 'getCostAndUsageWithResources'}
-    assert documented == takes_group_by | cost_explorer_tools.OPERATIONS_WITHOUT_GROUP_BY
-    assert not takes_group_by & cost_explorer_tools.OPERATIONS_WITHOUT_GROUP_BY
+    assert documented == set(cost_explorer_tools.OPERATION_ARGUMENTS)
+    takes_group_by = {
+        op for op, args in cost_explorer_tools.OPERATION_ARGUMENTS.items() if 'group_by' in args
+    }
+    assert takes_group_by == {'getCostAndUsage', 'getCostAndUsageWithResources'}
 
 
 def test_description_documents_tags_leaf_format():
@@ -2505,7 +2615,10 @@ def test_description_documents_tags_leaf_format():
 
     description = cost_explorer_tools.COST_EXPLORER_DESCRIPTION
     tags = ' '.join(
-        description.split('Tags leaves in getCostAndUsage and getDimensionValues filters:')[1]
+        description.split(
+            'Tags leaves in getCostAndUsage, getCostAndUsageWithResources, getDimensionValues,\n'
+            'getTagsOrValues and getCostCategories filters:'
+        )[1]
         .split('Correct filter examples:')[0]
         .split()
     )
@@ -2515,8 +2628,72 @@ def test_description_documents_tags_leaf_format():
     assert 'Keys and values are case-sensitive' in tags
     assert '`<key>$<value>`' in tags and 'The label is not a filter value' in tags
     assert '`"Values": [""]` matches the same costs as `ABSENT`' in tags
-    assert 'With `Values` it matches nothing ($0); with `ABSENT` it matches every cost' in tags
+    assert (
+        'With `Values` it matches nothing ($0, or an empty list); with `ABSENT` it matches '
+        'every cost'
+    ) in tags
+    assert 'The forecasts accept either form' in tags
+    assert '`{"Tags": {"Key": "", "Values": []}}`' in tags
+    assert 'getCostAndUsage only: `{"Tags": {"Key": "", "Values": []}}`' in tags
+    assert 'no activated cost allocation tag (user-defined or AWS-generated)' in tags
+    assert (
+        'getCostAndUsageWithResources, getDimensionValues, getTagsOrValues and '
+        'getCostCategories reject an empty key'
+    ) in tags
+    assert 'An empty key with any value, or with Values omitted, is rejected' in tags
     assert 'Copy the key from getTagsOrValues' in tags
+
+
+def test_description_documents_product_attributes():
+    """ProductAttributes is a documented leaf, with its silent-mismatch and scope gotchas.
+
+    A wrong key or value returns $0 (ABSENT: every Bedrock cost), Not and a PRODUCT_ATTRIBUTE
+    group_by cover only supported services, and getDimensionValues needs a SERVICE filter.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    description = cost_explorer_tools.COST_EXPLORER_DESCRIPTION
+    flat = ' '.join(description.split())
+    assert '- Leaf keys: `Dimensions`, `Tags`, `CostCategories`, `ProductAttributes`' in flat
+    assert '- ProductAttributes: EQUALS, ABSENT, CASE_SENSITIVE' in flat
+    section = ' '.join(
+        description.split('ProductAttributes leaves')[1]
+        .split('Correct filter examples:')[0]
+        .split()
+    )
+    assert 'the forecasts reject them' in section
+    assert '`provider`, `model`, `inferenceType` and `feature`' in section
+    assert 'only from 2026-09-01, in every account' in section
+    assert 'DataUnavailableException' in section
+    assert 'Keys and values are case-sensitive' in section
+    assert 'With `Values` it matches nothing ($0)' in section
+    assert '`"Values": [""]`' in section and 'every Bedrock cost' in section
+    assert 'even under `Not`' in section
+    assert 'do not add up to the account total' in section
+    assert '`<key>$<value>`' in section and 'Filter on the value, not the label' in section
+    assert 'If the filter has a SERVICE leaf anywhere' in section
+    assert 'Under `Or`, every branch must be scoped that way' in section
+    assert 'A SERVICE leaf under `Not` never counts' in section
+    assert 'pair it with one in an `And`' in section
+    assert 'omit SERVICE to include all of them' in section
+    assert 'which differ by account' in section and '(Amazon Bedrock Edition)' in section
+    assert 'a period that starts earlier returns DataUnavailableException' in section
+    assert 'search_string does match case-insensitively and partially' in section
+    assert 'PRODUCT_ATTRIBUTE: Product attributes of supported services' in flat
+    assert 'dimension_key with any other dimension is rejected' in flat
+    assert 'a wrong name returns only `""`, not an error' in flat
+    examples = [json.loads(e) for e in _rendered_examples(description)]
+    assert any(call.get('dimension_key') == 'model' for call in examples)
+
+
+def test_description_states_match_options_and_value_limits():
+    """A case option alone and more than 6,000 values are both rejected by Cost Explorer."""
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    description = ' '.join(cost_explorer_tools.COST_EXPLORER_DESCRIPTION.split())
+    assert 'include EQUALS (or ABSENT): `["CASE_SENSITIVE"]` alone is rejected' in description
+    assert 'at most 6,000 values in total, counted across all leaves' in description
+    assert '`["ABSENT", "CASE_SENSITIVE"]` is rejected' in description
 
 
 @pytest.mark.parametrize(
@@ -2590,10 +2767,20 @@ def test_tag_filter_hint_ignores_filters_that_can_match(flt):
     [
         ('getCostAndUsage', 'get_cost_and_usage', {}),
         ('getDimensionValues', 'get_dimension_values', {'dimension': 'SERVICE'}),
+        ('getCostAndUsageWithResources', 'get_cost_and_usage_with_resources', {}),
+        ('getTagsOrValues', 'get_tags', {}),
+        ('getTagsOrValues', 'get_tags', {'tag_key': 'Environment'}),
+        ('getCostCategories', 'get_cost_categories', {}),
+        ('getCostCategories', 'get_cost_categories', {'cost_category_name': 'Team'}),
     ],
 )
 async def test_routed_response_carries_tag_filter_hint(mock_context, operation, impl, extra):
-    """The getCostAndUsage and getDimensionValues responses carry the hint on success."""
+    """Every operation whose Tags matching was checked carries the hint on success.
+
+    A user:-prefixed key returned $0 live in getCostAndUsageWithResources, where the
+    unprefixed key returned the tagged resources' cost, and an empty list in getTagsOrValues
+    and getCostCategories, where the unprefixed key returned matches.
+    """
     ce_mod = _reload_ce_with_identity_decorator()
     flt = '{"Tags": {"Key": "user:Environment", "MatchOptions": ["ABSENT"]}}'
     with (
@@ -2730,16 +2917,15 @@ def test_tag_filter_hint_is_deduplicated():
 @pytest.mark.parametrize(
     'operation, impl, extra',
     [
-        ('getCostAndUsageWithResources', 'get_cost_and_usage_with_resources', {}),
         ('getCostForecast', 'get_cost_forecast', {'metric': 'UNBLENDED_COST'}),
         ('getUsageForecast', 'get_usage_forecast', {'metric': 'USAGE_QUANTITY'}),
     ],
 )
 async def test_unchecked_operations_carry_no_tag_filter_hint(mock_context, operation, impl, extra):
-    """Only operations whose Tags matching was checked get the hint.
+    """The forecasts get no hint: they accept a user:-prefixed key.
 
-    A forecast filtered on a user:-prefixed key still returned a forecast, so the
-    "matches nothing" hint would be wrong there.
+    A forecast filtered on a user:-prefixed key returned the same forecast as the
+    unprefixed key, so the "matches nothing" hint would be wrong there.
     """
     ce_mod = _reload_ce_with_identity_decorator()
     with (
@@ -2754,3 +2940,433 @@ async def test_unchecked_operations_carry_no_tag_filter_hint(mock_context, opera
             **extra,
         )
     assert 'hint' not in res
+
+
+# The arguments each operation needs to reach its handler, so a test can add one more.
+OPERATION_HANDLERS = {
+    'getCostAndUsage': ('get_cost_and_usage', {}),
+    'getCostAndUsageWithResources': (
+        'get_cost_and_usage_with_resources',
+        {
+            'filter': '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Relational Database Service"]}}'
+        },
+    ),
+    **NO_GROUP_BY_OPERATIONS,
+}
+
+# Arguments that operations drop, each with a value a caller would plausibly pass.
+UNUSED_ARGUMENT_CASES = [
+    (operation, argument, value)
+    for argument, value, operations in [
+        (
+            'search_string',
+            'no-such-service',
+            [
+                'getCostAndUsage',
+                'getCostAndUsageWithResources',
+                'getCostForecast',
+                'getUsageForecast',
+                'getSavingsPlansUtilization',
+            ],
+        ),
+        ('tag_key', 'Environment', ['getCostCategories', 'getCostAndUsage', 'getDimensionValues']),
+        ('cost_category_name', 'Teams', ['getTagsOrValues', 'getCostAndUsage']),
+        ('dimension', 'SERVICE', [op for op in OPERATION_HANDLERS if op != 'getDimensionValues']),
+        ('dimension_key', 'model', ['getCostAndUsage', 'getTagsOrValues', 'getCostForecast']),
+        (
+            'context',
+            'SAVINGS_PLANS',
+            [op for op in OPERATION_HANDLERS if op != 'getDimensionValues'],
+        ),
+        ('max_items', 1, ['getCostForecast', 'getUsageForecast', 'getSavingsPlansUtilization']),
+        (
+            'next_token',
+            'tkn',
+            ['getCostForecast', 'getUsageForecast', 'getSavingsPlansUtilization'],
+        ),
+        (
+            'metric',
+            'AMORTIZED_COST',
+            [
+                'getCostAndUsage',
+                'getCostAndUsageWithResources',
+                'getTagsOrValues',
+                'getDimensionValues',
+            ],
+        ),
+        (
+            'metrics',
+            '["AmortizedCost"]',
+            ['getCostForecast', 'getUsageForecast', 'getTagsOrValues'],
+        ),
+        ('metrics', ['AmortizedCost'], ['getSavingsPlansUtilization']),
+        (
+            'billing_view_arn',
+            'arn:aws:billing::123456789012:billingview/custom-abc',
+            ['getSavingsPlansUtilization'],
+        ),
+    ]
+    for operation in operations
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('operation, argument, value', UNUSED_ARGUMENT_CASES)
+async def test_an_argument_the_operation_does_not_use_is_rejected(
+    mock_context, real_cost_explorer, operation, argument, value
+):
+    """An argument the operation never sends is a validation_error, not a silent drop.
+
+    Dropping it returns a result that reads as narrowed (search_string, tag_key) or as
+    selected (metric, context) when it is not. No AWS client is created.
+    """
+    handler, args = OPERATION_HANDLERS[operation]
+    with (
+        patch.object(real_cost_explorer, 'create_aws_client') as mock_client,
+        patch.object(real_cost_explorer, handler, new_callable=AsyncMock) as mock_impl,
+    ):
+        res = await real_cost_explorer.cost_explorer(
+            mock_context, operation=operation, **{**args, argument: value}
+        )
+
+    mock_impl.assert_not_awaited()
+    mock_client.assert_not_called()
+    assert res['status'] == 'error'
+    assert res['error_type'] == 'validation_error'
+    assert res['operation'] == operation
+    assert res['message'].startswith(f'{argument} is not supported for {operation}: ')
+    assert res['hint'] == real_cost_explorer.UNUSED_ARGUMENT_HINT
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'operation, argument, value, pointer',
+    [
+        ('getCostCategories', 'tag_key', 'Environment', 'operation=getTagsOrValues with tag_key'),
+        (
+            'getTagsOrValues',
+            'cost_category_name',
+            'Teams',
+            'operation=getCostCategories with cost_category_name',
+        ),
+        ('getCostAndUsage', 'search_string', 'EC2', 'put exact values in filter'),
+        ('getCostAndUsage', 'metric', 'AMORTIZED_COST', 'take metrics instead'),
+        ('getCostForecast', 'metrics', '["AmortizedCost"]', 'take metric instead'),
+        ('getCostAndUsage', 'dimension', 'SERVICE', 'use getCostAndUsage with group_by'),
+        ('getCostForecast', 'max_items', 1, 'whole result comes back in one response'),
+        ('getTagsOrValues', 'group_by', REGION_GROUP_BY, 'getDimensionValues to list'),
+        ('getCostAndUsage', 'dimension_key', 'model', 'ProductAttributes leaf in filter'),
+        ('getCostAndUsage', 'dimension', 'PRODUCT_ATTRIBUTE', 'ProductAttributes leaf'),
+        (
+            'getUsageForecast',
+            'metrics',
+            '["UsageQuantity"]',
+            'USAGE_QUANTITY for getUsageForecast',
+        ),
+    ],
+)
+async def test_unused_argument_message_points_to_what_the_caller_meant(
+    mock_context, real_cost_explorer, operation, argument, value, pointer
+):
+    """The message names the operation or argument that does what the caller asked for."""
+    handler, args = OPERATION_HANDLERS[operation]
+    with (
+        patch.object(real_cost_explorer, 'create_aws_client', return_value=MagicMock()),
+        patch.object(real_cost_explorer, handler, new_callable=AsyncMock),
+    ):
+        res = await real_cost_explorer.cost_explorer(
+            mock_context, operation=operation, **{**args, argument: value}
+        )
+
+    assert res['error_type'] == 'validation_error'
+    assert pointer in res['message']
+
+
+@pytest.mark.asyncio
+async def test_every_unused_argument_is_named_in_one_error(mock_context, real_cost_explorer):
+    """Several unused arguments are reported together, so one retry fixes them all."""
+    with (
+        patch.object(real_cost_explorer, 'create_aws_client', return_value=MagicMock()),
+        patch.object(real_cost_explorer, 'get_cost_categories', new_callable=AsyncMock) as impl,
+    ):
+        res = await real_cost_explorer.cost_explorer(
+            mock_context,
+            operation='getCostCategories',
+            tag_key='Environment',
+            dimension='SERVICE',
+            group_by=REGION_GROUP_BY,
+        )
+
+    impl.assert_not_awaited()
+    for argument in ('tag_key', 'dimension', 'group_by'):
+        assert f'{argument} is not supported for getCostCategories' in res['message']
+    assert res['hint'].count('Do **NOT** retry') == 1
+
+
+# A value that counts as set for every argument the tool takes but ctx and operation.
+SET_VALUES = {
+    'start_date': '2026-01-01',
+    'end_date': '2026-02-01',
+    'granularity': 'MONTHLY',
+    'metrics': '["AmortizedCost"]',
+    'group_by': REGION_GROUP_BY,
+    'filter': '{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}',
+    'dimension': 'SERVICE',
+    'dimension_key': 'model',
+    'search_string': 'EC2',
+    'max_items': 1,
+    'next_token': 'tkn',
+    'metric': 'AMORTIZED_COST',
+    'prediction_interval_level': 95,
+    'tag_key': 'Environment',
+    'cost_category_name': 'Teams',
+    'billing_view_arn': 'arn:aws:billing::123456789012:billingview/custom-abc',
+    'context': 'SAVINGS_PLANS',
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('operation', sorted(OPERATION_HANDLERS))
+async def test_every_argument_the_operation_does_not_list_is_checked(
+    mock_context, real_cost_explorer, operation
+):
+    """With every argument set, the error names exactly the unlisted ones, in signature order.
+
+    This covers every tool parameter, so a parameter the check does not see fails here.
+    """
+    import inspect
+
+    parameters = [
+        name
+        for name in inspect.signature(real_cost_explorer.cost_explorer).parameters
+        if name not in ('ctx', 'operation')
+    ]
+    assert sorted(parameters) == sorted(SET_VALUES)
+    accepted = real_cost_explorer.OPERATION_ARGUMENTS[operation]
+    expected = [
+        name
+        for name in parameters
+        if name not in accepted and name not in real_cost_explorer.UNCHECKED_ARGUMENTS
+    ]
+    handler, _ = OPERATION_HANDLERS[operation]
+    with (
+        patch.object(real_cost_explorer, 'create_aws_client', return_value=MagicMock()),
+        patch.object(real_cost_explorer, handler, new_callable=AsyncMock) as mock_impl,
+    ):
+        res = await real_cost_explorer.cost_explorer(
+            mock_context, operation=operation, **SET_VALUES
+        )
+
+    mock_impl.assert_not_awaited()
+    named = re.findall(r'(\w+) is not supported for ' + operation, res['message'])
+    assert named == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('operation', sorted(OPERATION_HANDLERS))
+@pytest.mark.parametrize(
+    'unset',
+    [
+        {},
+        {
+            'search_string': '',
+            'tag_key': '',
+            'cost_category_name': '',
+            'next_token': '',
+            'billing_view_arn': '',
+            'dimension_key': '',
+        },
+        {
+            'dimension': None,
+            'context': None,
+            'max_items': None,
+            'metric': None,
+            'dimension_key': None,
+        },
+        {'group_by': '[]', 'metrics': '[]'},
+        {'group_by': 'null', 'metrics': []},
+        {'group_by': '{}', 'metrics': 'null'},
+        {'granularity': 'MONTHLY', 'prediction_interval_level': 95},
+    ],
+    ids=[
+        'omitted',
+        'empty-strings',
+        'none',
+        'empty-json',
+        'null-json',
+        'empty-object',
+        'unchecked',
+    ],
+)
+async def test_unset_and_unchecked_arguments_are_not_rejected(
+    mock_context, real_cost_explorer, operation, unset
+):
+    """None, '' and empty JSON are not set; granularity and prediction_interval_level are not checked."""
+    handler, args = OPERATION_HANDLERS[operation]
+    unset = {k: v for k, v in unset.items() if k not in args}
+    with (
+        patch.object(real_cost_explorer, 'create_aws_client', return_value=MagicMock()),
+        patch.object(real_cost_explorer, handler, new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+        res = await real_cost_explorer.cost_explorer(
+            mock_context, operation=operation, **{**args, **unset}
+        )
+
+    assert res['status'] == 'success', res
+    mock_impl.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'operation, argument, value',
+    [
+        ('getDimensionValues', 'search_string', 'EC2'),
+        ('getDimensionValues', 'context', 'SAVINGS_PLANS'),
+        ('getDimensionValues', 'max_items', 7),
+        ('getTagsOrValues', 'tag_key', 'Environment'),
+        ('getTagsOrValues', 'search_string', 'Env'),
+        ('getCostCategories', 'cost_category_name', 'Teams'),
+        ('getCostCategories', 'next_token', 'tkn'),
+        ('getCostAndUsage', 'max_items', 7),
+        ('getCostAndUsage', 'metrics', '["AmortizedCost"]'),
+        ('getCostForecast', 'prediction_interval_level', 95),
+        ('getSavingsPlansUtilization', 'granularity', 'MONTHLY'),
+    ],
+)
+async def test_an_argument_the_operation_uses_still_reaches_it(
+    mock_context, real_cost_explorer, operation, argument, value
+):
+    """The check rejects only what an operation drops; what it sends reaches its parameter."""
+    import inspect
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_operations
+
+    handler, args = OPERATION_HANDLERS[operation]
+    position = list(
+        inspect.signature(getattr(cost_explorer_operations, handler)).parameters
+    ).index(argument)
+    with (
+        patch.object(real_cost_explorer, 'create_aws_client', return_value=MagicMock()),
+        patch.object(real_cost_explorer, handler, new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+        res = await real_cost_explorer.cost_explorer(
+            mock_context, operation=operation, **{**args, argument: value}
+        )
+
+    assert res['status'] == 'success', res
+    assert mock_impl.await_args is not None
+    assert mock_impl.await_args.args[position] == value
+
+
+@pytest.mark.asyncio
+async def test_a_non_json_type_counts_as_set(mock_context, real_cost_explorer):
+    """A metrics value json cannot read (an int from a direct call) is set, not a TypeError."""
+    with (
+        patch.object(real_cost_explorer, 'create_aws_client', return_value=MagicMock()),
+        patch.object(real_cost_explorer, 'get_tags', new_callable=AsyncMock) as mock_impl,
+    ):
+        res = await real_cost_explorer.cost_explorer(
+            mock_context, operation='getTagsOrValues', metrics=5
+        )
+
+    mock_impl.assert_not_awaited()
+    assert res['message'].startswith('metrics is not supported for getTagsOrValues: ')
+
+
+@pytest.mark.asyncio
+async def test_served_tool_rejects_an_unused_argument():
+    """Through the registered FastMCP tool (not the reloaded function), the check still runs."""
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools as module
+
+    with (
+        patch.object(module, 'create_aws_client') as mock_client,
+        patch.object(module, 'get_cost_categories', new_callable=AsyncMock) as mock_impl,
+    ):
+        async with fastmcp.Client(module.cost_explorer_server) as client:
+            result = await client.call_tool(
+                'cost-explorer',
+                {'operation': 'getCostCategories', 'tag_key': 'Environment'},
+                raise_on_error=False,
+            )
+
+    content = result.content[0]
+    assert isinstance(content, mcp.types.TextContent)
+    res = json.loads(content.text)
+    mock_client.assert_not_called()
+    mock_impl.assert_not_awaited()
+    assert res['error_type'] == 'validation_error'
+    assert res['message'].startswith('tag_key is not supported for getCostCategories: ')
+
+
+def _documented_arguments() -> dict:
+    """Return each operation's Required and Optional arguments as the description lists them."""
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    block = cost_explorer_tools.COST_EXPLORER_DESCRIPTION.split('## OPERATIONS')[1]
+    block = block.split('DIMENSION REFERENCE:')[0]
+    documented = {}
+    for section in re.split(r'^\d+[.)] ', block, flags=re.MULTILINE)[1:]:
+        operation = section.split()[0]
+        names = set()
+        for label in ('Required', 'Optional'):
+            match = re.search(rf'^\s+{label}: (.*)$', section, flags=re.MULTILINE)
+            if match:
+                names |= {name.split('=')[0].strip() for name in match.group(1).split(',')}
+        documented[operation] = names - {'operation'}
+    return documented
+
+
+def test_documented_arguments_match_what_each_operation_accepts():
+    """Each operation's Required and Optional lists are exactly the arguments it accepts.
+
+    A list that names an argument the table rejects (or misses one it accepts) sends callers
+    into a validation_error, or hides an argument they could use.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    documented = _documented_arguments()
+    assert len(documented) == 8
+    assert documented == {
+        op: set(args) for op, args in cost_explorer_tools.OPERATION_ARGUMENTS.items()
+    }
+
+
+def test_every_tool_argument_is_used_by_some_operation():
+    """A new cost-explorer argument must be added to the table of the operations that send it.
+
+    Otherwise every operation rejects it.
+    """
+    import inspect
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    parameters = set(inspect.signature(cost_explorer_tools.cost_explorer).parameters)
+    accepted = set().union(*cost_explorer_tools.OPERATION_ARGUMENTS.values())
+    assert accepted == parameters - {'ctx', 'operation'}
+    rejected_somewhere = {
+        name
+        for name in accepted
+        if any(name not in args for args in cost_explorer_tools.OPERATION_ARGUMENTS.values())
+    }
+    assert set(cost_explorer_tools.UNUSED_ARGUMENT_REASONS) == (
+        rejected_somewhere - cost_explorer_tools.UNCHECKED_ARGUMENTS
+    )
+    assert cost_explorer_tools.UNCHECKED_ARGUMENTS <= rejected_somewhere
+
+
+@pytest.mark.asyncio
+async def test_description_says_other_arguments_are_rejected():
+    """The description says an argument outside an operation's lists is rejected, not ignored."""
+    tool = await cost_explorer_server.get_tool('cost-explorer')
+    assert tool is not None and tool.description
+    description = ' '.join(tool.description.split())
+    assert (
+        'Each operation takes only the arguments in its Required and Optional lists below; '
+        'any other argument is rejected with a validation_error rather than ignored'
+    ) in description
+    assert (
+        'The exceptions are granularity and prediction_interval_level, which an operation that '
+        'does not list them ignores'
+    ) in description
+    assert 'the other operations reject both' in description
+    assert 'the other operations take neither' not in description

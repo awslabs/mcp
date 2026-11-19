@@ -187,3 +187,52 @@ async def test_read_sections_live_all_sections_fail():
         assert 'No matching sections were found:' in error_message
         assert 'Available sections:' in error_message
         assert 'use the read_documentation tool instead' in error_message
+
+
+@pytest.mark.asyncio
+@pytest.mark.live
+@pytest.mark.parametrize(
+    'url, title, expected',
+    [
+        (
+            'https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ServiceQuotas.html',
+            'Throughput default quotas',
+            '### Throughput default quotas',
+        ),
+        (
+            'https://docs.aws.amazon.com/appsync/latest/devguide/tutorial-dynamodb-resolvers.html',
+            'Call the API to Update a Post',
+            '### Call the API to Update a Post',
+        ),
+        (
+            'https://docs.aws.amazon.com/devopsagent/latest/userguide/'
+            'connecting-to-devops-agent-remote-servers-authentication-and-security.html',
+            'Access token authentication events',
+            '#### Access token authentication events',
+        ),
+        (
+            'https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ServiceQuotas.html',
+            'Quotas in Amazon DynamoDB',
+            '# Quotas in Amazon DynamoDB',
+        ),
+        (
+            'https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html',
+            'Compute and storage',
+            '### Compute and storage',
+        ),
+    ],
+)
+async def test_read_sections_live_heading_levels(url, title, expected):
+    """Titles search lists at h1, h3 and h4, and a title shared by an h2 and an h3, resolve."""
+    ctx = MockContext()
+
+    with patch(
+        'awslabs.aws_documentation_mcp_server.server_aws.DEFAULT_USER_AGENT',
+        TEST_USER_AGENT,
+    ):
+        result = await read_sections_global(ctx, url=url, section_titles=[title])
+
+    assert expected in result.splitlines()
+    if expected.startswith('# '):
+        assert 'start_index=' in result
+    assert 'requested sections were not found' not in result

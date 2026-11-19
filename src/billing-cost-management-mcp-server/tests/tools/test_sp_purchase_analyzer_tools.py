@@ -855,3 +855,16 @@ async def test_served_exclusion_doc_names_who_may_exclude_which_plans():
         'management account, any such plan in the organization); a queued plan, or any other ID, '
         'ends the analysis FAILED with ErrorCode INVALID_SAVINGS_PLANS_TO_EXCLUDE.'
     ) in doc
+
+
+@pytest.mark.asyncio
+async def test_served_lookback_docs_state_inclusive_start_and_exclusive_end():
+    """LookBackTimePeriod is a DateInterval: Start inclusive, End exclusive."""
+    tool = await sp_purchase_analyzer_server.get_tool('sp-purchase-analyzer')
+    assert tool is not None
+    props = tool.parameters['properties']
+
+    start = ' '.join(props['look_back_start']['description'].split())
+    end = ' '.join(props['look_back_end']['description'].split())
+    assert 'First day of the lookback period (inclusive)' in start
+    assert 'exclusive: the day after the last day to include' in end

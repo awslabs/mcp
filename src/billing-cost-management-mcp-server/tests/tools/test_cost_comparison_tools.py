@@ -30,7 +30,6 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_comparison_tools impo
     DRIVER_METRICS,
     GET_COST_AND_USAGE_COMPARISONS,
     GET_COST_COMPARISON_DRIVERS,
-    MAX_FILTER_DEPTH,
     _months_before,
     _utc_today,
     cost_comparison,
@@ -1096,6 +1095,8 @@ MISALIGNED = {
     'comparison_reversed_bounds': (month(2), (month_start(0), month_start(1))),
     'baseline_not_a_date': (('last month', month_start(1)), month(1)),
     'baseline_impossible_date': ((month_start(2)[:8] + '32', month_start(1)), month(1)),
+    'baseline_off_midnight': ((month_start(2) + 'T05:00:00Z', month_start(1)), month(1)),
+    'baseline_trailing_newline': ((month_start(2) + '\n', month_start(1)), month(1)),
 }
 
 
@@ -1166,6 +1167,24 @@ class TestCostComparisonDispatcherValidation:
         )
         assert result['status'] == 'success'
         getattr(dispatch_ce_client, CE_METHOD[operation]).assert_called_once()
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    async def test_midnight_timestamp_is_sent_to_ce_as_a_date(
+        self, mock_context, dispatch_ce_client, operation
+    ):
+        """A T00:00:00Z period is sent as a date (getCostComparisonDrivers answers 504 otherwise)."""
+        (b0, b1), (c0, c1) = month(2), month(1)
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            operation,
+            (b0 + 'T00:00:00Z', b1 + 'T00:00:00Z'),
+            (c0 + 'T00:00:00Z', c1 + 'T00:00:00Z'),
+        )
+        assert result['status'] == 'success'
+        sent = getattr(dispatch_ce_client, CE_METHOD[operation]).call_args.kwargs
+        assert sent['BaselineTimePeriod'] == {'Start': b0, 'End': b1}
+        assert sent['ComparisonTimePeriod'] == {'Start': c0, 'End': c1}
 
     @pytest.mark.parametrize('operation', OPERATIONS)
     async def test_baseline_later_than_comparison_reaches_ce(
@@ -1423,36 +1442,47 @@ class TestCostComparisonFilterValidation:
         )
         _assert_local_validation_error(result, dispatch_ce_client, 'ABSENT ignores its Values')
 
-    async def test_filter_nested_too_deep_rejected(self, mock_context, dispatch_ce_client):
-        """A filter nested deep enough to fail in Cost Explorer fails locally; one level less passes.
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    @pytest.mark.parametrize('operator', ['Not', 'And', 'Or'])
+    async def test_filter_nested_too_deep_rejected(
+        self, mock_context, dispatch_ce_client, operation, operator
+    ):
+        """A filter nested 90 And/Or/Not levels fails locally; 89 levels reaches Cost Explorer.
 
-        Live, getCostComparisonDrivers accepts 96 Not, And or Or levels and returns
-        InternalFailure at 97; both operations reject 98 with "Value is too deeply nested".
+        Live, both operations accept 89 levels and reject 90 with ValidationException
+        "Filter expression is nested too deeply" for Not, And and Or alike.
         """
-        assert MAX_FILTER_DEPTH == 97
-        deepest_allowed = _service([EC2])
-        for _ in range(MAX_FILTER_DEPTH - 1):
-            deepest_allowed = {'Not': deepest_allowed}
-        validate_comparison_filter(deepest_allowed)
-        too_deep = (
-            '{"Not": ' * MAX_FILTER_DEPTH + json.dumps(_service([EC2])) + '}' * MAX_FILTER_DEPTH
-        )
+
+        def nest(levels):
+            flt = _service([EC2])
+            for _ in range(levels):
+                flt = {'Not': flt} if operator == 'Not' else {operator: [_service([EC2]), flt]}
+            return flt
+
+        method = {
+            'getCostAndUsageComparisons': dispatch_ce_client.get_cost_and_usage_comparisons,
+            'getCostComparisonDrivers': dispatch_ce_client.get_cost_comparison_drivers,
+        }[operation]
         result = await _call(
             mock_context,
             dispatch_ce_client,
-            'getCostAndUsageComparisons',
+            operation,
             month(2),
             month(1),
-            filter=too_deep,
+            filter=json.dumps(nest(89)),
         )
-        _assert_local_validation_error(
-            result, dispatch_ce_client, f'nested {MAX_FILTER_DEPTH} or more'
+        assert result['status'] == 'success', result
+        assert method.call_args.kwargs['Filter'] == nest(89)
+        dispatch_ce_client.reset_mock()
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            operation,
+            month(2),
+            month(1),
+            filter=json.dumps(nest(90)),
         )
-        too_wide_and = _service([EC2])
-        for _ in range(MAX_FILTER_DEPTH):
-            too_wide_and = {'And': [_service([EC2]), too_wide_and]}
-        with pytest.raises(ValueError, match='or more And/Or/Not levels'):
-            validate_comparison_filter(too_wide_and)
+        _assert_local_validation_error(result, dispatch_ce_client, 'nested 90 or more')
 
     @pytest.mark.parametrize('operation', OPERATIONS)
     @pytest.mark.parametrize('how', NESTINGS)
@@ -1528,6 +1558,19 @@ class TestCostComparisonFilterValidation:
         )
         _assert_local_validation_error(result, dispatch_ce_client, 'Invalid JSON format')
 
+    @pytest.mark.parametrize('flt', ['   ', '{}', '""'], ids=repr)
+    async def test_empty_filter_is_called_empty(self, mock_context, dispatch_ce_client, flt):
+        """A blank or empty filter gets the "filter is empty" error, not a JSON error."""
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            'getCostAndUsageComparisons',
+            month(2),
+            month(1),
+            filter=flt,
+        )
+        _assert_local_validation_error(result, dispatch_ce_client, 'filter is empty')
+
 
 class TestValidateComparisonRequest:
     """Boundaries of the rules, at a fixed date."""
@@ -1569,10 +1612,22 @@ class TestValidateComparisonRequest:
         self._validate(('2025-12-01', '2026-01-01'), ('2026-09-01', '2026-10-01'))
 
     def test_timestamp_form_is_accepted(self):
-        """CE accepts YYYY-MM-DDThh:mm:ssZ as well as YYYY-MM-DD."""
+        """The tool accepts a midnight YYYY-MM-DDThh:mm:ssZ as well as YYYY-MM-DD."""
         self._validate(
             ('2026-08-01T00:00:00Z', '2026-09-01T00:00:00Z'), ('2026-09-01', '2026-10-01')
         )
+
+    @pytest.mark.parametrize(
+        'baseline',
+        [
+            ('2026-08-01T05:00:00Z', '2026-09-01'),
+            ('2026-08-01', '2026-09-01T00:00:01Z'),
+        ],
+    )
+    def test_timestamp_off_midnight_is_rejected(self, baseline):
+        """A month boundary must be at midnight UTC; CE fails otherwise (InternalFailure or 504)."""
+        with pytest.raises(ValueError, match='not midnight UTC'):
+            self._validate(baseline, ('2026-09-01', '2026-10-01'))
 
     def test_months_before_clamps_to_month_end(self):
         """Like Java's minusMonths, the day clamps to the shorter month."""
@@ -1612,5 +1667,9 @@ async def test_description_states_the_enforced_rules():
     assert 'MatchOptions other than EQUALS and CASE_SENSITIVE (the default)' in description
     assert 'ABSENT together with Values' in description
     assert 'A RESOURCE_ID filter' in description
-    assert 'Nesting of 97 or more And/Or/Not levels' in description
+    assert 'Nesting of 90 or more And/Or/Not levels' in description
+    assert '97 or more' not in description
     assert 'Keys and values match exactly, including case' in description
+    assert (
+        'A filter holds at most 200 values in total, counted across all its leaves' in description
+    )

@@ -1489,8 +1489,8 @@ class TestConcurrency:
         assert mock_data_client.batch_execute_statement.call_count == 5
 
     @pytest.mark.asyncio
-    async def test_no_session_is_ever_created(self, mocker):
-        """A session is what serialized calls before; a read now needs none."""
+    async def test_a_batch_read_creates_no_session(self, mocker):
+        """A session is what serialized calls before; a read on the batch path needs none."""
         mocker.patch(
             'awslabs.redshift_mcp_server.clusters.discover_clusters',
             return_value=[_fake_cluster()],
@@ -1831,7 +1831,7 @@ class TestTransactionLifecycle:
 
     @pytest.mark.asyncio
     async def test_opening_a_read_only_transaction(self, mocker):
-        """A read-only caller gets a read-only transaction, so the engine still refuses writes."""
+        """A read-only caller gets a read-only transaction."""
         batches = self._batches(
             mocker, _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1')
         )
@@ -1963,8 +1963,12 @@ class TestTransactionLifecycle:
 
         closing: dict[str, Any] = {parameter: 'load'}
 
-        await execute_query('test-cluster', 'provisioned', 'dev', begin_transaction='load')
-        await execute_query('test-cluster', 'provisioned', 'dev', **closing)
+        await execute_query(
+            'test-cluster', 'provisioned', 'dev', begin_transaction='load', enforce_read_only=False
+        )
+        await execute_query(
+            'test-cluster', 'provisioned', 'dev', **closing, enforce_read_only=False
+        )
 
         assert batches.call_args[1]['sqls'] == [closer]
         assert batches.call_args[1]['session_id'] == 'session-1'
@@ -2009,10 +2013,34 @@ class TestTransactionLifecycle:
 
         closing: dict[str, Any] = {parameter: 'load'}
 
-        await execute_query('test-cluster', 'provisioned', 'dev', begin_transaction='load')
-        await execute_query('test-cluster', 'provisioned', 'dev', 'SELECT 1', **closing)
+        await execute_query(
+            'test-cluster', 'provisioned', 'dev', begin_transaction='load', enforce_read_only=False
+        )
+        await execute_query(
+            'test-cluster', 'provisioned', 'dev', 'SELECT 1', **closing, enforce_read_only=False
+        )
 
         assert batches.call_args[1]['sqls'] == ['SELECT 1', closer]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('parameter', ['commit_transaction', 'rollback_transaction'])
+    @pytest.mark.parametrize('sql', [None, 'SELECT 1'])
+    async def test_a_read_only_transaction_ends_in_rollback_whatever_closes_it(
+        self, mocker, parameter, sql
+    ):
+        """A read-only transaction ends in ROLLBACK, whichever closer the caller named."""
+        batches = self._batches(
+            mocker,
+            _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'),
+            _fake_batch(['FINISHED'] * (1 if sql is None else 2)),
+        )
+
+        closing: dict[str, Any] = {parameter: 'load'}
+
+        await execute_query('test-cluster', 'provisioned', 'dev', begin_transaction='load')
+        await execute_query('test-cluster', 'provisioned', 'dev', sql, **closing)
+
+        assert batches.call_args[1]['sqls'] == ([] if sql is None else [sql]) + ['ROLLBACK']
 
     @pytest.mark.asyncio
     async def test_a_closed_transaction_is_gone(self, mocker):
@@ -2256,10 +2284,18 @@ class TestTransactionLifecycle:
             _client_error('ValidationException', 'Session is not available'),
         )
 
-        await execute_query('test-cluster', 'provisioned', 'dev', begin_transaction='load')
+        await execute_query(
+            'test-cluster', 'provisioned', 'dev', begin_transaction='load', enforce_read_only=False
+        )
 
         with pytest.raises(ToolError) as raised:
-            await execute_query('test-cluster', 'provisioned', 'dev', commit_transaction='load')
+            await execute_query(
+                'test-cluster',
+                'provisioned',
+                'dev',
+                commit_transaction='load',
+                enforce_read_only=False,
+            )
 
         assert 'may have applied' in str(raised.value)
         assert 'No open transaction' not in str(raised.value)
@@ -2292,10 +2328,14 @@ class TestTransactionLifecycle:
             mocker, _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'), denial
         )
 
-        await execute_query('test-cluster', 'provisioned', 'dev', begin_transaction='load')
+        await execute_query(
+            'test-cluster', 'provisioned', 'dev', begin_transaction='load', enforce_read_only=False
+        )
 
         with pytest.raises(ToolError) as raised:
-            await execute_query('test-cluster', 'provisioned', 'dev', **closing)
+            await execute_query(
+                'test-cluster', 'provisioned', 'dev', **closing, enforce_read_only=False
+            )
 
         assert _no_batch_active(_CLUSTER)
         assert expected in str(raised.value)
@@ -2305,7 +2345,13 @@ class TestTransactionLifecycle:
 
         # And the name is gone, so the caller cannot close it again and be told that worked.
         with pytest.raises(ToolError, match="No open transaction named 'load'"):
-            await execute_query('test-cluster', 'provisioned', 'dev', commit_transaction='load')
+            await execute_query(
+                'test-cluster',
+                'provisioned',
+                'dev',
+                commit_transaction='load',
+                enforce_read_only=False,
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -2382,7 +2428,9 @@ class TestTransactionLifecycle:
             'awslabs.redshift_mcp_server.clusters.resolve_cluster', return_value=_fake_cluster()
         )
         self._batches(mocker, _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'))
-        await execute_query('test-cluster', 'provisioned', 'dev', begin_transaction='load')
+        await execute_query(
+            'test-cluster', 'provisioned', 'dev', begin_transaction='load', enforce_read_only=False
+        )
 
         error = ClientError(
             {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
@@ -2406,6 +2454,7 @@ class TestTransactionLifecycle:
                 'dev',
                 'INSERT INTO t VALUES (1)',
                 commit_transaction='load',
+                enforce_read_only=False,
             )
 
         # Neither outcome is claimed, and the caller is told how to settle it: after the COMMIT
@@ -2418,7 +2467,13 @@ class TestTransactionLifecycle:
 
         # And the name is gone, so the caller cannot roll it back and be told that worked.
         with pytest.raises(ToolError, match="No open transaction named 'load'"):
-            await execute_query('test-cluster', 'provisioned', 'dev', rollback_transaction='load')
+            await execute_query(
+                'test-cluster',
+                'provisioned',
+                'dev',
+                rollback_transaction='load',
+                enforce_read_only=False,
+            )
 
     @pytest.mark.asyncio
     async def test_a_rollback_never_seen_to_finish_is_reported_as_settled(self, mocker):
@@ -2471,7 +2526,9 @@ class TestTransactionLifecycle:
             'awslabs.redshift_mcp_server.clusters.resolve_cluster', return_value=_fake_cluster()
         )
         self._batches(mocker, _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'))
-        await execute_query('test-cluster', 'provisioned', 'dev', begin_transaction='load')
+        await execute_query(
+            'test-cluster', 'provisioned', 'dev', begin_transaction='load', enforce_read_only=False
+        )
         rollback = mocker.patch('awslabs.redshift_mcp_server.redshift._rollback_lost_transaction')
 
         timed_out = ToolError('Statement timed out after 3600 seconds')
@@ -2492,6 +2549,7 @@ class TestTransactionLifecycle:
                 'dev',
                 'INSERT INTO t VALUES (1)',
                 commit_transaction='load',
+                enforce_read_only=False,
             )
 
         assert 'may have applied' in str(raised.value)
@@ -2502,7 +2560,13 @@ class TestTransactionLifecycle:
         rollback.assert_not_called()
 
         with pytest.raises(ToolError, match="No open transaction named 'load'"):
-            await execute_query('test-cluster', 'provisioned', 'dev', rollback_transaction='load')
+            await execute_query(
+                'test-cluster',
+                'provisioned',
+                'dev',
+                rollback_transaction='load',
+                enforce_read_only=False,
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -2526,7 +2590,9 @@ class TestTransactionLifecycle:
         self._batches(mocker, _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'))
         rollback = mocker.patch('awslabs.redshift_mcp_server.redshift._rollback_lost_transaction')
         warning = mocker.patch('awslabs.redshift_mcp_server.redshift.logger.warning')
-        await execute_query('test-cluster', 'provisioned', 'dev', begin_transaction='load')
+        await execute_query(
+            'test-cluster', 'provisioned', 'dev', begin_transaction='load', enforce_read_only=False
+        )
 
         async def accept_then_cancel(*args, **kwargs):
             # Taken by the service, and never watched to a conclusion.
@@ -2538,7 +2604,9 @@ class TestTransactionLifecycle:
         )
 
         with pytest.raises(asyncio.CancelledError):
-            await execute_query('test-cluster', 'provisioned', 'dev', **closing)
+            await execute_query(
+                'test-cluster', 'provisioned', 'dev', **closing, enforce_read_only=False
+            )
         await asyncio.sleep(0)
 
         # No rollback at a session that may be committing.
@@ -2547,7 +2615,13 @@ class TestTransactionLifecycle:
 
         # And the name is gone either way, so nobody rolls back work that landed.
         with pytest.raises(ToolError, match="No open transaction named 'load'"):
-            await execute_query('test-cluster', 'provisioned', 'dev', rollback_transaction='load')
+            await execute_query(
+                'test-cluster',
+                'provisioned',
+                'dev',
+                rollback_transaction='load',
+                enforce_read_only=False,
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -3686,17 +3760,40 @@ class TestBatchLatch:
 
 
 class TestExecuteSingleStatement:
-    """The compatibility path runs one statement on its own connection."""
+    """The compatibility path tags a session of its own, then runs the statement on it."""
 
-    def _data_client(self, mocker, submit=None, describe=None, records=None):
-        """Wire a Data API client scripted for ExecuteStatement."""
+    def _data_client(self, mocker, tagged=None, describe=None, records=None):
+        """Wire a Data API client scripted for the SET and then the statement.
+
+        `tagged` scripts the SET's describe, and `describe` and `records` the statement's; each
+        finishes by default.
+        """
         client = mocker.Mock()
-        client.execute_statement.return_value = submit or {'Id': 'stmt-id', 'Status': 'FINISHED'}
-        client.describe_statement.return_value = describe or {
-            'Id': 'stmt-id',
-            'Status': 'FINISHED',
-            'HasResultSet': records is not None,
+        # Ends in a failure, because running out inside asyncio.to_thread hangs.
+        client.execute_statement.side_effect = [
+            {'Id': 'set-id', 'Status': 'FINISHED', 'SessionId': 'session-1'},
+            {'Id': 'stmt-id', 'Status': 'FINISHED', 'SessionId': 'session-1'},
+            AssertionError('submitted more often than scripted'),
+        ]
+        describes = {
+            'set-id': tagged
+            or {
+                'Id': 'set-id',
+                'Status': 'FINISHED',
+                'HasResultSet': False,
+                'SessionId': 'session-1',
+            },
+            'stmt-id': describe
+            or {
+                'Id': 'stmt-id',
+                'Status': 'FINISHED',
+                'HasResultSet': records is not None,
+                'SessionId': 'session-1',
+            },
         }
+        # Answers by Id, once per statement, so describing the wrong statement, or one twice,
+        # fails at once.
+        client.describe_statement.side_effect = lambda Id: describes.pop(Id)
         client.get_statement_result.return_value = records or {'Records': [], 'ColumnMetadata': []}
         mocker.patch(
             'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
@@ -3706,7 +3803,7 @@ class TestExecuteSingleStatement:
 
     @pytest.mark.asyncio
     async def test_a_result_set_is_fetched(self, mocker):
-        """The statement's own id reaches its result, with no sub-statement to index."""
+        """The statement's own id reaches its result, not the SET's that ran before it."""
         records = {'Records': [[{'longValue': 1}]], 'ColumnMetadata': [{'name': 'n'}]}
         client = self._data_client(mocker, records=records)
 
@@ -3716,7 +3813,73 @@ class TestExecuteSingleStatement:
 
         assert results == records
         assert query_id == 'stmt-id'
-        assert client.execute_statement.call_args[1]['Sql'] == 'SELECT 1'
+        client.get_statement_result.assert_called_once_with(Id='stmt-id')
+
+    @pytest.mark.asyncio
+    async def test_the_statement_runs_on_the_session_its_set_tagged(self, mocker):
+        """Sent alone, every read on this path reached the cluster with no application name.
+
+        The SET mints the session and names the connection. The statement names only the
+        session, and drains it.
+        """
+        client = self._data_client(mocker)
+
+        await _execute_statement_fallback_no_batch(_fake_cluster(), 'test-db', 'SELECT 1')
+
+        tag, statement = (call.kwargs for call in client.execute_statement.call_args_list)
+        assert tag == {
+            'Sql': _APP_NAME_SQL,
+            'Database': 'test-db',
+            'ClusterIdentifier': 'test-cluster',
+            # A literal: a shorter keepalive can end the session before the statement arrives.
+            'SessionKeepAliveSeconds': 60,
+            'WaitTimeSeconds': QUERY_LONG_POLL,
+        }
+        assert statement == {
+            'Sql': 'SELECT 1',
+            'SessionId': 'session-1',
+            'SessionKeepAliveSeconds': _SESSION_DRAIN,
+            'WaitTimeSeconds': QUERY_LONG_POLL,
+        }
+
+    @pytest.mark.asyncio
+    async def test_a_refused_set_fails_the_call_and_the_statement_is_not_sent(self, mocker):
+        """AWS's own error reaches the caller, and nothing runs untagged."""
+        client = self._data_client(mocker)
+        refused = _client_error(
+            'ActiveSessionsExceededException', 'Too many sessions', operation='ExecuteStatement'
+        )
+        client.execute_statement.side_effect = [
+            refused,
+            AssertionError('submitted more often than scripted'),
+        ]
+
+        with pytest.raises(ClientError) as raised:
+            await _execute_statement_fallback_no_batch(_fake_cluster(), 'test-db', 'SELECT 1')
+
+        assert raised.value is refused
+        assert client.execute_statement.call_count == 1
+        assert client.execute_statement.call_args.kwargs['Sql'] == _APP_NAME_SQL
+
+    @pytest.mark.asyncio
+    async def test_a_failed_set_fails_the_call_and_the_statement_is_not_sent(self, mocker):
+        """The engine's message reaches the caller as the batch path reports a failed SET."""
+        client = self._data_client(
+            mocker,
+            tagged={
+                'Id': 'set-id',
+                'Status': 'FAILED',
+                'Error': 'FATAL: database "test-db" does not exist',
+            },
+        )
+
+        with pytest.raises(
+            ToolError, match='Statement failed: FATAL: database "test-db" does not exist'
+        ):
+            await _execute_statement_fallback_no_batch(_fake_cluster(), 'test-db', 'SELECT 1')
+
+        assert client.execute_statement.call_count == 1
+        assert client.execute_statement.call_args.kwargs['Sql'] == _APP_NAME_SQL
 
     @pytest.mark.asyncio
     async def test_every_page_of_the_result_is_read(self, mocker):
@@ -3763,16 +3926,22 @@ class TestExecuteSingleStatement:
 
     @pytest.mark.asyncio
     async def test_provisioned_and_serverless_are_addressed_differently(self, mocker):
-        """A workgroup is not a cluster, and the Data API takes them under different names."""
+        """A workgroup is not a cluster, and the Data API takes them under different names.
+
+        Named by the SET, which mints the session; the statement names only the session.
+        """
         client = self._data_client(mocker)
 
         await _execute_statement_fallback_no_batch(_fake_cluster(), 'test-db', 'SELECT 1')
-        assert client.execute_statement.call_args[1]['ClusterIdentifier'] == 'test-cluster'
+        tag = client.execute_statement.call_args_list[0].kwargs
+        assert tag['ClusterIdentifier'] == 'test-cluster'
+
+        client = self._data_client(mocker)
 
         await _execute_statement_fallback_no_batch(
             _fake_cluster(identifier='test-wg', type='serverless'), 'test-db', 'SELECT 1'
         )
-        assert client.execute_statement.call_args[1]['WorkgroupName'] == 'test-wg'
+        assert client.execute_statement.call_args_list[0].kwargs['WorkgroupName'] == 'test-wg'
 
     @pytest.mark.asyncio
     async def test_an_engine_failure_carries_its_message(self, mocker):
@@ -3807,7 +3976,10 @@ class TestExecuteSingleStatement:
             _fake_cluster(), 'test-db', 'SELECT :id', parameters=parameters
         )
 
-        assert client.execute_statement.call_args[1]['Parameters'] == parameters
+        tag, statement = (call.kwargs for call in client.execute_statement.call_args_list)
+        assert statement['Parameters'] == parameters
+        # The SET has no placeholders to bind.
+        assert 'Parameters' not in tag
 
 
 class TestCompatibilityPathRouting:
@@ -3847,7 +4019,7 @@ class TestCompatibilityPathRouting:
 
     @pytest.mark.asyncio
     async def test_the_wrapper_is_dropped_with_the_batch(self, mocker):
-        """One statement per connection leaves nowhere to put BEGIN READ ONLY."""
+        """The compatibility path gets the bare statement, with no BEGIN READ ONLY around it."""
         mocker.patch(
             'awslabs.redshift_mcp_server.clusters.resolve_cluster', return_value=_fake_cluster()
         )
@@ -3965,7 +4137,7 @@ class TestCompatibilityPathRouting:
 
 
 class TestTransactionsNeedTheBatch:
-    """A transaction is several statements on one connection, which the fallback cannot give."""
+    """A transaction needs one session across calls; the fallback gives each read its own."""
 
     @pytest.fixture(autouse=True)
     def _resolve(self, mocker):
@@ -4042,7 +4214,13 @@ class TestTransactionsNeedTheBatch:
         _latch_no_batch(_batch_denied_error(), _CLUSTER)
 
         await _execute_statement_in_transaction(
-            'test-cluster', 'provisioned', 'test-db', 'load', None, closer=closer
+            'test-cluster',
+            'provisioned',
+            'test-db',
+            'load',
+            None,
+            closer=closer,
+            enforce_read_only=False,
         )
 
         assert batches.call_args[1]['sqls'] == [closer]

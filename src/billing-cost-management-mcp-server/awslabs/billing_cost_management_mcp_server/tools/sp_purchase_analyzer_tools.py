@@ -133,9 +133,10 @@ async def sp_purchase_analyzer(
             calling account owns (from the management account, any such plan in the
             organization); a queued plan, or any other ID, ends the analysis FAILED with ErrorCode
             INVALID_SAVINGS_PLANS_TO_EXCLUDE.
-        look_back_start: Start of the time period associated with the analysis, in YYYY-MM-DD format.
+        look_back_start: First day of the lookback period (inclusive), in YYYY-MM-DD format.
             Required for start_commitment_purchase_analysis.
-        look_back_end: End of the time period associated with the analysis, in YYYY-MM-DD format.
+        look_back_end: End of the lookback period (exclusive: the day after the last day
+            to include), in YYYY-MM-DD format.
             Required for start_commitment_purchase_analysis.
         savings_plans_target_coverage: The target Savings Plans coverage as a whole-number
             percentage from 10 to 100 — 85, not 0.85 or 85.5. It defines the target average hourly

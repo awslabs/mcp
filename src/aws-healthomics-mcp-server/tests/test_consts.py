@@ -315,3 +315,17 @@ class TestConstantsIntegration:
     def test_default_region_in_supported_regions(self):
         """Test that DEFAULT_REGION is included in HEALTHOMICS_SUPPORTED_REGIONS."""
         assert consts.DEFAULT_REGION in consts.HEALTHOMICS_SUPPORTED_REGIONS
+
+
+class TestOutputUriPrefixModes:
+    """Test cases for the run output URI prefix mode constants and error template."""
+
+    def test_output_uri_prefix_modes_list(self):
+        """Test OUTPUT_URI_PREFIX_MODES contains exactly the two API values in order."""
+        assert consts.OUTPUT_URI_PREFIX_MODE_SERVICE_DEFINED == 'SERVICE_DEFINED'
+        assert consts.OUTPUT_URI_PREFIX_MODE_NONE_WITH_OVERWRITE == 'NONE_WITH_OVERWRITE'
+        assert consts.OUTPUT_URI_PREFIX_MODES == ['SERVICE_DEFINED', 'NONE_WITH_OVERWRITE']
+
+    def test_error_template_has_two_placeholders(self):
+        """Test the template exposes placeholders for the value and allowed list."""
+        assert consts.ERROR_INVALID_OUTPUT_URI_PREFIX_MODE.count('{}') == 2

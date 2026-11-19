@@ -56,19 +56,19 @@ Please analyze the following AWS account(s): {', '.join(account_id_list)}
 Follow these steps:
 1. Use `cost-optimization` `list_recommendation_summaries` with `group_by` 'ResourceType' and `filters` '{filters}' to count the Graviton migration recommendations and their estimated monthly savings per resource type.
 2. Use `cost-optimization` `list_recommendations` with the same `filters` and `order_by` '{order_by}' to list them, highest savings first. Each recommendation carries `current_resource_type`, `recommended_resource_type`, `estimated_monthly_savings` and `implementation_effort`.
-3. If Cost Optimization Hub is not enrolled (`cost-optimization` `list_enrollment_statuses`) or returns no Graviton recommendations, use `compute-optimizer` `get_ec2_instance_recommendations` with `cpu_vendor_architectures` '{arm64}', one call per account (`account_ids` takes one ID) and per region. Without `cpu_vendor_architectures`, Compute Optimizer ranks only options in the instance's current CPU architecture.
+3. If Cost Optimization Hub is not enrolled (`cost-optimization` `list_enrollment_statuses`) or returns no Graviton recommendations, use `compute-optimizer` `get_ec2_instance_recommendations` with `cpu_vendor_architectures` '{arm64}', one call per account (`account_ids` takes one ID) and per region. Without `cpu_vendor_architectures`, Compute Optimizer ranks only options in the instance's current CPU architecture. Compute Optimizer has no `implementation_effort`; use the rank 1 option's `migration_effort` (VeryLow to High) and savings. That scale differs from Cost Optimization Hub's (VeryLow to VeryHigh): the same migration can be Low in one and VeryHigh in the other.
 4. For each candidate, note compatibility considerations (the operating system, software and dependencies must support ARM64).
 5. Summarize the findings with:
    - Number of resources that could migrate to Graviton, by resource type
    - Total estimated monthly savings, and annual savings (12 x monthly)
-   - Recommendations grouped by the `implementation_effort` each one reports (do not grade effort yourself)
+   - Recommendations grouped by the effort each one reports, never mixing the two scales; name the scale used (do not grade effort yourself)
    - Top 5 resources with the highest estimated monthly savings
    If a result has `complete_dataset: false`, say that the totals are partial.
 
 Present the results in a clear, actionable format with tables where appropriate."""
         ),
         Message(
-            "I'll analyze the Graviton migration opportunities and provide a report with savings estimates and the implementation effort of each recommendation.",
+            "I'll analyze the Graviton migration opportunities and provide a report with savings estimates and the effort each recommendation reports.",
             role='assistant',
         ),
     ]

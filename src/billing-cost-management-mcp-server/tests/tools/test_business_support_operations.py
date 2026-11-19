@@ -1592,3 +1592,45 @@ class TestWrapperDelegation:
         assert kwargs['end_date'] == '2026-06-01'
         assert kwargs['max_items'] == 25
         assert kwargs['next_token'] == 'token'
+
+
+@pytest.mark.asyncio
+async def test_window_filters_one_month_and_never_spans_months():
+    """start_date/end_date filter the selected month's contracts; several months need one call each.
+
+    The API reads one billingMonth (default: the current UTC month) and only filters its rows, so
+    the description must not offer the window as the way to cover several months.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools.business_support_tools import (
+        business_support_server,
+    )
+
+    tool = await business_support_server.get_tool('business-support')
+    assert tool is not None
+    desc = ' '.join((tool.description or '').split())
+    props = tool.parameters['properties']
+
+    assert 'to cover several months pass start_date/end_date' not in desc
+    assert '"start_date": "2025-01-01", "end_date": "2026-06-30"' not in desc
+    assert 'to cover several months, make one call per billing_month' in desc
+    assert "filter the selected month's contracts and never add other months" in desc
+    assert 'end_date keeps contracts starting on or before it' in desc
+    assert (
+        "Keeps the selected month's contracts that end on or after"
+        in props['start_date']['description']
+    )
+    assert (
+        "Keeps the selected month's contracts that start on or before"
+        in props['end_date']['description']
+    )
+
+
+def test_operation_docstring_does_not_offer_the_window_for_several_months():
+    """The operation docstring gives the same one-call-per-month guidance as the tool."""
+    from awslabs.billing_cost_management_mcp_server.tools.business_support_operations import (
+        list_subscription_history,
+    )
+
+    doc = ' '.join((list_subscription_history.__doc__ or '').split())
+    assert 'pass start_date/end_date to cover more than one month' not in doc
+    assert 'to cover several months, make one call per billing_month' in doc
