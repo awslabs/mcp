@@ -20,33 +20,14 @@ parameter mismatches that mocked tests would miss.
 # ruff: noqa: D101, D102, D103
 
 import pytest
-from awslabs.aws_transform_mcp_server._service_model import create_session
-from botocore import UNSIGNED
-from botocore.config import Config as BotoConfig
-from botocore.validate import ParamValidator
-
-
-_client = create_session().client(
-    'elasticgumbyfrontendservice',
-    region_name='us-east-1',
-    endpoint_url='https://validation-only.invalid',
-    config=BotoConfig(signature_version=UNSIGNED),
-)
-_validator = ParamValidator()
-
-
-def _validate(operation: str, body: dict) -> None:
-    op_model = _client._service_model.operation_model(operation)
-    report = _validator.validate(body, op_model.input_shape)
-    if report.has_errors():
-        raise ValueError(report.generate_report())
+from tests.service_model_validation import _CLIENT, validate_request
 
 
 class TestRegressions:
     def test_file_metadata_rejects_fileName(self):
         """Bug fix: fileMetadata.fileName does not exist in the service model."""
         with pytest.raises(ValueError, match='fileName'):
-            _validate(
+            validate_request(
                 'CreateArtifactUploadUrl',
                 {
                     'workspaceId': 'w',
@@ -61,4 +42,120 @@ class TestRegressions:
     def test_list_plan_updates_requires_timestamp_and_plan_version(self):
         """Bug fix: ListPlanUpdates requires timestamp and planVersion."""
         with pytest.raises(ValueError, match='timestamp'):
-            _validate('ListPlanUpdates', {'workspaceId': 'w', 'jobId': 'j'})
+            validate_request('ListPlanUpdates', {'workspaceId': 'w', 'jobId': 'j'})
+
+
+_ENGAGEMENT_OPERATIONS = {
+    'AcceptEngagementInvitation',
+    'AddEngagementTenant',
+    'AddEngagementUser',
+    'AddEngagementWorkspace',
+    'CreateEngagement',
+    'GetEngagement',
+    'ListEngagementInvitations',
+    'ListEngagementTenants',
+    'ListEngagementUsers',
+    'ListEngagementWorkspaces',
+    'ListEngagements',
+    'ListEngagementsForWorkspace',
+    'ListPartnerTypes',
+    'RejectEngagementInvitation',
+    'RemoveEngagementTenant',
+    'RemoveEngagementUser',
+    'RemoveEngagementWorkspace',
+    'UpdateEngagement',
+}
+
+
+class TestEngagementContracts:
+    def test_all_exposed_engagement_operations_are_vendored(self):
+        operations = set(_CLIENT._service_model.operation_names)
+        assert _ENGAGEMENT_OPERATIONS <= operations
+        assert 'TerminateEngagement' not in operations
+        assert 'UpdateEngagementWorkspace' not in operations
+
+    @pytest.mark.parametrize(
+        'operation,body',
+        [
+            (
+                'CreateEngagement',
+                {
+                    'name': 'Migration',
+                    'description': 'Migration engagement',
+                    'tenantType': 'PARTNER',
+                    'partnerType': 'CONSULTING_PARTNER',
+                },
+            ),
+            ('GetEngagement', {'engagementId': 'e-1'}),
+            ('UpdateEngagement', {'engagementId': 'e-1', 'name': 'Updated'}),
+            ('ListEngagements', {}),
+            (
+                'AddEngagementTenant',
+                {
+                    'engagementId': 'e-1',
+                    'targetTenantId': 't-2',
+                    'type': 'PARTNER',
+                    'description': 'Delivery partner',
+                    'customerConsent': 'GRANTED',
+                    'partnerIntent': 'PERFORM_ASSESSMENT_AND_MIGRATION',
+                },
+            ),
+            ('RemoveEngagementTenant', {'engagementId': 'e-1', 'targetTenantId': 't-2'}),
+            ('ListEngagementTenants', {'engagementId': 'e-1'}),
+            ('ListEngagementInvitations', {}),
+            (
+                'AcceptEngagementInvitation',
+                {'engagementId': 'e-1', 'partnerType': 'DISTRIBUTOR'},
+            ),
+            ('RejectEngagementInvitation', {'engagementId': 'e-1'}),
+            (
+                'AddEngagementUser',
+                {'engagementId': 'e-1', 'targetUserId': 'u-2', 'role': 'LEAD'},
+            ),
+            ('ListEngagementUsers', {'engagementId': 'e-1'}),
+            ('RemoveEngagementUser', {'engagementId': 'e-1', 'targetUserId': 'u-2'}),
+            (
+                'AddEngagementWorkspace',
+                {
+                    'engagementId': 'e-1',
+                    'workspaceId': '00000000-0000-0000-0000-000000000001',
+                },
+            ),
+            ('ListEngagementWorkspaces', {'engagementId': 'e-1'}),
+            (
+                'RemoveEngagementWorkspace',
+                {
+                    'engagementId': 'e-1',
+                    'workspaceId': '00000000-0000-0000-0000-000000000001',
+                },
+            ),
+            (
+                'ListEngagementsForWorkspace',
+                {'workspaceId': '00000000-0000-0000-0000-000000000001'},
+            ),
+            ('ListPartnerTypes', {}),
+        ],
+    )
+    def test_request_body_matches_c2j(self, operation, body):
+        validate_request(operation, body)
+
+    def test_invitation_consent_metadata_is_vendored(self):
+        service_model = _CLIENT._service_model
+        add_tenant = service_model.shape_for('AddEngagementTenantRequest')
+        tenant_summary = service_model.shape_for('TenantSummary')
+
+        assert {'customerConsent', 'partnerIntent'} <= set(add_tenant.members)
+        assert {
+            'consentedByUserId',
+            'consentedAt',
+            'partnerIntent',
+            'invitedByUserId',
+        } <= set(tenant_summary.members)
+
+    def test_add_workspace_does_not_accept_partner_tenant(self):
+        add_workspace = _CLIENT._service_model.shape_for('AddEngagementWorkspaceRequest')
+        assert 'partnerTenantId' not in add_workspace.members
+
+    def test_engagement_id_uses_safe_ascii_pattern(self):
+        engagement_id = _CLIENT._service_model.shape_for('EngagementId')
+        assert engagement_id.metadata['pattern'] == '^[a-z0-9-]+$'

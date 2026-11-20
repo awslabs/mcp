@@ -20,6 +20,7 @@ from awslabs.aws_transform_mcp_server.tool_utils import error_result
 from awslabs.aws_transform_mcp_server.transform_api_client import call_transform_api
 from awslabs.aws_transform_mcp_server.transform_api_models import (
     BatchGetMessageRequest,
+    ChatEngagementMetadata,
     ChatJobMetadata,
     ListMessagesRequest,
     Metadata,
@@ -50,13 +51,28 @@ def not_configured_error() -> Dict[str, Any]:
     return error_result(NOT_CONFIGURED_CODE, NOT_CONFIGURED_MSG, NOT_CONFIGURED_ACTION)
 
 
-def build_metadata(workspaceId: str, jobId: Optional[str] = None) -> Metadata:
-    """Build the resourcesOnScreen metadata for chat API calls."""
+def build_metadata(
+    workspaceId: Optional[str],
+    jobId: Optional[str] = None,
+    engagementId: Optional[str] = None,
+) -> Metadata:
+    """Build chat metadata, with engagement taking precedence over workspace and job."""
     return Metadata(
         resourcesOnScreen=ResourcesOnScreen(
-            workspace=WorkspaceMetadata(
-                workspaceId=workspaceId,
-                jobs=([ChatJobMetadata(jobId=jobId, focusState='ACTIVE')] if jobId else None),
+            engagement=(
+                ChatEngagementMetadata(engagementId=engagementId) if engagementId else None
+            ),
+            workspace=(
+                WorkspaceMetadata(
+                    workspaceId=workspaceId,
+                    jobs=(
+                        [ChatJobMetadata(jobId=jobId, focusState='ACTIVE')]
+                        if jobId and not engagementId
+                        else None
+                    ),
+                )
+                if workspaceId and not engagementId
+                else None
             ),
         ),
     )
@@ -64,10 +80,11 @@ def build_metadata(workspaceId: str, jobId: Optional[str] = None) -> Metadata:
 
 async def poll_for_response(
     metadata: Metadata,
-    workspaceId: str,
+    workspaceId: Optional[str],
     sent_message_id: str,
     max_attempts: int,
     start_timestamp: Optional[float] = None,
+    engagementId: Optional[str] = None,
 ) -> PollResult:
     """Poll ListMessages + BatchGetMessage for a terminal response.
 
@@ -105,7 +122,11 @@ async def poll_for_response(
 
         batch_result = await call_transform_api(
             'BatchGetMessage',
-            BatchGetMessageRequest(messageIds=new_ids, workspaceId=workspaceId),
+            BatchGetMessageRequest(
+                messageIds=new_ids,
+                engagementId=engagementId,
+                workspaceId=workspaceId if not engagementId else None,
+            ),
         )
         messages = batch_result.get('messages', []) if isinstance(batch_result, dict) else []
 
@@ -145,20 +166,28 @@ def format_response(msg: dict) -> dict:
 def build_timeout_data(
     timeout_secs: int,
     last_thinking: Optional[Dict],
-    workspaceId: str,
+    workspaceId: Optional[str],
     sentMessageId: str,
     jobId: Optional[str] = None,
+    engagementId: Optional[str] = None,
 ) -> dict:
     """Build the standard timeout response dict with retry guidance."""
-    job_filter = f', jobId="{jobId}"' if jobId else ''
+    scope_filters = []
+    if engagementId:
+        scope_filters.append(f'engagementId="{engagementId}"')
+    elif workspaceId:
+        scope_filters.append(f'workspaceId="{workspaceId}"')
+    if workspaceId and jobId and not engagementId:
+        scope_filters.append(f'jobId="{jobId}"')
+    scope_filter = ', '.join(scope_filters)
     data: dict = {
         'response': None,
         'sentMessageId': sentMessageId,
         'note': (
             f'No final response within {timeout_secs}s. The assistant is still processing. '
             f'To check for the reply, call '
-            f'list_resources(resource="messages", workspaceId="{workspaceId}"{job_filter}) '
-            f'then get_resource(resource="messages", workspaceId="{workspaceId}", '
+            f'list_resources(resource="messages", {scope_filter}) '
+            f'then get_resource(resource="messages", {scope_filter}, '
             f'messageIds=[<IDs from list>]) and look for a message with '
             f'parentMessageId="{sentMessageId}" and messageType="FINAL_RESPONSE". '
             f'Stop after 3 retries.'
@@ -182,10 +211,11 @@ class SendAndPollResult(TypedDict):
 
 
 async def send_and_poll(
-    workspaceId: str,
+    workspaceId: Optional[str],
     jobId: Optional[str],
     text: str,
     max_attempts: int = 30,
+    engagementId: Optional[str] = None,
 ) -> SendAndPollResult:
     """Send a message and poll for the response.
 
@@ -194,7 +224,7 @@ async def send_and_poll(
     """
     import time
 
-    metadata = build_metadata(workspaceId, jobId)
+    metadata = build_metadata(workspaceId, jobId, engagementId)
     start_timestamp = time.time()
 
     send_result = await call_transform_api(
@@ -216,5 +246,6 @@ async def send_and_poll(
         sent_message_id or '',
         max_attempts=max_attempts,
         start_timestamp=start_timestamp,
+        engagementId=engagementId,
     )
     return SendAndPollResult(sent_msg=sent_msg, sent_message_id=sent_message_id, poll=poll)

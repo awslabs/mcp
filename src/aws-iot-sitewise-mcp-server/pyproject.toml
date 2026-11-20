@@ -2,7 +2,7 @@
 name = "awslabs.aws-iot-sitewise-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "11.0.23"
+version = "11.0.24"
 
 description = "An AWS Labs Model Context Protocol (MCP) server for aws-iot-sitewise"
 readme = "README.md"
@@ -51,7 +51,7 @@ changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-iot-sitewise-mcp-s
 [dependency-groups]
 dev = [
     "commitizen>=4.2.2",
-    "pre-commit>=4.1.0",
+    "pre-commit>=4.1.0; python_version >= '3.11'",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
     "pytest>=8.0.0",
