@@ -32,6 +32,10 @@ def mock_aws_clients():
 
     # Patch the clients in all modules where they're imported
     patches = [
+        # Pin the configured region so tools called with 'us-east-1' use the mocks below
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.AWS_REGION', 'us-east-1'
+        ),
         # Original aws_clients module
         patch(
             'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.logs_client',
@@ -1992,6 +1996,41 @@ async def test_analyze_canary_failures_no_runs(mock_aws_clients):
     result = await analyze_canary_failures('test-canary', 'us-east-1')
 
     assert 'No run history found for test-canary' in result
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('profile', [None, 'my-profile'])
+async def test_analyze_canary_failures_uses_requested_region(
+    mock_aws_clients, monkeypatch, profile
+):
+    """Test analyze_canary_failures queries the region it is given, not the configured one."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    if profile:
+        monkeypatch.setenv('AWS_PROFILE', profile)
+    else:
+        monkeypatch.delenv('AWS_PROFILE', raising=False)
+
+    regional_client = MagicMock()
+    regional_client.get_canary_runs.return_value = {'CanaryRuns': []}
+    regional_client.get_canary.return_value = {'Canary': {'Name': 'eu-canary'}}
+    aws_clients = 'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients'
+    with (
+        patch(f'{aws_clients}.boto3.client', return_value=regional_client) as mock_client,
+        patch(f'{aws_clients}.boto3.Session') as mock_session,
+    ):
+        mock_session.return_value.client.return_value = regional_client
+        result = await analyze_canary_failures('eu-canary', 'eu-west-1')
+
+    if profile:
+        mock_session.assert_called_once_with(profile_name=profile, region_name='eu-west-1')
+        assert mock_session.return_value.client.call_args.args == ('synthetics',)
+    else:
+        assert mock_client.call_args.args == ('synthetics',)
+        assert mock_client.call_args.kwargs['region_name'] == 'eu-west-1'
+    assert 'No run history found for eu-canary' in result
+    regional_client.get_canary_runs.assert_called_once()
+    mock_aws_clients['synthetics_client'].get_canary_runs.assert_not_called()
 
 
 @pytest.mark.asyncio
