@@ -1,5 +1,6 @@
 """Tests for modify replication group tool."""
 
+import botocore.session
 import pytest
 from awslabs.elasticache_mcp_server.context import Context
 from awslabs.elasticache_mcp_server.tools.rg import (
@@ -7,6 +8,7 @@ from awslabs.elasticache_mcp_server.tools.rg import (
     modify_replication_group_shard_configuration,
 )
 from awslabs.elasticache_mcp_server.tools.rg.modify import ModifyReplicationGroupRequest
+from botocore.validate import validate_parameters
 from unittest.mock import MagicMock, patch
 
 
@@ -430,3 +432,54 @@ async def test_modify_replication_group_invalid_params():
         )
         result = await modify_replication_group(request)
         assert 'error' in result
+
+
+def _validate_shard_request(kwargs):
+    """Run botocore's client-side validation for ModifyReplicationGroupShardConfiguration."""
+    model = botocore.session.get_session().get_service_model('elasticache')
+    shape = model.operation_model('ModifyReplicationGroupShardConfiguration').input_shape
+    validate_parameters(kwargs, shape)
+
+
+@pytest.mark.asyncio
+async def test_modify_replication_group_shard_configuration_apply_immediately_is_bool():
+    """ApplyImmediately is sent as a boolean, the type the API expects."""
+    mock_client = MagicMock()
+    mock_client.modify_replication_group_shard_configuration.return_value = {}
+
+    with patch(
+        'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+        return_value=mock_client,
+    ):
+        await modify_replication_group_shard_configuration(
+            replication_group_id='test-group',
+            node_group_count=2,
+            apply_immediately=True,
+        )
+
+    call_args = mock_client.modify_replication_group_shard_configuration.call_args[1]
+    assert call_args['ApplyImmediately'] is True
+    _validate_shard_request(call_args)
+
+
+@pytest.mark.asyncio
+async def test_modify_replication_group_shard_configuration_apply_immediately_default():
+    """ApplyImmediately is required by the API, so it is sent even when not given."""
+    mock_client = MagicMock()
+    mock_client.modify_replication_group_shard_configuration.return_value = {}
+
+    with patch(
+        'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+        return_value=mock_client,
+    ):
+        await modify_replication_group_shard_configuration(
+            replication_group_id='test-group',
+            node_group_count=2,
+        )
+
+    mock_client.modify_replication_group_shard_configuration.assert_called_once_with(
+        ReplicationGroupId='test-group',
+        NodeGroupCount=2,
+        ApplyImmediately=True,
+    )
+    _validate_shard_request(mock_client.modify_replication_group_shard_configuration.call_args[1])
