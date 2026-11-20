@@ -190,8 +190,20 @@ def extract_cell(cell: dict):
 
 
 def parse_execute_response(response: dict) -> list[dict]:
-    """Convert RDS Data API execute_statement response to list of rows."""
+    """Convert RDS Data API execute_statement response to list of rows.
+
+    Raises:
+        ValueError: If two or more result columns share a name.
+    """
     columns = [col['name'] for col in response.get('columnMetadata', [])]
+    # Rows are keyed by column name, so repeated names would silently collapse (last value wins).
+    duplicates = [name for name in dict.fromkeys(columns) if columns.count(name) > 1]
+    if duplicates:
+        raise ValueError(
+            f'Result set has duplicate column names ({", ".join(duplicates)}): duplicate names '
+            f'would silently collapse (last value wins). Alias the duplicates, e.g. '
+            f'SELECT e.name AS emp_name, d.name AS dept_name.'
+        )
     records = []
 
     for row in response.get('records', []):
