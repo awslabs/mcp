@@ -1899,3 +1899,26 @@ class TestImageAltText:
         assert self._cell('<img src="/i.png" alt="supported"/> <a href="m.html">Model</a>') == (
             'supported [Model](m.html)'
         )
+
+
+class TestTablesAfterDefinitionListFences:
+    """A fence opened after ':' markers must close, or later tables escape truncation."""
+
+    def test_table_after_a_definition_list_fence_is_truncated(self):
+        """The indented closer ends the block, so the next large table is truncated."""
+        rows = [f'| row{i} | val{i} |' for i in range(30)]
+        md = '\n'.join(
+            [
+                'JSON',
+                ':   :   ```',
+                '        {}',
+                '        ```',
+                '',
+                '| Name | Value |',
+                '|---|---|',
+            ]
+            + rows
+        )
+        result = truncate_large_tables(md, max_rows=10, preview_rows=3)
+        assert 'Table truncated (showing 3 of 30 rows)' in result
+        assert '| row3 | val3 |' not in result
