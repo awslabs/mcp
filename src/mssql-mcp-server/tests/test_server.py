@@ -21,6 +21,7 @@ from awslabs.mssql_mcp_server.mutable_sql_detector import (
     detect_mutating_keywords,
 )
 from awslabs.mssql_mcp_server.server import (
+    DuplicateColumnNamesError,
     _generate_data_boundary,
     _wrap_untrusted_data,
     db_connection_map,
@@ -130,6 +131,58 @@ def test_parse_execute_response_empty():
     """Empty response returns an empty list."""
     response = {'columnMetadata': [], 'records': []}
     assert parse_execute_response(response) == []
+
+
+def test_parse_execute_response_rejects_repeated_column_names():
+    """A join whose tables share column names raises instead of dropping columns."""
+    # SELECT * FROM employees e JOIN departments d ON d.id = e.department_id
+    response = {
+        'columnMetadata': [
+            {'name': 'id'},
+            {'name': 'name'},
+            {'name': 'department_id'},
+            {'name': 'id'},
+            {'name': 'name'},
+        ],
+        'records': [
+            [
+                {'longValue': 7},
+                {'stringValue': 'Alice'},
+                {'longValue': 3},
+                {'longValue': 3},
+                {'stringValue': 'Engineering'},
+            ]
+        ],
+    }
+    with pytest.raises(DuplicateColumnNamesError, match=r'duplicate column names \(id, name\)'):
+        parse_execute_response(response)
+
+
+def test_parse_execute_response_rejects_repeated_names_without_rows():
+    """The check is on the columns, so an empty result raises too."""
+    response = {'columnMetadata': [{'name': 'a'}, {'name': 'a'}], 'records': []}
+    with pytest.raises(DuplicateColumnNamesError, match='Alias the duplicates'):
+        parse_execute_response(response)
+
+
+def test_parse_execute_response_names_each_repeat_once_in_column_order():
+    """Each repeated name is listed once, in the order the columns come."""
+    response = {
+        'columnMetadata': [{'name': n} for n in ['b', 'a', 'b', 'a', 'b', 'c']],
+        'records': [],
+    }
+    with pytest.raises(DuplicateColumnNamesError, match=r'\(b, a\)'):
+        parse_execute_response(response)
+
+
+def test_parse_execute_response_unnamed_expressions():
+    """SELECT 1, 2 gives both columns an empty name, which collide too."""
+    response = {
+        'columnMetadata': [{'name': ''}, {'name': ''}],
+        'records': [[{'longValue': 1}, {'longValue': 2}]],
+    }
+    with pytest.raises(DuplicateColumnNamesError, match=r'duplicate column names \(unnamed\)'):
+        parse_execute_response(response)
 
 
 # ─── data boundary wrapping (prompt injection mitigation) ────────────────────
