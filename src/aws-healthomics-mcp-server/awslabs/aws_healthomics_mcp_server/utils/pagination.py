@@ -133,8 +133,8 @@ def _instruction(
             f'call did not return a usable {param_name} to continue with. '
             f'{returned_count} item(s) returned so far. Do not answer questions about '
             "totals, counts, or 'all' items from this page alone; retrying with "
-            'different parameters (for example a narrower filter, a smaller page '
-            'size, or an alternate pagination mode) may yield a usable token.'
+            'different filters or pagination parameters may help recover the missing '
+            'results or yield a usable token.'
         )
     return (
         'PARTIAL RESULTS -- this is one page, not the full set. '
