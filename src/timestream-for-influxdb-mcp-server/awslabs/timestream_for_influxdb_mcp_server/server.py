@@ -754,7 +754,7 @@ async def list_db_instances_for_cluster(
     if next_token:
         params['nextToken'] = next_token
     if max_results:
-        params['maxResults'] = str(max_results)
+        params['maxResults'] = max_results
 
     try:
         response = ts_influx_client.list_db_instances_for_cluster(**params)
@@ -782,7 +782,7 @@ async def list_db_instances(
     if next_token:
         params['nextToken'] = next_token
     if max_results:
-        params['maxResults'] = str(max_results)
+        params['maxResults'] = max_results
 
     try:
         response = ts_influx_client.list_db_instances(**params)
@@ -810,7 +810,7 @@ async def list_db_clusters(
     if next_token:
         params['nextToken'] = next_token
     if max_results:
-        params['maxResults'] = str(max_results)
+        params['maxResults'] = max_results
 
     try:
         response = ts_influx_client.list_db_clusters(**params)
@@ -972,7 +972,7 @@ async def list_db_parameter_groups(
     if next_token:
         params['nextToken'] = next_token
     if max_results:
-        params['maxResults'] = str(max_results)
+        params['maxResults'] = max_results
 
     try:
         response = ts_influx_client.list_db_parameter_groups(**params)
