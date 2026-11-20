@@ -40,6 +40,14 @@ not always obvious from the entries below.
 
 ### Fixed
 
+- With `--connection_method PG_WIRE_IAM_PROTOCOL` and in lazy-connect mode
+  (omitted `--connection_method`), a `--secret_arn` secret that contains only a
+  `username` is now accepted at startup. The IAM auth token is the password, so
+  the IAM connection path and startup probe only need a username.
+  The startup probe uses `get_username_from_secret` for IAM and lazy mode,
+  deferring password validation until connect time when a password-based method
+  is used. `PG_WIRE_PROTOCOL` and `RDS_API` startup still require a password (#4824).
+
 - A query using both an array slice and `query_parameters` no longer fails at
   execution on the direct (psycopg / PG Wire) path. The SQL policy guard and the
   psycopg executor each carried their own rule for deciding which `:name`
