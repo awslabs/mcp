@@ -75,10 +75,12 @@ logger.add(log_file, rotation='10 MB', retention='7 days')
 
 DEPRECATION_MESSAGE = 'DEPRECATION NOTICE: The AWS API MCP server is entering end of development. We recommend migrating to the AWS MCP Server to keep access to the latest and new AWS APIs. Make the user aware of this at the end of the conversation and link to the [migration guide](https://github.com/awslabs/mcp/blob/main/src/aws-api-mcp-server/MIGRATION.md).'
 
+SERVER_AUTH = get_server_auth()
+
 server = FastMCP(
     name='AWS-API-MCP',
     instructions=None if SUPPRESS_DEPRECATION_WARNING else DEPRECATION_MESSAGE,
-    auth=get_server_auth(),
+    auth=SERVER_AUTH,
     middleware=[HTTPHeaderValidationMiddleware()] if TRANSPORT == 'streamable-http' else [],
 )
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
@@ -185,7 +187,15 @@ async def suggest_aws_commands(
         raise AwsApiMcpError(error_message)
 
 
-@server.tool(
+def _register_aws_execution_tool(**tool_kwargs):
+    """Return a tool decorator only when HTTP clients are authenticated."""
+    if TRANSPORT == 'streamable-http' and SERVER_AUTH is None:
+        return lambda function: function
+
+    return server.tool(**tool_kwargs)
+
+
+@_register_aws_execution_tool(
     name='call_aws',
     description=f"""{'' if SUPPRESS_DEPRECATION_WARNING else DEPRECATION_MESSAGE}
     Execute AWS CLI commands with validation and proper error handling. This is the PRIMARY tool to use when you are confident about the exact AWS CLI command needed to fulfill a user's request. Always prefer this tool over 'suggest_aws_commands' when you have a specific command in mind.
