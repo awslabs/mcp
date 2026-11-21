@@ -312,7 +312,7 @@ class UpdateFrontendTool(BaseTool):
             base_path: Base path for calculating S3 key
         """
         # Get the relative path for the S3 key
-        key = file_path.replace(base_path, '').lstrip('/')
+        key = os.path.relpath(file_path, base_path).replace(os.sep, '/')
 
         # Read the file
         with open(file_path, 'rb') as f:
@@ -342,7 +342,9 @@ class UpdateFrontendTool(BaseTool):
 
         # Get all local files
         local_files = await self._get_all_files(directory_path)
-        local_file_keys = [file.replace(directory_path, '').lstrip('/') for file in local_files]
+        local_file_keys = [
+            os.path.relpath(file, directory_path).replace(os.sep, '/') for file in local_files
+        ]
 
         # Get all S3 objects
         s3_objects = []
