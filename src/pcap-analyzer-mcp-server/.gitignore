@@ -1,0 +1,5 @@
+test_venv/
+*.log
+dist/
+*-coverage.xml
+junit.xml
