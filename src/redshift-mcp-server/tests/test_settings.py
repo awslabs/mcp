@@ -20,16 +20,72 @@ from awslabs.redshift_mcp_server.consts import (
     ACCESS_MODE_READ_ONLY,
     ACCESS_MODE_READ_WRITE,
     ACCESS_MODES,
+    CONNECTION_MODE_DATA_API,
+    CONNECTION_MODE_DIRECT,
     MAX_RESULT_ROWS_DEFAULT,
     SESSION_KEEPALIVE_DEFAULT,
 )
 from awslabs.redshift_mcp_server.settings import (
     _resolve_int_env,
+    connection_mode,
     max_result_rows,
     resolve_access_mode,
+    resolve_direct_sslmode,
     resolve_skip_write_confirmation,
     session_keepalive,
 )
+
+
+class TestConnectionMode:
+    """How SQL reaches the cluster, which stays the Data API unless direct is named."""
+
+    @pytest.mark.parametrize(
+        ('raw', 'expected'),
+        [
+            (None, CONNECTION_MODE_DATA_API),
+            ('data-api', CONNECTION_MODE_DATA_API),
+            ('direct', CONNECTION_MODE_DIRECT),
+            (' Direct ', CONNECTION_MODE_DIRECT),
+            ('jdbc', CONNECTION_MODE_DATA_API),
+            ('', CONNECTION_MODE_DATA_API),
+        ],
+    )
+    def test_anything_but_direct_keeps_the_data_api(self, monkeypatch, raw, expected):
+        """A typo falls back to the default rather than failing to start."""
+        if raw is None:
+            monkeypatch.delenv('REDSHIFT_CONNECTION_MODE', raising=False)
+        else:
+            monkeypatch.setenv('REDSHIFT_CONNECTION_MODE', raw)
+        connection_mode.cache_clear()
+        try:
+            assert connection_mode() == expected
+        finally:
+            connection_mode.cache_clear()
+
+
+class TestDirectSslmode:
+    """Loosening the certificate check is allowed by name only, and always logged."""
+
+    def test_verify_ca_warns_that_the_hostname_is_not_checked(self, monkeypatch, mocker):
+        """The operator asked for it, so it is taken, but the log says what was given up."""
+        warning = mocker.patch('awslabs.redshift_mcp_server.settings.logger.warning')
+        monkeypatch.setenv('REDSHIFT_DIRECT_SSLMODE', 'verify-ca')
+
+        assert resolve_direct_sslmode() == 'verify-ca'
+        warning.assert_called_once()
+        assert 'do not check that the' in warning.call_args.args[0]
+
+    @pytest.mark.parametrize('raw', [None, 'verify-full', ' Verify-Full '])
+    def test_verify_full_logs_nothing(self, monkeypatch, mocker, raw):
+        """The default checks the hostname too, so there is nothing to warn about."""
+        warning = mocker.patch('awslabs.redshift_mcp_server.settings.logger.warning')
+        if raw is None:
+            monkeypatch.delenv('REDSHIFT_DIRECT_SSLMODE', raising=False)
+        else:
+            monkeypatch.setenv('REDSHIFT_DIRECT_SSLMODE', raw)
+
+        assert resolve_direct_sslmode() == 'verify-full'
+        warning.assert_not_called()
 
 
 class TestMaxResultRows:
