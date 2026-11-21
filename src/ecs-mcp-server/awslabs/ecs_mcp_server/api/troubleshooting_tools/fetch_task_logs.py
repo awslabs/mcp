@@ -100,22 +100,13 @@ async def fetch_task_logs(
 
             # Get log streams
             try:
-                if task_id:
-                    # If task_id is provided, look for matching log stream
-                    stream_prefix = task_id.split("-")[
-                        0
-                    ]  # Usually task ID starts with log stream name
-                    log_streams = logs.describe_log_streams(
-                        logGroupName=log_group_name,
-                        logStreamNamePrefix=stream_prefix,
-                        orderBy="LastEventTime",
-                        descending=True,
-                    )
-                else:
-                    # Otherwise get all recent log streams
-                    log_streams = logs.describe_log_streams(
-                        logGroupName=log_group_name, orderBy="LastEventTime", descending=True
-                    )
+                # awslogs names streams "<prefix>/<container>/<task-id>", so a task ID
+                # is not a usable logStreamNamePrefix, and CloudWatch Logs rejects
+                # logStreamNamePrefix together with orderBy=LastEventTime anyway.
+                # List the most recent streams and match the task ID below.
+                log_streams = logs.describe_log_streams(
+                    logGroupName=log_group_name, orderBy="LastEventTime", descending=True
+                )
 
                 for log_stream in log_streams["logStreams"]:
                     log_stream_name = log_stream["logStreamName"]
@@ -137,9 +128,12 @@ async def fetch_task_logs(
                         }
 
                         if filter_pattern:
+                            # GetLogEvents has no filterPattern; FilterLogEvents does.
+                            args["logStreamNames"] = [args.pop("logStreamName")]
                             args["filterPattern"] = filter_pattern
-
-                        log_events = logs.get_log_events(**args)
+                            log_events = logs.filter_log_events(**args)
+                        else:
+                            log_events = logs.get_log_events(**args)
 
                         # Process log events
                         for event in log_events["events"]:
