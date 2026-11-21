@@ -15,6 +15,7 @@
 """Unit tests for Memory guide tool."""
 
 import pytest
+import re
 from awslabs.amazon_bedrock_agentcore_mcp_server.tools.memory.guide import (
     MEMORY_GUIDE,
     GuideTools,
@@ -85,3 +86,23 @@ class TestGetMemoryGuide:
         assert 'Prerequisites' in MEMORY_GUIDE
         assert 'agentcore-cli' in MEMORY_GUIDE or 'agentcore' in MEMORY_GUIDE
         assert 'do NOT need the CLI' in MEMORY_GUIDE
+
+    @pytest.mark.asyncio
+    async def test_guide_has_no_merge_conflict_markers(self, mock_ctx):
+        """Guide text returned to clients contains no unresolved git conflict markers."""
+        tools = GuideTools()
+        result = await tools.get_memory_guide(ctx=mock_ctx)
+        markers = re.findall(r'^(?:<{7}|={7}|>{7})(?:\s|$).*$', result.guide, re.MULTILINE)
+        assert markers == []
+
+    @pytest.mark.asyncio
+    async def test_guide_cli_install_command(self, mock_ctx):
+        """Guide has a single, correct npm install command for the agentcore CLI."""
+        tools = GuideTools()
+        result = await tools.get_memory_guide(ctx=mock_ctx)
+        install_lines = [
+            line.strip() for line in result.guide.splitlines() if 'npm install' in line
+        ]
+        assert install_lines == ['npm install -g @aws/agentcore']
+        assert '@aws/agentcore-cli' not in result.guide
+        assert '@anthropic-ai' not in result.guide
