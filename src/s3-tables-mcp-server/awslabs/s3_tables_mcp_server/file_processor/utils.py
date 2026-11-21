@@ -109,11 +109,8 @@ async def import_file_to_table(
     namespace: str,
     table_name: str,
     s3_url: str,
-    uri: str,
     create_pyarrow_table: Callable[[Any], pa.Table],
     catalog_name: str = 's3tablescatalog',
-    rest_signing_name: str = 's3tables',
-    rest_sigv4_enabled: str = 'true',
     preserve_case: bool = False,
 ) -> Dict:
     """Import data from a file (CSV, Parquet, etc.) into an S3 table using a provided PyArrow table creation function."""
@@ -127,10 +124,7 @@ async def import_file_to_table(
         catalog = pyiceberg_load_catalog(
             catalog_name,
             warehouse,
-            uri,
             region,
-            rest_signing_name,
-            rest_sigv4_enabled,
         )
 
         # Get S3 client and read the file

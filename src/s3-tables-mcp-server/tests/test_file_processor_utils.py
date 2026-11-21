@@ -277,10 +277,7 @@ async def test_import_file_to_table_success():
     namespace = 'testns'
     table_name = 'testtable'
     s3_url = 's3://bucket/test.csv'
-    uri = 'http://localhost:8181'
     catalog_name = 's3tablescatalog'
-    rest_signing_name = 's3tables'
-    rest_sigv4_enabled = 'true'
     preserve_case = False
 
     # Mock S3 client and response
@@ -339,7 +336,7 @@ async def test_import_file_to_table_success():
         patch(
             'awslabs.s3_tables_mcp_server.file_processor.utils.pyiceberg_load_catalog',
             return_value=mock_catalog,
-        ),
+        ) as mock_load_catalog,
         patch(
             'awslabs.s3_tables_mcp_server.file_processor.utils.get_s3_client',
             return_value=mock_s3_client,
@@ -351,11 +348,8 @@ async def test_import_file_to_table_success():
             namespace=namespace,
             table_name=table_name,
             s3_url=s3_url,
-            uri=uri,
             create_pyarrow_table=mock_create_pyarrow_table,
             catalog_name=catalog_name,
-            rest_signing_name=rest_signing_name,
-            rest_sigv4_enabled=rest_sigv4_enabled,
             preserve_case=preserve_case,
         )
 
@@ -366,6 +360,7 @@ async def test_import_file_to_table_success():
     assert result['file_processed'] == 'test.csv'
     assert result['table_uuid'] == 'fake-uuid'
     assert result['columns'] == ['col_1', 'col_2']
+    mock_load_catalog.assert_called_once_with(catalog_name, warehouse, region)
 
 
 @pytest.mark.asyncio
@@ -378,10 +373,7 @@ async def test_import_file_to_table_column_conversion_error():
     namespace = 'testns'
     table_name = 'testtable'
     s3_url = 's3://bucket/test.csv'
-    uri = 'http://localhost:8181'
     catalog_name = 's3tablescatalog'
-    rest_signing_name = 's3tables'
-    rest_sigv4_enabled = 'true'
     preserve_case = False
 
     # Mock S3 client and response
@@ -441,11 +433,8 @@ async def test_import_file_to_table_column_conversion_error():
             namespace=namespace,
             table_name=table_name,
             s3_url=s3_url,
-            uri=uri,
             create_pyarrow_table=mock_create_pyarrow_table,
             catalog_name=catalog_name,
-            rest_signing_name=rest_signing_name,
-            rest_sigv4_enabled=rest_sigv4_enabled,
             preserve_case=preserve_case,
         )
 
@@ -465,10 +454,7 @@ async def test_import_file_to_table_create_table_success():
     namespace = 'testns'
     table_name = 'testtable'
     s3_url = 's3://bucket/test.csv'
-    uri = 'http://localhost:8181'
     catalog_name = 's3tablescatalog'
-    rest_signing_name = 's3tables'
-    rest_sigv4_enabled = 'true'
     preserve_case = False
 
     # Mock S3 client and response
@@ -524,11 +510,8 @@ async def test_import_file_to_table_create_table_success():
             namespace=namespace,
             table_name=table_name,
             s3_url=s3_url,
-            uri=uri,
             create_pyarrow_table=mock_create_pyarrow_table,
             catalog_name=catalog_name,
-            rest_signing_name=rest_signing_name,
-            rest_sigv4_enabled=rest_sigv4_enabled,
             preserve_case=preserve_case,
         )
 
@@ -554,10 +537,7 @@ async def test_import_file_to_table_create_table_failure():
     namespace = 'testns'
     table_name = 'testtable'
     s3_url = 's3://bucket/test.csv'
-    uri = 'http://localhost:8181'
     catalog_name = 's3tablescatalog'
-    rest_signing_name = 's3tables'
-    rest_sigv4_enabled = 'true'
     preserve_case = False
 
     # Mock S3 client and response
@@ -610,11 +590,8 @@ async def test_import_file_to_table_create_table_failure():
             namespace=namespace,
             table_name=table_name,
             s3_url=s3_url,
-            uri=uri,
             create_pyarrow_table=mock_create_pyarrow_table,
             catalog_name=catalog_name,
-            rest_signing_name=rest_signing_name,
-            rest_sigv4_enabled=rest_sigv4_enabled,
             preserve_case=preserve_case,
         )
 
@@ -634,10 +611,7 @@ async def test_import_file_to_table_general_exception():
     namespace = 'testns'
     table_name = 'testtable'
     s3_url = 's3://bucket/test.csv'
-    uri = 'http://localhost:8181'
     catalog_name = 's3tablescatalog'
-    rest_signing_name = 's3tables'
-    rest_sigv4_enabled = 'true'
     preserve_case = False
 
     # Patch pyiceberg_load_catalog to raise a general exception
@@ -655,11 +629,8 @@ async def test_import_file_to_table_general_exception():
             namespace=namespace,
             table_name=table_name,
             s3_url=s3_url,
-            uri=uri,
             create_pyarrow_table=dummy_create_pyarrow_table,
             catalog_name=catalog_name,
-            rest_signing_name=rest_signing_name,
-            rest_sigv4_enabled=rest_sigv4_enabled,
             preserve_case=preserve_case,
         )
 
@@ -785,7 +756,6 @@ async def test_import_file_to_table_with_temporal_conversion():
     namespace = 'testns'
     table_name = 'testtable'
     s3_url = 's3://bucket/test.csv'
-    uri = 'http://localhost:8181'
 
     # Mock S3 client
     mock_s3_client = MagicMock()
@@ -830,7 +800,6 @@ async def test_import_file_to_table_with_temporal_conversion():
             namespace=namespace,
             table_name=table_name,
             s3_url=s3_url,
-            uri=uri,
             create_pyarrow_table=mock_create_pyarrow_table,
             preserve_case=True,
         )

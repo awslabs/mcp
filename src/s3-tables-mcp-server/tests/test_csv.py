@@ -28,10 +28,7 @@ async def test_import_csv_to_table_success():
     namespace = 'testns'
     table_name = 'testtable'
     s3_url = 's3://bucket/test.csv'
-    uri = 'http://localhost:8181'
     catalog_name = 's3tablescatalog'
-    rest_signing_name = 's3tables'
-    rest_sigv4_enabled = 'true'
     preserve_case = False
 
     # Patch import_file_to_table to simulate a successful import
@@ -55,10 +52,7 @@ async def test_import_csv_to_table_success():
             namespace=namespace,
             table_name=table_name,
             s3_url=s3_url,
-            uri=uri,
             catalog_name=catalog_name,
-            rest_signing_name=rest_signing_name,
-            rest_sigv4_enabled=rest_sigv4_enabled,
             preserve_case=preserve_case,
         )
 

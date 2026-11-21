@@ -22,10 +22,7 @@ async def import_parquet_to_table(
     namespace: str,
     table_name: str,
     s3_url: str,
-    uri: str,
     catalog_name: str = 's3tablescatalog',
-    rest_signing_name: str = 's3tables',
-    rest_sigv4_enabled: str = 'true',
     preserve_case: bool = False,
 ):
     """Import a Parquet file into an S3 table using PyArrow."""
@@ -35,10 +32,7 @@ async def import_parquet_to_table(
         namespace=namespace,
         table_name=table_name,
         s3_url=s3_url,
-        uri=uri,
         create_pyarrow_table=pq.read_table,
         catalog_name=catalog_name,
-        rest_signing_name=rest_signing_name,
-        rest_sigv4_enabled=rest_sigv4_enabled,
         preserve_case=preserve_case,
     )

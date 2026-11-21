@@ -11,12 +11,9 @@ async def test_execute_query_success():
     # Test configuration
     config = PyIcebergConfig(
         warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-        uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
         catalog_name='s3tablescatalog',
-        rest_signing_name='s3tables',
-        rest_sigv4_enabled='true',
     )
 
     # Mock objects
@@ -64,10 +61,7 @@ async def test_execute_query_success():
         mock_load_catalog.assert_called_once_with(
             's3tablescatalog',
             'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-            'https://s3tables.us-west-2.amazonaws.com/iceberg',
             'us-west-2',
-            's3tables',
-            'true',
         )
         mock_session_class.assert_called_once()
         mock_session.attach.assert_called_once()
@@ -85,12 +79,9 @@ async def test_initialize_connection_exception():
     # Test configuration
     config = PyIcebergConfig(
         warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-        uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
         catalog_name='s3tablescatalog',
-        rest_signing_name='s3tables',
-        rest_sigv4_enabled='true',
     )
 
     # Mock pyiceberg_load_catalog to raise an exception during initialization
@@ -110,10 +101,7 @@ async def test_initialize_connection_exception():
         mock_load_catalog.assert_called_once_with(
             's3tablescatalog',
             'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-            'https://s3tables.us-west-2.amazonaws.com/iceberg',
             'us-west-2',
-            's3tables',
-            'true',
         )
 
 
@@ -125,12 +113,9 @@ async def test_execute_query_no_active_session():
     # Test configuration
     config = PyIcebergConfig(
         warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-        uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
         catalog_name='s3tablescatalog',
-        rest_signing_name='s3tables',
-        rest_sigv4_enabled='true',
     )
 
     # Mock objects for successful initialization
@@ -171,12 +156,9 @@ async def test_execute_query_none_result():
     # Test configuration
     config = PyIcebergConfig(
         warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-        uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
         catalog_name='s3tablescatalog',
-        rest_signing_name='s3tables',
-        rest_sigv4_enabled='true',
     )
 
     # Mock objects for successful initialization
@@ -217,12 +199,9 @@ async def test_test_connection_success():
     # Test configuration
     config = PyIcebergConfig(
         warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-        uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
         catalog_name='s3tablescatalog',
-        rest_signing_name='s3tables',
-        rest_sigv4_enabled='true',
     )
 
     # Mock objects for successful initialization
@@ -262,12 +241,9 @@ async def test_test_connection_no_session():
     # Test configuration
     config = PyIcebergConfig(
         warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-        uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
         catalog_name='s3tablescatalog',
-        rest_signing_name='s3tables',
-        rest_sigv4_enabled='true',
     )
 
     # Mock objects for successful initialization
@@ -307,12 +283,9 @@ async def test_test_connection_exception():
     # Test configuration
     config = PyIcebergConfig(
         warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-        uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
         catalog_name='s3tablescatalog',
-        rest_signing_name='s3tables',
-        rest_sigv4_enabled='true',
     )
 
     # Mock objects for successful initialization
@@ -352,12 +325,9 @@ async def test_append_rows_success():
     # Test configuration
     config = PyIcebergConfig(
         warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-        uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
         catalog_name='s3tablescatalog',
-        rest_signing_name='s3tables',
-        rest_sigv4_enabled='true',
     )
 
     # Mock objects for successful initialization
@@ -417,12 +387,9 @@ async def test_append_rows_no_active_catalog():
     # Test configuration
     config = PyIcebergConfig(
         warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-        uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
         catalog_name='s3tablescatalog',
-        rest_signing_name='s3tables',
-        rest_sigv4_enabled='true',
     )
 
     # Mock objects for successful initialization
@@ -467,12 +434,9 @@ async def test_append_rows_general_exception():
     # Test configuration
     config = PyIcebergConfig(
         warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-        uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
         catalog_name='s3tablescatalog',
-        rest_signing_name='s3tables',
-        rest_sigv4_enabled='true',
     )
 
     # Mock objects for successful initialization
@@ -533,12 +497,9 @@ async def test_append_rows_with_namespace_in_table_name():
     # Test configuration
     config = PyIcebergConfig(
         warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-        uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
         catalog_name='s3tablescatalog',
-        rest_signing_name='s3tables',
-        rest_sigv4_enabled='true',
     )
 
     # Mock objects for successful initialization

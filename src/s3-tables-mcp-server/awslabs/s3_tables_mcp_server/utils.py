@@ -116,13 +116,29 @@ def get_athena_client(region_name: Optional[str] = None) -> BaseClient:
 def pyiceberg_load_catalog(
     catalog_name: str,
     warehouse: str,
-    uri: str,
     region: str,
-    rest_signing_name: str = 's3tables',
-    rest_sigv4_enabled: str = 'true',
 ):
-    """Load a PyIceberg catalog with the given parameters."""
+    """Load a PyIceberg catalog for the S3 Tables endpoint in the given region.
+
+    The catalog destination is derived from the region using the same boto3
+    endpoint resolution as the server's other S3 Tables calls, so operator
+    configuration (``AWS_USE_FIPS_ENDPOINT``, ``AWS_USE_DUALSTACK_ENDPOINT``,
+    ``AWS_ENDPOINT_URL_S3TABLES``, and their profile equivalents) applies
+    consistently. The destination is not taken from tool input.
+    """
     from pyiceberg.catalog import load_catalog
+
+    try:
+        client = get_s3tables_client(region)
+    except Exception as error:
+        raise ValueError(
+            f'Unable to resolve S3 Tables endpoint for AWS region {region!r}: {error}'
+        ) from error
+
+    # Sign for the region the endpoint was actually resolved for, so the two
+    # cannot disagree when region falls back to AWS_REGION or the default.
+    signing_region = client.meta.region_name
+    uri = f'{client.meta.endpoint_url.rstrip("/")}/iceberg'
 
     catalog = load_catalog(
         catalog_name,
@@ -130,9 +146,9 @@ def pyiceberg_load_catalog(
             'type': 'rest',
             'warehouse': warehouse,
             'uri': uri,
-            'rest.sigv4-enabled': rest_sigv4_enabled,
-            'rest.signing-name': rest_signing_name,
-            'rest.signing-region': region,
+            'rest.sigv4-enabled': 'true',
+            'rest.signing-name': 's3tables',
+            'rest.signing-region': signing_region,
         },
     )
     catalog._session.headers['User-Agent'] = _user_agent_extra()  # type: ignore[attr-defined]

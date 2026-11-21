@@ -50,7 +50,12 @@ class TestQueryDatabaseResource:
                 query=query,
             )
             assert result == expected_result
-            mock_config.assert_called_once()
+            mock_config.assert_called_once_with(
+                warehouse=warehouse,
+                region=region,
+                namespace=namespace,
+                catalog_name='s3tablescatalog',
+            )
             mock_engine.assert_called_once()
             engine_instance.execute_query.assert_called_once_with(query)
 
@@ -108,7 +113,12 @@ class TestAppendRowsToTableResource:
             )
             assert result['status'] == 'success'
             assert result['rows_appended'] == len(rows)
-            mock_config.assert_called_once()
+            mock_config.assert_called_once_with(
+                warehouse=warehouse,
+                region=region,
+                namespace=namespace,
+                catalog_name='s3tablescatalog',
+            )
             mock_engine.assert_called_once()
             engine_instance.append_rows.assert_called_once_with(table_name, rows)
 
