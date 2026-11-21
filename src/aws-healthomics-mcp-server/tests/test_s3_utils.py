@@ -125,6 +125,11 @@ class TestParseS3Path:
         assert bucket == 'genomics-data'
         assert prefix == 'projects/2024/samples/fastq/'
 
+    def test_parse_s3_path_key_with_hash_and_question_mark(self):
+        """Test that '#' and '?' in the key are kept, not treated as URL parts."""
+        assert parse_s3_path('s3://bucket/dir/sample#1.bam') == ('bucket', 'dir/sample#1.bam')
+        assert parse_s3_path('s3://bucket/run?x/sample.bam') == ('bucket', 'run?x/sample.bam')
+
 
 class TestIsValidBucketName:
     """Test cases for is_valid_bucket_name function."""
