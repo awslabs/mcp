@@ -1,5 +1,6 @@
 """Unit tests for OutputManager and related classes."""
 
+import logging
 import pytest
 from awslabs.dynamodb_mcp_server.repo_generation_tool.output.output_manager import (
     GeneratedFile,
@@ -128,25 +129,35 @@ class TestOutputManager:
         assert '# New content' in existing_file.read_text()
         assert '# Old content' not in existing_file.read_text()
 
-    def test_copy_support_file_not_found(self, output_manager, capsys):
-        """Test warning is printed when support file is not found."""
+    def test_copy_support_file_not_found(self, output_manager, caplog):
+        """Test warning is logged when support file is not found."""
         file = GeneratedFile('missing.py', 'Missing', 'test', '')
         result = GenerationResult([file], {}, 'test')
-        output_manager.write_generated_files(result)
-        captured = capsys.readouterr()
-        assert 'Warning: Support file not found' in captured.out
+        with caplog.at_level(logging.WARNING):
+            output_manager.write_generated_files(result)
+        assert 'Support file not found' in caplog.text
 
-    def test_print_summary_with_categories(self, output_manager, capsys):
-        """Test that summary is printed with file categories and counts."""
+    def test_summary_with_categories_is_logged(self, output_manager, caplog):
+        """Test that the summary is logged with file categories and counts."""
         files = [
             GeneratedFile('entities.py', '5 entities', 'entities', '#', 5),
             GeneratedFile('repos.py', 'Repos', 'repositories', '#'),
         ]
         result = GenerationResult(files, {'1': {}}, 'test')
+        with caplog.at_level(logging.INFO):
+            output_manager.write_generated_files(result)
+        assert 'entities.py: 5 entities' in caplog.text
+        assert 'repos.py: Repos' in caplog.text
+
+    def test_write_generated_files_keeps_stdout_clean(self, output_manager, capsys):
+        """Test that nothing is written to stdout, which is the MCP stdio channel."""
+        files = [
+            GeneratedFile('entities.py', '5 entities', 'entities', '#', 5),
+            GeneratedFile('missing.py', 'Missing', 'test', ''),
+        ]
+        result = GenerationResult(files, {'1': {}}, 'test')
         output_manager.write_generated_files(result)
-        captured = capsys.readouterr()
-        assert 'entities.py: 5 entities' in captured.out
-        assert 'repos.py: Repos' in captured.out
+        assert capsys.readouterr().out == ''
 
     def test_copy_support_file_exists(self, tmp_path, monkeypatch):
         """Test that support files are copied when they exist."""
