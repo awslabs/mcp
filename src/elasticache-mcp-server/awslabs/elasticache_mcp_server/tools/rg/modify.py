@@ -29,19 +29,23 @@ from typing import Any, Dict, List, Optional, Union
 async def modify_replication_group_shard_configuration(
     replication_group_id: str,
     node_group_count: int,
-    apply_immediately: Optional[bool] = None,
+    apply_immediately: bool = True,
     resharding_configuration: Optional[Union[str, List[Dict]]] = None,
+    node_groups_to_remove: Optional[List[str]] = None,
+    node_groups_to_retain: Optional[List[str]] = None,
 ) -> Dict:
     """Modify the shard configuration of an existing Amazon ElastiCache replication group.
 
     This tool modifies the shard configuration of an existing replication group by:
     - Modifying the number of replicas in a shard
     - Specifying preferred availability zones for replicas
+    - Removing shards, with the shards to remove or to retain
 
     Parameters:
         replication_group_id (str): The identifier of the replication group to modify.
         node_group_count (int): The number of node groups (shards) in the replication group.
-        apply_immediately (Optional[bool]): Whether to apply changes immediately or during maintenance window.
+        apply_immediately (bool): Whether the shard reconfiguration starts immediately. The API requires
+            this parameter and currently only accepts true. Defaults to True.
         resharding_configuration (Optional[Union[str, List[Dict]]]): Resharding configuration in either shorthand string format or list of dictionaries format.
             Shorthand format: "NodeGroupId=string,NewShardConfiguration={NewReplicaCount=integer,PreferredAvailabilityZones=string1,string2}"
             Multiple configurations can be separated by spaces.
@@ -50,6 +54,11 @@ async def modify_replication_group_shard_configuration(
             - NewShardConfiguration:
                 - NewReplicaCount: integer
                 - PreferredAvailabilityZones: list of strings (optional)
+        node_groups_to_remove (Optional[List[str]]): The node group (shard) IDs to remove. When
+            node_group_count is lower than the current number of shards, the API requires either
+            this parameter or node_groups_to_retain.
+        node_groups_to_retain (Optional[List[str]]): The node group (shard) IDs to keep. All other
+            shards are removed. Cannot be used together with node_groups_to_remove.
 
     Returns:
         Dict containing information about the modified replication group.
@@ -67,11 +76,18 @@ async def modify_replication_group_shard_configuration(
     modify_request = {
         'ReplicationGroupId': replication_group_id,
         'NodeGroupCount': node_group_count,
+        'ApplyImmediately': apply_immediately,
     }
 
     # Add optional parameters if provided
-    if apply_immediately is not None:
-        modify_request['ApplyImmediately'] = str(apply_immediately).lower()
+    if node_groups_to_remove and node_groups_to_retain:
+        return {
+            'error': 'Specify either node_groups_to_remove or node_groups_to_retain, not both.'
+        }
+    if node_groups_to_remove:
+        modify_request['NodeGroupsToRemove'] = node_groups_to_remove
+    if node_groups_to_retain:
+        modify_request['NodeGroupsToRetain'] = node_groups_to_retain
 
     if resharding_configuration:
         try:
