@@ -137,6 +137,42 @@ async def test_configure_security_groups_vpc_mismatch():
 
 
 @pytest.mark.asyncio
+async def test_configure_security_groups_no_cache_nodes():
+    """Test that a replication group whose first cluster has no cache nodes yet (still provisioning) raises ValueError, not IndexError."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    mock_elasticache.describe_replication_groups.return_value = {
+        'ReplicationGroups': [{'MemberClusters': ['cluster-1']}]
+    }
+    mock_elasticache.describe_cache_clusters.return_value = {
+        'CacheClusters': [
+            {
+                'CacheSubnetGroupName': 'subnet-group-1',
+                'CacheNodes': [],
+            }
+        ]
+    }
+    mock_elasticache.describe_cache_subnet_groups.return_value = {
+        'CacheSubnetGroups': [{'VpcId': 'vpc-123'}]
+    }
+    mock_ec2.describe_instances.return_value = {
+        'Reservations': [
+            {'Instances': [{'VpcId': 'vpc-123', 'SecurityGroups': [{'GroupId': 'sg-instance'}]}]}
+        ]
+    }
+
+    with pytest.raises(ValueError) as excinfo:
+        await _configure_security_groups(
+            'rg-test',
+            'i-123',
+            ec2_client=mock_ec2,
+            elasticache_client=mock_elasticache,
+        )
+    assert 'No cache nodes found for cluster cluster-1' in str(excinfo.value)
+
+
+@pytest.mark.asyncio
 async def test_connect_jump_host_rg_success():
     """Test successful jump host connection."""
     mock_ec2 = MagicMock()
