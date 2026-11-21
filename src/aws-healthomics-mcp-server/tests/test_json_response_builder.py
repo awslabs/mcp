@@ -343,6 +343,12 @@ class TestJsonResponseBuilder:
         # Test edge case: compressed file with only two parts
         assert builder._extract_file_extension('file.gz') == 'gz'
         assert builder._extract_file_extension('file.bz2') == 'bz2'
+        # Dots in the bucket or folder name must not leak into the extension
+        assert builder._extract_file_extension('s3://bucket/dir/sample.fastq.gz') == 'fastq.gz'
+        assert builder._extract_file_extension('s3://my.bucket/sample.gz') == 'gz'
+        assert builder._extract_file_extension('s3://data.example.org/sample.vcf.bz2') == 'vcf.bz2'
+        assert builder._extract_file_extension('s3://bucket/ref.v2/genome') == ''
+        assert builder._extract_file_extension('s3://bucket/dir.v1/a.gz') == 'gz'
 
     def test_extract_basename(self, builder):
         """Test basename extraction."""

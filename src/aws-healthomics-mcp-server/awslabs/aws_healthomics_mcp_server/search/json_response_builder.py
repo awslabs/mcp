@@ -384,6 +384,8 @@ class JsonResponseBuilder:
         Returns:
             File extension (without dot)
         """
+        # Only the file name counts; dots in a bucket or folder name are not an extension
+        path = path.split('/')[-1]
         if '.' not in path:
             return ''
 
