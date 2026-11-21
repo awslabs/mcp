@@ -1,5 +1,5 @@
 ---
-title: AWS Cloud Control API MCP Server
+title: AWS Cloud Control API MCP Server (Deprecated)
 ---
 
 import ReadmeContent from "../../../src/ccapi-mcp-server/README.md";

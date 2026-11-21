@@ -113,7 +113,7 @@ Windows ユーザーの場合、MCP サーバーの設定形式が少し異な�
 {
   "mcpServers": {
     "awslabs.memcached-mcp-server": {
-      "command": "uvx",
+      "command": "uv",
       "args": [
         "tool",
         "run",

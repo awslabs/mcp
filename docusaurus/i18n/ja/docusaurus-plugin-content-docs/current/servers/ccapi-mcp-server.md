@@ -1,5 +1,5 @@
 ---
-title: "AWS Cloud Control API MCPサーバー"
+title: "AWS Cloud Control API MCPサーバー（非推奨）"
 ---
 
 > **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。[AWS IAC MCP サーバー](https://github.com/awslabs/mcp/tree/main/src/aws-iac-mcp-server) への移行をお願いします。こちらは CloudFormation および CDK のドキュメントを用いた Infrastructure as Code のオーサリング、テンプレート検証 (cfn-lint)、コンプライアンスチェック (cfn-guard)、デプロイのトラブルシューティングを提供します。ツールごとの詳細な対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-ccapi.md) を参照してください。
