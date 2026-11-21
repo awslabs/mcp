@@ -12,3 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `connection_type` parameter on `create-serverless-cache` to create ElastiCache Serverless caches with a public endpoint (`'public'`) or a VPC endpoint (`'vpc'`, default).
 - Jump-host tools now return a clear error for caches with a public endpoint, since those are reached directly over the internet with IAM authentication.
 - Initial project setup
+
+### Fixed
+
+- `create-serverless-cache` now splits string tags on the first `=`, so tag values that contain `=` work, and returns a clear error for a tag without `=` or with an empty key.
