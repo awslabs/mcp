@@ -17,6 +17,7 @@
 import json
 import os
 import tempfile
+from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.process import run_command
 from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
@@ -24,11 +25,12 @@ from pydantic import Field
 from typing import Any, Dict, Optional
 
 
-class SamLocalInvokeTool:
+class SamLocalInvokeTool(BaseTool):
     """Tool to locally invoke AWS Lambda functions using the SAM CLI."""
 
-    def __init__(self, mcp: MCPServer):
+    def __init__(self, mcp: MCPServer, allow_write: bool):
         """Initialize the SAM local invoke tool."""
+        super().__init__(allow_write=allow_write)
         mcp.tool(name='sam_local_invoke')(self.handle_sam_local_invoke)
 
     async def handle_sam_local_invoke(
@@ -88,6 +90,8 @@ class SamLocalInvokeTool:
         Returns:
             Dict: Local invoke result and the execution logs
         """
+        self.checkToolAccess()
+
         try:
             await ctx.info(f"Locally invoking resource '{resource_name}' in {project_directory}")
             project_directory = project_directory

@@ -36,7 +36,9 @@ class TestSamLocalInvoke:
             return_value=(mock_result.stdout, mock_result.stderr),
         ) as mock_run:
             # Call the function
-            result = await SamLocalInvokeTool(MagicMock()).handle_sam_local_invoke(
+            result = await SamLocalInvokeTool(
+                MagicMock(), allow_write=True
+            ).handle_sam_local_invoke(
                 AsyncMock(),
                 project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
                 resource_name='test-function',
@@ -83,7 +85,9 @@ class TestSamLocalInvoke:
             return_value=(mock_result.stdout, mock_result.stderr),
         ) as mock_run:
             # Call the function
-            result = await SamLocalInvokeTool(MagicMock()).handle_sam_local_invoke(
+            result = await SamLocalInvokeTool(
+                MagicMock(), allow_write=True
+            ).handle_sam_local_invoke(
                 AsyncMock(),
                 project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
                 resource_name='test-function',
@@ -135,7 +139,9 @@ class TestSamLocalInvoke:
             ) as mock_run,
         ):
             # Call the function
-            result = await SamLocalInvokeTool(MagicMock()).handle_sam_local_invoke(
+            result = await SamLocalInvokeTool(
+                MagicMock(), allow_write=True
+            ).handle_sam_local_invoke(
                 AsyncMock(),
                 project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
                 resource_name='test-function',
@@ -189,7 +195,9 @@ class TestSamLocalInvoke:
             return_value=(mock_result.stdout, mock_result.stderr),
         ) as mock_run:
             # Call the function
-            result = await SamLocalInvokeTool(MagicMock()).handle_sam_local_invoke(
+            result = await SamLocalInvokeTool(
+                MagicMock(), allow_write=True
+            ).handle_sam_local_invoke(
                 AsyncMock(),
                 project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
                 resource_name='test-function',
@@ -244,7 +252,9 @@ class TestSamLocalInvoke:
             return_value=(mock_result.stdout, mock_result.stderr),
         ):
             # Call the function
-            result = await SamLocalInvokeTool(MagicMock()).handle_sam_local_invoke(
+            result = await SamLocalInvokeTool(
+                MagicMock(), allow_write=True
+            ).handle_sam_local_invoke(
                 AsyncMock(),
                 project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
                 resource_name='test-function',
@@ -276,7 +286,9 @@ class TestSamLocalInvoke:
             side_effect=Exception(error_message),
         ):
             # Call the function
-            result = await SamLocalInvokeTool(MagicMock()).handle_sam_local_invoke(
+            result = await SamLocalInvokeTool(
+                MagicMock(), allow_write=True
+            ).handle_sam_local_invoke(
                 AsyncMock(),
                 project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
                 resource_name='test-function',
@@ -297,3 +309,26 @@ class TestSamLocalInvoke:
             assert result['success'] is False
             assert 'Failed to invoke resource locally' in result['message']
             assert error_message in result['error']
+
+    @pytest.mark.asyncio
+    async def test_sam_local_invoke_allow_write_false(self):
+        """Test that sam_local_invoke is blocked and runs no command when allow_write is False."""
+        tool = SamLocalInvokeTool(MagicMock(), allow_write=False)
+
+        with patch(
+            'awslabs.aws_serverless_mcp_server.tools.sam.sam_local_invoke.run_command',
+        ) as mock_run:
+            with pytest.raises(Exception) as exc_info:
+                await tool.handle_sam_local_invoke(
+                    AsyncMock(),
+                    project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                    resource_name='TestFunction',
+                    log_file=os.path.join(tempfile.gettempdir(), 'victim.log'),
+                )
+
+            mock_run.assert_not_called()
+
+        assert (
+            'Write operations are not allowed. Set --allow-write flag to true to enable write operations.'
+            in str(exc_info.value)
+        )

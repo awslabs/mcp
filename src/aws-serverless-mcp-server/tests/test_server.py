@@ -146,10 +146,10 @@ class TestServer:
         mock_get_lambda_guidance.assert_called_once_with(mock_mcp)
         mock_get_serverless_templates.assert_called_once_with(mock_mcp)
 
-        mock_sam_build.assert_called_once_with(mock_mcp)
+        mock_sam_build.assert_called_once_with(mock_mcp, True)
         mock_sam_deploy.assert_called_once_with(mock_mcp, True)  # allow_write=True
-        mock_sam_init.assert_called_once_with(mock_mcp)
-        mock_sam_local_invoke.assert_called_once_with(mock_mcp)
+        mock_sam_init.assert_called_once_with(mock_mcp, True)
+        mock_sam_local_invoke.assert_called_once_with(mock_mcp, True)
         mock_sam_logs.assert_called_once_with(mock_mcp, True)  # allow_sensitive_data_access=True
 
         mock_list_registries.assert_called_once()
