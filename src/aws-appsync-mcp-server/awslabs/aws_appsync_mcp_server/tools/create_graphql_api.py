@@ -28,7 +28,7 @@ def register_create_graphql_api_tool(mcp):
 
     @mcp.tool(
         name='create_graphql_api',
-        description="""Creates a GraphQL API.
+        description="""[DEPRECATED] Creates a GraphQL API.
 
         This operation creates a new GraphQL API with the specified configuration.
         The API will be created with the authentication type and other settings provided.

@@ -26,7 +26,7 @@ def register_create_schema_tool(mcp):
 
     @mcp.tool(
         name='create_schema',
-        description="""Creates a GraphQL schema for an AppSync API and polls until completion.
+        description="""[DEPRECATED] Creates a GraphQL schema for an AppSync API and polls until completion.
 
         This tool starts the schema creation process and automatically polls for the status
         until the operation completes (either SUCCESS or FAILED). The schema defines the

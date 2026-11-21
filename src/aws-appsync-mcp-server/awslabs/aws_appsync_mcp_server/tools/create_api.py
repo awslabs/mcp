@@ -26,7 +26,7 @@ def register_create_api_tool(mcp):
 
     @mcp.tool(
         name='create_api',
-        description="""Creates a new AppSync API.
+        description="""[DEPRECATED] Creates a new AppSync API.
 
         This operation creates a new AppSync API with the specified configuration.
         The API will be created with default settings and can be further configured

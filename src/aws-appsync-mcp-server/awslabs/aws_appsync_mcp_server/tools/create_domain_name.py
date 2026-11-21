@@ -28,7 +28,7 @@ def register_create_domain_name_tool(mcp):
 
     @mcp.tool(
         name='create_domain_name',
-        description="""Creates a custom domain name for use with AppSync APIs.
+        description="""[DEPRECATED] Creates a custom domain name for use with AppSync APIs.
 
         This operation creates a custom domain name that can be associated with
         AppSync APIs, allowing you to use your own domain instead of the default

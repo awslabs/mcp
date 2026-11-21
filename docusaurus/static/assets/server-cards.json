@@ -803,7 +803,7 @@
       "description": "AWS AppSync backend API management and operations execution",
       "icon": "\ud83d\udcca",
       "id": "aws-appsync-mcp-server",
-      "name": "AWS AppSync MCP Server",
+      "name": "AWS AppSync MCP Server (Deprecated)",
       "source_path": "src/aws-appsync-mcp-server/",
       "subcategory": "Backend API Providers",
       "tags": [
