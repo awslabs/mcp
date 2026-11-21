@@ -23,7 +23,6 @@ from dataclasses import field
 from datetime import datetime
 from pydantic import BaseModel, field_validator
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urlparse
 
 
 class S3File(BaseModel):
@@ -189,9 +188,9 @@ class S3File(BaseModel):
         if not uri.startswith('s3://'):
             raise ValueError(f"Invalid S3 URI format: {uri}. Must start with 's3://'")
 
-        parsed = urlparse(uri)
-        bucket = parsed.netloc
-        key = parsed.path.lstrip('/')
+        # '?' and '#' are valid in S3 keys, so do not parse the URI as a URL
+        bucket, _, key = uri[len('s3://') :].partition('/')
+        key = key.lstrip('/')
 
         if not bucket:
             raise ValueError(f'Invalid S3 URI format: {uri}. Missing bucket name')
@@ -359,9 +358,9 @@ def parse_s3_uri(uri: str) -> Tuple[str, str]:
     if not uri.startswith('s3://'):
         raise ValueError(f"Invalid S3 URI format: {uri}. Must start with 's3://'")
 
-    parsed = urlparse(uri)
-    bucket = parsed.netloc
-    key = parsed.path.lstrip('/')
+    # '?' and '#' are valid in S3 keys, so do not parse the URI as a URL
+    bucket, _, key = uri[len('s3://') :].partition('/')
+    key = key.lstrip('/')
 
     if not bucket:
         raise ValueError(f'Invalid S3 URI format: {uri}. Missing bucket name')
