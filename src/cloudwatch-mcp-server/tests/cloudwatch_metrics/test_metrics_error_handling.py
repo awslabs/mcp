@@ -23,7 +23,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     GetMetricDataResponse,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, Mock, mock_open, patch
 
 
@@ -579,8 +579,8 @@ class TestEdgeCases:
             tools = CloudWatchMetricsTools()
 
             # Test with very short time window
-            start_time = datetime(2023, 1, 1, 0, 0, 0)
-            end_time = datetime(2023, 1, 1, 0, 1, 0)  # 1 minute
+            end_time = datetime.now(timezone.utc)
+            start_time = end_time - timedelta(minutes=1)
 
             result_start, result_end, period = tools._prepare_time_parameters(
                 start_time, end_time, 60
@@ -590,8 +590,7 @@ class TestEdgeCases:
             assert period == 60
 
             # Test with time window that doesn't divide evenly
-            start_time = datetime(2023, 1, 1, 0, 0, 0)
-            end_time = datetime(2023, 1, 1, 0, 7, 0)  # 7 minutes = 420 seconds
+            start_time = end_time - timedelta(minutes=7)  # 7 minutes = 420 seconds
 
             result_start, result_end, period = tools._prepare_time_parameters(
                 start_time,
@@ -601,3 +600,31 @@ class TestEdgeCases:
 
             # Should round up to nearest multiple of 60
             assert period == 120
+
+    def test_period_matches_resolution_still_stored_at_start_time(self):
+        """Test the period is a multiple of the resolution CloudWatch keeps for start_time.
+
+        Data older than 15 days is kept at 5-minute resolution and data older than
+        63 days at 1-hour resolution; other periods return no datapoints for it.
+        """
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
+            tools = CloudWatchMetricsTools()
+            now = datetime.now(timezone.utc)
+
+            # One day from 17 to 16 days ago: 86400 / 60 = 1440 seconds -> 1500
+            _, _, period = tools._prepare_time_parameters(
+                now - timedelta(days=17), now - timedelta(days=16), 60
+            )
+            assert period == 1500
+
+            # One day from 71 to 70 days ago: 86400 / 60 = 1440 seconds -> 3600
+            _, _, period = tools._prepare_time_parameters(
+                now - timedelta(days=71), now - timedelta(days=70), 60
+            )
+            assert period == 3600
+
+            # Within the last 15 days the 1-minute resolution still applies
+            _, _, period = tools._prepare_time_parameters(
+                now - timedelta(days=2), now - timedelta(days=1), 60
+            )
+            assert period == 1440
