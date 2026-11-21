@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.process import run_command
 from loguru import logger
@@ -119,9 +120,7 @@ class SamDeployTool(BaseTool):
         if config_env:
             cmd.extend(['--config-env', config_env])
         if metadata:
-            cmd.extend(['--metadata'])
-            for key, value in metadata.items():
-                cmd.append(f'{key}={value}')
+            cmd.extend(['--metadata', json.dumps(metadata)])
         if tags:
             cmd.extend(['--tags'])
             for key, value in tags.items():

@@ -175,3 +175,34 @@ class TestSamLogs:
             assert result['success'] is False
             assert 'Failed to fetch logs for resource' in result['message']
             assert error_message in result['message']
+
+    @pytest.mark.asyncio
+    async def test_sam_logs_repeats_cw_log_group_flag(self):
+        """Test that each log group is passed with its own --cw-log-group flag."""
+        with patch(
+            'awslabs.aws_serverless_mcp_server.tools.sam.sam_logs.run_command',
+            return_value=(b'', b''),
+        ) as mock_run:
+            result = await SamLogsTool(MagicMock(), True).handle_sam_logs(
+                AsyncMock(),
+                resource_name=None,
+                stack_name='test-stack',
+                start_time=None,
+                end_time=None,
+                region=None,
+                profile=None,
+                cw_log_group=['/aws/lambda/a', '/aws/lambda/b'],
+                config_env=None,
+                config_file=None,
+                save_params=False,
+            )
+
+            assert result['success'] is True
+            cmd = mock_run.call_args[0][0]
+            start = cmd.index('--cw-log-group')
+            assert cmd[start : start + 4] == [
+                '--cw-log-group',
+                '/aws/lambda/a',
+                '--cw-log-group',
+                '/aws/lambda/b',
+            ]

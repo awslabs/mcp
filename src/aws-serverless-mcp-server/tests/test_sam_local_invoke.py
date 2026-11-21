@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for the sam_local_invoke module."""
 
+import json
 import os
 import pytest
 import tempfile
@@ -297,3 +298,43 @@ class TestSamLocalInvoke:
             assert result['success'] is False
             assert 'Failed to invoke resource locally' in result['message']
             assert error_message in result['error']
+
+    @pytest.mark.asyncio
+    async def test_sam_local_invoke_writes_container_env_vars_file(self):
+        """Test that container_env_vars is passed as a JSON file path, as sam expects."""
+        project_directory = tempfile.mkdtemp()
+        seen = {}
+
+        async def capture(cmd, cwd=None):
+            env_file = cmd[cmd.index('--container-env-vars') + 1]
+            seen['path'] = env_file
+            with open(env_file) as f:
+                seen['content'] = json.load(f)
+            return (b'{}', b'')
+
+        with patch(
+            'awslabs.aws_serverless_mcp_server.tools.sam.sam_local_invoke.run_command',
+            side_effect=capture,
+        ):
+            result = await SamLocalInvokeTool(MagicMock()).handle_sam_local_invoke(
+                AsyncMock(),
+                project_directory=project_directory,
+                resource_name='test-function',
+                template_file=None,
+                event_file=None,
+                event_data=None,
+                environment_variables_file=None,
+                docker_network=None,
+                container_env_vars={'CONTAINER_ENV1': 'value1', 'CONTAINER_ENV2': 'value2'},
+                parameter=None,
+                log_file=None,
+                layer_cache_basedir=None,
+                region=None,
+                profile=None,
+            )
+
+        assert result['success'] is True
+        assert seen['content'] == {
+            'Parameters': {'CONTAINER_ENV1': 'value1', 'CONTAINER_ENV2': 'value2'}
+        }
+        assert not os.path.exists(seen['path'])
