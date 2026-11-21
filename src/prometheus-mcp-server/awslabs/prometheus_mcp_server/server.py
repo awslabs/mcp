@@ -815,12 +815,22 @@ async def get_available_workspaces(
 
         # Get a fresh client for this request
         aps_client = get_prometheus_client(region_name=aws_region, profile_name=aws_profile)
-        response = aps_client.list_workspaces()
+
+        # ListWorkspaces returns at most 100 workspaces per call by default, so follow nextToken
+        listed_workspaces = []
+        list_kwargs = {}
+        while True:
+            response = aps_client.list_workspaces(**list_kwargs)
+            listed_workspaces.extend(response.get('workspaces', []))
+            next_token = response.get('nextToken')
+            if not next_token:
+                break
+            list_kwargs['nextToken'] = next_token
 
         workspaces = []
         configured_workspace_details = None
 
-        for ws in response.get('workspaces', []):
+        for ws in listed_workspaces:
             workspace_id = ws['workspaceId']
 
             # Only get details for active workspaces
