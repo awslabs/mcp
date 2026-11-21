@@ -105,7 +105,7 @@ jobs:
           syft scan "${{ runner.temp }}/image.tar" -o json > "${{ matrix.dockerfile }}/syft-results.json"
           cat "${{ matrix.dockerfile }}/syft-results.json" | grype | tee "${{ matrix.dockerfile }}/grype.txt"
           syft convert "${{ matrix.dockerfile }}/syft-results.json" -o cyclonedx-json > "${{ matrix.dockerfile }}/cyclonedx.json"
-          docker run --rm -v $(pwd):/data cyclonedx/cyclonedx-cli convert \
+          docker run --rm -v $(pwd):/data cyclonedx/cyclonedx-cli:0.33.1@sha256:252c2e26f468c25fea1e63ecde1bc3198ad6e9dbb57f5ed3236bddcb2281b3a7 convert \
             --input-file /data/${{ matrix.dockerfile }}/cyclonedx.json \
             --input-format json \
             --output-file /data/${{ matrix.dockerfile }}/sbom.csv \
