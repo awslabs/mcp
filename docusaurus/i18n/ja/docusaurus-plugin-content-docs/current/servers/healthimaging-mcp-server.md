@@ -300,8 +300,8 @@ uvx awslabs.healthimaging-mcp-server@latest
 
 1. リポジトリをクローンします。
 ```bash
-git clone https://github.com/awslabs/mcp-server-collection.git
-cd mcp-server-collection/src/healthimaging-mcp-server
+git clone https://github.com/awslabs/mcp.git
+cd mcp/src/healthimaging-mcp-server
 ```
 
 2. 依存関係をインストールします。
@@ -333,15 +333,15 @@ uv run python -m pytest tests/ -v --cov=awslabs.healthimaging_mcp_server --cov-r
 
 ## コントリビューション {#contributing}
 
-コントリビューションを歓迎します。詳細については [コントリビューションガイド](https://github.com/awslabs/mcp-server-collection/blob/main/CONTRIBUTING.md) を参照してください。
+コントリビューションを歓迎します。詳細については [コントリビューションガイド](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md) を参照してください。
 
 ## ライセンス {#license}
 
-このプロジェクトは Apache License 2.0 の下でライセンスされています。詳細については [LICENSE](https://github.com/awslabs/mcp-server-collection/blob/main/LICENSE) ファイルを参照してください。
+このプロジェクトは Apache License 2.0 の下でライセンスされています。詳細については [LICENSE](https://github.com/awslabs/mcp/blob/main/src/healthimaging-mcp-server/LICENSE) ファイルを参照してください。
 
 ## サポート {#support}
 
 サポートが必要な場合は、以下を行ってください。
 1. [トラブルシューティングのセクション](#troubleshooting) を確認する
 2. [AWS HealthImaging ドキュメント](https://docs.aws.amazon.com/healthimaging/) を確認する
-3. [GitHub リポジトリ](https://github.com/awslabs/mcp-server-collection/issues) で issue を作成する
+3. [GitHub リポジトリ](https://github.com/awslabs/mcp/issues) で issue を作成する

@@ -300,8 +300,8 @@ uvx awslabs.healthimaging-mcp-server@latest
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/awslabs/mcp-server-collection.git
-cd mcp-server-collection/src/healthimaging-mcp-server
+git clone https://github.com/awslabs/mcp.git
+cd mcp/src/healthimaging-mcp-server
 ```
 
 2. Install dependencies:
@@ -333,15 +333,15 @@ uv run python -m pytest tests/ -v --cov=awslabs.healthimaging_mcp_server --cov-r
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](https://github.com/awslabs/mcp-server-collection/blob/main/CONTRIBUTING.md) for details.
+We welcome contributions! Please see our [Contributing Guide](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md) for details.
 
 ## License
 
-This project is licensed under the Apache License 2.0. See the [LICENSE](https://github.com/awslabs/mcp-server-collection/blob/main/LICENSE) file for details.
+This project is licensed under the Apache License 2.0. See the [LICENSE](https://github.com/awslabs/mcp/blob/main/src/healthimaging-mcp-server/LICENSE) file for details.
 
 ## Support
 
 For support, please:
 1. Check the [troubleshooting section](#troubleshooting)
 2. Review [AWS HealthImaging documentation](https://docs.aws.amazon.com/healthimaging/)
-3. Open an issue in the [GitHub repository](https://github.com/awslabs/mcp-server-collection/issues)
+3. Open an issue in the [GitHub repository](https://github.com/awslabs/mcp/issues)
