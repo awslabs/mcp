@@ -330,16 +330,15 @@ async def search_cdk_documentation(query: str) -> str:
     ## Result Interpretation
 
     Returns JSON with:
-    - knowledge_response: Details of the response
-        - results: Array with single result containing:
-            - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
-            - title: Document title or filename
-            - url: Source URL of the document
-            - context: Full or paginated document content
+    - knowledge_response: Array of search results. Each result contains:
+      - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
+      - title: Document title or filename
+      - url: Source URL of the document
+      - context: Full or paginated document content
     - next_step_guidance: If present, suggested next actions to take for answering user query
 
 
-    Use rank to prioritize results. Check error field first - if not null, the search failed.
+    Use rank to prioritize results.
 
     If a content snippet is relevant to your query but doesn't show all necessary information, use `read_iac_documentation_page` with the URL to get the complete content.
 
@@ -387,16 +386,15 @@ async def search_cloudformation_documentation(query: str) -> str:
     ## Result Interpretation
 
     Returns JSON with:
-    - knowledge_response: Details of the response
-      - results: Array with single result containing:
-        - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
-        - title: Document title or filename
-        - url: Source URL of the document
-        - context: Full or paginated document content
+    - knowledge_response: Array of search results. Each result contains:
+      - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
+      - title: Document title or filename
+      - url: Source URL of the document
+      - context: Full or paginated document content
     - next_step_guidance: If present, suggested next actions to take for answering user query
 
 
-    Use rank to prioritize results. Check error field first - if not null, the search failed.
+    Use rank to prioritize results.
 
     Args:
         query: Search query for CloudFormation documentation. Examples: "AWS::Lambda::Function", "S3 bucket encryption", "DynamoDB table properties"
@@ -455,16 +453,15 @@ async def search_cdk_samples_and_constructs(
     ## Result Interpretation
 
     Returns JSON with:
-    - knowledge_response: Details of the response
-      - results: Array with single result containing:
-        - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
-        - title: Document title or filename
-        - url: Source URL of the document
-        - context: Full or paginated document content
+    - knowledge_response: Array of search results. Each result contains:
+      - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
+      - title: Document title or filename
+      - url: Source URL of the document
+      - context: Full or paginated document content
     - next_step_guidance: If present, suggested next actions to take for answering user query
 
 
-    Use rank to prioritize results. Check error field first - if not null, the search failed.
+    Use rank to prioritize results.
 
     Args:
         query: Search query for CDK samples and constructs
@@ -501,12 +498,11 @@ async def cdk_best_practices() -> str:
     ## Result Interpretation
 
     Returns JSON with:
-    - knowledge_response: Details of the response
-      - results: Array with single result containing:
-        - rank: Always 1
-        - title: Document title or filename
-        - url: Source URL of the CDK best practices
-        - context: A summary of the CDK best practices
+    - knowledge_response: Array with a single result containing:
+      - rank: Always 1
+      - title: Document title or filename
+      - url: Source URL of the CDK best practices
+      - context: A summary of the CDK best practices
     - next_step_guidance: If present, suggested next actions to take for answering user query
 
     ## Args
