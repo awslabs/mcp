@@ -14,6 +14,7 @@
 
 import json
 import os
+import tempfile
 from awslabs.ccapi_mcp_server.aws_client import get_aws_client
 from awslabs.ccapi_mcp_server.errors import ClientError
 from datetime import datetime, timedelta
@@ -32,13 +33,18 @@ class SchemaManager:
 
     def __init__(self):
         """Initialize the schema manager with the cache directory."""
-        cache_dir = os.path.join(os.path.dirname(__file__), '.schemas')
-        self.cache_dir = Path(cache_dir)
+        cache_dir = Path(os.path.dirname(__file__)) / '.schemas'
+        try:
+            cache_dir.mkdir(exist_ok=True)
+        except OSError:
+            pass
+        if not os.access(cache_dir, os.W_OK):
+            # Read-only installs (Lambda, immutable container images) cannot write next to
+            # the package. mkdtemp gives a private dir, so other users cannot plant schemas.
+            cache_dir = Path(tempfile.mkdtemp(prefix='ccapi-mcp-schemas-'))
+        self.cache_dir = cache_dir
         self.metadata_file = self.cache_dir / SCHEMA_METADATA_FILE
         self.schema_registry: Dict[str, dict] = {}
-
-        # Ensure cache directory exists
-        self.cache_dir.mkdir(exist_ok=True)
 
         # Load metadata if it exists
         self.metadata = self._load_metadata()
