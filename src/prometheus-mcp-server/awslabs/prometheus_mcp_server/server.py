@@ -15,12 +15,12 @@
 """Prometheus MCP Server implementation."""
 
 import argparse
+import asyncio
 import boto3
 import json
 import os
 import requests
 import sys
-import time
 from awslabs.prometheus_mcp_server import __version__
 from awslabs.prometheus_mcp_server.consts import (
     API_VERSION_PATH,
@@ -301,6 +301,22 @@ class PrometheusClient:
                         f'Making request to {url} (attempt {retry_count + 1}/{max_retries})'
                     )
                     response = req_session.send(prepared_request)
+                    # A 4xx (bad PromQL, missing permission) fails the same way on every
+                    # attempt, so raise it at once and keep the error text from its body.
+                    # 408 and 429 stay retryable.
+                    if 400 <= response.status_code < 500 and response.status_code not in (
+                        408,
+                        429,
+                    ):
+                        try:
+                            error_msg = response.json().get('error') or response.text
+                        except (ValueError, AttributeError):
+                            error_msg = response.text
+                        logger.error(f'Prometheus API request failed: {error_msg}')
+                        raise RuntimeError(
+                            f'Prometheus API request failed with HTTP '
+                            f'{response.status_code}: {error_msg}'
+                        )
                     response.raise_for_status()
                     data = response.json()
 
@@ -318,7 +334,7 @@ class PrometheusClient:
                         2 ** (retry_count - 1)
                     )  # Exponential backoff
                     logger.warning(f'Request failed: {e}. Retrying in {retry_delay_seconds}s...')
-                    time.sleep(retry_delay_seconds)
+                    await asyncio.sleep(retry_delay_seconds)
                 else:
                     logger.error(f'Request failed after {max_retries} attempts: {e}')
                     raise

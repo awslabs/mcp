@@ -14,7 +14,7 @@ class TestFinalCoverage:
         with (
             patch('boto3.Session') as mock_session,
             patch('requests.Session') as mock_req_session,
-            patch('time.sleep'),
+            patch('asyncio.sleep'),
             patch('awslabs.prometheus_mcp_server.server.SigV4Auth'),
         ):
             mock_creds = MagicMock()
@@ -22,7 +22,7 @@ class TestFinalCoverage:
             mock_session.return_value.get_credentials.return_value = mock_creds
 
             # All requests fail
-            mock_response = MagicMock()
+            mock_response = MagicMock(status_code=503)
             mock_response.raise_for_status.side_effect = Exception('Network error')
             mock_req_session.return_value.__enter__.return_value.send.return_value = mock_response
 
