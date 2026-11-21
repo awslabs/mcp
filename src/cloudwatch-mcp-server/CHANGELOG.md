@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- `analyze_log_group` now passes `profile_name` to its two Logs Insights pattern queries. Before, only the anomaly lookup used the caller's profile; the pattern queries ran with the default credential chain, so they hit a different account or failed when the default credentials could not read the log group.
+
 ## [0.3.0] - 2026-09-15
 
 ### Security

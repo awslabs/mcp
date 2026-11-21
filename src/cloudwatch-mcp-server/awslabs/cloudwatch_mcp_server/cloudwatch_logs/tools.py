@@ -480,6 +480,7 @@ class CloudWatchLogsTools:
                     limit=5,
                     max_timeout=30,
                     region=region,
+                    profile_name=profile_name,
                 ),
                 self.execute_log_insights_query(
                     ctx,
@@ -491,6 +492,7 @@ class CloudWatchLogsTools:
                     limit=5,
                     max_timeout=30,
                     region=region,
+                    profile_name=profile_name,
                 ),
             )
 
