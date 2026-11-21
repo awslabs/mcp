@@ -425,11 +425,17 @@ def test_handle_request_notification():
     assert resp['headers']['Content-Type'] == 'application/json'
 
 
-def test_handle_request_ping():
-    """Test handle_request with a ping (no response expected)."""
+@pytest.mark.parametrize(
+    'content_type',
+    ['application/json', 'application/json; charset=utf-8', 'Application/JSON'],
+)
+def test_handle_request_ping(content_type):
+    """Accept supported JSON media types for a ping request."""
     handler = MCPLambdaHandler('test-server')
     req = {'jsonrpc': '2.0', 'id': 1, 'method': 'ping'}
     event = make_lambda_event(req)
+    event['headers']['content-type'] = content_type
+    event['multiValueHeaders']['content-type'] = [content_type]
     context = None
     resp = handler.handle_request(event, context)
     assert resp['statusCode'] == 200

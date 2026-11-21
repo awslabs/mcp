@@ -427,7 +427,8 @@ class MCPLambdaHandler:
                     return {'statusCode': 404}
 
             # Validate content type
-            if headers.get('content-type') != 'application/json':
+            content_type = headers.get('content-type', '').split(';', 1)[0].strip().lower()
+            if content_type != 'application/json':
                 return self._create_error_response(-32700, 'Unsupported Media Type')
 
             try:
