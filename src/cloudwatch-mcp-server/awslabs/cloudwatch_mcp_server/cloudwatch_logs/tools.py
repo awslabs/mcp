@@ -515,14 +515,14 @@ class CloudWatchLogsTools:
             List[str] | None,
             Field(
                 max_length=50,
-                description='The list of up to 50 log group names to be queried. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null.',
+                description='Up to 50 log group names. CWLI requires exactly one selector; PPL accepts one selector or an inline source; SQL requires neither.',
             ),
         ] = None,
         log_group_identifiers: Annotated[
             List[str] | None,
             Field(
                 max_length=50,
-                description="The list of up to 50 logGroupIdentifiers to query. You can specify them by the log group name or ARN. If a log group that you're querying is in a source account and you're using a monitoring account, you must use the ARN. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null.",
+                description='Up to 50 log group names or ARNs. Use ARNs for source-account groups queried from a monitoring account. CWLI requires exactly one selector; PPL accepts one selector or an inline source; SQL requires neither.',
             ),
         ] = None,
         start_time: str = Field(
@@ -539,12 +539,12 @@ class CloudWatchLogsTools:
         ),
         query_string: str = Field(
             ...,
-            description='The query string in the Cloudwatch Log Insights Query Language. See https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html.',
+            description='Query string in the selected language. See https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_AnalyzeLogData_Languages.html.',
         ),
         limit: Annotated[
             int | None,
             Field(
-                description='The maximum number of log events to return. It is critical to use either this parameter or a `| limit <int>` operator in the query to avoid consuming too many tokens of the agent.'
+                description='Optional API row cap. Prefer a native query limit: `| limit N` for CWLI, `LIMIT N` for SQL, or `| head N` for PPL to limit agent context usage.'
             ),
         ] = None,
         max_timeout: Annotated[
@@ -565,49 +565,56 @@ class CloudWatchLogsTools:
                 description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
             ),
         ] = None,
+        query_language: Annotated[
+            Literal['CWLI', 'SQL', 'PPL'],
+            Field(
+                description='Query language: CWLI (CloudWatch Logs Insights QL, default), SQL (OpenSearch SQL), or PPL (OpenSearch PPL). For CWLI, provide exactly one of log_group_names or log_group_identifiers. For PPL, provide one of those selectors or use a source clause in query_string without either selector. For SQL, specify the source in FROM and omit both selectors.'
+            ),
+        ] = 'CWLI',
     ) -> Dict:
-        """Executes a CloudWatch Logs Insights query and waits for the results to be available.
+        """Execute a query and poll for results.
 
-        IMPORTANT: The operation must include exactly one of the following parameters: log_group_names, or log_group_identifiers.
+        Query, filter, collect statistics, or find patterns in one or more log groups.
+        CWLI requires exactly one external log group selector. PPL accepts one selector
+        or an inline source; SQL specifies its source in FROM without selectors.
+        Start and end times are inclusive ISO 8601 timestamps with timezone offsets.
 
-        CRITICAL: The volume of returned logs can easily overwhelm the agent context window. Always include a limit in the query
-        (| limit 50) or using the limit parameter.
+        CRITICAL: Always use a small row cap with the limit parameter or native
+        CWLI `| limit N`, SQL `LIMIT N`, or PPL `| head N` syntax.
 
-        Usage: Use to query, filter, collect statistics, or find patterns in one or more log groups. For example, the following
-        query lists exceptions per hour.
-
+        Example CWLI query:
         ```
         filter @message like /Exception/
         | stats count(*) as exceptionCount by bin(1h)
         | sort exceptionCount desc
         ```
 
-        Returns:
-        --------
-            A dictionary containing the final query results, including:
-                - status: The current status of the query (e.g., Scheduled, Running, Complete, Failed, etc.)
-                - results: A list of the actual query results if the status is Complete.
-                - statistics: Query performance statistics
-                - messages: Any informational messages about the query
+        Returns a dictionary with queryId, status, result row dictionaries, and
+        statistics when available. Errors include a message and empty results.
         """
         try:
-            # Validate parameters
-            self._validate_log_group_parameters(log_group_names, log_group_identifiers)
+            if query_language == 'CWLI' or (
+                query_language == 'PPL' and (log_group_names or log_group_identifiers)
+            ):
+                self._validate_log_group_parameters(log_group_names, log_group_identifiers)
+            elif query_language == 'SQL' and (log_group_names or log_group_identifiers):
+                raise ValueError(
+                    'SQL queries must specify their source in query_string (FROM); omit log_group_names and log_group_identifiers'
+                )
 
-            # Build query parameters
             kwargs = self._build_logs_query_params(
                 log_group_names, log_group_identifiers, start_time, end_time, query_string, limit
             )
 
-            # Create logs client for the specified region
+            if query_language != 'CWLI':
+                kwargs['queryLanguage'] = query_language
+
             logs_client = get_aws_client('logs', region, profile_name)
 
-            # Start the query
             start_response = logs_client.start_query(**remove_null_values(kwargs))
             query_id = start_response['queryId']
             logger.info(f'Started query with ID: {query_id}')
 
-            # Poll for completion
             return await self._poll_for_query_completion(logs_client, query_id, max_timeout, ctx)
 
         except Exception as e:
@@ -615,7 +622,6 @@ class CloudWatchLogsTools:
             error_msg = f'Error executing CloudWatch Logs Insights query: {str(e)}'
             await ctx.error(error_msg)
 
-            # Instead of raising, return a consistent error result
             return {
                 'queryId': '',
                 'status': 'Error',

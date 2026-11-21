@@ -220,6 +220,14 @@ class TestExecuteLogInsightsQuery:
             max_timeout=30,
         )
 
+        logs_client.start_query.assert_called_once_with(
+            logGroupNames=['/aws/test/group1'],
+            startTime=1672531200,
+            endTime=1672534800,
+            queryString='fields @timestamp, @message | limit 10',
+            limit=10,
+        )
+
         # Verify results
         assert result['queryId'] == 'test-query-id'
         assert result['status'] == 'Complete'
@@ -448,3 +456,163 @@ class TestAnalyzeLogGroup:
             assert query['log_group_identifiers'] == [log_group_arn]
             assert query['start_time'] == '2023-01-01T00:00:00+00:00'
             assert query['end_time'] == '2023-01-01T01:00:00+00:00'
+
+
+@pytest.mark.asyncio
+class TestQueryLanguages:
+    """Exercise language-specific request and schema behavior."""
+
+    async def test_sql_query_without_external_selectors(self, ctx, cloudwatch_tools, logs_client):
+        """Pass SQL through and preserve projected fields."""
+        logs_client.start_query = MagicMock(return_value={'queryId': 'test-query-id'})
+        logs_client.get_query_results = MagicMock(
+            return_value={
+                'status': 'Complete',
+                'results': [
+                    [
+                        {'field': 'message', 'value': 'example'},
+                        {'field': '@ptr', 'value': 'record'},
+                    ]
+                ],
+            }
+        )
+        query = 'SELECT `@message` AS message FROM `/aws/lambda/example` LIMIT 10'
+        result = await cloudwatch_tools.execute_log_insights_query(
+            ctx,
+            start_time='2023-01-01T00:00:00+00:00',
+            end_time='2023-01-01T01:00:00+00:00',
+            query_string=query,
+            query_language='SQL',
+        )
+        logs_client.start_query.assert_called_once_with(
+            queryLanguage='SQL',
+            startTime=1672531200,
+            endTime=1672534800,
+            queryString=query,
+        )
+        assert result['status'] == 'Complete'
+        assert result['results'] == [{'message': 'example', '@ptr': 'record'}]
+
+    @pytest.mark.parametrize(
+        ('selectors', 'query', 'limit', 'expected'),
+        [
+            (
+                {'log_group_names': ['/aws/test/group1']},
+                'fields `@message`',
+                10,
+                {'logGroupNames': ['/aws/test/group1'], 'limit': 10},
+            ),
+            (
+                {'log_group_identifiers': ['arn:example']},
+                'fields `@message`',
+                10,
+                {'logGroupIdentifiers': ['arn:example'], 'limit': 10},
+            ),
+            ({}, 'source = [lg:`/aws/lambda/example`] | fields `@message` | head 10', None, {}),
+        ],
+    )
+    async def test_ppl_query_selectors(
+        self, ctx, cloudwatch_tools, logs_client, selectors, query, limit, expected
+    ):
+        """Pass external selectors or inline source through for PPL."""
+        logs_client.start_query = MagicMock(return_value={'queryId': 'test-query-id'})
+        logs_client.get_query_results = MagicMock(
+            return_value={
+                'status': 'Complete',
+                'results': [[{'field': '@message', 'value': 'example'}]],
+            }
+        )
+        result = await cloudwatch_tools.execute_log_insights_query(
+            ctx,
+            start_time='2023-01-01T00:00:00+00:00',
+            end_time='2023-01-01T01:00:00+00:00',
+            query_string=query,
+            query_language='PPL',
+            limit=limit,
+            **selectors,
+        )
+        logs_client.start_query.assert_called_once_with(
+            queryLanguage='PPL',
+            startTime=1672531200,
+            endTime=1672534800,
+            queryString=query,
+            **expected,
+        )
+        assert result['status'] == 'Complete'
+        assert result['results'] == [{'@message': 'example'}]
+
+    @pytest.mark.parametrize(
+        'selectors',
+        [
+            {'log_group_names': ['/aws/test/group1']},
+            {'log_group_identifiers': ['arn:example']},
+        ],
+    )
+    async def test_sql_rejects_external_selectors(
+        self, ctx, cloudwatch_tools, logs_client, selectors
+    ):
+        """Reject external SQL selectors before calling AWS."""
+        logs_client.start_query = MagicMock()
+        result = await cloudwatch_tools.execute_log_insights_query(
+            ctx,
+            start_time='2023-01-01T00:00:00+00:00',
+            end_time='2023-01-01T01:00:00+00:00',
+            query_string='SELECT 1',
+            query_language='SQL',
+            **selectors,
+        )
+        assert result['queryId'] == ''
+        assert result['status'] == 'Error'
+        assert result['results'] == []
+        assert all(
+            part in result['message']
+            for part in ('FROM', 'log_group_names', 'log_group_identifiers')
+        )
+        logs_client.start_query.assert_not_called()
+
+    async def test_ppl_rejects_multiple_external_selectors(
+        self, ctx, cloudwatch_tools, logs_client
+    ):
+        """Reject conflicting PPL selectors before calling AWS."""
+        logs_client.start_query = MagicMock()
+        result = await cloudwatch_tools.execute_log_insights_query(
+            ctx,
+            log_group_names=['group'],
+            log_group_identifiers=['arn:example'],
+            start_time='2023-01-01T00:00:00+00:00',
+            end_time='2023-01-01T01:00:00+00:00',
+            query_string='fields `@message`',
+            query_language='PPL',
+        )
+        assert result == {
+            'queryId': '',
+            'status': 'Error',
+            'results': [],
+            'message': 'Error executing CloudWatch Logs Insights query: Exactly one of log_group_names or log_group_identifiers must be provided',
+        }
+        logs_client.start_query.assert_not_called()
+
+    async def test_default_rejects_no_selectors(self, ctx, cloudwatch_tools, logs_client):
+        """Keep the default selector requirement."""
+        logs_client.start_query = MagicMock()
+        result = await cloudwatch_tools.execute_log_insights_query(
+            ctx,
+            start_time='2023-01-01T00:00:00+00:00',
+            end_time='2023-01-01T01:00:00+00:00',
+            query_string='fields @message',
+        )
+        assert result['status'] == 'Error'
+        logs_client.start_query.assert_not_called()
+
+    async def test_query_language_schema_is_optional_enum(self):
+        """Expose the supported languages with a backwards-compatible default."""
+        from awslabs.cloudwatch_mcp_server.server import mcp
+
+        tools = await mcp.list_tools()
+        schema = next(
+            tool.input_schema for tool in tools if tool.name == 'execute_log_insights_query'
+        )
+        language = schema['properties']['query_language']
+        assert set(language['enum']) == {'CWLI', 'SQL', 'PPL'}
+        assert language['default'] == 'CWLI'
+        assert 'query_language' not in schema['required']

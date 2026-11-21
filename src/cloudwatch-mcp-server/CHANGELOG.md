@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Support OpenSearch PPL and SQL in `execute_log_insights_query`; Logs Insights QL remains the default.
+
 ## [0.3.0] - 2026-09-15
 
 ### Security
