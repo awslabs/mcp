@@ -99,10 +99,25 @@ jobs:
     needs: get-pr-info
     if: always()
     steps:
-      - run: |
+      - env:
+          PR_LABELS: ${{ needs.get-pr-info.outputs.pr_labels }}
+        run: |
           echo "::group::Debug Output Values"
-          echo "PR_LABELS: ${{ needs.get-pr-info.outputs.pr_labels }}"
+          echo "PR_LABELS: $PR_LABELS"
           echo "::endgroup::"
+      # An undetermined label set must not be read as "the label is absent". This job
+      # runs with if:always() so that a failed get-pr-info cannot turn it into a
+      # skipped (and therefore satisfied) required check, so the failure has to be
+      # reported explicitly here instead. A PR with no labels yields "[]", not an
+      # empty string, so this does not fire for unlabelled PRs.
+      - name: When the PR label information is unavailable
+        id: pr-labels-unavailable
+        if: needs.get-pr-info.result != 'success' || needs.get-pr-info.outputs.pr_labels == ''
+        env:
+          GET_PR_INFO_RESULT: ${{ needs.get-pr-info.result }}
+        run: |
+          echo "::error::❌ Could not determine the PR labels (get-pr-info result: $GET_PR_INFO_RESULT). Refusing to report success, because an undetermined label set must not be treated as \"$DO_NOT_MERGE_LABEL\" being absent."
+          exit 1
       - name: When PR has the "${{ env.DO_NOT_MERGE_LABEL }}" label
         id: pr-has-label
         if: contains(needs.get-pr-info.outputs.pr_labels, env.DO_NOT_MERGE_LABEL)
