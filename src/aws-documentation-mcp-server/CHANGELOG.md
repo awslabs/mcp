@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Every tool declares MCP tool annotations: a `title`, `readOnlyHint: true` and `openWorldHint: true`. All seven tools (five for global AWS, two for AWS China) only read public documentation, so clients that run read-only tools without asking can call them directly, and directories that require annotations can list the server. A test fails if a tool is added without them.
+
 ### Fixed
 
 - `read_sections` matches section titles at every heading level, not only `h2`. Search results list `sections` and `recommended_sections` from every level, including the page's `h1` title, so titles copied from them failed with "No matching sections were found" and agents fell back to `read_documentation`.
