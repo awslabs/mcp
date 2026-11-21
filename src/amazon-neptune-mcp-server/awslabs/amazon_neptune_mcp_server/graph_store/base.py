@@ -26,8 +26,12 @@ class NeptuneGraph(ABC):
     """
 
     @abstractmethod
-    def get_schema(self) -> GraphSchema:
+    def get_schema(self, refresh: bool = False) -> GraphSchema:
         """Retrieves the schema information for the graph.
+
+        Args:
+            refresh (bool): If True, discard any cached schema and rediscover it from
+                the graph. Defaults to False.
 
         Returns:
             GraphSchema: Complete schema information for the graph

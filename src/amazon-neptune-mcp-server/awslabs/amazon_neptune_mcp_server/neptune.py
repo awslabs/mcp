@@ -104,8 +104,12 @@ class NeptuneServer:
             logger.exception('Could not get status for Neptune instance')
             return 'Unavailable'
 
-    def schema(self) -> GraphSchema:
+    def schema(self, refresh: bool = False) -> GraphSchema:
         """Retrieve the schema information from the Neptune instance.
+
+        Args:
+            refresh (bool, optional): Whether to rediscover the schema instead of
+                returning the cached copy. Defaults to False.
 
         Returns:
             GraphSchema: Complete schema information for the graph
@@ -113,7 +117,7 @@ class NeptuneServer:
         Raises:
             AttributeError: If engine type is unknown
         """
-        return self.graph.get_schema()
+        return self.graph.get_schema(refresh=refresh)
 
     def query_opencypher(self, query: str, parameters: Optional[dict] = None) -> dict:
         """Execute an openCypher query against the Neptune instance.

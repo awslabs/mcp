@@ -20,7 +20,8 @@ from awslabs.amazon_neptune_mcp_server.models import GraphSchema
 from awslabs.amazon_neptune_mcp_server.neptune import NeptuneServer
 from loguru import logger
 from mcp.server.mcpserver import MCPServer
-from typing import Optional
+from pydantic import Field
+from typing import Annotated, Optional
 
 
 # Remove all default handlers then add our own
@@ -91,11 +92,23 @@ def get_status() -> str:
 
 
 @mcp.tool(name='get_graph_schema')
-def get_schema() -> GraphSchema:
+def get_schema(
+    refresh: Annotated[
+        bool,
+        Field(
+            description=(
+                'Set to true to rediscover the schema from the graph instead of returning '
+                'the cached copy, for example after queries that added new labels or properties.'
+            )
+        ),
+    ] = False,
+) -> GraphSchema:
     """Get the schema for the graph including the vertex and edge labels as well as the
     (vertex)-[edge]->(vertex) combinations.
+
+    The schema is cached after it is first discovered. Pass refresh=true to rediscover it.
     """
-    return get_graph().schema()
+    return get_graph().schema(refresh=refresh)
 
 
 @mcp.tool(name='run_opencypher_query')

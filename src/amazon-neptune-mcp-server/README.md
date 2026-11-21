@@ -7,7 +7,7 @@ An Amazon Neptune MCP server that allows for fetching status, schema, and queryi
 The Amazon Neptune MCP Server provides the following capabilities:
 
 1. **Run Queries**: Execute openCypher and/or Gremlin queries against the configured database
-2. **Schema**: Get the schema in the configured graph as a text string
+2. **Schema**: Get the schema in the configured graph as a text string. The schema is cached after it is first discovered; call `get_graph_schema` with `refresh` set to `true` to rediscover it, for example after queries that add new labels or properties. For Neptune Database, labels come from the [graph summary](https://docs.aws.amazon.com/neptune/latest/userguide/neptune-graph-summary.html), which is computed from Neptune's statistics, so new labels appear only after the statistics have been recomputed.
 3. **Status**: Find if the graph is "Available" or "Unavailable" to your server.  This is useful in helping to ensure that the graph is connected.
 
 ### AWS Requirements

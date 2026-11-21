@@ -169,7 +169,25 @@ class TestNeptuneServer:
 
         # Assert
         assert schema == mock_schema
-        mock_db_instance.get_schema.assert_called_once()
+        mock_db_instance.get_schema.assert_called_once_with(refresh=False)
+
+    @patch('awslabs.amazon_neptune_mcp_server.neptune.NeptuneDatabase')
+    async def test_schema_with_refresh(self, mock_neptune_db):
+        """Test that schema(refresh=True) asks the graph to rediscover its schema."""
+        # Arrange
+        mock_db_instance = MagicMock()
+        mock_schema = GraphSchema(nodes=[], relationships=[], relationship_patterns=[])
+        mock_db_instance.get_schema.return_value = mock_schema
+        mock_neptune_db.return_value = mock_db_instance
+
+        server = NeptuneServer('neptune-db://test-endpoint')
+
+        # Act
+        schema = server.schema(refresh=True)
+
+        # Assert
+        assert schema == mock_schema
+        mock_db_instance.get_schema.assert_called_once_with(refresh=True)
 
     @patch('awslabs.amazon_neptune_mcp_server.neptune.NeptuneDatabase')
     async def test_query_opencypher(self, mock_neptune_db):

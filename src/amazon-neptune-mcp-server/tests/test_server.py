@@ -21,6 +21,7 @@ from awslabs.amazon_neptune_mcp_server.server import (
     get_status,
     get_status_resource,
     main,
+    mcp,
     run_gremlin_query,
     run_opencypher_query,
 )
@@ -70,7 +71,36 @@ class TestServerTools:
 
         # Assert
         assert result == mock_schema
-        mock_graph.schema.assert_called_once()
+        mock_graph.schema.assert_called_once_with(refresh=False)
+
+    @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
+    async def test_get_schema_with_refresh(self, mock_get_graph):
+        """Test that get_schema forwards refresh=True to the graph."""
+        # Arrange
+        mock_graph = MagicMock()
+        mock_schema = MagicMock()
+        mock_graph.schema.return_value = mock_schema
+        mock_get_graph.return_value = mock_graph
+
+        # Act
+        result = get_schema(refresh=True)
+
+        # Assert
+        assert result == mock_schema
+        mock_graph.schema.assert_called_once_with(refresh=True)
+
+    async def test_get_schema_tool_exposes_refresh_parameter(self):
+        """Test that the get_graph_schema tool advertises an optional refresh flag."""
+        # Act
+        tools = {tool.name: tool for tool in await mcp.list_tools()}
+
+        # Assert
+        input_schema = tools['get_graph_schema'].input_schema
+        refresh = input_schema['properties']['refresh']
+        assert refresh['type'] == 'boolean'
+        assert refresh['default'] is False
+        assert 'description' in refresh
+        assert 'refresh' not in input_schema.get('required', [])
 
     @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
     async def test_run_opencypher_query(self, mock_get_graph):

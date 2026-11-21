@@ -18,7 +18,7 @@ import pytest
 from awslabs.amazon_neptune_mcp_server.constants import USER_AGENT_CONFIG
 from awslabs.amazon_neptune_mcp_server.exceptions import NeptuneException
 from awslabs.amazon_neptune_mcp_server.graph_store.database import NeptuneDatabase
-from awslabs.amazon_neptune_mcp_server.models import GraphSchema
+from awslabs.amazon_neptune_mcp_server.models import GraphSchema, Node
 from unittest.mock import MagicMock, patch
 
 
@@ -494,3 +494,49 @@ class TestNeptuneDatabase:
             # Assert
             NeptuneDatabase._refresh_schema.assert_called_once()
             assert result == mock_schema
+
+    @patch('boto3.Session')
+    async def test_get_schema_force_refresh(self, mock_session):
+        """Test that get_schema(refresh=True) rediscovers a schema that is already cached.
+        This test verifies that:
+        1. get_schema() without refresh returns the cached schema
+        2. get_schema(refresh=True) calls _refresh_schema and returns the new schema.
+        """
+        # Arrange
+        mock_session_instance = MagicMock()
+        mock_session_instance.client.return_value = MagicMock()
+        mock_session.return_value = mock_session_instance
+
+        stale_schema = GraphSchema(nodes=[], relationships=[], relationship_patterns=[])
+        fresh_schema = GraphSchema(
+            nodes=[Node(labels='Person', properties=[])],
+            relationships=[],
+            relationship_patterns=[],
+        )
+        schemas = iter([stale_schema, fresh_schema])
+
+        def fake_refresh(self):
+            self.schema = next(schemas)
+            return self.schema
+
+        with patch.object(
+            NeptuneDatabase, '_refresh_schema', autospec=True, side_effect=fake_refresh
+        ) as m:
+            graph = NeptuneDatabase(host='test-endpoint')
+            graph.get_schema()
+            m.reset_mock()
+
+            # Act
+            cached = graph.get_schema()
+
+            # Assert
+            m.assert_not_called()
+            assert cached == stale_schema
+
+            # Act
+            refreshed = graph.get_schema(refresh=True)
+
+            # Assert
+            m.assert_called_once_with(graph)
+            assert refreshed == fresh_schema
+            assert graph.get_schema() == fresh_schema
