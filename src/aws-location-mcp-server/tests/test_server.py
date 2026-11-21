@@ -473,6 +473,57 @@ async def test_search_nearby_no_results_expansion(mock_boto3_client, mock_contex
 
 
 @pytest.mark.asyncio
+async def test_search_nearby_passes_max_results(mock_boto3_client, mock_context):
+    """search_nearby should send the caller's max_results and radius to the API."""
+    mock_boto3_client.search_nearby.return_value = {
+        'ResultItems': [{'PlaceId': 'p1', 'Title': 'Place', 'Position': [-122.3, 47.6]}]
+    }
+
+    from awslabs.aws_location_server.server import search_nearby as search_nearby_func
+
+    with patch('awslabs.aws_location_server.server.geo_places_client') as mock_geo_client:
+        mock_geo_client.geo_places_client = mock_boto3_client
+        await search_nearby_func(
+            mock_context,
+            longitude=-122.3321,
+            latitude=47.6062,
+            max_results=20,
+            query=None,
+            radius=750,
+        )
+
+    kwargs = mock_boto3_client.search_nearby.call_args.kwargs
+    assert kwargs['MaxResults'] == 20
+    assert kwargs['QueryRadius'] == 750
+
+
+@pytest.mark.asyncio
+async def test_search_nearby_radius_above_expansion_limit(mock_boto3_client, mock_context):
+    """A radius above the 10 km expansion limit should still be searched once."""
+    mock_boto3_client.search_nearby.return_value = {
+        'ResultItems': [{'PlaceId': 'p1', 'Title': 'Place', 'Position': [-122.3, 47.6]}]
+    }
+
+    from awslabs.aws_location_server.server import search_nearby as search_nearby_func
+
+    with patch('awslabs.aws_location_server.server.geo_places_client') as mock_geo_client:
+        mock_geo_client.geo_places_client = mock_boto3_client
+        result = await search_nearby_func(
+            mock_context,
+            longitude=-122.3321,
+            latitude=47.6062,
+            max_results=5,
+            query=None,
+            radius=20000,
+        )
+
+    mock_boto3_client.search_nearby.assert_called_once()
+    assert mock_boto3_client.search_nearby.call_args.kwargs['QueryRadius'] == 20000
+    assert len(result['places']) == 1
+    assert result['radius_used'] == 20000
+
+
+@pytest.mark.asyncio
 async def test_search_nearby_error_no_client(mock_context):
     """Test search_nearby when client is not initialized."""
     # Import the function directly to avoid Field validation issues
