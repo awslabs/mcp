@@ -1,6 +1,8 @@
 ---
-title: "Amazon Translate MCPサーバー"
+title: "Amazon Translate MCPサーバー（非推奨）"
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。こちらは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて同じ Amazon Translate API（`TranslateText`、`ImportTerminology`、`StartTextTranslationJob` など）を呼び出し、完全なレスポンスを返します。ツールの対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-translate.md) を参照してください。
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
