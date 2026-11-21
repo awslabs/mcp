@@ -33,6 +33,7 @@ from awslabs.aws_documentation_mcp_server.util import (
 )
 from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
+from mcp.types import ToolAnnotations
 from pydantic import AnyUrl, Field
 from typing import Union
 
@@ -70,7 +71,11 @@ mcp = MCPServer(
 )
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Read AWS China documentation page', read_only_hint=True, open_world_hint=True
+    ),
+)
 async def read_documentation(
     ctx: Context,
     url: Union[AnyUrl, str] = Field(description='URL of the AWS China documentation page to read'),
@@ -147,7 +152,11 @@ async def read_documentation(
     )
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='List services available in AWS China', read_only_hint=True, open_world_hint=True
+    ),
+)
 async def get_available_services(
     ctx: Context,
 ) -> str:

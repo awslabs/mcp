@@ -45,6 +45,7 @@ from awslabs.aws_documentation_mcp_server.util import (
 )
 from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
+from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field, ValidationError
 from typing import Any, Dict, List, Optional, Type, TypeVar
 
@@ -139,7 +140,11 @@ async def _require_page_url(ctx: Context, url_str: str) -> str:
     return page_url
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Read AWS documentation page', read_only_hint=True, open_world_hint=True
+    ),
+)
 async def read_documentation(
     ctx: Context,
     url: str = Field(description='URL of the AWS documentation page to read'),
@@ -209,7 +214,13 @@ async def read_documentation(
     return await read_documentation_impl(ctx, url_str, max_length, start_index, SESSION_UUID)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Read sections of an AWS documentation page',
+        read_only_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def read_sections(
     ctx: Context,
     url: str = Field(description='URL of the AWS documentation page to read'),
@@ -284,7 +295,13 @@ async def read_sections(
     return await read_sections_impl(ctx, url_str, section_titles, SESSION_UUID)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Search a table in an AWS documentation page',
+        read_only_hint=True,
+        open_world_hint=True,
+    ),
+)
 async def search_table(
     ctx: Context,
     url: str = Field(description='URL of the AWS documentation page containing the table'),
@@ -377,7 +394,11 @@ async def search_table(
     return await search_table_impl(ctx, url_str, section_title, query, max_rows, SESSION_UUID)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Search AWS documentation', read_only_hint=True, open_world_hint=True
+    ),
+)
 async def search_documentation(
     ctx: Context,
     search_phrase: str = Field(description='Search phrase to use'),
@@ -642,7 +663,11 @@ async def search_documentation(
     return final_search_response
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Recommend related AWS documentation', read_only_hint=True, open_world_hint=True
+    ),
+)
 async def recommend(
     ctx: Context,
     url: str = Field(description='URL of the AWS documentation page to get recommendations for'),
