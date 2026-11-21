@@ -145,6 +145,30 @@ def test_array_slice_regression_end_to_end():
     parse_sql(to_psycopg_placeholders(sql))
 
 
+@pytest.mark.parametrize(
+    'sql,expected',
+    [
+        (
+            "SELECT * FROM t WHERE name LIKE 'a%' AND id = :id",
+            "SELECT * FROM t WHERE name LIKE 'a%%' AND id = %(id)s",
+        ),
+        ('SELECT 7 % 2, :x', 'SELECT 7 %% 2, %(x)s'),
+        ('SELECT :a % :b', 'SELECT %(a)s %% %(b)s'),
+        ("SELECT '100%'", "SELECT '100%%'"),
+        # Already-doubled %% now means the same with and without parameters.
+        ("SELECT '50%%' AS x, :id", "SELECT '50%%%%' AS x, %(id)s"),
+    ],
+)
+def test_psycopg_conversion_escapes_literal_percent(sql, expected):
+    """A literal ``%`` is doubled, or psycopg rejects it as a bad placeholder.
+
+    With parameters bound, psycopg reads ``'a%'`` as an incomplete placeholder
+    and fails the whole query, even though the same SQL runs fine without
+    parameters.
+    """
+    assert to_psycopg_placeholders(sql) == expected
+
+
 def test_guard_private_alias_is_the_shared_helper():
     """sql_guard's normalizer is the shared helper, not a second implementation."""
     assert _normalize_placeholders is to_parse_placeholders
