@@ -31,8 +31,7 @@ from awslabs.ecs_mcp_server.api.troubleshooting_tools.utils import (
     find_task_definitions,
     get_cloudformation_stack_if_exists,
 )
-from awslabs.ecs_mcp_server.utils.arn_parser import parse_arn
-from awslabs.ecs_mcp_server.utils.aws import get_aws_client
+from awslabs.ecs_mcp_server.utils.aws import get_aws_client, split_ecr_image_reference
 
 logger = logging.getLogger(__name__)
 
@@ -96,25 +95,10 @@ def is_ecr_image(image_uri: str) -> bool:
 
 
 def parse_ecr_image_uri(image_uri: str) -> Tuple[str, str]:
-    """Parse an ECR image URI into repository name and tag."""
+    """Parse an ECR image URI into repository name and tag (digest-only URIs use the digest)."""
     try:
-        # Parse repository name and tag
-        if ":" in image_uri:
-            repo_uri, tag = image_uri.split(":", 1)
-        else:
-            repo_uri, tag = image_uri, "latest"
-
-        # Extract repository name from URI
-        if repo_uri.startswith("arn:"):
-            parsed_arn = parse_arn(repo_uri)
-            if parsed_arn:
-                repo_name = parsed_arn.resource_name
-            else:
-                repo_name = repo_uri.split("/")[-1]
-        else:
-            repo_name = repo_uri.split("/")[-1]
-
-        return repo_name, tag
+        repo_name, tag, digest = split_ecr_image_reference(image_uri)
+        return repo_name, tag or digest or "latest"
     except Exception as e:
         logger.error(f"Failed to parse ECR image URI {image_uri}: {e}")
         return "", ""
@@ -147,6 +131,7 @@ async def validate_image(image_uri: str) -> Dict[str, Any]:
 
         # Parse repository name and tag
         repo_name, tag = parse_ecr_image_uri(image_uri)
+        digest = split_ecr_image_reference(image_uri)[2]
         if not repo_name:
             result["error"] = "Failed to parse ECR image URI"
             return result
@@ -157,13 +142,14 @@ async def validate_image(image_uri: str) -> Dict[str, Any]:
             ecr_client.describe_repositories(repositoryNames=[repo_name])
 
             # Check if image with tag exists
+            image_id = {"imageDigest": digest} if digest else {"imageTag": tag}
             try:
                 # Just check if the image exists
-                ecr_client.describe_images(repositoryName=repo_name, imageIds=[{"imageTag": tag}])
+                ecr_client.describe_images(repositoryName=repo_name, imageIds=[image_id])
                 result["exists"] = "true"
             except ClientError as e:
                 if e.response["Error"]["Code"] == "ImageNotFoundException":
-                    result["error"] = f"Image with tag {tag} not found in repository {repo_name}"
+                    result["error"] = f"Image with {'digest' if digest else 'tag'} {digest or tag} not found in repository {repo_name}"
                 else:
                     result["error"] = str(e)
         except ClientError as e:
