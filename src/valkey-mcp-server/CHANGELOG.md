@@ -11,3 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - IAM authentication for Amazon ElastiCache (`VALKEY_IAM_AUTH`, `VALKEY_CACHE_NAME`, `VALKEY_REGION`) using GLIDE's built-in token generation and refresh, enabling direct connections to ElastiCache Serverless caches with a public endpoint. TLS is enabled automatically in this mode.
 - Initial project setup
+
+### Fixed
+
+- `search` in `semantic` and `hybrid` modes now asks for `offset + limit` nearest neighbors, so pages after the first are no longer short or empty.
