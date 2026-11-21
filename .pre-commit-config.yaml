@@ -59,8 +59,9 @@ repos:
         language: system
         entry: npm
         args: [
-            'exec', '--',
-            'github:viperproject/check-license-header#v1', 'check', '--config', './.github/workflows/check-license-header.json']
+            'exec', '--yes',
+            '--package=https://github.com/viperproject/check-license-header/archive/971caaf7d1641bb2c6a49acd06b018a5ce51ad6e.tar.gz',
+            '--', 'check-license-header', 'check', '--config', './.github/workflows/check-license-header.json']
     -   id: pyright
         name: pyright
         pass_filenames: true
