@@ -796,7 +796,7 @@ This MCP server is designed to be extensible. To add new functionality:
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](https://github.com/awslabs/mcp/blob/main/src/aws-iot-sitewise/LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](https://github.com/awslabs/mcp/blob/main/src/aws-iot-sitewise-mcp-server/LICENSE) file for details.
 
 ---
 

@@ -233,7 +233,7 @@ Windows ユーザーの場合、MCP サーバーの設定形式は少し異な�
 
 4. Cursor でチャットパネルを開き (例: `Ctrl/⌘ + L`)、Cursor のチャットウィンドウにプロンプトを入力します。たとえば、「Look at all the tables from my account federated across GDC」のように入力します。
 
-なお、これは基本的なクイックスタートです。[コンテナで MCP サーバーを実行する](https://github.com/awslabs/mcp?tab=readme-ov-file#running-mcp-servers-in-containers)ことや、[AWS Documentation MCP Server](https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server/) のような他の MCP サーバーを 1 つの MCP サーバー定義に組み合わせることなど、追加の機能を有効にできます。例については、AWS Labs のオープンソース MCP サーバーリポジトリの [Installation and Setup](https://github.com/awslabs/mcp?tab=readme-ov-file#installation-and-setup) ガイドを参照してください。MCP サーバーとともにアプリケーションコードを用いた実際の実装例については、Anthropic ドキュメントの [Server Developer](https://modelcontextprotocol.io/quickstart/server) ガイドを参照してください。
+なお、これは基本的なクイックスタートです。[コンテナで MCP サーバーを実行する](https://github.com/awslabs/mcp?tab=readme-ov-file#running-mcp-servers-in-containers)ことや、[AWS Documentation MCP Server](https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server) のような他の MCP サーバーを 1 つの MCP サーバー定義に組み合わせることなど、追加の機能を有効にできます。例については、AWS Labs のオープンソース MCP サーバーリポジトリの [Installation and Setup](https://github.com/awslabs/mcp?tab=readme-ov-file#installation-and-setup) ガイドを参照してください。MCP サーバーとともにアプリケーションコードを用いた実際の実装例については、Anthropic ドキュメントの [Server Developer](https://modelcontextprotocol.io/quickstart/server) ガイドを参照してください。
 
 ## 設定 {#configurations}
 

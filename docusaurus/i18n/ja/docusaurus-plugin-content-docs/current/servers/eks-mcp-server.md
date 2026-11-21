@@ -161,7 +161,7 @@ Kiro CLIで `/tools` コマンドを実行し、利用可能なEKS MCPツール�
 	}
 	```
 
-なお、これは基本的なクイックスタートです。[コンテナでのMCPサーバーの実行](https://github.com/awslabs/mcp?tab=readme-ov-file#running-mcp-servers-in-containers)や、[AWS Documentation MCP Server](https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server/)などのさらに多くのMCPサーバーを単一のMCPサーバー定義に組み合わせるといった、追加の機能を有効にすることもできます。例を確認するには、GitHub上のAWS向けオープンソースMCPサーバーリポジトリの[Installation and Setup](https://github.com/awslabs/mcp?tab=readme-ov-file#installation-and-setup)ガイドを参照してください。MCPサーバーと連携するアプリケーションコードを含む実際の実装例を確認するには、Anthropicドキュメントの[Server Developer](https://modelcontextprotocol.io/quickstart/server)ガイドを参照してください。
+なお、これは基本的なクイックスタートです。[コンテナでのMCPサーバーの実行](https://github.com/awslabs/mcp?tab=readme-ov-file#running-mcp-servers-in-containers)や、[AWS Documentation MCP Server](https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server)などのさらに多くのMCPサーバーを単一のMCPサーバー定義に組み合わせるといった、追加の機能を有効にすることもできます。例を確認するには、GitHub上のAWS向けオープンソースMCPサーバーリポジトリの[Installation and Setup](https://github.com/awslabs/mcp?tab=readme-ov-file#installation-and-setup)ガイドを参照してください。MCPサーバーと連携するアプリケーションコードを含む実際の実装例を確認するには、Anthropicドキュメントの[Server Developer](https://modelcontextprotocol.io/quickstart/server)ガイドを参照してください。
 
 ## 設定 {#configurations}
 

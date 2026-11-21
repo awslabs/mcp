@@ -11,7 +11,7 @@ title: Amazon Nova Canvas との MCP 統合
 1. `user_interfaces/image_generator_st.py` ファイル。画像生成のための Streamlit／ユーザーインターフェースを処理します。
 2. `client_server.py` ファイル。MCP クライアントとサーバーの実装を処理します。
 
-実際に利用される MCP サーバーのコードは、[src/nova-canvas-mcp-server](https://github.com/awslabs/mcp/blob/main/src/nova-canvas-mcp-server/) フォルダーにあります。
+実際に利用される MCP サーバーのコードは、[src/nova-canvas-mcp-server](https://github.com/awslabs/mcp/tree/780e3f1d57c77f9c0b88279711c5b95e23cfb91d/src/nova-canvas-mcp-server) フォルダーにあります。
 
 ### アーキテクチャ {#architecture}
 
