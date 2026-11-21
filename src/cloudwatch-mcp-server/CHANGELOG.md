@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- MCP tool annotations: every tool is marked read-only except `cancel_logs_insight_query`, which stops a caller-selected Logs Insights query.
+
 ## [0.3.0] - 2026-09-15
 
 ### Security

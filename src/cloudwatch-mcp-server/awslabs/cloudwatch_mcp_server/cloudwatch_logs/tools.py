@@ -41,6 +41,7 @@ from awslabs.cloudwatch_mcp_server.common import (
 )
 from loguru import logger
 from mcp.server.mcpserver import Context
+from mcp.types import ToolAnnotations
 from pydantic import Field
 from timeit import default_timer as timer
 from typing import Annotated, Dict, List, Literal, Optional
@@ -194,26 +195,36 @@ class CloudWatchLogsTools:
 
     def register(self, mcp):
         """Register all CloudWatch Logs tools with the MCP server."""
-        # Register describe_log_groups tool
-        mcp.tool(name='describe_log_groups')(self.describe_log_groups)
+        mcp.tool(name='describe_log_groups', annotations=ToolAnnotations(read_only_hint=True))(
+            self.describe_log_groups
+        )
 
-        # Register analyze_log_group tool
-        mcp.tool(name='analyze_log_group')(self.analyze_log_group)
+        mcp.tool(name='analyze_log_group', annotations=ToolAnnotations(read_only_hint=True))(
+            self.analyze_log_group
+        )
 
-        # Register execute_log_insights_query tool
-        mcp.tool(name='execute_log_insights_query')(self.execute_log_insights_query)
+        mcp.tool(
+            name='execute_log_insights_query', annotations=ToolAnnotations(read_only_hint=True)
+        )(self.execute_log_insights_query)
 
-        # Register get_logs_insight_query_results tool
-        mcp.tool(name='get_logs_insight_query_results')(self.get_logs_insight_query_results)
+        mcp.tool(
+            name='get_logs_insight_query_results', annotations=ToolAnnotations(read_only_hint=True)
+        )(self.get_logs_insight_query_results)
 
-        # Register cancel_logs_insight_query tool
-        mcp.tool(name='cancel_logs_insight_query')(self.cancel_logs_insight_query)
+        mcp.tool(
+            name='cancel_logs_insight_query',
+            annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True),
+        )(self.cancel_logs_insight_query)
 
-        # Register multi-region Logs Insights query tool
-        mcp.tool(name='execute_cwl_insights_batch')(execute_cwl_insights_batch)
-        # Register index recommender tools
-        mcp.tool(name='recommend_indexes_loggroup')(recommend_indexes_loggroup)
-        mcp.tool(name='recommend_indexes_account')(recommend_indexes_account)
+        mcp.tool(
+            name='execute_cwl_insights_batch', annotations=ToolAnnotations(read_only_hint=True)
+        )(execute_cwl_insights_batch)
+        mcp.tool(
+            name='recommend_indexes_loggroup', annotations=ToolAnnotations(read_only_hint=True)
+        )(recommend_indexes_loggroup)
+        mcp.tool(
+            name='recommend_indexes_account', annotations=ToolAnnotations(read_only_hint=True)
+        )(recommend_indexes_account)
 
     async def describe_log_groups(
         self,

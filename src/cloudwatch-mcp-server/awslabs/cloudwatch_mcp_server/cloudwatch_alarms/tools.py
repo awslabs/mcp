@@ -29,6 +29,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.models import (
 from datetime import datetime, timedelta
 from loguru import logger
 from mcp.server.mcpserver import Context
+from mcp.types import ToolAnnotations
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Union
 
@@ -42,11 +43,13 @@ class CloudWatchAlarmsTools:
 
     def register(self, mcp):
         """Register all CloudWatch Alarms tools with the MCP server."""
-        # Register get_active_alarms tool
-        mcp.tool(name='get_active_alarms')(self.get_active_alarms)
+        mcp.tool(name='get_active_alarms', annotations=ToolAnnotations(read_only_hint=True))(
+            self.get_active_alarms
+        )
 
-        # Register get_alarm_history tool
-        mcp.tool(name='get_alarm_history')(self.get_alarm_history)
+        mcp.tool(name='get_alarm_history', annotations=ToolAnnotations(read_only_hint=True))(
+            self.get_alarm_history
+        )
 
     async def get_active_alarms(
         self,

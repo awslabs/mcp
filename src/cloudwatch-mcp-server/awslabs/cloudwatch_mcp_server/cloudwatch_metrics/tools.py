@@ -52,6 +52,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.promql_models import (
 from datetime import datetime, timedelta, timezone
 from loguru import logger
 from mcp.server.mcpserver import Context
+from mcp.types import ToolAnnotations
 from pathlib import Path
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
@@ -136,24 +137,37 @@ class CloudWatchMetricsTools:
 
     def register(self, mcp):
         """Register all CloudWatch Metrics tools with the MCP server."""
-        # Register get_metric_data tool
-        mcp.tool(name='get_metric_data')(self.get_metric_data)
+        mcp.tool(name='get_metric_data', annotations=ToolAnnotations(read_only_hint=True))(
+            self.get_metric_data
+        )
 
-        # Register get_metric_metadata tool
-        mcp.tool(name='get_metric_metadata')(self.get_metric_metadata)
+        mcp.tool(name='get_metric_metadata', annotations=ToolAnnotations(read_only_hint=True))(
+            self.get_metric_metadata
+        )
 
-        # Register analyze_metric tool
-        mcp.tool(name='analyze_metric')(self.analyze_metric)
+        mcp.tool(name='analyze_metric', annotations=ToolAnnotations(read_only_hint=True))(
+            self.analyze_metric
+        )
 
-        # Register get_recommended_metric_alarms tool
-        mcp.tool(name='get_recommended_metric_alarms')(self.get_recommended_metric_alarms)
+        mcp.tool(
+            name='get_recommended_metric_alarms', annotations=ToolAnnotations(read_only_hint=True)
+        )(self.get_recommended_metric_alarms)
 
-        # Register PromQL tools
-        mcp.tool(name='execute_promql_query')(self.execute_promql_query)
-        mcp.tool(name='execute_promql_range_query')(self.execute_promql_range_query)
-        mcp.tool(name='get_promql_label_values')(self.get_promql_label_values)
-        mcp.tool(name='get_promql_series')(self.get_promql_series)
-        mcp.tool(name='get_promql_labels')(self.get_promql_labels)
+        mcp.tool(name='execute_promql_query', annotations=ToolAnnotations(read_only_hint=True))(
+            self.execute_promql_query
+        )
+        mcp.tool(
+            name='execute_promql_range_query', annotations=ToolAnnotations(read_only_hint=True)
+        )(self.execute_promql_range_query)
+        mcp.tool(name='get_promql_label_values', annotations=ToolAnnotations(read_only_hint=True))(
+            self.get_promql_label_values
+        )
+        mcp.tool(name='get_promql_series', annotations=ToolAnnotations(read_only_hint=True))(
+            self.get_promql_series
+        )
+        mcp.tool(name='get_promql_labels', annotations=ToolAnnotations(read_only_hint=True))(
+            self.get_promql_labels
+        )
 
     async def get_metric_data(
         self,
