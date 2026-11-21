@@ -14,6 +14,7 @@
 
 """Tests for the amazon-qindex MCP Server."""
 
+import os
 import pytest
 from awslabs.amazon_qindex_mcp_server.server import (
     AttributeFilter,
@@ -379,3 +380,116 @@ class TestMainFunction:
         main()
 
         mock_mcp.run.assert_called_once_with()
+
+
+class TestAwsProfileSession:
+    """Tests for honoring AWS_PROFILE only when it is set."""
+
+    @pytest.mark.asyncio
+    async def test_create_token_with_iam_uses_named_profile(self, mocker):
+        """Honor AWS_PROFILE when creating the initial STS session."""
+        mock_session = mocker.Mock()
+        mock_sts_client = mocker.Mock()
+        mock_sso_client = mocker.Mock()
+        mock_session.client.side_effect = [mock_sts_client, mock_sso_client]
+        mock_sts_client.assume_role.return_value = {
+            'Credentials': {
+                'AccessKeyId': 'test_access_key',
+                'SecretAccessKey': 'test_secret_key',  # pragma: allowlist secret
+                'SessionToken': 'test_session_token',
+            }
+        }
+        mock_sso_client.create_token_with_iam.return_value = {'accessToken': 'token'}
+        mock_session_cls = mocker.patch('boto3.Session', return_value=mock_session)
+
+        env = {key: value for key, value in os.environ.items() if key != 'AWS_PROFILE'}
+        env['AWS_PROFILE'] = 'my-profile'
+        mocker.patch.dict(os.environ, env, clear=True)
+
+        await create_token_with_iam(
+            idc_application_arn='arn:aws:sso::123:application/test',
+            redirect_uri='https://example.com/callback',
+            code='auth-code',
+            idc_region='us-west-2',
+            role_arn='arn:aws:iam::123456789012:role/test-role',
+        )
+
+        assert mock_session_cls.call_args_list[0].kwargs == {
+            'profile_name': 'my-profile',
+            'region_name': 'us-west-2',
+        }
+
+    @pytest.mark.asyncio
+    async def test_create_token_with_iam_without_profile(self, mocker):
+        """Use the default credential chain when AWS_PROFILE is not set."""
+        mock_session = mocker.Mock()
+        mock_sts_client = mocker.Mock()
+        mock_sso_client = mocker.Mock()
+        mock_session.client.side_effect = [mock_sts_client, mock_sso_client]
+        mock_sts_client.assume_role.return_value = {
+            'Credentials': {
+                'AccessKeyId': 'test_access_key',
+                'SecretAccessKey': 'test_secret_key',  # pragma: allowlist secret
+                'SessionToken': 'test_session_token',
+            }
+        }
+        mock_sso_client.create_token_with_iam.return_value = {'accessToken': 'token'}
+        mock_session_cls = mocker.patch('boto3.Session', return_value=mock_session)
+
+        env = {key: value for key, value in os.environ.items() if key != 'AWS_PROFILE'}
+        mocker.patch.dict(os.environ, env, clear=True)
+
+        await create_token_with_iam(
+            idc_application_arn='arn:aws:sso::123:application/test',
+            redirect_uri='https://example.com/callback',
+            code='auth-code',
+            idc_region='us-west-2',
+            role_arn='arn:aws:iam::123456789012:role/test-role',
+        )
+
+        assert mock_session_cls.call_args_list[0].kwargs == {'region_name': 'us-west-2'}
+
+    @pytest.mark.asyncio
+    async def test_assume_role_with_identity_context_uses_named_profile(self, mocker):
+        """Honor AWS_PROFILE when assuming a role with identity context."""
+        mock_session = mocker.Mock()
+        mock_sts_client = mocker.Mock()
+        mock_session.client.return_value = mock_sts_client
+        mock_sts_client.assume_role.return_value = {'Credentials': {}}
+        mock_session_cls = mocker.patch('boto3.Session', return_value=mock_session)
+
+        env = {key: value for key, value in os.environ.items() if key != 'AWS_PROFILE'}
+        env['AWS_PROFILE'] = 'my-profile'
+        mocker.patch.dict(os.environ, env, clear=True)
+
+        await assume_role_with_identity_context(
+            role_arn='arn:aws:iam::123456789012:role/test-role',
+            identity_context='test-context',
+            idc_region='eu-west-1',
+            role_session_name='test-session',
+        )
+
+        mock_session_cls.assert_called_once_with(
+            profile_name='my-profile', region_name='eu-west-1'
+        )
+
+    @pytest.mark.asyncio
+    async def test_assume_role_with_identity_context_without_profile(self, mocker):
+        """Use the default credential chain when AWS_PROFILE is not set."""
+        mock_session = mocker.Mock()
+        mock_sts_client = mocker.Mock()
+        mock_session.client.return_value = mock_sts_client
+        mock_sts_client.assume_role.return_value = {'Credentials': {}}
+        mock_session_cls = mocker.patch('boto3.Session', return_value=mock_session)
+
+        env = {key: value for key, value in os.environ.items() if key != 'AWS_PROFILE'}
+        mocker.patch.dict(os.environ, env, clear=True)
+
+        await assume_role_with_identity_context(
+            role_arn='arn:aws:iam::123456789012:role/test-role',
+            identity_context='test-context',
+            idc_region='eu-west-1',
+            role_session_name='test-session',
+        )
+
+        mock_session_cls.assert_called_once_with(region_name='eu-west-1')

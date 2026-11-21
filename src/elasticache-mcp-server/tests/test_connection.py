@@ -15,15 +15,25 @@ def reset_connection():
     ElastiCacheConnectionManager._client = None
 
 
+def _env_without_profile(**updates):
+    """Copy the environment, drop AWS_PROFILE, and apply optional updates."""
+    env = {key: value for key, value in os.environ.items() if key != 'AWS_PROFILE'}
+    env.update(updates)
+    return env
+
+
 def test_get_connection_default_settings():
-    """Test connection creation with default settings."""
-    with patch('boto3.Session') as mock_session:
+    """Test connection creation with default settings and no AWS_PROFILE."""
+    with (
+        patch.dict(os.environ, _env_without_profile(), clear=True),
+        patch('boto3.Session') as mock_session,
+    ):
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
 
         client = ElastiCacheConnectionManager.get_connection()
 
-        mock_session.assert_called_once_with(profile_name='default', region_name='us-east-1')
+        mock_session.assert_called_once_with(region_name='us-east-1')
         mock_session.return_value.client.assert_called_once()
 
         # Verify the config passed to client creation

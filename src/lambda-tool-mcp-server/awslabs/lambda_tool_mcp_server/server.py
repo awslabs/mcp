@@ -27,7 +27,7 @@ from typing import Optional
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-AWS_PROFILE = os.environ.get('AWS_PROFILE', 'default')
+AWS_PROFILE = os.environ.get('AWS_PROFILE')
 logger.info(f'AWS_PROFILE: {AWS_PROFILE}')
 
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
@@ -52,8 +52,16 @@ logger.info(f'FUNCTION_TAG_VALUE: {FUNCTION_TAG_VALUE}')
 FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY = os.environ.get('FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY')
 logger.info(f'FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY: {FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY}')
 
+
+def create_boto3_session(region_name: str):
+    """Create a boto3 session using AWS_PROFILE when set, else the default credential chain."""
+    if aws_profile := os.environ.get('AWS_PROFILE'):
+        return boto3.Session(profile_name=aws_profile, region_name=region_name)
+    return boto3.Session(region_name=region_name)
+
+
 # Initialize AWS clients
-session = boto3.Session(profile_name=AWS_PROFILE, region_name=AWS_REGION)
+session = create_boto3_session(AWS_REGION)
 lambda_client = session.client('lambda')
 schemas_client = session.client('schemas')
 

@@ -37,7 +37,7 @@ class BaseConnectionManager:
         """
         if cls._client is None:
             # Get AWS configuration from environment
-            aws_profile = os.environ.get('AWS_PROFILE', 'default')
+            aws_profile = os.environ.get('AWS_PROFILE')
             aws_region = os.environ.get('AWS_REGION', 'us-east-1')
 
             # Configure retry settings
@@ -57,7 +57,10 @@ class BaseConnectionManager:
 
             # Initialize AWS client with session and config
             # so that if user changes credential, it will be reflected immediately in the next call
-            session = boto3.Session(profile_name=aws_profile, region_name=aws_region)
+            if aws_profile:
+                session = boto3.Session(profile_name=aws_profile, region_name=aws_region)
+            else:
+                session = boto3.Session(region_name=aws_region)
             cls._client = session.client(service_name=cls._service_name, config=config)
 
         return cls._client

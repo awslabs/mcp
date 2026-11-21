@@ -16,6 +16,7 @@
 
 # pyright: reportAttributeAccessIssue=false, reportFunctionMemberAccess=false
 # because boto3 client doesn't have any type hinting
+import os
 import unittest
 from awslabs.amazon_mq_mcp_server.aws_service_mcp_generator import AWSToolGenerator
 from unittest.mock import MagicMock, patch
@@ -137,7 +138,8 @@ class TestAWSToolGenerator(unittest.TestCase):
         # Configure the session mock to return different clients based on region
         session_instances = {}
 
-        def get_session(profile_name, region_name):
+        def get_session(*args, **kwargs):
+            region_name = kwargs['region_name']
             if region_name not in session_instances:
                 session_mock = MagicMock()
                 if region_name == 'us-west-2':
@@ -149,22 +151,24 @@ class TestAWSToolGenerator(unittest.TestCase):
 
         mock_session.side_effect = get_session
 
-        generator = AWSToolGenerator(
-            service_name='sqs', service_display_name='SQS', mcp=self.mcp_mock
-        )
+        env = {key: value for key, value in os.environ.items() if key != 'AWS_PROFILE'}
+        with patch.dict(os.environ, env, clear=True):
+            generator = AWSToolGenerator(
+                service_name='sqs', service_display_name='SQS', mcp=self.mcp_mock
+            )
 
-        # Access private method for testing
-        client1 = generator._AWSToolGenerator__get_client('us-west-2')
-        client2 = generator._AWSToolGenerator__get_client('us-west-2')
-        client3 = generator._AWSToolGenerator__get_client('us-east-1')
+            # Access private method for testing
+            client1 = generator._AWSToolGenerator__get_client('us-west-2')
+            client2 = generator._AWSToolGenerator__get_client('us-west-2')
+            client3 = generator._AWSToolGenerator__get_client('us-east-1')
 
         # Verify client caching works
         self.assertEqual(client1, client2)
         self.assertNotEqual(client1, client3)
 
         # Verify boto3 Session was called with correct parameters
-        mock_session.assert_any_call(profile_name='default', region_name='us-west-2')
-        mock_session.assert_any_call(profile_name='default', region_name='us-east-1')
+        mock_session.assert_any_call(region_name='us-west-2')
+        mock_session.assert_any_call(region_name='us-east-1')
 
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.boto3.Session')
     def test_get_client_public(self, mock_session):
@@ -174,17 +178,19 @@ class TestAWSToolGenerator(unittest.TestCase):
         session_mock.client.return_value = mock_client
         mock_session.return_value = session_mock
 
-        generator = AWSToolGenerator(
-            service_name='sqs', service_display_name='SQS', mcp=self.mcp_mock
-        )
+        env = {key: value for key, value in os.environ.items() if key != 'AWS_PROFILE'}
+        with patch.dict(os.environ, env, clear=True):
+            generator = AWSToolGenerator(
+                service_name='sqs', service_display_name='SQS', mcp=self.mcp_mock
+            )
 
-        client1 = generator.get_client('us-west-2')
-        client2 = generator.get_client('us-west-2')
+            client1 = generator.get_client('us-west-2')
+            client2 = generator.get_client('us-west-2')
 
         # Verify the public method returns the client and caches it
         self.assertEqual(client1, mock_client)
         self.assertEqual(client1, client2)
-        mock_session.assert_called_once_with(profile_name='default', region_name='us-west-2')
+        mock_session.assert_called_once_with(region_name='us-west-2')
 
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.os.environ.get')
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.boto3.Session')
@@ -204,17 +210,16 @@ class TestAWSToolGenerator(unittest.TestCase):
         generator._AWSToolGenerator__get_client('us-east-1')
 
         # Verify environment variable was checked
-        mock_env_get.assert_called_with('AWS_PROFILE', 'default')
+        mock_env_get.assert_called_with('AWS_PROFILE')
 
         # Verify boto3 Session was called with custom profile
         mock_session.assert_called_with(profile_name='custom-profile', region_name='us-east-1')
 
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.os.environ.get')
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.boto3.Session')
-    def test_get_client_with_default_aws_profile(self, mock_session, mock_env_get):
-        """Test client creation uses default AWS profile when environment variable is not set."""
-        # Mock environment variable to return 'default' (simulating the default fallback)
-        mock_env_get.return_value = 'default'
+    def test_get_client_without_aws_profile(self, mock_session, mock_env_get):
+        """Use the default credential chain when AWS_PROFILE is not set."""
+        mock_env_get.return_value = None
 
         # Mock session
         mock_session.return_value = self.boto3_session_mock
@@ -226,11 +231,11 @@ class TestAWSToolGenerator(unittest.TestCase):
         # Access private method for testing
         generator._AWSToolGenerator__get_client('us-east-1')
 
-        # Verify environment variable was checked with default fallback
-        mock_env_get.assert_called_with('AWS_PROFILE', 'default')
+        # Verify environment variable was checked without a 'default' fallback
+        mock_env_get.assert_called_with('AWS_PROFILE')
 
-        # Verify boto3 Session was called with default profile
-        mock_session.assert_called_with(profile_name='default', region_name='us-east-1')
+        # Verify boto3 Session was called without a profile_name
+        mock_session.assert_called_with(region_name='us-east-1')
 
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.boto3.Session')
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.botocore.session.get_session')
@@ -415,7 +420,7 @@ class TestAWSToolGenerator(unittest.TestCase):
         captured_client_getter('us-west-2')
 
         # Verify environment variable was checked
-        mock_env_get.assert_called_with('AWS_PROFILE', 'default')
+        mock_env_get.assert_called_with('AWS_PROFILE')
 
         # Verify boto3 Session was called with the correct profile and region
         mock_boto3_session.assert_called_with(profile_name='test-profile', region_name='us-west-2')
@@ -423,12 +428,11 @@ class TestAWSToolGenerator(unittest.TestCase):
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.os.environ.get')
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.boto3.Session')
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.botocore.session.get_session')
-    def test_function_override_boto3_client_getter_default_profile(
+    def test_function_override_boto3_client_getter_without_profile(
         self, mock_botocore_session, mock_boto3_session, mock_env_get
     ):
-        """Test that boto3_client_getter in function override uses default profile when AWS_PROFILE is not set."""
-        # Mock environment variable to return 'default' (simulating the default fallback)
-        mock_env_get.return_value = 'default'
+        """Use the default credential chain in boto3_client_getter when AWS_PROFILE is not set."""
+        mock_env_get.return_value = None
         mock_boto3_session.return_value = self.boto3_session_mock
 
         # Setup mock for botocore session
@@ -467,11 +471,11 @@ class TestAWSToolGenerator(unittest.TestCase):
         # Call the client_getter to test it uses the default profile
         captured_client_getter('eu-west-1')
 
-        # Verify environment variable was checked with default fallback
-        mock_env_get.assert_called_with('AWS_PROFILE', 'default')
+        # Verify environment variable was checked without a 'default' fallback
+        mock_env_get.assert_called_with('AWS_PROFILE')
 
-        # Verify boto3 Session was called with the default profile and specified region
-        mock_boto3_session.assert_called_with(profile_name='default', region_name='eu-west-1')
+        # Verify boto3 Session was called without a profile_name
+        mock_boto3_session.assert_called_with(region_name='eu-west-1')
 
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.boto3.Session')
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.botocore.session.get_session')

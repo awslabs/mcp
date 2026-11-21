@@ -103,10 +103,13 @@ class AWSToolGenerator:
         """Get or create a service client for the specified region."""
         client_key = f'{self.service_name}_{region}'
         if client_key not in self.clients:
-            aws_profile = os.environ.get('AWS_PROFILE', 'default')
-            self.clients[client_key] = boto3.Session(
-                profile_name=aws_profile, region_name=region
-            ).client(service_name=self.service_name, config=self.config)
+            if aws_profile := os.environ.get('AWS_PROFILE'):
+                session = boto3.Session(profile_name=aws_profile, region_name=region)
+            else:
+                session = boto3.Session(region_name=region)
+            self.clients[client_key] = session.client(
+                service_name=self.service_name, config=self.config
+            )
         return self.clients[client_key]
 
     def __get_operations(self) -> List[str]:
@@ -126,10 +129,11 @@ class AWSToolGenerator:
 
         # A getter for the boto3 client
         def boto3_client_getter(region: str, service_name: str = self.service_name):
-            aws_profile = os.environ.get('AWS_PROFILE', 'default')
-            return boto3.Session(profile_name=aws_profile, region_name=region).client(
-                service_name=self.service_name, config=self.config
-            )
+            if aws_profile := os.environ.get('AWS_PROFILE'):
+                session = boto3.Session(profile_name=aws_profile, region_name=region)
+            else:
+                session = boto3.Session(region_name=region)
+            return session.client(service_name=self.service_name, config=self.config)
 
         func_override(self.mcp, boto3_client_getter, operation)
 
