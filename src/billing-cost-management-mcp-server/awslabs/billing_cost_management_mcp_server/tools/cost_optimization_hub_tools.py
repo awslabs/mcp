@@ -572,13 +572,25 @@ Available Filter Parameters (pass as JSON string):
   'RdsReservedInstances').
 - actionTypes: ['Rightsize', 'Stop', 'Upgrade', 'PurchaseSavingsPlans', 'PurchaseReservedInstances', 'MigrateToGraviton', 'Delete', 'ScaleIn']
 - implementationEfforts: ['VeryLow', 'Low', 'Medium', 'High', 'VeryHigh']
-- regions: AWS region codes (e.g., ["us-east-1", "us-west-2"]).
-  Savings Plans recommendations are reported differently by each operation.
-  list_recommendations reports them with the region "Global", so a region code such as
-  "us-east-1" drops every Savings Plans recommendation and regions=["Global"] returns them.
-  list_recommendation_summaries attributes their savings to the regions where the usage ran,
-  so "us-east-1" returns them and "Global" returns $0. The same region filter can therefore
-  show no Savings Plans in the list and a positive amount in the summaries.
+- regions: AWS region codes (e.g., ["us-east-1", "us-west-2"]), matched exactly with no
+  wildcards: a misspelled or unknown region returns no results rather than an error.
+  list_recommendations and get_recommendation report Compute and SageMaker Savings Plans
+  with the region "Global", so "us-east-1" drops them and regions=["Global"] returns them.
+  EC2 Instance Savings Plans and every Reserved Instances type have a region code, so
+  "us-east-1" returns them and "Global" drops them.
+  The default list keeps only one of Compute Savings Plans, EC2 Instance Savings Plans and
+  EC2 Reserved Instances (preferred in that order among the resourceTypes and actionTypes
+  allowed) and hides the other two in every region; the region filter does not change
+  which is kept. So "us-east-1" can return none of them. To list them by region, set
+  include_all_recommendations=true or pass resourceTypes with only one of the three (e.g.
+  ["Ec2ReservedInstances"]). A rollbackPossible filter also changes which are kept: it can
+  hide all three or show more than one. Adding "Global" to the region codes keeps Compute and
+  SageMaker Savings Plans, but their list savings cover all regions; for one region's
+  share, use list_recommendation_summaries.
+  list_recommendation_summaries attributes the savings of every Savings Plans and Reserved
+  Instances type to the regions where the usage ran, so "us-east-1" returns them and
+  "Global" returns $0. The same region filter can therefore show no Compute Savings Plans
+  in the list and a positive amount in the summaries.
 - accountIds: List of AWS account IDs
 - restartNeeded: true or false (the strings "true"/"false" are accepted too)
 - tags: List of {"key": ..., "value": ...} objects, e.g.
