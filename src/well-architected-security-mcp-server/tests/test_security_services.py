@@ -964,3 +964,24 @@ async def test_get_macie_findings_not_enabled(mock_ctx, mock_boto3_session):
         assert len(result["findings"]) == 0
         assert "message" in result
         assert "Amazon Macie is not enabled" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_get_guardduty_findings_default_filter_includes_critical_severity(
+    mock_ctx, mock_boto3_session, mock_guardduty_client
+):
+    """The default filter covers medium, high and critical GuardDuty severity values."""
+    mock_boto3_session.client.return_value = mock_guardduty_client
+
+    with mock.patch(
+        "awslabs.well_architected_security_mcp_server.util.security_services.check_guard_duty"
+    ) as mock_check:
+        mock_check.return_value = {
+            "enabled": True,
+            "detector_details": {"id": "12345678901234567890123456789012"},
+        }
+
+        await get_guardduty_findings("us-east-1", mock_boto3_session, mock_ctx)
+
+        criteria = mock_guardduty_client.list_findings.call_args.kwargs["FindingCriteria"]
+        assert criteria["Criterion"]["severity"]["Eq"] == ["5", "7", "8", "9", "10"]

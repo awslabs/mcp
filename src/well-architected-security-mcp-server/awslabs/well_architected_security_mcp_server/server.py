@@ -424,7 +424,7 @@ async def get_security_findings(
                     "LOW": ["1", "2", "3"],
                     "MEDIUM": ["4", "5", "6"],
                     "HIGH": ["7", "8"],
-                    "CRITICAL": ["8"],
+                    "CRITICAL": ["9", "10"],
                 }
                 if severity_filter.upper() in severity_mapping:
                     filter_criteria = {
