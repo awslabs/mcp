@@ -925,11 +925,12 @@ class CloudWatchMetricsTools:
             logger.info('No predefined recommendations found - performing metric analysis')
             analysis_result = await self.analyze_metric(
                 ctx,
-                namespace,
-                metric_name,
-                dimensions,
-                region,
-                statistic,
+                namespace=namespace,
+                metric_name=metric_name,
+                dimensions=dimensions,
+                region=region,
+                profile_name=profile_name,
+                statistic=statistic,
             )
 
             # Generate additional recommendations based on seasonality
@@ -1403,6 +1404,7 @@ class CloudWatchMetricsTools:
                 end_time=end_time.isoformat(),
                 statistic=statistic,
                 region=region,
+                profile_name=profile_name,
                 target_datapoints=analysis_period_minutes,
             )
 
