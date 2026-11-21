@@ -14,7 +14,7 @@ from awslabs.ecs_mcp_server.utils.aws import (
 )
 
 
-class TestAWSRoleUtils(unittest.TestCase):
+class TestAWSRoleUtils(unittest.IsolatedAsyncioTestCase):
     """Tests for AWS role-based utility functions."""
 
     @pytest.mark.anyio
