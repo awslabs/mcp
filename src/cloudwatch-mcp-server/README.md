@@ -59,7 +59,10 @@ Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch
 ### Tools for CloudWatch Logs
 * `describe_log_groups` - Finds metadata about CloudWatch log groups
 * `analyze_log_group` - Analyzes CloudWatch logs for anomalies, message patterns, and error patterns
-* `execute_log_insights_query` - Executes CloudWatch Logs insights query on CloudWatch log group(s) with specified time range and query syntax, returns a unique ID used to retrieve results
+* `execute_log_insights_query` - Executes a CloudWatch Logs query and normally returns results and a query ID. CWLI is the default ([AWS syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_AnalyzeLogData_Languages.html)).
+  * CWLI: `SOURCE logGroups(namePrefix: ['/aws/lambda/example']) | fields @message | limit 10` (omit both selectors). Put `SOURCE` at the start of the query. [SOURCE](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-Source.html) also supports data sources and tags. Use a narrow prefix and time range; `LIMIT` caps rows, not scan scope.
+  * SQL: `query_language='SQL'`, query string ``SELECT `@message` FROM `/aws/lambda/example` LIMIT 10`` (no external log group selectors).
+  * PPL: `query_language='PPL'`, query string ``source = [lg:`/aws/lambda/example`] | fields `@message` | head 10`` (or use an external selector).
 * `execute_cwl_insights_batch` - Runs a Logs Insights query across multiple log groups and regions in a single call, automatically chunking log groups (max 50 per query), throttling concurrency (max 7 per region), polling for completion, retrying failures, and splitting time ranges when hitting the 10,000-record or timeout limits. Returns one merged result set annotated with region, log group, and optional account labels. See [`execute_cwl_insights_batch` Examples](#execute_cwl_insights_batch-examples) below.
 * `get_logs_insight_query_results` - Retrieves the results of an executed CloudWatch insights query using the query ID. It is used after `execute_log_insights_query` has been called
 * `cancel_logs_insight_query` - Cancels in progress CloudWatch logs insights query
