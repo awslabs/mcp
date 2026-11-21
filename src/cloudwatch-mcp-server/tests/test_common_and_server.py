@@ -277,3 +277,39 @@ class TestEdgeCasesCoverage:
         assert '@visualization' not in pattern_result[1]
         assert len(pattern_result[0]['@logSamples']) == 1
         assert len(pattern_result[1]['@logSamples']) == 1
+
+
+async def test_tool_annotations():
+    """Expose read-only and destructive hints for registered tools."""
+    from awslabs.cloudwatch_mcp_server.server import mcp
+
+    tools = {t.name: t for t in await mcp.list_tools()}
+    read_only = {
+        'get_active_alarms',
+        'get_alarm_history',
+        'describe_log_groups',
+        'analyze_log_group',
+        'execute_log_insights_query',
+        'get_logs_insight_query_results',
+        'execute_cwl_insights_batch',
+        'recommend_indexes_loggroup',
+        'recommend_indexes_account',
+        'get_metric_data',
+        'get_metric_metadata',
+        'analyze_metric',
+        'get_recommended_metric_alarms',
+        'execute_promql_query',
+        'execute_promql_range_query',
+        'get_promql_label_values',
+        'get_promql_series',
+        'get_promql_labels',
+    }
+    assert tools.keys() == read_only | {'cancel_logs_insight_query'}
+    for name in read_only:
+        annotations = tools[name].annotations
+        assert annotations is not None
+        assert annotations.read_only_hint is True
+    cancel = tools['cancel_logs_insight_query'].annotations
+    assert cancel is not None
+    assert cancel.read_only_hint is False
+    assert cancel.destructive_hint is True
