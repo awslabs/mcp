@@ -41,6 +41,7 @@ from awslabs.mysql_mcp_server.mutable_sql_detector import (
     detect_mutating_keywords,
 )
 from botocore.exceptions import ClientError
+from collections import Counter
 from datetime import datetime
 from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
@@ -93,9 +94,22 @@ def extract_cell(cell: dict):
     return None
 
 
+class DuplicateColumnNamesError(ValueError):
+    """A result set repeats a column name, so its rows can't be keyed by name."""
+
+
 def parse_execute_response(response: dict) -> list[dict]:
     """Convert RDS Data API execute_statement response to list of rows."""
     columns = [col.get('label') or col['name'] for col in response.get('columnMetadata', [])]
+    # Rows are dicts keyed by column name, so a repeated name, as in a join of
+    # two tables that both have `id`, would keep only one of those columns.
+    duplicates = [name for name, count in Counter(columns).items() if count > 1]
+    if duplicates:
+        raise DuplicateColumnNamesError(
+            f'Result set has duplicate column names ({", ".join(n or "unnamed" for n in duplicates)}). '
+            'Rows are keyed by column name, so each repeat would overwrite the one before it. '
+            'Alias the duplicates, e.g. SELECT e.name AS employee_name, d.name AS department_name.'
+        )
     records = []
 
     for row in response.get('records', []):
@@ -209,6 +223,12 @@ async def run_query(
         logger.exception(client_error_code_key)
         await ctx.error(str({'code': e.response['Error']['Code']}))
         return [{'error': client_error_code_key}]
+    except DuplicateColumnNamesError as e:
+        # Unlike other errors, this message only names columns from the caller's
+        # own query, so it is safe to return, and it says how to fix the query.
+        logger.warning(str(e))
+        await ctx.error(str(e))
+        return [{'error': str(e)}]
     except Exception as e:
         # Full traceback is logged locally; only the exception type name is
         # surfaced to the LLM so identity-revealing strings from asyncmy /
