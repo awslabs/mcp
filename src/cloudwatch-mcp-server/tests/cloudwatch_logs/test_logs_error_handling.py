@@ -34,30 +34,20 @@ class TestParameterValidation:
     """Test parameter validation and edge cases."""
 
     def test_validate_log_group_parameters_both_provided(self):
-        """Test validation when both parameters are provided - should raise error."""
+        """Reject conflicting nonempty lists."""
         with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchLogsTools()
-
-            with pytest.raises(ValueError) as exc_info:
+            with pytest.raises(
+                ValueError, match='Provide at most one of log_group_names or log_group_identifiers'
+            ):
                 tools._validate_log_group_parameters(['group1'], ['arn1'])
 
-            assert (
-                'Exactly one of log_group_names or log_group_identifiers must be provided'
-                in str(exc_info.value)
-            )
-
-    def test_validate_log_group_parameters_neither_provided(self):
-        """Test validation when neither parameter is provided - should raise error."""
+    def test_validate_log_group_parameters_allows_neither(self):
+        """Permit missing and empty lists."""
         with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchLogsTools()
-
-            with pytest.raises(ValueError) as exc_info:
-                tools._validate_log_group_parameters(None, None)
-
-            assert (
-                'Exactly one of log_group_names or log_group_identifiers must be provided'
-                in str(exc_info.value)
-            )
+            tools._validate_log_group_parameters(None, None)
+            tools._validate_log_group_parameters([], [])
 
     def test_validate_log_group_parameters_valid_cases(self):
         """Test validation with valid parameter combinations."""

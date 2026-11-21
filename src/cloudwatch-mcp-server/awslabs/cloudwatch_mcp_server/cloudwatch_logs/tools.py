@@ -16,6 +16,7 @@
 
 import asyncio
 import datetime
+import re
 from awslabs.cloudwatch_mcp_server.aws_common import get_aws_client
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch import (
     execute_cwl_insights_batch,
@@ -56,19 +57,8 @@ class CloudWatchLogsTools:
     def _validate_log_group_parameters(
         self, log_group_names: Optional[List[str]], log_group_identifiers: Optional[List[str]]
     ) -> None:
-        """Validate that exactly one of log_group_names or log_group_identifiers is provided.
-
-        Args:
-            log_group_names: List of log group names
-            log_group_identifiers: List of log group identifiers
-
-        Raises:
-            ValueError: If both or neither parameters are provided
-        """
-        if bool(log_group_names) == bool(log_group_identifiers):
-            raise ValueError(
-                'Exactly one of log_group_names or log_group_identifiers must be provided'
-            )
+        if log_group_names and log_group_identifiers:
+            raise ValueError('Provide at most one of log_group_names or log_group_identifiers')
 
     def _convert_time_to_timestamp(self, time_str: str) -> int:
         """Convert ISO 8601 time string to Unix timestamp.
@@ -515,14 +505,14 @@ class CloudWatchLogsTools:
             List[str] | None,
             Field(
                 max_length=50,
-                description='Up to 50 log group names. CWLI requires exactly one selector; PPL accepts one selector or an inline source; SQL requires neither.',
+                description='Up to 50 log group names. Omit when the query selects the primary source, or for SQL.',
             ),
         ] = None,
         log_group_identifiers: Annotated[
             List[str] | None,
             Field(
                 max_length=50,
-                description='Up to 50 log group names or ARNs. Use ARNs for source-account groups queried from a monitoring account. CWLI requires exactly one selector; PPL accepts one selector or an inline source; SQL requires neither.',
+                description='Up to 50 log group names or ARNs. Use ARNs for source-account groups queried from a monitoring account. Omit when the query selects the primary source, or for SQL.',
             ),
         ] = None,
         start_time: str = Field(
@@ -539,7 +529,7 @@ class CloudWatchLogsTools:
         ),
         query_string: str = Field(
             ...,
-            description='Query string in the selected language. See https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_AnalyzeLogData_Languages.html.',
+            description='Query in the selected language. To select the primary source in the query, use CWLI `SOURCE` (start of query), PPL `source = [...]`, or SQL `FROM`. See https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_AnalyzeLogData_Languages.html.',
         ),
         limit: Annotated[
             int | None,
@@ -568,35 +558,42 @@ class CloudWatchLogsTools:
         query_language: Annotated[
             Literal['CWLI', 'SQL', 'PPL'],
             Field(
-                description='Query language: CWLI (CloudWatch Logs Insights QL, default), SQL (OpenSearch SQL), or PPL (OpenSearch PPL). For CWLI, provide exactly one of log_group_names or log_group_identifiers. For PPL, provide one of those selectors or use a source clause in query_string without either selector. For SQL, specify the source in FROM and omit both selectors.'
+                description='Query language: CWLI (CloudWatch Logs Insights QL, default), SQL (OpenSearch SQL), or PPL (OpenSearch PPL).'
             ),
         ] = 'CWLI',
     ) -> Dict:
         """Execute a query and poll for results.
 
         Query, filter, collect statistics, or find patterns in one or more log groups.
-        CWLI requires exactly one external log group selector. PPL accepts one selector
-        or an inline source; SQL specifies its source in FROM without selectors.
+        For CWLI or PPL, select the primary source with one external selector or in the
+        query; for SQL, use `FROM` and omit both selectors.
         Start and end times are inclusive ISO 8601 timestamps with timezone offsets.
 
         CRITICAL: Always use a small row cap with the limit parameter or native
         CWLI `| limit N`, SQL `LIMIT N`, or PPL `| head N` syntax.
 
+        Use a narrow source and time window; a row cap does not narrow scan scope.
+
         Example CWLI query:
         ```
-        filter @message like /Exception/
-        | stats count(*) as exceptionCount by bin(1h)
-        | sort exceptionCount desc
+        SOURCE logGroups(namePrefix: ['/aws/lambda/example']) | fields @message | limit 10
         ```
 
         Returns a dictionary with queryId, status, result row dictionaries, and
         statistics when available. Errors include a message and empty results.
         """
         try:
-            if query_language == 'CWLI' or (
-                query_language == 'PPL' and (log_group_names or log_group_identifiers)
-            ):
+            if query_language in ('CWLI', 'PPL'):
                 self._validate_log_group_parameters(log_group_names, log_group_identifiers)
+                if (
+                    query_language == 'CWLI'
+                    and not (log_group_names or log_group_identifiers)
+                    and re.match(r'(?:\s*#[^\n]*\n)*\s*SOURCE\b', query_string, re.IGNORECASE)
+                    is None
+                ):
+                    raise ValueError(
+                        'CWLI queries need log_group_names, log_group_identifiers, or a query that starts with SOURCE'
+                    )
             elif query_language == 'SQL' and (log_group_names or log_group_identifiers):
                 raise ValueError(
                     'SQL queries must specify their source in query_string (FROM); omit log_group_names and log_group_identifiers'

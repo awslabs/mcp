@@ -22,6 +22,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_logs.models import (
     LogsQueryCancelResult,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools import CloudWatchLogsTools
+from botocore.exceptions import ClientError
 from moto import mock_aws
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -462,7 +463,16 @@ class TestAnalyzeLogGroup:
 class TestQueryLanguages:
     """Exercise language-specific request and schema behavior."""
 
-    async def test_sql_query_without_external_selectors(self, ctx, cloudwatch_tools, logs_client):
+    @pytest.mark.parametrize(
+        'query',
+        [
+            'SELECT `@message` AS message FROM `/aws/lambda/example` LIMIT 10',
+            "SELECT `@message` AS message FROM `dataSource(['amazon_vpc.flow'])` LIMIT 10",
+        ],
+    )
+    async def test_sql_query_without_external_selectors(
+        self, ctx, cloudwatch_tools, logs_client, query
+    ):
         """Pass SQL through and preserve projected fields."""
         logs_client.start_query = MagicMock(return_value={'queryId': 'test-query-id'})
         logs_client.get_query_results = MagicMock(
@@ -476,7 +486,6 @@ class TestQueryLanguages:
                 ],
             }
         )
-        query = 'SELECT `@message` AS message FROM `/aws/lambda/example` LIMIT 10'
         result = await cloudwatch_tools.execute_log_insights_query(
             ctx,
             start_time='2023-01-01T00:00:00+00:00',
@@ -509,6 +518,7 @@ class TestQueryLanguages:
                 {'logGroupIdentifiers': ['arn:example'], 'limit': 10},
             ),
             ({}, 'source = [lg:`/aws/lambda/example`] | fields `@message` | head 10', None, {}),
+            ({}, 'source = [ds:`amazon_vpc.flow`] | fields `@message` | head 10', None, {}),
         ],
     )
     async def test_ppl_query_selectors(
@@ -570,10 +580,11 @@ class TestQueryLanguages:
         )
         logs_client.start_query.assert_not_called()
 
-    async def test_ppl_rejects_multiple_external_selectors(
-        self, ctx, cloudwatch_tools, logs_client
+    @pytest.mark.parametrize('language', ['CWLI', 'PPL'])
+    async def test_rejects_multiple_external_selectors(
+        self, ctx, cloudwatch_tools, logs_client, language
     ):
-        """Reject conflicting PPL selectors before calling AWS."""
+        """Reject conflicting selectors before calling AWS."""
         logs_client.start_query = MagicMock()
         result = await cloudwatch_tools.execute_log_insights_query(
             ctx,
@@ -582,27 +593,214 @@ class TestQueryLanguages:
             start_time='2023-01-01T00:00:00+00:00',
             end_time='2023-01-01T01:00:00+00:00',
             query_string='fields `@message`',
-            query_language='PPL',
+            query_language=language,
         )
         assert result == {
             'queryId': '',
             'status': 'Error',
             'results': [],
-            'message': 'Error executing CloudWatch Logs Insights query: Exactly one of log_group_names or log_group_identifiers must be provided',
+            'message': 'Error executing CloudWatch Logs Insights query: Provide at most one of log_group_names or log_group_identifiers',
         }
         logs_client.start_query.assert_not_called()
 
-    async def test_default_rejects_no_selectors(self, ctx, cloudwatch_tools, logs_client):
-        """Keep the default selector requirement."""
-        logs_client.start_query = MagicMock()
+    @pytest.mark.parametrize(
+        ('query', 'selectors'),
+        [
+            (
+                "SOURCE logGroups(namePrefix: ['/aws/lambda/example']) | fields @message | limit 10",
+                {},
+            ),
+            (
+                "SOURCE dataSource(['amazon_vpc.flow']) | fields @message | limit 10",
+                {'log_group_names': []},
+            ),
+            (
+                "# note\nSOURCE logGroups(namePrefix: ['/example']) | fields @message | limit 10",
+                {},
+            ),
+            ("\n\nSOURCE logGroups(namePrefix: ['/example']) | fields @message | limit 10", {}),
+            ("  \nsource logGroups(namePrefix: ['/example']) | fields @message | limit 10", {}),
+            (
+                'SOURCE logGroupTags([{ "key": "env", "values": ["test"] }]) | fields @message | limit 10',
+                {},
+            ),
+        ],
+    )
+    async def test_cwli_source_without_external_selectors(
+        self, ctx, cloudwatch_tools, logs_client, query, selectors
+    ):
+        """Send each CWLI source unchanged without external scope."""
+        logs_client.start_query = MagicMock(return_value={'queryId': 'test-query-id'})
+        logs_client.get_query_results = MagicMock(
+            return_value={
+                'status': 'Complete',
+                'results': [[{'field': '@message', 'value': 'example'}]],
+            }
+        )
+        result = await cloudwatch_tools.execute_log_insights_query(
+            ctx,
+            start_time='2023-01-01T00:00:00+00:00',
+            end_time='2023-01-01T01:00:00+00:00',
+            query_string=query,
+            **selectors,
+        )
+        logs_client.start_query.assert_called_once_with(
+            startTime=1672531200, endTime=1672534800, queryString=query
+        )
+        assert result['status'] == 'Complete'
+        assert result['results'] == [{'@message': 'example'}]
+
+    async def test_missing_inline_scope_returns_aws_error(
+        self, ctx, cloudwatch_tools, logs_client
+    ):
+        """Return the AWS error without polling when scope is missing."""
+        logs_client.start_query = MagicMock(
+            side_effect=ClientError(
+                {'Error': {'Code': 'InvalidParameterException', 'Message': 'Missing source'}},
+                'StartQuery',
+            )
+        )
+        logs_client.get_query_results = MagicMock()
         result = await cloudwatch_tools.execute_log_insights_query(
             ctx,
             start_time='2023-01-01T00:00:00+00:00',
             end_time='2023-01-01T01:00:00+00:00',
             query_string='fields @message',
+            query_language='PPL',
         )
+        expected = {
+            'queryLanguage': 'PPL',
+            'startTime': 1672531200,
+            'endTime': 1672534800,
+            'queryString': 'fields @message',
+        }
+        logs_client.start_query.assert_called_once_with(**expected)
+        logs_client.get_query_results.assert_not_called()
         assert result['status'] == 'Error'
+        assert result['queryId'] == ''
+        assert result['results'] == []
+        assert 'Missing source' in result['message']
+
+    @pytest.mark.parametrize(
+        ('language', 'query'),
+        [
+            ('CWLI', "SOURCE logGroups(namePrefix: ['/other']) | fields @message | limit 10"),
+            ('PPL', 'source = [lg:`/other`] | fields `@message` | head 10'),
+        ],
+    )
+    async def test_external_selector_with_inline_source_is_forwarded(
+        self, ctx, cloudwatch_tools, logs_client, language, query
+    ):
+        """Preserve both scope inputs without retrying."""
+        message = 'LogGroupSelection, LogGroupNames, and SubQueries are mutually exclusive'
+        code = 'InvalidParameterException'
+        if language == 'CWLI':
+            code = 'MalformedQueryException'
+            message = 'Compile Error - ' + message + '.'
+        logs_client.start_query = MagicMock(
+            side_effect=ClientError({'Error': {'Code': code, 'Message': message}}, 'StartQuery')
+        )
+        logs_client.get_query_results = MagicMock()
+        result = await cloudwatch_tools.execute_log_insights_query(
+            ctx,
+            log_group_names=['/selected'],
+            start_time='2023-01-01T00:00:00+00:00',
+            end_time='2023-01-01T01:00:00+00:00',
+            query_string=query,
+            query_language=language,
+        )
+        expected = {
+            'logGroupNames': ['/selected'],
+            'startTime': 1672531200,
+            'endTime': 1672534800,
+            'queryString': query,
+        }
+        if language == 'PPL':
+            expected['queryLanguage'] = 'PPL'
+        logs_client.start_query.assert_called_once_with(**expected)
+        logs_client.get_query_results.assert_not_called()
+        assert result['status'] == 'Error'
+        assert result['queryId'] == ''
+        assert result['results'] == []
+        assert message in result['message']
+        assert code in result['message']
+
+    @pytest.mark.parametrize(
+        'query',
+        [
+            'fields @message',
+            'sourceful | fields @message',
+            '# SOURCE logGroups(...)\nfields @message | limit 10',
+        ],
+    )
+    async def test_cwli_missing_scope_rejected_locally(
+        self, ctx, cloudwatch_tools, logs_client, query
+    ):
+        """Reject missing scope before contacting the service."""
+        logs_client.start_query = MagicMock()
+        result = await cloudwatch_tools.execute_log_insights_query(
+            ctx,
+            start_time='2023-01-01T00:00:00+00:00',
+            end_time='2023-01-01T01:00:00+00:00',
+            query_string=query,
+        )
         logs_client.start_query.assert_not_called()
+        assert result['status'] == 'Error'
+        assert result['queryId'] == ''
+        assert result['results'] == []
+        assert (
+            'CWLI queries need log_group_names, log_group_identifiers, or a query that starts with SOURCE'
+            in result['message']
+        )
+
+    async def test_malformed_cwli_source_returns_aws_error(
+        self, ctx, cloudwatch_tools, logs_client
+    ):
+        """Forward malformed SOURCE to the service without retrying."""
+        query = 'SOURCE logGroups( | fields @message | limit 10'
+        logs_client.start_query = MagicMock(
+            side_effect=ClientError(
+                {'Error': {'Code': 'MalformedQueryException', 'Message': 'Malformed source'}},
+                'StartQuery',
+            )
+        )
+        logs_client.get_query_results = MagicMock()
+        result = await cloudwatch_tools.execute_log_insights_query(
+            ctx,
+            start_time='2023-01-01T00:00:00+00:00',
+            end_time='2023-01-01T01:00:00+00:00',
+            query_string=query,
+        )
+        logs_client.start_query.assert_called_once_with(
+            startTime=1672531200, endTime=1672534800, queryString=query
+        )
+        logs_client.get_query_results.assert_not_called()
+        assert result['status'] == 'Error'
+        assert result['queryId'] == ''
+        assert result['results'] == []
+        assert 'Malformed source' in result['message']
+
+    async def test_cwli_names_with_empty_identifiers(self, ctx, cloudwatch_tools, logs_client):
+        """Remove the empty list while preserving the selected log group."""
+        logs_client.start_query = MagicMock(return_value={'queryId': 'test-query-id'})
+        logs_client.get_query_results = MagicMock(
+            return_value={'status': 'Complete', 'results': []}
+        )
+        result = await cloudwatch_tools.execute_log_insights_query(
+            ctx,
+            log_group_names=['/selected'],
+            log_group_identifiers=[],
+            start_time='2023-01-01T00:00:00+00:00',
+            end_time='2023-01-01T01:00:00+00:00',
+            query_string='fields @message | limit 10',
+        )
+        logs_client.start_query.assert_called_once_with(
+            logGroupNames=['/selected'],
+            startTime=1672531200,
+            endTime=1672534800,
+            queryString='fields @message | limit 10',
+        )
+        assert result['status'] == 'Complete'
 
     async def test_query_language_schema_is_optional_enum(self):
         """Expose the supported languages with a backwards-compatible default."""
