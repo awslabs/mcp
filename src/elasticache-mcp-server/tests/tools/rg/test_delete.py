@@ -62,7 +62,7 @@ class TestDeleteReplicationGroup:
 
         mock_elasticache_client.delete_replication_group.assert_called_once_with(
             ReplicationGroupId='test-rg',
-            RetainPrimaryCluster='true',
+            RetainPrimaryCluster=True,
             FinalSnapshotIdentifier='final-snapshot',
         )
         assert response == expected_response

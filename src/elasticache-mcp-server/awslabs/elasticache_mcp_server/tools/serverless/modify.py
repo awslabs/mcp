@@ -82,13 +82,7 @@ async def modify_serverless_cache(request: ModifyServerlessCacheRequest) -> Dict
     modify_request = {k: v for k, v in request.model_dump().items() if v is not None}
 
     # Convert snake_case to PascalCase for AWS API
-    aws_request = {}
-    for key, value in modify_request.items():
-        # Special handling for boolean values
-        if isinstance(value, bool):
-            aws_request[key.title().replace('_', '')] = str(value).lower()
-        else:
-            aws_request[key.title().replace('_', '')] = value
+    aws_request = {key.title().replace('_', ''): value for key, value in modify_request.items()}
 
     # Modify the cache
     response = elasticache_client.modify_serverless_cache(**aws_request)

@@ -18,7 +18,7 @@ from ...common.connection import ElastiCacheConnectionManager
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 
 @mcp.tool(name='delete-replication-group')
@@ -53,13 +53,13 @@ async def delete_replication_group(
     elasticache_client = ElastiCacheConnectionManager.get_connection()
 
     # Build delete request
-    delete_request = {
+    delete_request: Dict[str, Any] = {
         'ReplicationGroupId': replication_group_id,
     }
 
     # Add optional parameters if provided
     if retain_primary_cluster is not None:
-        delete_request['RetainPrimaryCluster'] = str(retain_primary_cluster).lower()
+        delete_request['RetainPrimaryCluster'] = retain_primary_cluster
     if final_snapshot_name:
         delete_request['FinalSnapshotIdentifier'] = final_snapshot_name
 

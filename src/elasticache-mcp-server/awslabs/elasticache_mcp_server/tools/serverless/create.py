@@ -131,7 +131,7 @@ async def create_serverless_cache(request: CreateServerlessCacheRequest) -> Dict
 
     # Optional numeric parameters
     if request.snapshot_retention_limit is not None:
-        create_request['SnapshotRetentionLimit'] = str(request.snapshot_retention_limit)
+        create_request['SnapshotRetentionLimit'] = request.snapshot_retention_limit
 
     # Cache usage limits
     if request.cache_usage_limits:

@@ -17,7 +17,7 @@
 from ...common.connection import ElastiCacheConnectionManager
 from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 
 @mcp.tool(name='describe-engine-default-parameters')
@@ -52,11 +52,11 @@ async def describe_engine_default_parameters(
     elasticache_client = ElastiCacheConnectionManager.get_connection()
 
     # Build describe request
-    describe_request = {'CacheParameterGroupFamily': cache_parameter_group_family}
+    describe_request: Dict[str, Any] = {'CacheParameterGroupFamily': cache_parameter_group_family}
 
     # Add optional parameters if provided
     if max_records is not None:
-        describe_request['MaxRecords'] = str(max_records)
+        describe_request['MaxRecords'] = max_records
     if marker:
         describe_request['Marker'] = marker
 

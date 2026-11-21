@@ -79,7 +79,7 @@ async def test_describe_engine_default_parameters_with_pagination():
 
         mock_client.describe_engine_default_parameters.assert_called_once_with(
             CacheParameterGroupFamily='redis6.x',
-            MaxRecords='20',
+            MaxRecords=20,
             Marker='current-page',
         )
         assert 'Marker' in result
