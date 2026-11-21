@@ -26,7 +26,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.models import (
     MetricAlarmSummary,
     TimeRangeSuggestion,
 )
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from loguru import logger
 from mcp.server.mcpserver import Context
 from pydantic import Field
@@ -275,7 +275,7 @@ class CloudWatchAlarmsTools:
 
             # Set up default time range (last 24 hours)
             if end_time is None or not isinstance(end_time, str):
-                end_time_dt = datetime.now()
+                end_time_dt = datetime.now(timezone.utc)
             else:
                 end_time_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
 
