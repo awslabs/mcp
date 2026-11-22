@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `search_table` searches every section whose heading matches `section_title`. Before, it read only the last one, so on a page that repeats a title it searched the wrong table: on the Lambda quotas page, `section_title="Compute and storage"` read only the Lambda MicroVMs table, and a query for "Concurrent executions" matched nothing. `read_sections` already returns every section that carries the title.
 - `read_sections` matches section titles at every heading level, not only `h2`. Search results list `sections` and `recommended_sections` from every level, including the page's `h1` title, so titles copied from them failed with "No matching sections were found" and agents fell back to `read_documentation`.
   - A title selects every heading that carries it, and each section runs to the next heading at the same or a higher level, so it includes its subsections. A title that matches only `h2` headings returns the same sections as before; where a deeper heading elsewhere on the page shares the title, that section is returned too.
   - When the titles that match name only the page's `h1`, the whole page is returned, paginated the same way as `read_documentation`'s default, so its `start_index` hint applies. A title that names the page and also a section, or that comes with titles naming sections, returns those sections with a note pointing to `read_documentation` for the whole page.

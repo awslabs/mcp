@@ -459,6 +459,38 @@ class TestMultiTableParsing:
         assert result['tables'][0]['columns'] == ['Name', 'Default']
         assert result['tables'][1]['columns'] == ['Name', 'Limit']
 
+    def test_repeated_section_title_searches_every_section(self):
+        """A title that heads two sections returns the tables of both, in page order."""
+        html = """<html><body>
+        <h1>Lambda quotas</h1>
+        <h2>Compute and storage</h2>
+        <table><thead><tr><th>Resource</th></tr></thead>
+        <tbody><tr><td>Concurrent executions</td></tr></tbody></table>
+        <h2>Lambda MicroVMs</h2>
+        <h3>Compute and storage</h3>
+        <table><thead><tr><th>Resource</th></tr></thead>
+        <tbody><tr><td>Memory allocated across all MicroVMs</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, 'Compute and storage')
+        assert result is not None
+        assert [t['rows'][0]['Resource'] for t in result['tables']] == [
+            'Concurrent executions',
+            'Memory allocated across all MicroVMs',
+        ]
+
+    def test_repeated_title_nested_in_matching_section_counts_tables_once(self):
+        """A matching heading inside another matching section does not repeat its tables."""
+        html = """<html><body>
+        <h2>Quotas</h2>
+        <table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>a</td></tr></tbody></table>
+        <h3>Quotas</h3>
+        <table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>b</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, 'Quotas')
+        assert result is not None
+        assert [t['rows'][0]['Name'] for t in result['tables']] == ['a', 'b']
+        assert [t['table_heading'] for t in result['tables']] == [None, 'Quotas']
+
     def test_section_with_one_table_returns_flat(self):
         """Single table in section returns flat format (no 'tables' key)."""
         html = """<html><body>
