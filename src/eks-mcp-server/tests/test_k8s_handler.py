@@ -378,6 +378,36 @@ metadata:
                     assert 'Permission denied' in result.content[0].text
 
     @pytest.mark.asyncio
+    async def test_apply_yaml_parse_error_does_not_echo_content(
+        self, mock_context, mock_mcp, mock_client_cache
+    ):
+        """Test apply_yaml returns only the error location, not file content, on a parse error."""
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_write=True)
+
+        mock_k8s_apis = MagicMock()
+        not_yaml = '[default]\naws_access_key_id = AKIAEXAMPLEKEY123\n'
+        with patch.object(handler, 'get_client', return_value=mock_k8s_apis):
+            with patch('builtins.open', mock_open(read_data=not_yaml)):
+                result = await handler.apply_yaml(
+                    mock_context,
+                    yaml_path='/path/to/not-a-manifest',
+                    cluster_name='test-cluster',
+                    namespace='default',
+                    force=True,
+                )
+
+        assert result.is_error
+        assert isinstance(result.content[0], TextContent)
+        text = result.content[0].text
+        assert 'Invalid YAML in file /path/to/not-a-manifest at line 2, column 1' in text
+        assert 'aws_access_key_id' not in text
+        assert 'AKIA' not in text
+        mock_k8s_apis.apply_from_yaml.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_apply_yaml_create_error(self, mock_context, mock_mcp, mock_client_cache):
         """Test apply_yaml method with error from create_from_yaml."""
         # Initialize the K8s handler with write access enabled
