@@ -54,7 +54,7 @@ recommendation_details_server = FastMCP(
 
 @recommendation_details_server.tool(
     name='rec-details',
-    description="""Get detailed cost optimization recommendation with integrated data from multiple AWS services.
+    description="""One Cost Optimization Hub recommendation enriched with a Cost Explorer purchase recommendation (Savings Plans and Reserved Instances purchases) or, for other action types on supported compute resources, AWS Compute Optimizer data. Use it only when that enrichment is wanted; for the recommendation alone, use cost-optimization get_recommendation.
 
 This tool combines data from:
 - Cost Optimization Hub (base recommendation)
