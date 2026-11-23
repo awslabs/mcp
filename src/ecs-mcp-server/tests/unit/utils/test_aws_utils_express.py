@@ -202,6 +202,47 @@ async def test_check_ecr_image_exists_valid(mock_get_client, mock_ecr_image_resp
 
 
 @pytest.mark.anyio
+@patch("awslabs.ecs_mcp_server.utils.aws.get_aws_client")
+async def test_check_ecr_image_exists_nested_repository(mock_get_client, mock_ecr_image_response):
+    """Nested repository names are looked up with their full path."""
+    mock_client = MagicMock()
+    mock_client.describe_images.return_value = mock_ecr_image_response
+    mock_get_client.return_value = mock_client
+
+    details = await check_ecr_image_exists(
+        "123456789012.dkr.ecr.us-west-2.amazonaws.com/team/app:v1"
+    )
+
+    assert details["status"] == "exists"
+    assert details["repository"] == "team/app"
+    assert details["tag"] == "v1"
+    mock_client.describe_images.assert_called_once_with(
+        repositoryName="team/app", imageIds=[{"imageTag": "v1"}]
+    )
+
+
+@pytest.mark.anyio
+@patch("awslabs.ecs_mcp_server.utils.aws.get_aws_client")
+async def test_check_ecr_image_exists_digest(mock_get_client, mock_ecr_image_response):
+    """A digest reference is looked up by imageDigest, not split on the colon."""
+    mock_client = MagicMock()
+    mock_client.describe_images.return_value = mock_ecr_image_response
+    mock_get_client.return_value = mock_client
+    digest = "sha256:" + "a" * 64
+
+    details = await check_ecr_image_exists(
+        f"123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app@{digest}"
+    )
+
+    assert details["status"] == "exists"
+    assert details["repository"] == "my-app"
+    assert details["digest"] == digest
+    mock_client.describe_images.assert_called_once_with(
+        repositoryName="my-app", imageIds=[{"imageDigest": digest}]
+    )
+
+
+@pytest.mark.anyio
 async def test_check_ecr_image_invalid_format_no_tag():
     """Test ECR image check fails without tag."""
     details = await check_ecr_image_exists("123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app")

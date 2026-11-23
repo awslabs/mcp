@@ -18,7 +18,7 @@ AWS utility functions.
 
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 import boto3
 from botocore.config import Config
@@ -357,6 +357,32 @@ async def check_iam_role_exists_and_policy(
         }
 
 
+def split_ecr_image_reference(image_uri: str) -> Tuple[str, Optional[str], Optional[str]]:
+    """
+    Split an ECR image reference into repository name, tag and digest.
+
+    The repository name is everything after the registry host (so nested names such as
+    ``team/app`` are kept), the tag is only taken from the repository path, and a trailing
+    ``@sha256:<hex>`` digest is split off first so it is never mistaken for a tag.
+
+    Args:
+        image_uri: e.g. ``123456789012.dkr.ecr.us-west-2.amazonaws.com/team/app:v1`` or
+            ``.../app@sha256:<hex>``
+
+    Returns:
+        Tuple of (repository_name, tag, digest); tag and digest are None when absent.
+    """
+    reference, _, digest = image_uri.partition("@")
+    if reference.startswith("arn:"):
+        path = reference.split("repository/", 1)[-1]
+    elif "/" in reference:
+        path = reference.split("/", 1)[1]
+    else:
+        path = reference
+    repository_name, _, tag = path.partition(":")
+    return repository_name, tag or None, digest or None
+
+
 async def check_ecr_image_exists(image_uri: str) -> Dict[str, Any]:
     """
     Checks if a Docker image exists in ECR.
@@ -370,32 +396,39 @@ async def check_ecr_image_exists(image_uri: str) -> Dict[str, Any]:
     """
     try:
         # Parse image URI
-        if ":" not in image_uri:
+        if ":" not in image_uri and "@" not in image_uri:
             return {
                 "status": "invalid_format",
                 "uri": image_uri,
                 "error": "Image URI must include a tag (format: repository:tag)",
             }
 
-        repository_uri, tag = image_uri.rsplit(":", 1)
-
-        # Extract repository name from URI
-        # Format: account.dkr.ecr.region.amazonaws.com/repository-name
-        if "/" not in repository_uri:
+        # Format: account.dkr.ecr.region.amazonaws.com/repository-name[:tag][@digest]
+        if "/" not in image_uri.partition("@")[0]:
             return {
                 "status": "invalid_format",
                 "uri": image_uri,
                 "error": "Invalid repository URI format",
             }
 
-        repository_name = repository_uri.split("/")[-1]
+        repository_name, tag, digest = split_ecr_image_reference(image_uri)
+        if not tag and not digest:
+            return {
+                "status": "invalid_format",
+                "uri": image_uri,
+                "error": "Image URI must include a tag (format: repository:tag)",
+            }
+        # A digest is immutable, so prefer it over the tag when both are given
+        image_id = {"imageDigest": digest} if digest else {"imageTag": tag}
+        image_label = f"digest '{digest}'" if digest else f"tag '{tag}'"
+        ref_fields = {"digest": digest} if digest else {"tag": tag}
 
         # Check if image exists in ECR
         ecr_client = await get_aws_client("ecr")
 
         try:
             response = ecr_client.describe_images(
-                repositoryName=repository_name, imageIds=[{"imageTag": tag}]
+                repositoryName=repository_name, imageIds=[image_id]
             )
 
             if response.get("imageDetails"):
@@ -404,7 +437,7 @@ async def check_ecr_image_exists(image_uri: str) -> Dict[str, Any]:
                     "status": "exists",
                     "uri": image_uri,
                     "repository": repository_name,
-                    "tag": tag,
+                    **ref_fields,
                     "image_digest": image_detail.get("imageDigest"),
                     "image_pushed_at": str(image_detail.get("imagePushedAt", "")),
                     "message": f"Image found in ECR: {image_uri}",
@@ -414,8 +447,8 @@ async def check_ecr_image_exists(image_uri: str) -> Dict[str, Any]:
                     "status": "not_found",
                     "uri": image_uri,
                     "repository": repository_name,
-                    "tag": tag,
-                    "error": f"Image with tag '{tag}' not found in repository '{repository_name}'",
+                    **ref_fields,
+                    "error": f"Image with {image_label} not found in repository '{repository_name}'",
                 }
 
         except ecr_client.exceptions.RepositoryNotFoundException:

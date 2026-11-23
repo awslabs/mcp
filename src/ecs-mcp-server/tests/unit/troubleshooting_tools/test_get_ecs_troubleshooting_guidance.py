@@ -467,13 +467,41 @@ class TestHelperFunctions(TestGuidanceBase):
         repo, tag = parse_ecr_image_uri(
             "123456789012.dkr.ecr.us-west-2.amazonaws.com/path/to/repo:tag"
         )
+        assert repo == "path/to/repo"
+        assert tag == "tag"
+
+        # Test with ARN-style repository reference
+        repo, tag = parse_ecr_image_uri("arn:aws:ecr:us-west-2:123456789012:repository/repo:tag")
         assert repo == "repo"
         assert tag == "tag"
 
-        # Test with ARN format - our implementation splits at first colon
-        repo, tag = parse_ecr_image_uri("arn:aws:ecr:us-west-2:123456789012:repository/repo:tag")
-        assert repo == "arn"
-        assert tag == "aws:ecr:us-west-2:123456789012:repository/repo:tag"
+    def test_parse_ecr_image_uri_nested_repository(self):
+        """Nested repository names keep their full path."""
+        host = "123456789012.dkr.ecr.us-west-2.amazonaws.com"
+        assert parse_ecr_image_uri(f"{host}/team/app:v1") == ("team/app", "v1")
+        assert parse_ecr_image_uri(f"{host}/team/app") == ("team/app", "latest")
+
+    def test_parse_ecr_image_uri_digest(self):
+        """A digest reference is not split on the colon inside the digest."""
+        host = "123456789012.dkr.ecr.us-west-2.amazonaws.com"
+        digest = "sha256:" + "a" * 64
+        assert parse_ecr_image_uri(f"{host}/my-app@{digest}") == ("my-app", digest)
+        assert parse_ecr_image_uri(f"{host}/team/app:v1@{digest}") == ("team/app", "v1")
+
+    @pytest.mark.anyio
+    async def test_validate_image_digest_uses_image_digest(self, mock_aws_clients):
+        """validate_image looks a digest reference up by imageDigest in the right repository."""
+        mock_ecr = mock_aws_clients["ecr"]
+        digest = "sha256:" + "a" * 64
+        with self.mock_aws_clients({"ecr": mock_ecr}):
+            result = await validate_image(
+                f"123456789012.dkr.ecr.us-west-2.amazonaws.com/team/app@{digest}"
+            )
+        assert result["exists"] == "true"
+        mock_ecr.describe_repositories.assert_called_with(repositoryNames=["team/app"])
+        mock_ecr.describe_images.assert_called_with(
+            repositoryName="team/app", imageIds=[{"imageDigest": digest}]
+        )
 
 
 class TestComprehensiveSystem(TestGuidanceBase):
