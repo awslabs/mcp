@@ -423,20 +423,12 @@ cost_optimization_hub_server = FastMCP(
 
 @cost_optimization_hub_server.tool(
     name='cost-optimization',
-    description="""Retrieves cost optimization recommendations from AWS Cost Optimization Hub.
+    description="""Cost savings recommendations across services from AWS Cost Optimization Hub, including idle and unused resources (stop or delete), rightsizing, Graviton migration, and Savings Plans and Reserved Instances purchases.
+For performance-based recommendations, use compute-optimizer. For one recommendation, use this tool's get_recommendation operation; use rec-details only when Compute Optimizer or Cost Explorer enrichment is wanted.
 
 IMPORTANT USAGE GUIDELINES:
-- Focus on recommendations with the highest estimated savings first
+- Focus on recommendations with the highest estimated savings first; when presenting only some, state how many were omitted and their combined savings
 - Include all relevant details when presenting specific recommendations
-
-USE THIS TOOL FOR:
-- **Idle/unused resource detection** (EC2, RDS, EBS, Lambda, etc.)
-- **Cost savings recommendations** (rightsizing, stopping, deleting resources)
-- **Reserved Instance and Savings Plans purchase recommendations**
-- **Cross-service cost optimization analysis**
-- **Monthly cost reduction opportunities**
-
-DO NOT USE FOR: Performance optimization (use compute-optimizer)
 
 Supported Operations:
 1. list_recommendation_summaries: High-level overview of savings opportunities grouped by a dimension
@@ -639,7 +631,8 @@ async def cost_optimization_hub(
         max_items: Total items to return for list_recommendations,
             list_recommendation_summaries and list_efficiency_metrics. Omit to fetch every
             page. In ranking_mode='performance', the most ranked groups to return.
-        filters: Optional filter expression as JSON string (not supported by list_efficiency_metrics)
+        filters: Optional filter expression as JSON string (not supported by list_efficiency_metrics).
+            Scope to accounts with accountIds, e.g. '{"accountIds": ["123456789012"]}'
         group_by: Optional grouping parameter. For list_recommendation_summaries any
             of the recommendation dimensions, or 'TagKey:<tag key>'; for
             list_efficiency_metrics only AccountId or Region.

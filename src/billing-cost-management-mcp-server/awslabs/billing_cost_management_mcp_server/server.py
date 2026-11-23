@@ -257,28 +257,9 @@ mcp = FastMCP(
     instructions="""AWS Billing and Cost Management MCP Server - Provides AWS cost optimization tools and prompts through MCP.
 
 Unless the user or the host's instructions specify otherwise:
-1. Use the UnblendedCost metric. If `metrics` is omitted, cost-explorer returns UnblendedCost. sp-performance and ri-performance coverage reject UnblendedCost and use their own metrics
+1. Use the UnblendedCost metric where a tool accepts it
 2. Report net cost, with credits and refunds included
 3. Be concise and focus on essential information first
-4. For optimization queries, lead with the highest-impact recommendations; when truncating, state how many were omitted and their combined savings
-
-For financial analysis:
-1. Start with a high-level view of costs using cost-explorer with the SERVICE dimension
-2. Look for cost optimization opportunities with cost-optimization or compute-optimizer
-3. For S3-specific optimizations, use storage-lens
-4. For budget monitoring, use budgets
-5. For anomaly detection, use cost-anomaly; use cost-anomaly-monitors to find monitor ARNs and see who is alerted
-
-For optimization recommendations:
-1. Use cost-optimization for cost savings recommendations across services, including idle resources, rightsizing, Graviton migration, and Savings Plans / Reserved Instances purchases.
-2. Use cost-optimization `get_recommendation` for one Cost Optimization Hub recommendation; use rec-details only when Compute Optimizer and Cost Explorer enrichment is wanted.
-3. Use compute-optimizer for performance-based recommendations for compute resources such as EC2, ECS, EBS, Lambda, RDS, and Auto Scaling groups.
-4. Use ri-performance and sp-performance to analyze existing Reserved Instances and Savings Plans.
-
-For multi-account environments:
-- Include the LINKED_ACCOUNT dimension in cost-explorer queries
-- compute-optimizer takes `account_ids` as a JSON array with one account ID per call; make one call per account
-- cost-optimization takes accounts in `filters`, e.g. '{"accountIds": ["123456789012"]}'; its top-level `account_id` applies only to `list_enrollment_statuses`
 """,
 )
 
