@@ -2243,6 +2243,12 @@ class TestGenerateAppManifestInputSafety:
             ('memory', '128 Mi'),
             ('image_uri', 'repo:tag' + INJECTED_DOCUMENT),
             ('image_uri', ''),
+            # A trailing newline must not slip past the end-of-string anchor.
+            ('app_name', 'test-app\n'),
+            ('namespace', 'prod\n'),
+            ('cpu', '100m\n'),
+            ('memory', '128Mi\n'),
+            ('image_uri', 'repo:tag\n'),
         ],
     )
     async def test_rejects_invalid_input(self, handler, mock_context, tmp_path, field, value):

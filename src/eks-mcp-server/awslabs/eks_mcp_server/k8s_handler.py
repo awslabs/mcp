@@ -268,8 +268,16 @@ class K8sHandler:
         else:
             return data
 
-    @staticmethod
-    def _validate_app_name(app_name: str) -> Optional[str]:
+    # Patterns are applied with fullmatch: with re.match, `$` also matches just
+    # before a trailing newline, so "prod\n" would pass.
+    # Kubernetes resource quantity, e.g. "100m", "0.5", "128Mi", "1Gi", "1e3".
+    _QUANTITY_PATTERN = re.compile(r'(\d+(\.\d*)?|\.\d+)([KMGTPE]i|[numkMGTPE]|[eE][+-]?\d+)?')
+    _DNS_LABEL_PATTERN = re.compile(r'[a-z0-9]([a-z0-9\-]*[a-z0-9])?')
+    _IMAGE_URI_PATTERN = re.compile(r'[^\s\x00-\x1f\x7f]+')
+    _LOAD_BALANCER_SCHEMES = ('internal', 'internet-facing')
+
+    @classmethod
+    def _validate_app_name(cls, app_name: str) -> Optional[str]:
         """Validate app_name against Kubernetes RFC 1123 DNS label rules.
 
         Rules (see https://kubernetes.io/docs/concepts/overview/working-with-objects/names/):
@@ -287,18 +295,12 @@ class K8sHandler:
         """
         if len(app_name) > 63:
             return f'Invalid app_name "{app_name}": must be at most 63 characters long'
-        if not re.match(r'^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$', app_name):
+        if not cls._DNS_LABEL_PATTERN.fullmatch(app_name):
             return (
                 f'Invalid app_name "{app_name}": must consist of lowercase alphanumeric '
                 f'characters or hyphens, start and end with an alphanumeric character'
             )
         return None
-
-    # Kubernetes resource quantity, e.g. "100m", "0.5", "128Mi", "1Gi", "1e3".
-    _QUANTITY_PATTERN = re.compile(r'^(\d+(\.\d*)?|\.\d+)([KMGTPE]i|[numkMGTPE]|[eE][+-]?\d+)?$')
-    _DNS_LABEL_PATTERN = re.compile(r'^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$')
-    _IMAGE_URI_PATTERN = re.compile(r'^[^\s\x00-\x1f\x7f]+$')
-    _LOAD_BALANCER_SCHEMES = ('internal', 'internet-facing')
 
     @classmethod
     def _validate_manifest_inputs(
@@ -326,18 +328,18 @@ class K8sHandler:
                 f'Invalid load_balancer_scheme {load_balancer_scheme!r}: '
                 f'must be one of {", ".join(cls._LOAD_BALANCER_SCHEMES)}'
             )
-        if len(namespace) > 63 or not cls._DNS_LABEL_PATTERN.match(namespace):
+        if len(namespace) > 63 or not cls._DNS_LABEL_PATTERN.fullmatch(namespace):
             return (
                 f'Invalid namespace {namespace!r}: must be at most 63 lowercase alphanumeric '
                 f'characters or hyphens, starting and ending with an alphanumeric character'
             )
         for field_name, value in (('cpu', cpu), ('memory', memory)):
-            if not cls._QUANTITY_PATTERN.match(value):
+            if not cls._QUANTITY_PATTERN.fullmatch(value):
                 return (
                     f'Invalid {field_name} {value!r}: must be a Kubernetes resource quantity '
                     f'(e.g. "100m", "0.5", "128Mi", "1Gi")'
                 )
-        if not cls._IMAGE_URI_PATTERN.match(image_uri):
+        if not cls._IMAGE_URI_PATTERN.fullmatch(image_uri):
             return f'Invalid image_uri {image_uri!r}: must not be empty or contain whitespace or control characters'
         return None
 
