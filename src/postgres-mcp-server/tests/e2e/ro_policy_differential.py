@@ -83,6 +83,7 @@ CREATE TABLE {SCHEMA}.emp (
     body tsvector);
 CREATE INDEX emp_name_idx ON {SCHEMA}.emp (name);
 CREATE INDEX emp_lower_idx ON {SCHEMA}.emp (lower(name));
+CREATE INDEX emp_body_gin ON {SCHEMA}.emp USING gin (body);
 CREATE VIEW {SCHEMA}.v_emp AS SELECT id, name, salary FROM {SCHEMA}.emp;
 CREATE MATERIALIZED VIEW {SCHEMA}.mv_emp AS
     SELECT dept_id, count(*) c FROM {SCHEMA}.emp GROUP BY dept_id;
@@ -405,6 +406,7 @@ def build_corpus(schema):
         ('commit', 'COMMIT'),
         ('checkpoint', 'CHECKPOINT'),
         ('analyze', f'ANALYZE {s}.emp'),
+        ('gin clean pending', f"SELECT gin_clean_pending_list('{s}.emp_body_gin'::regclass)"),
         ('select into', f'SELECT * INTO {s}.copy_of_emp FROM {s}.emp'),
         ('refresh matview', f'REFRESH MATERIALIZED VIEW {s}.mv_emp'),
         ('set role', 'SET ROLE NONE'),

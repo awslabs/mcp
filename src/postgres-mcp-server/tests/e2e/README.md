@@ -316,13 +316,13 @@ uv run python tests/e2e/ro_policy_differential.py --dsn "..." --keep-schema
 ```
 
 Exit status is 0 when every divergence is accounted for, 1 otherwise. Sample tail
-of a passing run against PostgreSQL 16.4:
+of a passing run against PostgreSQL 16.16:
 
 ```
-guard read-only verdict vs PostgreSQL 16.4 read-only transaction
+guard read-only verdict vs PostgreSQL 16.16 (Debian 16.16-1.pgdg13+1) read-only transaction
   SELECT grammar            95/ 99 agree
   real-world tooling        33/ 33 agree
-  statement types            3/ 29 agree
+  statement types            3/ 30 agree
 OK: every divergence is accounted for (34 labeled).
 ```
 
