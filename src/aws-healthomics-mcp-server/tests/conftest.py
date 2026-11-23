@@ -122,6 +122,24 @@ def mock_environment():
             os.environ[key] = value
 
 
+@pytest.fixture(autouse=True)
+def stdio_local_file_access():
+    """Run each test with the local file access the stdio transport gets at startup.
+
+    Production starts with local file paths disabled and ``server.main`` enables
+    them only for ``stdio``. Existing tests call the tools directly to exercise
+    stdio's local path behavior, so this enables it per test and restores the
+    previous value afterwards. ``tests/test_local_file_access.py`` disables it
+    explicitly to cover network transports.
+    """
+    from awslabs.aws_healthomics_mcp_server.utils import local_file_access
+
+    previous = local_file_access._local_file_access_allowed
+    local_file_access._local_file_access_allowed = True
+    yield
+    local_file_access._local_file_access_allowed = previous
+
+
 # Deterministic stand-in price (USD per hour, or per GiB-hour for storage) used by
 # the ``stub_pricing_lookup`` fixture below.
 STUB_PRICE_PER_HOUR = 0.5

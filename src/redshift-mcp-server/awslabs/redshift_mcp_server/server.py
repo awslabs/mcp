@@ -861,9 +861,10 @@ async def execute_query_tool(
     At most one of the four per call. `sql` is required standalone and with `in_transaction`,
     and optional with the other three.
 
-    Both modes support this. A read-only transaction gives several statements one
-    consistent snapshot; a read-write one makes them succeed or fail together. Writes
-    inside it are still confirmed one at a time, and a declined write leaves it open.
+    Both modes support this. A read-only transaction gives several statements one consistent
+    snapshot and ends in ROLLBACK, commit_transaction included; a read-write one makes them succeed
+    or fail together. Writes inside it are still confirmed one at a time, and a declined write
+    leaves it open.
 
     A transaction is bound to this server process and to the cluster and database it was
     opened against, so the same name against a different pair is a different transaction and
@@ -873,8 +874,9 @@ async def execute_query_tool(
     it is sent - by the SQL guard, the confirmation step, a malformed call, or a cluster that does
     not resolve - leaves the transaction as it was. One sent with in_transaction that ran and
     whose result could not be read leaves it open and yours to commit or roll back, and the error
-    says so. A commit_transaction that fails once sent always ends the transaction, and its error
-    says whether the COMMIT stands, may have applied, or was discarded. Redshift ends one left
+    says so. A commit_transaction that fails once sent always ends the transaction. In read-write
+    mode its error says whether the COMMIT stands, may have applied, or was discarded; in
+    read-only mode the transaction is discarded, however the call failed. Redshift ends one left
     idle for SESSION_KEEPALIVE seconds, and MAX_OPEN_TRANSACTIONS_PER_TARGET caps how many may be
     open at once against one cluster and database.
 

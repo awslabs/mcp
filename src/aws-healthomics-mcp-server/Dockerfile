@@ -93,18 +93,20 @@ USER app
 #   MCP_PATH       Request path (default: /mcp).
 #
 # To expose the server outside the container you MUST bind a non-loopback host
-# (for example MCP_HOST=0.0.0.0) and publish the configured port (for example
-# `-p 8000:8000`). Binding a non-loopback host exposes AWS access on the network
-# and requires an external fronting authentication layer; the server performs no
-# inbound authentication of its own in Phase 1. See the README section
-# "Running the container with a network transport" for runnable examples.
+# (for example MCP_HOST=0.0.0.0) and publish the configured port to the host's
+# loopback interface (for example `-p 127.0.0.1:8000:8000`); a bare `-p 8000:8000`
+# publishes on every host interface. Binding a non-loopback host exposes AWS
+# access on the network and requires an external fronting authentication layer;
+# the server performs no inbound authentication of its own in Phase 1. See the
+# README section "Running the container with a network transport" for runnable
+# examples.
 #
 # Example:
 #   docker run \
 #     -e MCP_TRANSPORT=streamable-http \
 #     -e MCP_HOST=0.0.0.0 \
 #     -e MCP_PORT=8000 \
-#     -p 8000:8000 \
+#     -p 127.0.0.1:8000:8000 \
 #     aws-healthomics-mcp-server
 
 # Document the default network transport port. Publishing it still requires an
