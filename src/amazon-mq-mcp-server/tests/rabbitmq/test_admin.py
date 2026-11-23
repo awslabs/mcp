@@ -135,6 +135,48 @@ class TestRabbitMQAdmin:
         assert result == {'name': 'test-shovel'}
         mock_request.assert_called_once_with('GET', 'parameters/shovel/%2F/test-shovel')
 
+    @pytest.mark.parametrize(
+        'shovel_name, expected_segment',
+        [
+            ('my shovel', 'my%20shovel'),
+            ('a/b', 'a%2Fb'),
+            ('x?columns=name', 'x%3Fcolumns%3Dname'),
+            ('#frag', '%23frag'),
+            ('100%', '100%25'),
+            ('../../users', '..%2F..%2Fusers'),
+            ('..x', '..x'),
+        ],
+    )
+    @patch.object(RabbitMQAdmin, '_make_request')
+    def test_get_shovel_info_encodes_name(self, mock_request, shovel_name, expected_segment):
+        """Test shovel name is percent-encoded as a single path segment."""
+        mock_request.return_value.json.return_value = {'name': shovel_name}
+        self.admin.get_shovel_info(shovel_name, '/')
+        mock_request.assert_called_once_with('GET', f'parameters/shovel/%2F/{expected_segment}')
+
+    @pytest.mark.parametrize('shovel_name', ['', '.', '..'])
+    @patch.object(RabbitMQAdmin, '_make_request')
+    def test_get_shovel_info_rejects_invalid_name(self, mock_request, shovel_name):
+        """Test empty and dot-segment shovel names raise ValueError without a request."""
+        with pytest.raises(ValueError):
+            self.admin.get_shovel_info(shovel_name, '/')
+        mock_request.assert_not_called()
+
+    @patch.object(RabbitMQAdmin, '_make_request')
+    def test_get_shovel_info_encodes_vhost(self, mock_request):
+        """Test vhost is percent-encoded as a single path segment."""
+        mock_request.return_value.json.return_value = {'name': 'test-shovel'}
+        self.admin.get_shovel_info('test-shovel', 'my/vhost')
+        mock_request.assert_called_once_with('GET', 'parameters/shovel/my%2Fvhost/test-shovel')
+
+    @pytest.mark.parametrize('vhost', ['', '.', '..'])
+    @patch.object(RabbitMQAdmin, '_make_request')
+    def test_get_shovel_info_rejects_invalid_vhost(self, mock_request, vhost):
+        """Test empty and dot-segment vhosts raise ValueError without a request."""
+        with pytest.raises(ValueError):
+            self.admin.get_shovel_info('test-shovel', vhost)
+        mock_request.assert_not_called()
+
     @patch.object(RabbitMQAdmin, '_make_request')
     def test_list_exchanges_by_vhost(self, mock_request):
         """Test listing exchanges by vhost."""
