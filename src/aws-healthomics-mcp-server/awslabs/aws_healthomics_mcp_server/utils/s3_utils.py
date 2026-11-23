@@ -19,7 +19,6 @@ from awslabs.aws_healthomics_mcp_server.utils.path_utils import validate_s3_uri_
 from botocore.exceptions import ClientError, NoCredentialsError
 from loguru import logger
 from typing import List, Optional, Tuple
-from urllib.parse import urlparse
 
 
 def ensure_s3_uri_ends_with_slash(uri: str) -> str:
@@ -58,9 +57,9 @@ def parse_s3_path(s3_path: str) -> Tuple[str, str]:
     if not s3_path.startswith('s3://'):
         raise ValueError(f"Invalid S3 path format: {s3_path}. Must start with 's3://'")
 
-    parsed = urlparse(s3_path)
-    bucket_name = parsed.netloc
-    prefix = parsed.path.lstrip('/')
+    # '?' and '#' are valid in S3 keys, so do not parse the path as a URL
+    bucket_name, _, prefix = s3_path[len('s3://') :].partition('/')
+    prefix = prefix.lstrip('/')
 
     if not bucket_name:
         raise ValueError(f'Invalid S3 path format: {s3_path}. Missing bucket name')

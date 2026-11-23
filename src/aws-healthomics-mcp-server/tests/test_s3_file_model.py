@@ -254,6 +254,18 @@ class TestS3File:
         with pytest.raises(ValueError, match='Missing object key'):
             S3File.from_uri('s3://bucket-only/')
 
+    def test_s3_file_from_uri_hash_and_question_mark_in_key(self):
+        """Test that '#' and '?' in the key are kept, not treated as URL parts."""
+        s3_file = S3File.from_uri('s3://bucket/dir/sample#1.bam')
+        assert s3_file.bucket == 'bucket'
+        assert s3_file.key == 'dir/sample#1.bam'
+
+        s3_file = S3File.from_uri('s3://bucket/run?x/sample.bam')
+        assert s3_file.key == 'run?x/sample.bam'
+
+        assert parse_s3_uri('s3://bucket/dir/sample#1.bam') == ('bucket', 'dir/sample#1.bam')
+        assert parse_s3_uri('s3://bucket/run?x/sample.bam') == ('bucket', 'run?x/sample.bam')
+
     def test_s3_file_properties(self):
         """Test S3File properties and methods."""
         s3_file = S3File(
