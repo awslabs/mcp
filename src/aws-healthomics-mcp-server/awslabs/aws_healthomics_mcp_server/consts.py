@@ -409,6 +409,19 @@ DEFAULT_HTTP_PATH = '/mcp'
 # Supported transports (Phase 1)
 SUPPORTED_TRANSPORTS = ('stdio', 'streamable-http', 'sse')
 NETWORK_TRANSPORTS = ('streamable-http', 'sse')
+LOCAL_TRANSPORTS = ('stdio',)
+
+# Local file paths in tool arguments are honored only over stdio
+ERROR_LOCAL_FILE_ACCESS_DISABLED = (
+    'Local file paths are not supported when the server runs over a network transport. '
+    'Provide inline content or an S3 URI (s3://bucket/key) for input, and an S3 URI '
+    'or no output_path for output.'
+)
+ERROR_LINT_UNAVAILABLE_OVER_NETWORK = (
+    'Workflow linting is not available when the server runs over a network transport, '
+    'because the linters can resolve workflow imports from the local filesystem or '
+    'the network. Run the server locally over stdio to lint workflows.'
+)
 
 # Error messages for transport and network configuration (Phase 1)
 ERROR_UNSUPPORTED_TRANSPORT = "Unsupported transport '{}'. Supported transports: {}"
