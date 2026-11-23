@@ -33,9 +33,12 @@ let the Pydantic bug reach a live cluster.
 """
 
 import asyncio
+import inspect
 import os
+import pytest
 import re
 import sys
+from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod
 from awslabs.postgres_mcp_server.named_params import (
     to_parse_placeholders,
     to_psycopg_placeholders,
@@ -383,3 +386,290 @@ def test_data_api_limitation_reason_is_stated_and_attributed():
     reason = e2e.DATA_API_SLICE_LIMITATION
     assert 'Cannot find parameter' in reason
     assert 'unrelated to the MCP server' in reason
+
+
+# --- RDS Proxy harness (tests/e2e/proxy_e2e_test.py) -------------------------
+#
+# Same rationale as the rest of this module: the proxy harness can only run
+# against pre-existing RDS infrastructure, so an import error or a bad CLI
+# contract would otherwise surface only after someone had set up a proxied
+# instance and a VPC path to it. All of that is decidable here.
+
+import proxy_e2e_test as proxy_e2e  # noqa: E402
+
+
+def test_proxy_harness_is_importable():
+    """A bare import must succeed, including its re-use of the sibling harness.
+
+    The proxy harness imports CapturingCtx/TestResult/log_step/print_summary from
+    e2e_integration_test via a sys.path insert. If that path juggling breaks, the
+    harness dies at import — before it can report anything.
+    """
+    for name in ('CapturingCtx', 'TestResult', 'log_step', 'log_tls_diagnostics', 'print_summary'):
+        assert hasattr(proxy_e2e, name), f'{name} did not survive the cross-harness import'
+
+
+def test_proxy_harness_auth_types_map_to_pgwire_methods_only():
+    """RDS Proxy fronts the Postgres wire protocol; the Data API never goes through it.
+
+    Offering rds_api here would invite a run that silently proves nothing about
+    proxy routing.
+    """
+    assert set(proxy_e2e.AUTH_TYPE_TO_METHOD) == {'pg_wire_secret', 'pg_wire_iam'}
+    for method in proxy_e2e.AUTH_TYPE_TO_METHOD.values():
+        assert method is not ConnectionMethod.RDS_API
+
+
+def test_proxy_harness_requires_region_and_a_target():
+    """A region and at least one target are required; there is no default for either.
+
+    The target is enforced in ``main`` rather than by argparse, because either
+    topology flag satisfies it and argparse cannot express "one of these two" with
+    a message that explains the choice. So argparse rejects a missing region, and
+    ``main`` rejects a missing target.
+    """
+    parser = proxy_e2e.build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args([])
+
+    # Region alone parses, then main() refuses it for having no target.
+    args = parser.parse_args(['--region', 'us-west-2'])
+    assert args.db_instance_identifier == '' and args.db_cluster_identifier == ''
+    with (
+        mock.patch.object(sys, 'argv', ['proxy_e2e_test.py', '--region', 'us-west-2']),
+        pytest.raises(SystemExit),
+    ):
+        proxy_e2e.main()
+
+    args = parser.parse_args(['--region', 'us-west-2', '--db-instance-identifier', 'i'])
+    assert args.database == 'postgres'
+
+
+def test_proxy_harness_defaults_to_the_sslmode_under_test():
+    """Defaulting to anything below verify-full would skip the check that matters.
+
+    The whole point of the TLS suite is that the proxy presents its own hostname
+    and certificate under the server's real default.
+    """
+    args = proxy_e2e.build_parser().parse_args(
+        ['--region', 'us-west-2', '--db-instance-identifier', 'i']
+    )
+    assert args.sslmode == 'verify-full'
+    assert args.ca_bundle is None, 'default must be the bundled Amazon CA set'
+    assert args.privilege_check == 'warn', 'must mirror the server default'
+
+
+def test_proxy_harness_verify_tls_fails_closed_without_openssl():
+    """No openssl must mean "unverified", never "verified".
+
+    verify_tls gates a security assertion, so its failure path has to be a
+    negative result rather than an exception or a silent pass.
+    """
+    with mock.patch.object(proxy_e2e.shutil, 'which', return_value=None):
+        ok, detail = proxy_e2e.verify_tls('example.com', 5432, None)
+    assert ok is False
+    assert 'openssl' in detail
+
+
+def test_proxy_harness_verify_tls_requires_an_explicit_ok_from_openssl():
+    """Only "Verify return code: 0 (ok)" counts as verified.
+
+    A handshake can print a chain and still have failed validation; treating any
+    output as success would turn this into a check that can never fail.
+    """
+    completed = mock.Mock(returncode=0, stdout=b'Verify return code: 0 (ok)\n', stderr=b'')
+    with (
+        mock.patch.object(proxy_e2e.shutil, 'which', return_value='/usr/bin/openssl'),
+        mock.patch.object(proxy_e2e.subprocess, 'run', return_value=completed),
+    ):
+        ok, _ = proxy_e2e.verify_tls('example.com', 5432, '/tmp/ca.pem')
+    assert ok is True
+
+    bad = mock.Mock(
+        returncode=1,
+        stdout=b'verify error:num=19:self signed certificate in certificate chain\n'
+        b'Verify return code: 19 (self signed certificate in certificate chain)\n',
+        stderr=b'',
+    )
+    with (
+        mock.patch.object(proxy_e2e.shutil, 'which', return_value='/usr/bin/openssl'),
+        mock.patch.object(proxy_e2e.subprocess, 'run', return_value=bad),
+    ):
+        ok, detail = proxy_e2e.verify_tls('example.com', 5432, '/tmp/ca.pem')
+    assert ok is False
+    assert '19' in detail
+
+
+def test_proxy_harness_expectation_can_come_from_the_operator():
+    """A real assertion needs an expectation that shares nothing with the code.
+
+    The previous version of this test only checked that the derivation did not
+    *call* find_proxy_for_instance -- the letter of independence. The derivation
+    re-implemented the same matching, so a wrong answer agreed with itself. The
+    honest fix is an operator-declared expectation, which is what this flag is.
+    """
+    parser = proxy_e2e.build_parser()
+    args = parser.parse_args(
+        [
+            '--region',
+            'us-east-1',
+            '--db-instance-identifier',
+            'i',
+            '--expect-proxy-endpoint',
+            'p.proxy-abc.us-east-1.rds.amazonaws.com',
+        ]
+    )
+    assert args.expect_proxy_endpoint == 'p.proxy-abc.us-east-1.rds.amazonaws.com'
+
+    # Optional, so the harness stays usable when the answer is not known up front.
+    bare = parser.parse_args(['--region', 'us-east-1', '--db-instance-identifier', 'i'])
+    assert bare.expect_proxy_endpoint == ''
+
+
+def test_proxy_harness_derivation_paginates_like_production():
+    """The fallback derivation must paginate, or it reports spurious mismatches.
+
+    Production paginates both describe calls. An un-paginated derivation can miss
+    a proxy the implementation finds and fail a run for no reason.
+    """
+    src = inspect.getsource(proxy_e2e.derive_proxy_for_instance)
+    assert src.count('get_paginator') == 2, 'both describe calls must paginate'
+    assert 'rds.describe_db_proxies()' not in src
+    assert 'rds.describe_db_proxy_targets(' not in src
+
+
+def test_proxy_harness_recorder_actually_records_skips():
+    """A skip must land in the result and make the run fail.
+
+    ``(self.result.skipped or []).append(...)`` looks correct but silently drops
+    every entry: the list starts empty, an empty list is falsy, so the append goes
+    to a throwaway list. A live run showed "0 skipped" while the log printed a
+    SKIP -- meaning an un-runnable check (missing openssl, no CA bundle) would
+    have passed the run instead of failing it. Skips are the harness's way of
+    saying "this was not verified", so losing them is worse than a cosmetic bug.
+    """
+    rec = proxy_e2e.Recorder('target', 'pg_wire_secret')
+    rec.skip('tls check', 'openssl missing')
+    assert rec.result.skipped == [('tls check', 'openssl missing')]
+    assert rec.result.success is False, 'an unverified check must not report success'
+
+
+def test_proxy_harness_recorder_records_not_applicable_without_failing():
+    """N/A must be recorded, but must NOT count against success.
+
+    The distinction is the whole point of having both: a skip means "could not
+    verify", an N/A means "nothing to verify". Conflating them either hides real
+    gaps or fails runs that are complete.
+    """
+    rec = proxy_e2e.Recorder('target', 'pg_wire_iam')
+    rec.ok('connect')
+    rec.not_applicable('secret override', 'IAM auth uses no password secret')
+    assert rec.result.not_applicable == [('secret override', 'IAM auth uses no password secret')]
+    assert rec.result.success is True, 'nothing-to-verify must not fail an otherwise-clean run'
+
+
+def test_proxy_harness_recorder_keeps_results_independent():
+    """Two recorders must not share list state.
+
+    Both suites build their own Recorder in the same process, so a shared default
+    would let the control suite's results bleed into the proxy suite's.
+    """
+    first, second = proxy_e2e.Recorder('a', 'm'), proxy_e2e.Recorder('b', 'm')
+    first.skip('step', 'reason')
+    first.ok('other')
+    assert second.result.skipped == []
+    assert second.result.passed == []
+
+
+def test_proxy_harness_opts_into_proxy_routing():
+    """The harness must enable --rds_proxy, since the server default is off.
+
+    Proxy routing became opt-in after review. If the harness relied on the server
+    default, every proxy suite would report "no proxy detected" and fail for a
+    reason that has nothing to do with the code under test.
+    """
+    src = inspect.getsource(proxy_e2e.main_async)
+    assert 'configured_rds_proxy_mode' in src, (
+        'harness must set server.configured_rds_proxy_mode; the default is off'
+    )
+    assert 'RDS_PROXY_AUTO' in src
+
+
+def test_proxy_harness_derivation_filters_target_health_and_type():
+    """The fallback derivation must apply the same target filters as production.
+
+    Without them it disagrees with the implementation whenever a target is
+    unhealthy -- which is the state every proxied instance is in while stopped --
+    and reports that disagreement as a failure. A consistency check that fires on
+    a correctly-rejected target is worse than no check.
+    """
+    src = inspect.getsource(proxy_e2e.derive_proxy_for_instance)
+    assert 'TargetHealth' in src, 'derivation must consider target health'
+    assert "'AVAILABLE'" in src
+    assert "'RDS_INSTANCE'" in src
+
+
+# --- Aurora (APG) harness contracts ------------------------------------------
+
+
+def test_proxy_harness_accepts_either_topology_but_requires_one():
+    """A target is mandatory, and either topology satisfies it.
+
+    Aurora needs its own target flag because a proxy fronts the cluster, not an
+    instance -- passing a member instance identifier would exercise the wrong
+    lookup entirely.
+    """
+    parser = proxy_e2e.build_parser()
+
+    args = parser.parse_args(['--region', 'us-east-1', '--db-cluster-identifier', 'c'])
+    assert args.db_cluster_identifier == 'c'
+    assert args.db_instance_identifier == ''
+
+    args = parser.parse_args(['--region', 'us-east-1', '--db-instance-identifier', 'i'])
+    assert args.db_instance_identifier == 'i'
+    assert args.db_cluster_identifier == ''
+
+    # Both together is allowed: it exercises each topology in one run.
+    args = parser.parse_args(
+        ['--region', 'us-east-1', '--db-instance-identifier', 'i', '--db-cluster-identifier', 'c']
+    )
+    assert args.db_instance_identifier == 'i' and args.db_cluster_identifier == 'c'
+
+
+def test_proxy_harness_cluster_role_defaults_to_both():
+    """Writer and reader exercise different code, so default to running both.
+
+    The writer path uses the proxy's default endpoint; the reader path has to find
+    a READ_ONLY endpoint and prove the session reached a replica. Defaulting to
+    one of them would leave the other unexercised by a plain invocation.
+    """
+    args = proxy_e2e.build_parser().parse_args(
+        ['--region', 'us-east-1', '--db-cluster-identifier', 'c']
+    )
+    assert args.cluster_endpoint_role == 'both'
+
+
+def test_proxy_harness_asserts_role_fidelity_with_pg_is_in_recovery():
+    """The APG suite must check which backend it actually reached.
+
+    Selecting a READ_ONLY proxy endpoint is only half the claim; pg_is_in_recovery()
+    is the only evidence that the proxy then routed to a replica rather than the
+    writer, and it cannot be established by a unit test.
+    """
+    src = inspect.getsource(proxy_e2e.suite_apg_proxy_routing)
+    assert 'pg_is_in_recovery' in src
+    # The expectation has to flip with the requested role, or it would pass for
+    # either backend.
+    assert 'in_recovery == want_read_only' in src
+
+
+def test_proxy_harness_apg_uses_the_cluster_lookup_not_the_instance_one():
+    """Aurora members are not addressable through a proxy.
+
+    Using find_proxy_for_instance here would match a member target and promise
+    routing the proxy does not honor.
+    """
+    src = inspect.getsource(proxy_e2e.suite_apg_proxy_routing)
+    assert 'find_proxy_for_cluster' in src
+    assert 'find_proxy_for_instance' not in src
+    assert 'select_proxy_endpoint' in src

@@ -383,3 +383,53 @@ class TestEcsApiOperationSensitiveData:
 
         assert result["clusters"][0]["clusterName"] == "test"
         assert result["clusters"][0]["status"] == "ACTIVE"
+
+
+class TestEcsApiOperationRequestLogging:
+    """The INFO log of each ECS API request never carries sensitive request values."""
+
+    PLAIN_VALUE = "p@ssw0rd"
+    PARAMETER_ARN = "arn:aws:ssm:us-east-1:123456789012:parameter/app"
+
+    @classmethod
+    def _register_task_definition_params(cls):
+        return {
+            "family": "my-app",
+            "containerDefinitions": [
+                {
+                    "name": "app",
+                    "image": "public.ecr.aws/nginx/nginx:latest",
+                    "environment": [{"name": "DB_PASS", "value": cls.PLAIN_VALUE}],
+                    "secrets": [{"name": "TOKEN", "valueFrom": cls.PARAMETER_ARN}],
+                }
+            ],
+        }
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("allow_sensitive_data", [False, True])
+    @patch("awslabs.ecs_mcp_server.utils.config.get_config")
+    @patch("awslabs.ecs_mcp_server.api.resource_management.get_aws_client")
+    async def test_request_params_redacted_in_log(
+        self, mock_get_client, mock_get_config, allow_sensitive_data, caplog
+    ):
+        """The log gets a redacted copy of the request; ECS gets the original parameters."""
+        mock_get_config.return_value = {
+            "allow-write": True,
+            "allow-sensitive-data": allow_sensitive_data,
+        }
+        mock_ecs = MagicMock()
+        mock_ecs.register_task_definition.return_value = {"taskDefinition": {"family": "my-app"}}
+        mock_get_client.return_value = mock_ecs
+
+        with caplog.at_level("INFO", logger="awslabs.ecs_mcp_server.api.resource_management"):
+            await ecs_api_operation(
+                api_operation="RegisterTaskDefinition",
+                api_params=self._register_task_definition_params(),
+            )
+
+        assert self.PLAIN_VALUE not in caplog.text, f"environment value logged: {caplog.text}"
+        assert self.PARAMETER_ARN not in caplog.text, f"secret reference logged: {caplog.text}"
+        assert "DB_PASS" in caplog.text and "TOKEN" in caplog.text, caplog.text
+        mock_ecs.register_task_definition.assert_called_once_with(
+            **self._register_task_definition_params()
+        )

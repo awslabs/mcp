@@ -141,9 +141,8 @@ class NamedTransaction:
 class NamedTransactionManager:
     """The open transactions, and the names callers reach them by.
 
-    Each open transaction holds one session. Nothing is pooled and nothing is reused: a statement
-    outside a transaction mints no session at all, and a dropped name's session is left to end on
-    its own idle timeout, rolled back first where that is safe.
+    Each open transaction holds one session. Nothing is pooled and nothing is reused: a dropped
+    name's session is left to end on its own idle timeout, rolled back first where that is safe.
 
     Everything here is about the set - admitting a name, finding one, dropping one, and the
     per-target cap. Everything about a single transaction belongs to `NamedTransaction`.

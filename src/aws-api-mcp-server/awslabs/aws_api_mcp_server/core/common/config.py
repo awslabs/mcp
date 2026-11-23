@@ -16,6 +16,7 @@ import boto3
 import os
 import tempfile
 from awslabs.aws_api_mcp_server import __version__
+from awslabs.aws_api_mcp_server.core.common.auth import ClientIdJWTVerifier
 from enum import Enum
 from fastmcp.server.auth import JWTVerifier
 from fastmcp.server.dependencies import get_context
@@ -159,9 +160,23 @@ def get_server_auth():
             'AUTH_TYPE="oauth" requires the following environment variables to be set: AUTH_ISSUER and AUTH_JWKS_URI'
         )
 
-    auth_provider = JWTVerifier(issuer=AUTH_ISSUER, jwks_uri=AUTH_JWKS_URI)
+    # Identity providers differ in which claim names the application a token was
+    # issued for: `aud` for most, `client_id` for Amazon Cognito access tokens.
+    if not AUTH_AUDIENCE and not AUTH_CLIENT_ID:
+        raise ValueError(
+            'AUTH_TYPE="oauth" requires one of the following environment variables to be set: '
+            'AUTH_AUDIENCE, or AUTH_CLIENT_ID for providers whose access tokens carry no `aud` claim'
+        )
 
-    return auth_provider
+    if AUTH_CLIENT_ID:
+        return ClientIdJWTVerifier(
+            client_id=AUTH_CLIENT_ID,
+            issuer=AUTH_ISSUER,
+            jwks_uri=AUTH_JWKS_URI,
+            audience=AUTH_AUDIENCE,
+        )
+
+    return JWTVerifier(issuer=AUTH_ISSUER, jwks_uri=AUTH_JWKS_URI, audience=AUTH_AUDIENCE)
 
 
 FASTMCP_LOG_LEVEL = os.getenv('FASTMCP_LOG_LEVEL', 'INFO')
@@ -194,3 +209,5 @@ MAX_BATCH_COMMANDS = 20
 AUTH_TYPE = os.getenv('AUTH_TYPE')
 AUTH_ISSUER = os.getenv('AUTH_ISSUER')
 AUTH_JWKS_URI = os.getenv('AUTH_JWKS_URI')
+AUTH_AUDIENCE = os.getenv('AUTH_AUDIENCE')
+AUTH_CLIENT_ID = os.getenv('AUTH_CLIENT_ID')

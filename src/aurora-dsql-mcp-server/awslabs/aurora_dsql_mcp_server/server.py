@@ -308,12 +308,11 @@ Read-only mode - consistent multi-query read:
 transact(["SELECT COUNT(*) FROM orders", "SELECT SUM(total) FROM orders"])
 ```
 
-Read-write mode - create and populate table:
+Read-write mode - create a table, then populate it in a separate call
+(Aurora DSQL does not allow DDL and DML in the same transaction):
 ```
-transact([
-  "CREATE TABLE users (id UUID PRIMARY KEY, name TEXT)",
-  "INSERT INTO users VALUES (gen_random_uuid(), 'Alice')"
-])
+transact(["CREATE TABLE users (id UUID PRIMARY KEY, name TEXT)"])
+transact(["INSERT INTO users VALUES (gen_random_uuid(), 'Alice')"])
 ```
 """,
 )

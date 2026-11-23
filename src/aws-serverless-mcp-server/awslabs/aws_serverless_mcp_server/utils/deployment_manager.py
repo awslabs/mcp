@@ -24,7 +24,11 @@ from awslabs.aws_serverless_mcp_server.utils.cloudformation import (
     get_stack_info,
     map_cloudformation_status,
 )
-from awslabs.aws_serverless_mcp_server.utils.const import DEPLOYMENT_STATUS_DIR
+from awslabs.aws_serverless_mcp_server.utils.const import (
+    DEPLOYMENT_STATUS_DIR,
+    InvalidProjectNameError,
+    get_deployment_status_file_path,
+)
 from datetime import datetime
 from loguru import logger
 from typing import Any, Dict, List, Optional
@@ -50,7 +54,9 @@ async def initialize_deployment_status(
         framework: Framework used for the deployment
         region: AWS region for the deployment (optional)
     """
-    metadata_file = os.path.join(DEPLOYMENT_STATUS_DIR, f'{project_name}.json')
+    # Resolved outside the try so a rejected path stops the deployment instead of
+    # being logged and ignored.
+    metadata_file = get_deployment_status_file_path(project_name)
 
     try:
         # Create the metadata file with minimal information
@@ -79,16 +85,17 @@ async def store_deployment_metadata(project_name: str, metadata: Dict[str, Any])
         project_name: Name of the project
         metadata: Additional metadata to store
     """
-    metadata_file = os.path.join(DEPLOYMENT_STATUS_DIR, f'{project_name}.json')
-
     try:
+        metadata_file = get_deployment_status_file_path(project_name)
+
         # Read existing metadata
         existing_metadata = {}
         try:
             with open(metadata_file, 'r', encoding='utf-8') as f:
                 existing_metadata = json.load(f)
-        except Exception:  # nosec B110
-            # File might not exist yet, that's ok
+        except FileNotFoundError:
+            # File might not exist yet, that's ok. Any other error (e.g. a corrupt
+            # file) is left to the outer handler so the file is not overwritten.
             pass
 
         # Merge with new metadata
@@ -134,7 +141,17 @@ async def get_deployment_status(project_name: str) -> Dict[str, Any]:
     Returns:
         Dict: Deployment status information
     """
-    metadata_file = os.path.join(DEPLOYMENT_STATUS_DIR, f'{project_name}.json')
+    # Only an invalid name means "not found". Other path errors (an untrusted status
+    # directory, a symlink escaping it) propagate so the real cause is reported.
+    try:
+        metadata_file = get_deployment_status_file_path(project_name)
+    except InvalidProjectNameError as e:
+        logger.warning(f'Rejected invalid project name: {str(e)}')
+        return {
+            'status': DeploymentStatus.NOT_FOUND,
+            'message': f'No deployment found for project: {project_name}',
+            'projectName': project_name,
+        }
 
     try:
         # Check if metadata file exists

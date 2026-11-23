@@ -2,9 +2,9 @@
 
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/awslabs-aws-transform-mcp-server?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/awslabs-aws-transform-mcp-server) [![PyPI Downloads/month](https://static.pepy.tech/personalized-badge/awslabs-aws-transform-mcp-server?period=month&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads/month)](https://pepy.tech/projects/awslabs-aws-transform-mcp-server)
 
-An MCP server for [AWS Transform](https://aws.amazon.com/transform/) that enables AI assistants to manage transformation workspaces, jobs, connectors, human-in-the-loop (HITL) tasks, artifacts, and chat directly from the IDE.
+An MCP server for [AWS Transform](https://aws.amazon.com/transform/) that enables AI assistants to manage transformation workspaces, jobs, connectors, engagements, human-in-the-loop (HITL) tasks, artifacts, and chat directly from the IDE.
 
-AWS Transform accelerates migration and modernization of enterprise workloads using specialized AI agents across discovery, planning, and execution. This MCP server exposes the Transform lifecycle through 19 tools, supporting mainframe modernization, VMware migration, .NET modernization, and custom code transformations.
+AWS Transform accelerates migration and modernization of enterprise workloads using specialized AI agents across discovery, planning, and execution. This MCP server exposes the Transform lifecycle through 21 tools, supporting mainframe modernization, VMware migration, .NET modernization, and custom code transformations.
 
 > [!IMPORTANT]
 > This server uses stdio transport and runs as a long-lived process spawned by your MCP client.
@@ -18,6 +18,7 @@ AWS Transform accelerates migration and modernization of enterprise workloads us
 5. **Chat** - Send messages to the Transform assistant with automatic response polling
 6. **Job status and polling** - Check job status with AI-generated summaries or detailed raw snapshots, with adaptive polling for transitional states
 7. **Resource browsing** - List and inspect any resource: workspaces, jobs, connectors, tasks, artifacts, worklogs, plans, agents, collaborators, and users
+8. **Engagement management** - Create customer or partner engagements, manage invitations, tenants, users, and attached workspaces, and chat with the engagement assistant
 
 ## Prerequisites
 
@@ -258,7 +259,7 @@ To verify your credentials are working, ask your AI assistant: **"Check my AWS T
 
 | Tool | Description | Auth |
 |------|-------------|------|
-| `send_message` | Send a message to the Transform assistant and poll up to 60s for a reply. On timeout, returns `sentMessageId` for follow-up retrieval. | Web API |
+| `send_message` | Send a workspace-, job-, or engagement-scoped message to the Transform assistant and poll up to 60s for a reply. On timeout, returns `sentMessageId` for follow-up retrieval. | Web API |
 
 ### Job Status and Polling
 
@@ -280,12 +281,19 @@ To verify your credentials are working, ask your AI assistant: **"Check my AWS T
 | `create_connector` | Create an S3 or code source connector in a workspace. | Web API |
 | `accept_connector` | Associate an IAM role with a connector. | Web API + AWS credentials |
 
+### Engagements
+
+| Tool | Description | Auth |
+|------|-------------|------|
+| `manage_engagement` | Create or update engagements; accept or reject invitations; and add or remove engagement tenants, users, and workspaces. Destructive actions require `confirm: true`. Engagement termination is not exposed. | Web API |
+
 ### Resource Listing and Details
 
 | Tool | Description | Auth |
 |------|-------------|------|
-| `list_resources` | List any resource type: workspaces, jobs, connectors, tasks, artifacts, messages, worklogs, plan, agents, collaborators, users. Use `category="TOOL_APPROVAL"` and `taskStatus="AWAITING_APPROVAL"` to list pending tool approvals. | Web API |
-| `get_resource` | Get details for any resource by ID. Auto-downloads artifacts and enriches HITL tasks with output schemas. | Web API |
+| `list_resources` | List any resource type, including engagements, invitations, engagement tenants/users/workspaces, and partner types. Use `category="TOOL_APPROVAL"` and `taskStatus="AWAITING_APPROVAL"` to list pending tool approvals. | Web API |
+| `get_resource` | Get details for any resource by ID, including an engagement. Auto-downloads artifacts and enriches HITL tasks with output schemas. | Web API |
+| `download_artifact` | Stream a job or user artifact, or a connector asset, to a local file over the authenticated connection (no pre-signed S3 URL reaches the client). Saves only after the end-of-stream event confirms a complete download. | Web API |
 
 ### Collaborators
 
@@ -317,7 +325,7 @@ Set these in your MCP client config `env` block:
 | `AWS_PROFILE` | No | `default` profile | AWS profile from `~/.aws/credentials` to use for Control Plane tools (e.g., `accept_connector`). If you have multiple AWS profiles, set this to the one with access to your Transform account. If not set, boto3 uses the `[default]` profile, then falls back to environment variables (`AWS_ACCESS_KEY_ID`), then instance metadata. See [boto3 credential chain](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#configuring-credentials) for the full resolution order. |
 | `AWS_REGION` | No | Profile region, then `us-east-1` | AWS region for Control Plane API calls. If not set, uses the region from your AWS profile (`~/.aws/config`), then falls back to `us-east-1`. |
 | `FASTMCP_LOG_LEVEL` | No | `INFO` | Log level for the MCP server (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
-| `AWS_TRANSFORM_MCP_WRITE_DIR` | No | Server working directory | Base directory that artifact downloads (`get_resource`, `load_instructions`) are confined to. A `savePath` must resolve to this directory or a subdirectory of it; anything outside is rejected. If not set, the server's current working directory at startup is used. If that working directory is the filesystem root (`/`) — which happens when a desktop or IDE client launches the server outside a shell — downloads are refused until this variable is set, since confining to `/` would place no bound on writes. Set this to the directory you want downloads written to. |
+| `AWS_TRANSFORM_MCP_WRITE_DIR` | No | Server working directory | Base directory that artifact downloads (`get_resource`, `load_instructions`, `download_artifact`) are confined to. A `savePath` must resolve to this directory or a subdirectory of it; anything outside is rejected. If not set, the server's current working directory at startup is used. If that working directory is the filesystem root (`/`) — which happens when a desktop or IDE client launches the server outside a shell — downloads are refused until this variable is set, since confining to `/` would place no bound on writes. Set this to the directory you want downloads written to. |
 
 ## HITL Task Response System
 
@@ -378,7 +386,7 @@ The server blocks reads and writes to sensitive files and directories to prevent
 
 ### Audit Logging
 
-All tool invocations are logged with sanitized arguments. Sensitive parameters (`secret`, `password`, `credential`, `token`, `cookie`, `content`, `clientSecretArn`, `startUrl`) are automatically excluded from log output. Audit logging is fault-tolerant — failures in the logging path never block tool execution.
+All tool invocations are logged with sanitized arguments. Sensitive parameters (`secret`, `password`, `credential`, `token`, `cookie`, `content`, `clientSecretArn`, `startUrl`) and engagement customer contact fields are automatically excluded from log output. Audit logging is fault-tolerant — failures in the logging path never block tool execution.
 
 ### File Download Safety
 

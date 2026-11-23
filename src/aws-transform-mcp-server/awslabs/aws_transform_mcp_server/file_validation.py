@@ -81,6 +81,11 @@ def _resolve_write_base() -> str:
 _ALLOWED_WRITE_BASE: str = _resolve_write_base()
 
 
+def get_write_base() -> str:
+    """Return the allowed base directory for write operations."""
+    return _ALLOWED_WRITE_BASE
+
+
 def _is_blocked_name(path: str) -> bool:
     return os.path.basename(path).lower() in BLOCKED_FILENAMES
 

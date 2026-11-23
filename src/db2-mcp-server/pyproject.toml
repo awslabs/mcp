@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.db2-mcp-server"
-version = "0.1.0"
+version = "0.1.2"
 description = "An AWS Labs Model Context Protocol (MCP) server for Amazon RDS for Db2"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -47,7 +47,7 @@ changelog = "https://github.com/awslabs/mcp/blob/main/src/db2-mcp-server/CHANGEL
 [dependency-groups]
 dev = [
     "commitizen>=4.2.2",
-    "pre-commit>=4.1.0",
+    "pre-commit>=4.1.0; python_version >= '3.11'",
     "ruff>=0.9.7",
     "pyright>=1.1.409",
     "pytest>=8.0.0",

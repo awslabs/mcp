@@ -9,9 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added AWS Transform engagement support through `manage_engagement`,
+  `list_resources`, and `get_resource`. The server can create and update
+  customer or partner engagements, manage invitations, tenants, users, and
+  attached workspaces, discover partner types, and use engagement-scoped chat.
+  Customer consent and partner intent are accepted only for partner tenant
+  invitations. Engagement termination is intentionally not exposed. Customer
+  contact and sponsor fields are excluded from audit logs.
+  `send_message.workspaceId` is now optional, and `engagementId` is supported
+  by `send_message`, `list_resources(resource="messages")`, and
+  `get_resource(resource="messages")` for engagement-scoped messaging.
+
 - Asia Pacific (Singapore) `ap-southeast-1` is now included in region discovery,
   so accounts whose only AWS Transform profile lives there are found by the
   startup credential probe and by SSO profile discovery.
+
+- Added the `download_artifact` tool, which streams a job or user artifact, or a
+  connector asset, through the `GetArtifact` event-stream operation so no
+  pre-signed S3 URL is returned to the client. The file is saved only after the
+  terminal `streamFinishedEvent` arrives; a stream that ends without it is
+  reported as `STREAM_INCOMPLETE` and nothing is written. Without `outputPath`
+  the file is written to the allowed write base (`AWS_TRANSFORM_MCP_WRITE_DIR`
+  or the server working directory); an `outputPath` that ends in `/`, has no
+  file extension, or names an existing directory saves inside it under the
+  file's own name, as `get_resource`'s `savePath` does. The bytes are never
+  returned inline; the result carries the path, byte count, and SHA-256.
+  Workspace-scope downloads are not supported.
 
 ### Removed
 

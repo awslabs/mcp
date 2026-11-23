@@ -126,9 +126,9 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 - `LOG_FILE`: Path to log file (optional, logs to stderr if not specified)
 - `ACCESS_MODE`: Access mode for `execute_query` (optional, defaults to `read-only`). Supported modes are `read-only` and `read-write`; any other value falls back to `read-only`. Read [Read-Write Mode](#read-write-mode) before selecting `read-write`.
 - `UNSAFE_SKIP_WRITE_CONFIRMATION`: Skips the per-write confirmation prompt (optional, defaults to `false`). Ignored in `read-only` mode. See [Confirming each write](#confirming-each-write).
-- `SESSION_KEEPALIVE`: How long an open transaction may sit idle before Redshift ends it, in seconds (optional, defaults to `600`, maximum `86400`). Only transactions are affected; a statement outside one holds nothing open. See [Transactions](#transactions).
+- `SESSION_KEEPALIVE`: How long an open transaction may sit idle before Redshift ends it, in seconds (optional, defaults to `600`, maximum `86400`). Only transactions are affected. See [Transactions](#transactions).
 - `MAX_OPEN_TRANSACTIONS_PER_TARGET`: How many transactions may be open at once against one cluster and database (optional, defaults to `10`).
-- `MAX_RESULT_ROWS`: The most rows one statement may return (optional, defaults to `1000`). A larger result is refused rather than cut short, by every tool but `list_clusters`. Only a whole number above zero is accepted; anything else falls back to the default. It counts rows, not bytes: a `VARCHAR` value can be 64 KB, so a result of wide rows within the default can be tens of megabytes.
+- `MAX_RESULT_ROWS`: The most rows one statement may return (optional, defaults to `1000`). A larger result is refused rather than cut short, by every tool that runs SQL. Only a whole number above zero is accepted; anything else falls back to the default. It counts rows, not bytes: a `VARCHAR` value can be 64 KB, so a result of wide rows within the default can be tens of megabytes.
 
 The log carries statement content: `DEBUG` writes every statement's full SQL, so a `CREATE USER ... PASSWORD` lands verbatim, and `ERROR` — included by the default `WARNING` — carries the engine's message, which quotes the offending value or relation. Treat `LOG_FILE` as holding the statements themselves.
 
@@ -376,7 +376,7 @@ list_clusters() -> list[RedshiftCluster]
 - Configuration information (node type, encryption, etc.)
 - Tags and metadata. A serverless workgroup's tags need the optional `redshift-serverless:ListTagsForResource`; without it a workgroup is reported untagged.
 
-Provisioned clusters and serverless workgroups are separate AWS namespaces, so one name can be both. Every other tool therefore takes the type with the identifier: `cluster_type`, `provisioned` or `serverless`, as `list_clusters` reports it. Every tool that takes a `cluster_identifier`, except `review_cluster`, reuses a lookup for up to 5 minutes; `list_clusters` and `review_cluster` look again every time they run. Until the lookup is replaced, a cluster created since reads as not found, with the refusal saying how old the lookup is. A lookup that runs while one of the two listings is denied refuses a cluster of that type, names the denial, and is not reused.
+Provisioned clusters and serverless workgroups are separate AWS namespaces, so one name can be both. Every tool that runs SQL therefore takes the type with the identifier: `cluster_type`, `provisioned` or `serverless`, as `list_clusters` reports it. Every tool that takes a `cluster_identifier`, except `review_cluster`, reuses a lookup for up to 5 minutes; `list_clusters` and `review_cluster` look again every time they run. Until the lookup is replaced, a cluster created since reads as not found, with the refusal saying how old the lookup is. A lookup that runs while one of the two listings is denied refuses a cluster of that type, names the denial, and is not reused.
 
 ### list_databases
 
@@ -539,6 +539,21 @@ review_cluster(
 
 **Note**: Requires the connecting database user to hold the `sys:monitor` role (or be a superuser), see [Database Permissions](#database-permissions). Provisioned-only diagnostics are automatically skipped for serverless workgroups.
 
+### retrieve_skill_file
+
+Returns the Redshift guide, or one of the reference files it cites. The guide is a copy of the [`redshift-guide`](https://github.com/aws/agent-toolkit-for-aws/tree/main/plugins/aws-data-analytics/skills/redshift-guide) skill from `aws/agent-toolkit-for-aws`, covering Redshift SQL and how it differs from PostgreSQL, metadata, connectivity and authorization, storage, and query performance.
+
+```python
+retrieve_skill_file(file: str | None = None, chunk: int = 1) -> str
+```
+
+**Parameters**:
+
+- `file`: A reference file's path as the guide cites it, such as `references/<file>.md`. Omit for the guide itself
+- `chunk`: Which 25,000-character chunk of the file to return, from 1 (default: 1)
+
+**Returns**: That chunk of the guide or the reference file, as markdown text.
+
 ## Permissions
 
 ### AWS IAM Permissions
@@ -695,23 +710,21 @@ execute_query(commit_transaction='load')
 
 At most one of `begin_transaction`, `in_transaction`, `commit_transaction` and `rollback_transaction` per call. The name is the caller's to choose. `sql` is required on its own and with `in_transaction`; it is optional with the other three, so a transaction can be opened or closed on its own as well as with a statement.
 
-Both access modes support this. In `read-only` a transaction is opened `READ ONLY`, which gives several statements one consistent snapshot; in `read-write` it makes several statements succeed or fail together. Each write inside one is still confirmed individually, and a declined write leaves the transaction open for you to commit or roll back.
+Both access modes support this. In `read-only` a transaction is opened `READ ONLY`, which gives several statements one consistent snapshot, and always ends in `ROLLBACK`, whichever of `commit_transaction` and `rollback_transaction` closes it; in `read-write` it makes several statements succeed or fail together. Each write inside one is still confirmed individually, and a declined write leaves the transaction open for you to commit or roll back.
 
 What ends a transaction:
 
 | Cause | Result |
 | --- | --- |
-| `commit_transaction` | Its statements are persisted |
+| `commit_transaction` | Its statements are persisted. In `read-only` mode it rolls the transaction back instead |
 | `rollback_transaction` | Its statements are discarded, as far as a rollback reaches: changes in the database go, and anything done outside it, such as an `UNLOAD` to S3, stands |
-| A statement inside it fails | Rolled back, and the name is dropped. Redshift refuses everything after a failed statement, so a later commit would report success while persisting nothing. A statement sent with `in_transaction` that ran but whose result could not be read does not end it: the transaction stays open, and the error says so. Nor does a statement refused before it is sent, by the SQL guard or the confirmation step. A `commit_transaction` that fails once sent always ends it, and says whether the `COMMIT` stands, may have applied, or was discarded |
-| The call is cancelled | Discarded, and the name is dropped: nothing can reach the transaction again, so it is never committed, though its session can hold its locks until `SESSION_KEEPALIVE` ends it. A cancelled `commit_transaction` is the exception, since its `COMMIT` can still reach the cluster and stand. A call cancelled while it waits, for the cluster to resolve or for another call on the same transaction, ends nothing |
+| A statement inside it fails | Rolled back, and the name is dropped. Redshift refuses everything after a failed statement, so a later commit would report success while persisting nothing. A statement sent with `in_transaction` that ran but whose result could not be read does not end it: the transaction stays open, and the error says so. Nor does a statement refused before it is sent, by the SQL guard or the confirmation step. A `commit_transaction` that fails once sent always ends it. In `read-write` mode the error says whether the `COMMIT` stands, may have applied, or was discarded; in `read-only` mode the transaction is discarded, however the call failed |
+| The call is cancelled | Discarded, and the name is dropped: nothing can reach the transaction again, so it is never committed, though its session can hold its locks until `SESSION_KEEPALIVE` ends it. In `read-write` mode a cancelled `commit_transaction` is the exception, since its `COMMIT` can still reach the cluster and stand; in `read-only` mode its transaction is discarded too. A call cancelled while it waits, for the cluster to resolve or for another call on the same transaction, ends nothing |
 | Idle longer than `SESSION_KEEPALIVE` | Redshift ends it and discards its statements |
 
 A statement the guard rejects never reaches the cluster, so it does not abort the transaction. One the engine rejects does.
 
-Some statements cannot run inside a transaction at all, whichever mode you are in. A write to an Iceberg table is one: Redshift answers `insert into an "iceberg" table is not allowed within multistatement transaction`, so submit it on its own rather than inside a named transaction. The same restriction is what keeps such a write out of read-only mode, where every statement runs inside `BEGIN READ ONLY`.
-
-Two more are refused by this server rather than by Redshift, because each can end the transaction from inside it and leave a rollback reporting success over work that stands: `TRUNCATE`, which commits what it does, and `CALL`, since a `NONATOMIC` procedure may issue its own `COMMIT`. In read-write mode, run either on its own instead; read-only mode refuses both everywhere.
+This server refuses two statements inside a transaction, in either mode, because each can end the transaction from inside it and leave a rollback reporting success over work that stands: `TRUNCATE`, which commits what it does, and `CALL`, since a `NONATOMIC` procedure may issue its own `COMMIT`. In read-write mode, run either on its own instead; read-only mode refuses both everywhere.
 
 Keep them short. An open transaction holds a Redshift connection and can block other writers on the tables it touched, so the model is instructed to open one only once the statements it groups are decided, and to put nothing else between them — no waiting on you, no waiting on another system, no exploring. Asking for a transaction to be held open anyway is a legitimate thing to want, and the model is told to warn you what it costs before doing it.
 

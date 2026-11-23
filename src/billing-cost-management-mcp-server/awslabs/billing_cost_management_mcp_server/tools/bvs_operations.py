@@ -18,6 +18,7 @@ This module contains the individual operation handlers for the Billing tools.
 Each operation handles the AWS API call and response formatting.
 """
 
+import calendar
 from ..utilities.aws_service_base import (
     PageSpec,
     create_aws_client,
@@ -33,6 +34,7 @@ from ..utilities.time_utils import (
     timestamp_to_utc_iso_string,
     utc_datetime_string_to_epoch_seconds,
 )
+from datetime import datetime, timezone
 from fastmcp import Context
 from typing import Any, Dict, Optional
 
@@ -94,6 +96,8 @@ BVS_LIST_SOURCE_VIEWS_FOR_BILLING_VIEW = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 
@@ -144,7 +148,59 @@ BVS_LIST_BILLING_VIEWS = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
+
+_SOURCE_ACCOUNT_EMPTY_HINT = (
+    'No billing view matched source_account_id together with the other filters. This does '
+    'not mean no view includes the account. source_account_id matches only a billing '
+    "group's primary account (BILLING_GROUP views) or a billing transfer source account, "
+    "never PRIMARY or CUSTOM views; with a time range, only that period's billing groups "
+    'count. To find the billing group view that covers an account, get its billing '
+    "group's primary account (from the payer account: list-account-associations, then "
+    'list-billing-groups) and pass that ID; to see all views, call again without '
+    'source_account_id.'
+)
+
+
+def _active_time_range(after: str, before: str) -> Dict[str, int]:
+    """Build ListBillingViews' activeTimeRange, checking the rules the service enforces.
+
+    The service rejects a range whose end is not strictly after its start, or whose
+    ends fall in different UTC calendar months, with only "Failed to get billing view
+    data for an invalid time range.", so name the rule here instead.
+
+    Args:
+        after: active_after_inclusive as given by the caller.
+        before: active_before_inclusive as given by the caller.
+
+    Returns:
+        The activeTimeRange request member, in epoch seconds.
+
+    Raises:
+        ValueError: If a date is malformed or the range breaks a rule.
+    """
+    after_epoch = utc_datetime_string_to_epoch_seconds(after)
+    before_epoch = utc_datetime_string_to_epoch_seconds(before)
+    start = datetime.fromtimestamp(after_epoch, timezone.utc)
+    end = datetime.fromtimestamp(before_epoch, timezone.utc)
+
+    if end <= start:
+        raise ValueError(
+            f'active_before_inclusive ({before}) must be later than active_after_inclusive '
+            f'({after}). A date-only value means 00:00:00 of that day; to cover a whole day, '
+            'end with YYYY-MM-DDT23:59:59.'
+        )
+    if (start.year, start.month) != (end.year, end.month):
+        last_day = calendar.monthrange(start.year, start.month)[1]
+        raise ValueError(
+            f'active_after_inclusive ({after}) and active_before_inclusive ({before}) must '
+            'fall in the same UTC calendar month. Make one call per month; for the whole '
+            f'month of the start, use {start:%Y-%m}-01T00:00:00 to '
+            f'{start:%Y-%m}-{last_day:02d}T23:59:59.'
+        )
+    return {'activeAfterInclusive': after_epoch, 'activeBeforeInclusive': before_epoch}
 
 
 async def list_billing_views(
@@ -171,11 +227,12 @@ async def list_billing_views(
         active_after_inclusive: Optional UTC datetime string for the inclusive start of the
             active time range. Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (UTC).
             Must be used together with active_before_inclusive. The time range must be
-            within one calendar month.
+            within one UTC calendar month.
         active_before_inclusive: Optional UTC datetime string for the inclusive end of the
             active time range. Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (UTC).
-            Must be used together with active_after_inclusive. The time range must be
-            within one calendar month.
+            Must be used together with active_after_inclusive, later than it and in the
+            same UTC calendar month. A date-only value means 00:00:00 of that day;
+            use YYYY-MM-DDT23:59:59 to include the whole day.
         arns: Optional JSON string containing a list of billing view ARNs to filter by
             (maximum 10 items).
         billing_view_types: Optional JSON string containing a list of billing view types
@@ -184,7 +241,11 @@ async def list_billing_views(
         names: Optional JSON string containing a list of StringSearch objects with
             searchOption and searchValue fields for filtering by name.
         owner_account_id: Optional owner account ID to filter by (12-digit AWS account ID).
-        source_account_id: Optional source account ID to filter by (12-digit AWS account ID).
+        source_account_id: Optional 12-digit AWS account ID. The service returns only
+            BILLING_GROUP views whose billing group's primary account is this ID and
+            BILLING_TRANSFER / BILLING_TRANSFER_SHOWBACK views whose source account is this
+            ID, never PRIMARY or CUSTOM views. With a time range, only that period's billing
+            groups match. A complete empty result carries a ``hint``.
         max_items: Most billing views to return. None fetches every page.
         next_token: Optional pagination token to continue from a previous response.
 
@@ -200,14 +261,9 @@ async def list_billing_views(
                     'Both active_after_inclusive and active_before_inclusive must be provided '
                     'together when specifying an active time range.'
                 )
-            request_params['activeTimeRange'] = {
-                'activeAfterInclusive': utc_datetime_string_to_epoch_seconds(
-                    active_after_inclusive
-                ),
-                'activeBeforeInclusive': utc_datetime_string_to_epoch_seconds(
-                    active_before_inclusive
-                ),
-            }
+            request_params['activeTimeRange'] = _active_time_range(
+                active_after_inclusive, active_before_inclusive
+            )
 
         parsed_arns = parse_json(arns, 'arns')
         if parsed_arns:
@@ -242,7 +298,17 @@ async def list_billing_views(
         response_data: Dict[str, Any] = {
             'billing_views': [_format_list_billing_view_element(bv) for bv in billing_views],
         }
-        return format_response('success', with_pagination(response_data, pagination))
+        # A complete empty source_account_id result is easy to misread as "no view
+        # includes this account", which the filter cannot answer. A continuation or a
+        # partial result says nothing about the whole query, so it gets no hint.
+        no_match = (
+            source_account_id
+            and not billing_views
+            and next_token is None
+            and pagination['complete_dataset']
+        )
+        hint = _SOURCE_ACCOUNT_EMPTY_HINT if no_match else None
+        return format_response('success', with_pagination(response_data, pagination), hint=hint)
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'listBillingViews', 'Billing')
@@ -295,6 +361,8 @@ BVS_LIST_BILLING_VIEW_SEGMENTS = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 

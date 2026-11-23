@@ -14,8 +14,10 @@
 
 import boto3
 import json
+import threading
 import time
 from awslabs.postgres_mcp_server import __user_agent__
+from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
@@ -128,6 +130,447 @@ def internal_get_cluster_valid_endpoints(
         )
 
     return endpoints
+
+
+# Error codes that mean "this caller will never be allowed to list proxy targets".
+# Retrying per-proxy just multiplies the failure, so the lookup stops on sight.
+_ACCESS_DENIED_CODES = frozenset(
+    {'AccessDenied', 'AccessDeniedException', 'UnauthorizedOperation'}
+)
+
+# RDS Proxy for PostgreSQL always listens on the engine default port. The DBProxy
+# API object carries no port field to read it from, so the proxy path uses this
+# rather than the instance's port -- see connect_port in server.py. (DBProxyTarget
+# does have a Port, but that is the *target's* port, not the proxy's listener.)
+PROXY_LISTEN_PORT = DEFAULT_POSTGRES_PORT
+
+# A healthy, usable proxy target. A proxy can be 'available' while its target is
+# UNAVAILABLE (AUTH_FAILURE, "no registered credentials"), REGISTERING, or UNUSED;
+# routing to any of those produces a connection failure, so only AVAILABLE counts.
+_TARGET_STATE_AVAILABLE = 'AVAILABLE'
+_TARGET_TYPE_RDS_INSTANCE = 'RDS_INSTANCE'
+# Aurora registers the cluster, not its instances, so the proxy reports a
+# TRACKED_CLUSTER entry alongside one RDS_INSTANCE entry per member. Observed
+# shape for a healthy Aurora proxy:
+#
+#   {RdsResourceId: 'my-cluster', Type: 'TRACKED_CLUSTER', Port: 5432}
+#   {RdsResourceId: 'my-cluster-instance-1', Type: 'RDS_INSTANCE',
+#    TrackedClusterId: 'my-cluster', Role: 'READ_WRITE',
+#    TargetHealth: {State: 'AVAILABLE'}}
+#   ... one more with Role 'READ_ONLY' for each reader
+#
+# Note the cluster entry carries NO TargetHealth and NO Role at all -- not even
+# when every member is healthy. Health therefore has to come from the member
+# entries; demanding it on the cluster entry would reject Aurora unconditionally.
+_TARGET_TYPE_TRACKED_CLUSTER = 'TRACKED_CLUSTER'
+_TARGET_ROLE_READ_WRITE = 'READ_WRITE'
+_TARGET_ROLE_READ_ONLY = 'READ_ONLY'
+
+# Proxy topology changes on the order of minutes at worst, while this lookup sits
+# on the connect path and costs 1 + N describe calls. A short TTL keeps repeated
+# connects cheap without pinning a stale answer for long. The value is
+# (expiry_monotonic, proxy_dict_or_None) so a negative
+# result is cached too -- the no-proxy case is the common one. See the key type
+# below for what actually distinguishes one lookup from another.
+_PROXY_LOOKUP_TTL_SECONDS = 60.0
+# Key: (region, target_id, is_cluster, want_read_only). The last two are part of
+# the key because the answer genuinely differs by them -- an instance and a
+# cluster can share a name, and the same cluster can have a usable proxy for
+# writes but none for reads.
+_ProxyCacheKey = Tuple[str, str, bool, bool]
+_proxy_lookup_cache: Dict[_ProxyCacheKey, Tuple[float, Optional[Dict[str, Any]]]] = {}
+_proxy_lookup_cache_lock = threading.Lock()
+
+
+def clear_proxy_lookup_cache() -> None:
+    """Drop every cached proxy lookup. Intended for tests and for --rds_proxy flips."""
+    with _proxy_lookup_cache_lock:
+        _proxy_lookup_cache.clear()
+
+
+def _target_is_healthy(target: Dict[str, Any]) -> bool:
+    """Return True when a proxy target reports itself usable right now.
+
+    A proxy can be 'available' while a target is UNAVAILABLE (AUTH_FAILURE, "no
+    registered credentials"), REGISTERING, or UNUSED; routing to any of those
+    produces a connection failure.
+    """
+    return (target.get('TargetHealth') or {}).get('State') == _TARGET_STATE_AVAILABLE
+
+
+def _target_matches_instance(target: Dict[str, Any], db_instance_id: str) -> bool:
+    """Return True when a target is a healthy RDS instance target for this instance.
+
+    ``Type`` matters: it excludes TRACKED_CLUSTER and RDS_SERVERLESS_ENDPOINT
+    entries, whose RdsResourceId is a cluster identifier that could collide with
+    an instance name.
+
+    Deliberately also excludes an Aurora *member* instance. Members appear as
+    RDS_INSTANCE targets, but a proxy fronting a cluster cannot be asked for one
+    specific member -- it chooses the backend -- so matching one would promise
+    something the proxy does not honor. Aurora is matched on the cluster entry
+    instead; see _cluster_target_matches.
+    """
+    return (
+        target.get('Type') == _TARGET_TYPE_RDS_INSTANCE
+        and not target.get('TrackedClusterId')
+        and target.get('RdsResourceId') == db_instance_id
+        and _target_is_healthy(target)
+    )
+
+
+def _cluster_target_matches(target: Dict[str, Any], cluster_identifier: str) -> bool:
+    """Return True when a target is the TRACKED_CLUSTER entry for this cluster.
+
+    Health is NOT checked here, because the cluster entry carries no TargetHealth
+    field at all -- see the comment on _TARGET_TYPE_TRACKED_CLUSTER. Usability is
+    established from the member entries by ``_cluster_has_healthy_member``.
+    """
+    return target.get('Type') == _TARGET_TYPE_TRACKED_CLUSTER and (
+        target.get('RdsResourceId') == cluster_identifier
+        or target.get('TrackedClusterId') == cluster_identifier
+    )
+
+
+def _cluster_has_healthy_member(targets: List[Dict[str, Any]], want_read_only: bool) -> bool:
+    """Return True when the cluster has a healthy member able to serve this role.
+
+    Routing a read-only connection to a proxy whose only healthy member is the
+    writer would silently serve reads from the primary, so the role the caller
+    asked for has to actually be backed by something healthy.
+    """
+    wanted = _TARGET_ROLE_READ_ONLY if want_read_only else _TARGET_ROLE_READ_WRITE
+    return any(
+        target.get('Type') == _TARGET_TYPE_RDS_INSTANCE
+        and target.get('Role') == wanted
+        and _target_is_healthy(target)
+        for target in targets
+    )
+
+
+def find_proxy_for_instance(db_instance_id: str, region: str) -> Optional[Dict[str, Any]]:
+    """Find an available RDS Proxy with a healthy target for a standalone DB instance.
+
+    See ``_find_proxy`` for the shared semantics. Aurora clusters use
+    ``find_proxy_for_cluster`` instead, because a proxy fronts the cluster rather
+    than any individual instance.
+
+    Args:
+        db_instance_id: The RDS DB instance identifier to look up.
+        region: AWS region (e.g., 'us-east-1').
+
+    Returns:
+        The matching DBProxy dict, or None if no usable proxy fronts the instance.
+    """
+    return _find_proxy(db_instance_id, region, is_cluster=False, want_read_only=False)
+
+
+def find_proxy_for_cluster(
+    cluster_identifier: str, region: str, want_read_only: bool
+) -> Optional[Dict[str, Any]]:
+    """Find an available RDS Proxy fronting an Aurora cluster, able to serve a role.
+
+    ``want_read_only`` describes what the caller asked for -- it is derived from
+    which cluster endpoint they supplied, not from anything the LLM chose freely.
+    A proxy only counts as a match when it has a healthy member able to serve that
+    role, so a read-only request is never satisfied by a proxy whose only healthy
+    member is the writer.
+
+    Args:
+        cluster_identifier: The Aurora DB cluster identifier.
+        region: AWS region (e.g., 'us-east-1').
+        want_read_only: True when the caller asked for the cluster reader endpoint.
+
+    Returns:
+        The matching DBProxy dict, or None if no usable proxy fronts the cluster.
+    """
+    return _find_proxy(cluster_identifier, region, is_cluster=True, want_read_only=want_read_only)
+
+
+def _find_proxy(
+    target_id: str, region: str, is_cluster: bool, want_read_only: bool
+) -> Optional[Dict[str, Any]]:
+    """Look up a usable proxy, memoized per (region, target, shape, role).
+
+    Returns the whole ``DBProxy`` object rather than just an endpoint so the caller
+    can check its ``Auth`` configuration against the connection method in use -- a
+    proxy that fronts the target is not necessarily one this server can
+    authenticate to. See ``proxy_supports_connection``.
+
+    Best-effort by design: any API or permission failure logs and returns None so
+    the caller falls back to a direct connection rather than failing.
+
+    The role is part of the cache key because the answer genuinely differs: the
+    same cluster can have a usable proxy for writes and none for reads.
+    """
+    cache_key = (region, target_id, is_cluster, want_read_only)
+    now = time.monotonic()
+    with _proxy_lookup_cache_lock:
+        cached = _proxy_lookup_cache.get(cache_key)
+        if cached and cached[0] > now:
+            logger.debug(f"Using cached RDS Proxy lookup for '{target_id}' in '{region}'")
+            return cached[1]
+
+    result = _find_proxy_uncached(target_id, region, is_cluster, want_read_only)
+
+    with _proxy_lookup_cache_lock:
+        _proxy_lookup_cache[cache_key] = (time.monotonic() + _PROXY_LOOKUP_TTL_SECONDS, result)
+    return result
+
+
+def _find_proxy_uncached(
+    target_id: str, region: str, is_cluster: bool, want_read_only: bool
+) -> Optional[Dict[str, Any]]:
+    """Do the actual proxy search. See _find_proxy for semantics."""
+    kind = 'cluster' if is_cluster else 'instance'
+    logger.info(f"Looking for RDS Proxy fronting {kind} '{target_id}' in region '{region}'")
+
+    matches: List[Dict[str, Any]] = []
+    try:
+        rds_client = internal_create_rds_client(region=region)
+
+        proxy_paginator = rds_client.get_paginator('describe_db_proxies')
+        for proxy_page in proxy_paginator.paginate():
+            for proxy in proxy_page.get('DBProxies', []):
+                proxy_name = proxy.get('DBProxyName', '')
+                proxy_status = proxy.get('Status', '')
+
+                if proxy_status != 'available':
+                    logger.debug(f"Skipping proxy '{proxy_name}' with status '{proxy_status}'")
+                    continue
+
+                try:
+                    # Collected rather than streamed: the cluster case needs to
+                    # see the member entries to establish health, because the
+                    # TRACKED_CLUSTER entry carries none.
+                    targets: List[Dict[str, Any]] = []
+                    targets_paginator = rds_client.get_paginator('describe_db_proxy_targets')
+                    for targets_page in targets_paginator.paginate(DBProxyName=proxy_name):
+                        targets.extend(targets_page.get('Targets', []))
+                except ClientError as e:
+                    code = e.response['Error']['Code']
+                    message = e.response['Error']['Message']
+                    if code in _ACCESS_DENIED_CODES:
+                        # Not a per-proxy problem: the caller lacks the permission
+                        # outright, so every remaining proxy would fail the same
+                        # way. Warn once and fall back.
+                        logger.warning(
+                            f'Not authorized to describe RDS Proxy targets in '
+                            f"region '{region}': {code} - {message}. Add "
+                            f'rds:DescribeDBProxyTargets to enable proxy '
+                            f'detection. Falling back to a direct connection.'
+                        )
+                        return None
+                    logger.warning(
+                        f"Failed to describe targets for proxy '{proxy_name}': {code} - {message}"
+                    )
+                    continue
+
+                if is_cluster:
+                    if not any(_cluster_target_matches(t, target_id) for t in targets):
+                        continue
+                    if not _cluster_has_healthy_member(targets, want_read_only):
+                        role = 'read-only' if want_read_only else 'read/write'
+                        logger.info(
+                            f"Proxy '{proxy_name}' fronts cluster '{target_id}' but has no "
+                            f'healthy {role} member; treating as no proxy.'
+                        )
+                        continue
+                    matches.append(proxy)
+                elif any(_target_matches_instance(t, target_id) for t in targets):
+                    matches.append(proxy)
+
+    except ClientError as e:
+        logger.warning(
+            f"Failed to look up RDS Proxies in region '{region}': "
+            f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}. '
+            f'Falling back to a direct connection.'
+        )
+        return None
+    except Exception as e:
+        logger.warning(
+            f"Unexpected error during RDS Proxy lookup in region '{region}': "
+            f'{type(e).__name__}: {e}. Falling back to a direct connection.'
+        )
+        return None
+
+    if not matches:
+        logger.info(f"No RDS Proxy found for {kind} '{target_id}' in region '{region}'")
+        return None
+
+    # Deterministic choice: the API returns proxies in no guaranteed order, and
+    # silently depending on that order would make behavior vary between calls.
+    matches.sort(key=lambda p: p.get('DBProxyName', ''))
+    chosen = matches[0]
+    if len(matches) > 1:
+        logger.warning(
+            f"{len(matches)} RDS Proxies front {kind} '{target_id}': "
+            f'{[p.get("DBProxyName", "") for p in matches]}. '
+            f"Using '{chosen.get('DBProxyName', '')}' (first by name). Set "
+            f'--rds_proxy off and supply the intended proxy endpoint directly if '
+            f'this is not the one you want.'
+        )
+
+    logger.info(
+        f"Found RDS Proxy '{chosen.get('DBProxyName', '')}' "
+        f'(endpoint: {chosen.get("Endpoint", "")}) '
+        f"fronting {kind} '{target_id}'"
+    )
+    return chosen
+
+
+def select_proxy_endpoint(
+    proxy: Dict[str, Any], region: str, want_read_only: bool
+) -> Tuple[Optional[str], str]:
+    """Pick the proxy endpoint that serves the role the caller asked for.
+
+    A proxy's default endpoint is READ_WRITE and routes to the current writer.
+    Read-only traffic needs a separate ``DBProxyEndpoint`` with
+    ``TargetRole=READ_ONLY``, which balances across the Aurora replicas. Using the
+    default for a read-only request would silently serve reads from the primary,
+    defeating the reason the caller asked for the reader endpoint, so this returns
+    None instead and the caller connects directly.
+
+    Args:
+        proxy: A DBProxy dict as returned by the find_proxy_for_* functions.
+        region: AWS region (e.g., 'us-east-1').
+        want_read_only: True when the caller asked for a read-only endpoint.
+
+    Returns:
+        ``(endpoint, reason)``; endpoint is None when no suitable one exists. The
+        reason is for logging either way.
+    """
+    proxy_name = proxy.get('DBProxyName', '')
+
+    if not want_read_only:
+        # The default endpoint is read/write and follows failover; no extra call.
+        default_endpoint = proxy.get('Endpoint', '') or None
+        if not default_endpoint:
+            return (None, f"proxy '{proxy_name}' reports no default endpoint")
+        return (default_endpoint, f"default read/write endpoint of proxy '{proxy_name}'")
+
+    try:
+        rds_client = internal_create_rds_client(region=region)
+        paginator = rds_client.get_paginator('describe_db_proxy_endpoints')
+        read_only: List[Dict[str, Any]] = []
+        for page in paginator.paginate(DBProxyName=proxy_name):
+            for endpoint in page.get('DBProxyEndpoints', []):
+                if (
+                    endpoint.get('TargetRole') == _TARGET_ROLE_READ_ONLY
+                    and endpoint.get('Status') == 'available'
+                ):
+                    read_only.append(endpoint)
+    except ClientError as e:
+        return (
+            None,
+            f"could not list endpoints for proxy '{proxy_name}': "
+            f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}',
+        )
+    except Exception as e:
+        return (
+            None,
+            f"could not list endpoints for proxy '{proxy_name}': {type(e).__name__}: {e}",
+        )
+
+    if not read_only:
+        return (
+            None,
+            f"proxy '{proxy_name}' has no available READ_ONLY endpoint, so it cannot "
+            f'serve a read-only connection without silently using the writer',
+        )
+
+    read_only.sort(key=lambda e: e.get('DBProxyEndpointName', ''))
+    chosen = read_only[0]
+    return (
+        chosen.get('Endpoint', '') or None,
+        f"READ_ONLY endpoint '{chosen.get('DBProxyEndpointName', '')}' of proxy '{proxy_name}'",
+    )
+
+
+def proxy_supports_connection(
+    proxy: Dict[str, Any],
+    connection_method: str,
+    secret_arn: str,
+) -> Tuple[bool, str]:
+    """Check whether a proxy will accept the connection this server is about to make.
+
+    A proxy that fronts the instance is not necessarily one we can authenticate to.
+    RDS Proxy only accepts users whose secrets are registered in its ``Auth`` list,
+    and each entry independently decides whether IAM auth is disallowed, permitted,
+    or mandatory. Routing to an incompatible proxy turns a working direct
+    connection into an authentication failure, which is exactly the regression that
+    makes proxy routing opt-in.
+
+    Matching rules, per ``UserAuthConfigInfo`` entry:
+
+    - ``IAMAuth=REQUIRED`` accepts only PG_WIRE_IAM_PROTOCOL; a password connection
+      is rejected by the proxy.
+    - ``IAMAuth=DISABLED`` accepts only password auth; an IAM token is rejected.
+    - ``IAMAuth=ENABLED`` accepts either.
+    - For password auth the entry's ``SecretArn`` must be the secret we will
+      actually authenticate with, otherwise the proxy has no credentials for us.
+
+    Args:
+        proxy: A DBProxy dict as returned by find_proxy_for_instance or
+            find_proxy_for_cluster.
+        connection_method: The ConnectionMethod value in use.
+        secret_arn: The Secrets Manager ARN this connection will authenticate with,
+            or '' when none is resolved (valid on the IAM path).
+
+    Returns:
+        ``(True, reason)`` when the proxy should accept the connection, else
+        ``(False, reason)``. The reason is for logging in both cases.
+    """
+    proxy_name = proxy.get('DBProxyName', '')
+
+    if connection_method == ConnectionMethod.RDS_API:
+        # The Data API talks HTTPS to the cluster, never the Postgres wire
+        # protocol, so a proxy is not on its path at all.
+        return (False, f"connection method '{connection_method}' does not use an RDS Proxy")
+
+    auth_entries = proxy.get('Auth') or []
+    if not auth_entries:
+        return (False, f"proxy '{proxy_name}' has no Auth entries configured")
+
+    is_iam = connection_method == ConnectionMethod.PG_WIRE_IAM_PROTOCOL
+    rejections: List[str] = []
+
+    for entry in auth_entries:
+        iam_auth = (entry.get('IAMAuth') or 'DISABLED').upper()
+        entry_secret = entry.get('SecretArn') or ''
+        described = entry.get('UserName') or entry_secret or '<unnamed>'
+
+        if is_iam:
+            if iam_auth in ('REQUIRED', 'ENABLED'):
+                return (
+                    True,
+                    f"proxy '{proxy_name}' entry '{described}' permits IAM auth "
+                    f'(IAMAuth={iam_auth})',
+                )
+            rejections.append(f"'{described}' has IAMAuth={iam_auth}")
+            continue
+
+        # Password auth.
+        if iam_auth == 'REQUIRED':
+            rejections.append(f"'{described}' requires IAM auth (IAMAuth=REQUIRED)")
+            continue
+        if not secret_arn:
+            rejections.append(f"'{described}' needs a secret but none is configured")
+            continue
+        if entry_secret != secret_arn:
+            rejections.append(f"'{described}' registers a different secret")
+            continue
+        return (
+            True,
+            f"proxy '{proxy_name}' entry '{described}' registers the secret in use "
+            f'(IAMAuth={iam_auth})',
+        )
+
+    return (
+        False,
+        f"no Auth entry on proxy '{proxy_name}' accepts connection method "
+        f"'{connection_method}': {'; '.join(rejections)}",
+    )
 
 
 def internal_get_instance_properties(target_endpoint: str, region: str) -> Dict[str, Any]:

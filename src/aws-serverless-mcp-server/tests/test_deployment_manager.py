@@ -17,7 +17,9 @@
 import json
 import os
 import pytest
+import sys
 import tempfile
+import uuid
 from awslabs.aws_serverless_mcp_server.utils.deployment_manager import (
     DeploymentStatus,
     get_deployment_status,
@@ -34,13 +36,232 @@ class TestDeploymentManagerComprehensive:
 
     @pytest.fixture
     def temp_deployment_dir(self):
-        """Create a temporary directory for deployment metadata."""
+        """Create a temporary directory for deployment metadata.
+
+        Patches both the ``const`` copy (used by the validated path helper) and
+        the ``deployment_manager`` copy (used by ``list_deployments``).
+        """
         with tempfile.TemporaryDirectory() as temp_dir:
-            with patch(
-                'awslabs.aws_serverless_mcp_server.utils.deployment_manager.DEPLOYMENT_STATUS_DIR',
-                temp_dir,
+            with (
+                patch(
+                    'awslabs.aws_serverless_mcp_server.utils.const.DEPLOYMENT_STATUS_DIR',
+                    temp_dir,
+                ),
+                patch(
+                    'awslabs.aws_serverless_mcp_server.utils.deployment_manager.DEPLOYMENT_STATUS_DIR',
+                    temp_dir,
+                ),
             ):
                 yield temp_dir
+
+    @pytest.mark.parametrize(
+        'malicious_name',
+        [
+            '../evil',
+            '../../etc/passwd',
+            'foo/bar',
+            '/etc/passwd',
+            '..',
+            'a.b',  # dots are disallowed by the allowlist
+            '',
+            'abc\n',  # trailing newline must be rejected (fullmatch, not $)
+            'a' * 129,  # longer than the CloudFormation stack name limit
+        ],
+    )
+    def test_path_helper_rejects_invalid_names(self, temp_deployment_dir, malicious_name):
+        """The path helper rejects names outside the allowlist."""
+        from awslabs.aws_serverless_mcp_server.utils.const import (
+            get_deployment_status_file_path,
+        )
+
+        with pytest.raises(ValueError):
+            get_deployment_status_file_path(malicious_name)
+
+    def test_path_helper_allows_valid_name(self, temp_deployment_dir):
+        """A valid name resolves to a file contained in the status directory."""
+        from awslabs.aws_serverless_mcp_server.utils.const import (
+            get_deployment_status_file_path,
+        )
+
+        path = get_deployment_status_file_path('my-project_1')
+        base = os.path.realpath(temp_deployment_dir)
+        assert os.path.commonpath([base, path]) == base
+        assert path.endswith('my-project_1.json')
+
+    @pytest.mark.skipif(sys.platform == 'win32', reason='symlinks need privileges on Windows')
+    def test_path_helper_blocks_existing_symlink_escape(self, temp_deployment_dir):
+        """An existing symlink in the status directory pointing outside it is rejected."""
+        from awslabs.aws_serverless_mcp_server.utils.const import (
+            get_deployment_status_file_path,
+        )
+
+        # Plant a symlink <status_dir>/escape.json -> a file outside the dir.
+        with tempfile.TemporaryDirectory() as outside_dir:
+            target = os.path.join(outside_dir, 'escape.json')
+            with open(target, 'w') as f:
+                f.write('{}')
+            link = os.path.join(temp_deployment_dir, 'escape.json')
+            os.symlink(target, link)
+
+            with pytest.raises(ValueError):
+                get_deployment_status_file_path('escape')
+
+    def test_path_helper_allows_max_length_name(self, temp_deployment_dir):
+        """A 128-character name is accepted."""
+        from awslabs.aws_serverless_mcp_server.utils.const import (
+            get_deployment_status_file_path,
+        )
+
+        assert get_deployment_status_file_path('a' * 128).endswith('a' * 128 + '.json')
+
+    @pytest.mark.skipif(sys.platform == 'win32', reason='symlinks need privileges on Windows')
+    def test_path_helper_rejects_symlinked_status_dir(self):
+        """A status directory that is itself a symlink is rejected."""
+        from awslabs.aws_serverless_mcp_server.utils.const import (
+            get_deployment_status_file_path,
+        )
+
+        with tempfile.TemporaryDirectory() as parent:
+            real_dir = os.path.join(parent, 'real')
+            os.mkdir(real_dir)
+            link_dir = os.path.join(parent, 'link')
+            os.symlink(real_dir, link_dir)
+            with patch(
+                'awslabs.aws_serverless_mcp_server.utils.const.DEPLOYMENT_STATUS_DIR', link_dir
+            ):
+                with pytest.raises(ValueError, match='is a symlink'):
+                    get_deployment_status_file_path('my-project')
+
+    def test_path_helper_rejects_status_dir_that_is_a_file(self):
+        """A status directory path that is a regular file is rejected."""
+        from awslabs.aws_serverless_mcp_server.utils.const import (
+            get_deployment_status_file_path,
+        )
+
+        with tempfile.TemporaryDirectory() as parent:
+            not_a_dir = os.path.join(parent, 'deployments')
+            with open(not_a_dir, 'w') as f:
+                f.write('')
+            with patch(
+                'awslabs.aws_serverless_mcp_server.utils.const.DEPLOYMENT_STATUS_DIR', not_a_dir
+            ):
+                with pytest.raises(ValueError, match='not a directory'):
+                    get_deployment_status_file_path('my-project')
+
+    def test_path_helper_treats_different_drives_as_escape(self, temp_deployment_dir):
+        """Paths that commonpath cannot compare (different Windows drives) are rejected."""
+        from awslabs.aws_serverless_mcp_server.utils.const import (
+            get_deployment_status_file_path,
+        )
+
+        with patch('os.path.commonpath', side_effect=ValueError('different drives')):
+            with pytest.raises(ValueError, match='escapes the deployment status directory'):
+                get_deployment_status_file_path('my-project')
+
+    @pytest.mark.skipif(sys.platform == 'win32', reason='POSIX permissions only')
+    def test_path_helper_removes_group_and_other_write(self, temp_deployment_dir):
+        """Group and other write access on our own status directory is removed."""
+        from awslabs.aws_serverless_mcp_server.utils.const import (
+            get_deployment_status_file_path,
+        )
+
+        os.chmod(temp_deployment_dir, 0o777)
+        get_deployment_status_file_path('my-project')
+        assert os.stat(temp_deployment_dir).st_mode & 0o777 == 0o755
+
+    @pytest.mark.skipif(sys.platform == 'win32', reason='POSIX ownership only')
+    def test_path_helper_rejects_status_dir_owned_by_other_user(self, temp_deployment_dir):
+        """A status directory owned by another user is rejected."""
+        from awslabs.aws_serverless_mcp_server.utils.const import (
+            get_deployment_status_file_path,
+        )
+
+        other_uid = os.stat(temp_deployment_dir).st_uid + 1
+        with patch('os.geteuid', return_value=other_uid):
+            with pytest.raises(ValueError, match='owned by another user'):
+                get_deployment_status_file_path('my-project')
+
+    def test_path_helper_allows_missing_status_dir(self):
+        """A status directory that does not exist yet is not an error."""
+        from awslabs.aws_serverless_mcp_server.utils.const import (
+            get_deployment_status_file_path,
+        )
+
+        with tempfile.TemporaryDirectory() as parent:
+            missing = os.path.join(parent, 'missing')
+            with patch(
+                'awslabs.aws_serverless_mcp_server.utils.const.DEPLOYMENT_STATUS_DIR', missing
+            ):
+                assert get_deployment_status_file_path('my-project').endswith('my-project.json')
+
+    @pytest.fixture
+    def outside_file(self, temp_deployment_dir):
+        """Yield (traversal name, path) for a file next to (outside) the status directory."""
+        name = f'secret-{uuid.uuid4().hex}'
+        path = os.path.join(os.path.dirname(temp_deployment_dir), f'{name}.json')
+        yield f'../{name}', path
+        if os.path.exists(path):
+            os.remove(path)
+
+    @pytest.mark.asyncio
+    async def test_get_deployment_status_does_not_read_outside_status_dir(
+        self, temp_deployment_dir, outside_file
+    ):
+        """A traversal name must not return the contents of a file outside the status dir."""
+        traversal_name, path = outside_file
+        with open(path, 'w') as f:
+            json.dump({'deploymentType': 'LEAKED', 'status': 'DEPLOYED'}, f)
+
+        with patch(
+            'awslabs.aws_serverless_mcp_server.utils.deployment_manager.get_stack_info',
+            side_effect=Exception('no stack'),
+        ):
+            result = await get_deployment_status(traversal_name)
+
+        assert 'LEAKED' not in json.dumps(result)
+        assert result['status'] == DeploymentStatus.NOT_FOUND
+
+    @pytest.mark.skipif(sys.platform == 'win32', reason='POSIX ownership only')
+    @pytest.mark.asyncio
+    async def test_get_deployment_status_reports_untrusted_dir(self, temp_deployment_dir):
+        """An untrusted status directory is reported as an error, not as "not found"."""
+        other_uid = os.stat(temp_deployment_dir).st_uid + 1
+        with patch('os.geteuid', return_value=other_uid):
+            with pytest.raises(ValueError, match='owned by another user'):
+                await get_deployment_status('my-project')
+
+    @pytest.mark.asyncio
+    async def test_initialize_deployment_status_rejects_traversal(
+        self, temp_deployment_dir, outside_file
+    ):
+        """A rejected path raises so the deployment stops, and nothing is written outside."""
+        traversal_name, path = outside_file
+        with pytest.raises(ValueError):
+            await initialize_deployment_status(traversal_name, 'backend', 'express', None)
+
+        assert not os.path.exists(path)
+
+    @pytest.mark.asyncio
+    async def test_store_deployment_metadata_does_not_write_outside_status_dir(
+        self, temp_deployment_dir, outside_file
+    ):
+        """A traversal name must not create or overwrite a file outside the status dir."""
+        traversal_name, path = outside_file
+        await store_deployment_metadata(traversal_name, {'status': DeploymentStatus.DEPLOYED})
+
+        assert not os.path.exists(path)
+
+    @pytest.mark.asyncio
+    async def test_store_deployment_metadata_keeps_corrupt_file(self, temp_deployment_dir):
+        """A corrupt status file is left alone instead of overwritten with partial data."""
+        metadata_file = os.path.join(temp_deployment_dir, 'corrupt.json')
+        with open(metadata_file, 'w') as f:
+            f.write('{not json')
+
+        await store_deployment_metadata('corrupt', {'status': DeploymentStatus.DEPLOYED})
+
+        with open(metadata_file) as f:
+            assert f.read() == '{not json'
 
     @pytest.mark.asyncio
     async def test_initialize_deployment_status_with_region(self, temp_deployment_dir):

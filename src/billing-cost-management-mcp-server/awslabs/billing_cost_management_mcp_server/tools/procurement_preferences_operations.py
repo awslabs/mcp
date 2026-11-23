@@ -79,6 +79,8 @@ LIST_PROCUREMENT_PORTAL_PREFERENCES_PAGE_SPEC = PageSpec(
     token_key_in_response='NextToken',
     page_max=100,
     page_size_param='MaxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 

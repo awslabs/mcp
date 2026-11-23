@@ -21,6 +21,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base impor
     handle_aws_error,
     paginate_aws_items,
     partial_data_warning,
+    whole_query_in_one_page,
     with_pagination,
 )
 from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
@@ -28,6 +29,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.error_contract import 
     add_retry_guidance,
 )
 from botocore.exceptions import ClientError
+from types import SimpleNamespace
 from typing import Any, Dict, List
 from unittest.mock import AsyncMock, MagicMock
 
@@ -367,7 +369,11 @@ class TestPagingLimits:
 
         monkeypatch.setattr(constants, 'PAGINATION_MAX_SECONDS', 10)
         clock = iter([0.0, 11.0, 11.0])
-        monkeypatch.setattr(aws_service_base.time, 'monotonic', lambda: next(clock))
+        # Patch only this module's clock: patching time.monotonic itself also feeds the
+        # event loop, which reads it again at teardown and exhausts the iterator.
+        monkeypatch.setattr(
+            aws_service_base, 'time', SimpleNamespace(monotonic=lambda: next(clock))
+        )
         api = MagicMock(side_effect=_pages(5, 5, 5))
 
         items, _, pagination = await paginate_aws_items(ctx, 'op', api, {}, SERVER_SIZED)
@@ -686,3 +692,20 @@ class TestResponseShape:
 
         assert first_page_fields(pages, ['Total', 'Missing']) == {'Total': 1}
         assert first_page_fields([], ['Total']) == {}
+
+    @pytest.mark.parametrize(
+        'pages,next_token,complete,expected',
+        [
+            ([{}], None, True, True),
+            ([{}, {}], None, True, False),
+            ([{}], None, False, False),
+            ([{}], 'caller-token', True, False),
+            ([], None, True, False),
+        ],
+        ids=['one-complete-page', 'two-pages', 'partial', 'continuation', 'no-pages'],
+    )
+    def test_whole_query_in_one_page(self, pages, next_token, complete, expected):
+        """Only a single, complete, non-continuation page is the whole query."""
+        pagination = {'complete_dataset': complete}
+
+        assert whole_query_in_one_page(pages, next_token, pagination) is expected
