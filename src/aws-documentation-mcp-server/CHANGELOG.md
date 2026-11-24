@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Every tool declares MCP tool annotations: a `title`, `readOnlyHint: true` and `openWorldHint: true`. All seven tools (five for global AWS, two for AWS China) only read public documentation, so clients that run read-only tools without asking can call them directly, and directories that require annotations can list the server. A test fails if a tool is added without them.
+
 ### Fixed
 
 - `read_sections` no longer loses headings after code samples in converted HTML. `markdownify` opens a code fence after the `:` markers it writes for definition-list items (`:   :   ` followed by the fence), or after a list marker inside one (`:   1. `), and the heading parser only recognized fences at the start of a line. It missed the opening fence and took the indented closing fence for an opening one, so the headings that followed were treated as code. On IAM's condition operators page it found 10 of 21 headings, so titles from search failed with "No matching sections were found" and some sections ran on past headings it couldn't see. `truncate_large_tables` shared the check, so tables in that stretch were not truncated. A fence now also closes only on a fence of the same kind and at least the same length, with only indentation before it (at the opener's blockquote depth) and nothing after it but an optional anchor, and a backtick fence whose info string contains a backtick, such as ` ``` x ``` `, is inline code, not a fence.
