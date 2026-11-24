@@ -142,6 +142,7 @@ def parse_html_tables(html: str, section_title: Optional[str] = None) -> Optiona
     Matches section_title against h1/h2/h3 headings (case-insensitive).
     Collects all tables until the next heading at the same or higher level,
     including tables under deeper nested headings (e.g., h4 under an h3).
+    When several headings carry the title, the tables of every one are collected.
 
     Args:
         html: Raw HTML content of the page
@@ -162,40 +163,41 @@ def parse_html_tables(html: str, section_title: Optional[str] = None) -> Optiona
         return _find_all_tables(soup)
 
     normalized_target = ' '.join(section_title.strip().lower().split())
-    section_element = None
+    section_elements: list[Tag] = []
     available_sections = []
 
     for heading in soup.find_all(['h1', 'h2', 'h3']):
         heading_text = ' '.join(heading.get_text().split())
         normalized = heading_text.lower()
         available_sections.append(heading_text)
-        if normalized == normalized_target:
-            section_element = heading
+        if normalized == normalized_target and isinstance(heading, Tag):
+            section_elements.append(heading)
 
-    if not section_element:
+    if not section_elements:
         return {
             'error': f'Section "{section_title}" not found',
             'available_sections': available_sections,
         }
 
-    # Find ALL tables until the next heading at the same or higher level
-    if not isinstance(section_element, Tag):
-        return None
-    heading_level = int(section_element.name[1])
-    # Collect tables paired with the last sub-heading seen before them (within section)
+    # A title can head several sections (the Lambda quotas page has two "Compute and
+    # storage"), so search each one, as read_sections does. Find ALL tables until the
+    # next heading at the same or higher level, paired with the last sub-heading seen
+    # before them (within section)
     tables: list[tuple[Tag, Optional[Tag]]] = []
-    last_sub_heading: Optional[Tag] = None
-    for sibling in section_element.find_next_siblings():
-        if isinstance(sibling, Tag):
-            if sibling.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
-                if int(sibling.name[1]) <= heading_level:
-                    break
-                last_sub_heading = sibling
-            if sibling.name == 'table':
-                tables.append((sibling, last_sub_heading))
-            else:
-                for found in sibling.find_all('table'):
-                    if isinstance(found, Tag):
+    seen: set[int] = set()  # a matching heading can sit inside another matching section
+    for section_element in section_elements:
+        heading_level = int(section_element.name[1])
+        last_sub_heading: Optional[Tag] = None
+        for sibling in section_element.find_next_siblings():
+            if isinstance(sibling, Tag):
+                if sibling.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                    if int(sibling.name[1]) <= heading_level:
+                        break
+                    last_sub_heading = sibling
+                found_tables = [sibling] if sibling.name == 'table' else sibling.find_all('table')
+                for found in found_tables:
+                    if isinstance(found, Tag) and id(found) not in seen:
+                        seen.add(id(found))
                         tables.append((found, last_sub_heading))
 
     if not tables:
