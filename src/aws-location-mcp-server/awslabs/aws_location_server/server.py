@@ -444,13 +444,12 @@ async def search_nearby(
 ) -> Dict:
     """Search for places near a location using Amazon Location Service geo-places search_nearby API. If no results, expand the radius up to max_radius. Output is standardized and includes all fields, even if empty or not available."""
     # Moved from parameters to local variables
-    max_results = 5  # Maximum number of results to return
-    max_radius = 10000  # Maximum search radius in meters for expansion
+    # Expand up to 10 km, but always search at least once at the requested radius
+    max_radius = max(radius, 10000)
     expansion_factor = 2.0  # Factor to expand radius by if no results
     mode = 'summary'  # Output mode: 'summary' (default) or 'raw' for all AWS fields
     # Descriptions:
-    # max_results: Maximum number of results to return (default=5, ge=1, le=50)
-    # max_radius: Maximum search radius in meters for expansion (default=10000, ge=1, le=50000)
+    # max_radius: Maximum search radius in meters for expansion (10000, or radius if larger)
     # expansion_factor: Factor to expand radius by if no results (default=2.0, ge=1.1, le=10.0)
     # mode: Output mode: 'summary' (default) or 'raw' for all AWS fields
     if not geo_places_client.geo_places_client:
