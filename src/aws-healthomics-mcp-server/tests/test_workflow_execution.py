@@ -430,6 +430,33 @@ async def test_list_runs_invalid_status():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('status', ['STOPPING'])
+async def test_list_runs_accepts_stopping_status(status):
+    """STOPPING is a valid ListRuns status filter and must reach the API."""
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.list_runs.return_value = {'items': []}
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await list_runs(
+            ctx=mock_ctx,
+            max_results=10,
+            next_token=None,
+            status=status,
+            created_after=None,
+            created_before=None,
+            run_group_id=None,
+        )
+
+    assert 'error' not in result
+    mock_ctx.error.assert_not_called()
+    mock_client.list_runs.assert_called_once_with(maxResults=10, status=status)
+
+
+@pytest.mark.asyncio
 async def test_list_runs_boto_error():
     """Test handling of BotoCoreError in list_runs."""
     # Mock context and client
