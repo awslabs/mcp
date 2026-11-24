@@ -17,6 +17,7 @@
 import json
 import os
 import pytest
+import yaml
 from awslabs.eks_mcp_server.k8s_apis import K8sApis
 from awslabs.eks_mcp_server.k8s_handler import K8sHandler
 from mcp.server.mcpserver import Context
@@ -178,7 +179,7 @@ metadata:
             values = {
                 'APP_NAME': 'test-app',
                 'NAMESPACE': 'test-namespace',
-                'REPLICAS': '3',
+                'REPLICAS': 3,
                 'LOAD_BALANCER_SCHEME': 'internal',
             }
 
@@ -1144,6 +1145,12 @@ metadata:
                     mock_context,
                     app_name='test-app',
                     image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                    port=80,
+                    replicas=2,
+                    cpu='100m',
+                    memory='128Mi',
+                    namespace='default',
+                    load_balancer_scheme='internal',
                     output_dir='/absolute/path/to/output',  # Use an absolute path
                 )
 
@@ -1219,6 +1226,12 @@ metadata:
                                 mock_context,
                                 app_name='test-app',
                                 image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                                port=80,
+                                replicas=2,
+                                cpu='100m',
+                                memory='128Mi',
+                                namespace='default',
+                                load_balancer_scheme='internal',
                                 output_dir='/path/to/output',
                             )
 
@@ -1961,65 +1974,50 @@ metadata:
         assert result == simple_input
 
     def test_remove_checkov_skip_annotations(self, mock_mcp, mock_client_cache):
-        """Test _remove_checkov_skip_annotations method directly to ensure line 807 is covered."""
+        """Test _remove_checkov_skip_annotations removes only checkov annotations, in place."""
         # Initialize the K8s handler
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
             handler = K8sHandler(mock_mcp)
 
-        # Test case 1: YAML with only checkov skip annotations (should remove annotations completely)
-        yaml_content = """apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: test-app
-  namespace: default
-  annotations:
-    checkov.io/skip1: "CKV_K8S_14=We're using a specific image version"
-    checkov.io/skip2: "CKV_K8S_43=Resource limits are set appropriately"
-spec:
-  replicas: 3"""
+        # Test case 1: only checkov skip annotations (annotations removed completely)
+        document = {
+            'kind': 'Deployment',
+            'metadata': {
+                'name': 'test-app',
+                'annotations': {
+                    'checkov.io/skip1': "CKV_K8S_14=We're using a specific image version",
+                    'checkov.io/skip2': 'CKV_K8S_43=Resource limits are set appropriately',
+                },
+            },
+            'spec': {'replicas': 3},
+        }
+        handler._remove_checkov_skip_annotations(document)
+        assert document == {
+            'kind': 'Deployment',
+            'metadata': {'name': 'test-app'},
+            'spec': {'replicas': 3},
+        }
 
-        expected_result = """apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: test-app
-  namespace: default
-spec:
-  replicas: 3
-"""
+        # Test case 2: mixed annotations (non-checkov annotations are kept)
+        document = {
+            'metadata': {
+                'annotations': {
+                    'checkov.io/skip1': "CKV_K8S_14=We're using a specific image version",
+                    'other-annotation': 'This should be preserved',
+                },
+            },
+        }
+        handler._remove_checkov_skip_annotations(document)
+        assert document['metadata']['annotations'] == {
+            'other-annotation': 'This should be preserved'
+        }
 
-        result = handler._remove_checkov_skip_annotations(yaml_content)
-        # Normalize whitespace for comparison
-        result = result.replace(' ', '').replace('\n', '')
-        expected_result = expected_result.replace(' ', '').replace('\n', '')
-        assert result == expected_result
-
-        # Test case 2: YAML with mixed annotations (should keep non-checkov annotations)
-        yaml_content = """apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: test-app
-  namespace: default
-  annotations:
-    checkov.io/skip1: "CKV_K8S_14=We're using a specific image version"
-    other-annotation: "This should be preserved"
-spec:
-  replicas: 3"""
-
-        expected_result = """apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: test-app
-  namespace: default
-  annotations:
-    other-annotation: This should be preserved
-spec:
-  replicas: 3
-"""
-
-        result = handler._remove_checkov_skip_annotations(yaml_content)
-        assert 'other-annotation: This should be preserved' in result
+        # Test case 3: no metadata or annotations (unchanged)
+        document = {'kind': 'Service', 'metadata': {'name': 'svc'}}
+        handler._remove_checkov_skip_annotations(document)
+        assert document == {'kind': 'Service', 'metadata': {'name': 'svc'}}
 
     def test_filter_null_values(self, mock_mcp, mock_client_cache):
         """Test filter_null_values method for removing null values from data structures."""
@@ -2166,3 +2164,128 @@ class TestK8sHandlerPathValidation:
 
             mock_validate.assert_called_once_with('/some/file.yaml')
             assert result.is_error
+
+
+INJECTED_DOCUMENT = (
+    '\n---\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRoleBinding\n'
+    'metadata:\n  name: injected\nroleRef:\n  apiGroup: rbac.authorization.k8s.io\n'
+    '  kind: ClusterRole\n  name: cluster-admin\n'
+)
+
+VALID_MANIFEST_ARGS = {
+    'app_name': 'test-app',
+    'image_uri': '123456789012.dkr.ecr.us-east-1.amazonaws.com/repo:tag',
+    'port': 8080,
+    'replicas': 3,
+    'cpu': '250m',
+    'memory': '256Mi',
+    'namespace': 'test-namespace',
+    'load_balancer_scheme': 'internet-facing',
+}
+
+
+class TestGenerateAppManifestInputSafety:
+    """generate_app_manifest must emit exactly a Deployment and a Service."""
+
+    @pytest.fixture
+    def handler(self, mock_mcp, mock_client_cache):
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            return K8sHandler(mock_mcp, allow_write=True)
+
+    async def _generate(self, handler, mock_context, output_dir, **overrides):
+        args = {**VALID_MANIFEST_ARGS, **overrides}
+        return await handler.generate_app_manifest(
+            mock_context, output_dir=str(output_dir), **args
+        )
+
+    @pytest.mark.asyncio
+    async def test_generates_exactly_deployment_and_service(self, handler, mock_context, tmp_path):
+        result = await self._generate(handler, mock_context, tmp_path)
+
+        assert not result.is_error
+        with open(tmp_path / 'test-app-manifest.yaml') as f:
+            documents = [doc for doc in yaml.safe_load_all(f) if doc]
+        assert [doc['kind'] for doc in documents] == ['Deployment', 'Service']
+
+        deployment, service = documents
+        assert deployment['metadata']['namespace'] == 'test-namespace'
+        assert 'annotations' not in deployment['metadata']
+        assert deployment['spec']['replicas'] == 3
+        container = deployment['spec']['template']['spec']['containers'][0]
+        assert container['image'] == VALID_MANIFEST_ARGS['image_uri']
+        assert container['ports'][0]['containerPort'] == 8080
+        assert container['resources']['requests'] == {'cpu': '250m', 'memory': '256Mi'}
+        assert (
+            service['metadata']['annotations'][
+                'service.beta.kubernetes.io/aws-load-balancer-scheme'
+            ]
+            == 'internet-facing'
+        )
+        assert service['spec']['ports'][0] == {
+            'port': 8080,
+            'targetPort': 8080,
+            'protocol': 'TCP',
+        }
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'field, value',
+        [
+            ('load_balancer_scheme', 'internal' + INJECTED_DOCUMENT),
+            ('load_balancer_scheme', 'public'),
+            ('namespace', 'default' + INJECTED_DOCUMENT),
+            ('namespace', 'Default'),
+            ('cpu', '100m' + INJECTED_DOCUMENT),
+            ('cpu', 'lots'),
+            ('memory', '128Mi' + INJECTED_DOCUMENT),
+            ('memory', '128 Mi'),
+            ('image_uri', 'repo:tag' + INJECTED_DOCUMENT),
+            ('image_uri', ''),
+            # A trailing newline must not slip past the end-of-string anchor.
+            ('app_name', 'test-app\n'),
+            ('namespace', 'prod\n'),
+            ('cpu', '100m\n'),
+            ('memory', '128Mi\n'),
+            ('image_uri', 'repo:tag\n'),
+        ],
+    )
+    async def test_rejects_invalid_input(self, handler, mock_context, tmp_path, field, value):
+        result = await self._generate(handler, mock_context, tmp_path, **{field: value})
+
+        assert result.is_error
+        assert isinstance(result.content[0], TextContent)
+        assert f'Invalid {field}' in result.content[0].text
+        assert not (tmp_path / 'test-app-manifest.yaml').exists()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('cpu', ['100m', '0.5', '2', '.5', '1e3'])
+    @pytest.mark.parametrize('memory', ['128Mi', '1Gi', '512M', '1000000'])
+    async def test_accepts_valid_quantities(self, handler, mock_context, tmp_path, cpu, memory):
+        result = await self._generate(handler, mock_context, tmp_path, cpu=cpu, memory=memory)
+
+        assert not result.is_error
+
+    def test_substituted_values_cannot_add_documents(self, handler):
+        values = {
+            'APP_NAME': 'test-app',
+            'NAMESPACE': 'default',
+            'REPLICAS': 2,
+            'IMAGE_URI': 'repo:tag',
+            'PORT': 80,
+            'CPU': '100m',
+            'MEMORY': '128Mi',
+            'LOAD_BALANCER_SCHEME': 'internal' + INJECTED_DOCUMENT,
+        }
+
+        result = handler._load_yaml_template(['deployment.yaml', 'service.yaml'], values)
+
+        documents = [doc for doc in yaml.safe_load_all(result) if doc]
+        assert [doc['kind'] for doc in documents] == ['Deployment', 'Service']
+        assert (
+            documents[1]['metadata']['annotations'][
+                'service.beta.kubernetes.io/aws-load-balancer-scheme'
+            ]
+            == values['LOAD_BALANCER_SCHEME']
+        )

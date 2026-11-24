@@ -268,8 +268,16 @@ class K8sHandler:
         else:
             return data
 
-    @staticmethod
-    def _validate_app_name(app_name: str) -> Optional[str]:
+    # Patterns are applied with fullmatch: with re.match, `$` also matches just
+    # before a trailing newline, so "prod\n" would pass.
+    # Kubernetes resource quantity, e.g. "100m", "0.5", "128Mi", "1Gi", "1e3".
+    _QUANTITY_PATTERN = re.compile(r'(\d+(\.\d*)?|\.\d+)([KMGTPE]i|[numkMGTPE]|[eE][+-]?\d+)?')
+    _DNS_LABEL_PATTERN = re.compile(r'[a-z0-9]([a-z0-9\-]*[a-z0-9])?')
+    _IMAGE_URI_PATTERN = re.compile(r'[^\s\x00-\x1f\x7f]+')
+    _LOAD_BALANCER_SCHEMES = ('internal', 'internet-facing')
+
+    @classmethod
+    def _validate_app_name(cls, app_name: str) -> Optional[str]:
         """Validate app_name against Kubernetes RFC 1123 DNS label rules.
 
         Rules (see https://kubernetes.io/docs/concepts/overview/working-with-objects/names/):
@@ -287,11 +295,52 @@ class K8sHandler:
         """
         if len(app_name) > 63:
             return f'Invalid app_name "{app_name}": must be at most 63 characters long'
-        if not re.match(r'^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$', app_name):
+        if not cls._DNS_LABEL_PATTERN.fullmatch(app_name):
             return (
                 f'Invalid app_name "{app_name}": must consist of lowercase alphanumeric '
                 f'characters or hyphens, start and end with an alphanumeric character'
             )
+        return None
+
+    @classmethod
+    def _validate_manifest_inputs(
+        cls,
+        image_uri: str,
+        cpu: str,
+        memory: str,
+        namespace: str,
+        load_balancer_scheme: str,
+    ) -> Optional[str]:
+        """Validate the string inputs of generate_app_manifest.
+
+        Args:
+            image_uri: Container image URI
+            cpu: CPU request and limit
+            memory: Memory request and limit
+            namespace: Kubernetes namespace
+            load_balancer_scheme: AWS load balancer scheme
+
+        Returns:
+            An error message string if any input is invalid, or None if all are valid
+        """
+        if load_balancer_scheme not in cls._LOAD_BALANCER_SCHEMES:
+            return (
+                f'Invalid load_balancer_scheme {load_balancer_scheme!r}: '
+                f'must be one of {", ".join(cls._LOAD_BALANCER_SCHEMES)}'
+            )
+        if len(namespace) > 63 or not cls._DNS_LABEL_PATTERN.fullmatch(namespace):
+            return (
+                f'Invalid namespace {namespace!r}: must be at most 63 lowercase alphanumeric '
+                f'characters or hyphens, starting and ending with an alphanumeric character'
+            )
+        for field_name, value in (('cpu', cpu), ('memory', memory)):
+            if not cls._QUANTITY_PATTERN.fullmatch(value):
+                return (
+                    f'Invalid {field_name} {value!r}: must be a Kubernetes resource quantity '
+                    f'(e.g. "100m", "0.5", "128Mi", "1Gi")'
+                )
+        if not cls._IMAGE_URI_PATTERN.fullmatch(image_uri):
+            return f'Invalid image_uri {image_uri!r}: must not be empty or contain whitespace or control characters'
         return None
 
     def remove_managed_fields(self, resource: Dict[str, Any]) -> Dict[str, Any]:
@@ -759,6 +808,21 @@ class K8sHandler:
                     content=[TextContent(type='text', text=error_msg)],
                 )
 
+            # Validate the inputs before they reach the manifest.
+            input_error = self._validate_app_name(app_name) or self._validate_manifest_inputs(
+                image_uri=image_uri,
+                cpu=cpu,
+                memory=memory,
+                namespace=namespace,
+                load_balancer_scheme=load_balancer_scheme,
+            )
+            if input_error:
+                log_with_request_id(ctx, LogLevel.ERROR, input_error)
+                return CallToolResult(
+                    is_error=True,
+                    content=[TextContent(type='text', text=input_error)],
+                )
+
             log_with_request_id(
                 ctx,
                 LogLevel.INFO,
@@ -768,13 +832,14 @@ class K8sHandler:
             # List of template files to process
             template_files = ['deployment.yaml', 'service.yaml']
 
-            # Prepare template values
+            # Prepare template values. port and replicas stay integers so they
+            # are written as YAML integers.
             template_values = {
                 'APP_NAME': app_name,
                 'NAMESPACE': namespace,
-                'REPLICAS': str(replicas),  # Convert to string for template substitution
+                'REPLICAS': replicas,
                 'IMAGE_URI': image_uri,
-                'PORT': str(port),
+                'PORT': port,
                 'CPU': cpu,
                 'MEMORY': memory,
                 'LOAD_BALANCER_SCHEME': load_balancer_scheme,
@@ -782,15 +847,6 @@ class K8sHandler:
 
             # Get the combined manifest using the template files
             combined_yaml = self._load_yaml_template(template_files, template_values)
-
-            # Validate app_name against Kubernetes naming rules.
-            app_name_error = self._validate_app_name(app_name)
-            if app_name_error:
-                log_with_request_id(ctx, LogLevel.ERROR, app_name_error)
-                return CallToolResult(
-                    is_error=True,
-                    content=[TextContent(type='text', text=app_name_error)],
-                )
 
             # Ensure output directory exists
             os.makedirs(output_dir, exist_ok=True)
@@ -832,39 +888,53 @@ class K8sHandler:
                 content=[TextContent(type='text', text=error_message)],
             )
 
-    def _remove_checkov_skip_annotations(self, content: str) -> str:
-        """Remove checkov skip annotations from YAML content.
+    @staticmethod
+    def _remove_checkov_skip_annotations(document: Dict[str, Any]) -> None:
+        """Remove checkov skip annotations from a parsed manifest, in place.
 
         Args:
-            content: YAML content as string
+            document: A parsed Kubernetes manifest
+        """
+        metadata = document.get('metadata')
+        if not isinstance(metadata, dict) or not isinstance(metadata.get('annotations'), dict):
+            return
+        annotations = metadata['annotations']
+        for key in [key for key in annotations if key.startswith('checkov.io/skip')]:
+            del annotations[key]
+        # If annotations is now empty, remove it
+        if not annotations:
+            del metadata['annotations']
+
+    @classmethod
+    def _substitute_placeholders(cls, node: Any, values: Dict[str, Any]) -> Any:
+        """Replace placeholder scalars in a parsed template with their values.
+
+        Only a scalar that is exactly a placeholder name is replaced, and the
+        value is inserted as data, so it can never add keys or documents.
+
+        Args:
+            node: A parsed YAML node
+            values: Dictionary of placeholder names to values
 
         Returns:
-            YAML content with checkov skip annotations removed
+            The node with placeholders replaced
         """
-        # Use yaml to parse and modify the content
-        yaml_content = yaml.safe_load(content)
-        if (
-            yaml_content
-            and 'metadata' in yaml_content
-            and 'annotations' in yaml_content['metadata']
-        ):
-            # Remove all checkov skip annotations
-            annotations = yaml_content['metadata']['annotations']
-            checkov_keys = [key for key in annotations.keys() if key.startswith('checkov.io/skip')]
-            for key in checkov_keys:
-                del annotations[key]
-
-            # If annotations is now empty, remove it
-            if not annotations:
-                del yaml_content['metadata']['annotations']
-
-            # Convert back to YAML string
-            content = yaml.dump(yaml_content, default_flow_style=False)
-
-        return content
+        if isinstance(node, dict):
+            return {
+                key: cls._substitute_placeholders(value, values) for key, value in node.items()
+            }
+        if isinstance(node, list):
+            return [cls._substitute_placeholders(item, values) for item in node]
+        if isinstance(node, str) and node in values:
+            return values[node]
+        return node
 
     def _load_yaml_template(self, template_files: list, values: Dict[str, Any]) -> str:
         """Load and process Kubernetes template files.
+
+        Each template is parsed as a single YAML document, placeholders are
+        replaced in the parsed data, and the result is serialized with
+        yaml.safe_dump_all. Input values never pass through the YAML parser.
 
         Args:
             template_files: List of template filenames to process
@@ -874,27 +944,23 @@ class K8sHandler:
             A string containing the combined YAML content with variables substituted
         """
         templates_dir = os.path.join(os.path.dirname(__file__), 'templates', 'k8s-templates')
-        template_contents = []
+        documents = []
 
         # Process each template file
         for template_file in template_files:
             template_path = os.path.join(templates_dir, template_file)
 
             with open(template_path, 'r') as f:
-                content = f.read()
-
-            # Replace variables in the template
-            for key, value in values.items():
-                content = content.replace(key, value)
+                document = yaml.safe_load(f.read())
 
             # Remove checkov skip annotations if present
             if template_file == 'deployment.yaml':
-                content = self._remove_checkov_skip_annotations(content)
+                self._remove_checkov_skip_annotations(document)
 
-            template_contents.append(content)
+            documents.append(self._substitute_placeholders(document, values))
 
-        # Combine templates into a single YAML document with separator
-        return '\n---\n'.join(template_contents)
+        # Combine the documents into one multi-document YAML stream
+        return yaml.safe_dump_all(documents, default_flow_style=False, sort_keys=False)
 
     async def get_pod_logs(
         self,
