@@ -21,6 +21,21 @@ from typing import Any, Optional
 from urllib.parse import quote
 
 
+def _encode_path_segment(value: str, field_name: str) -> str:
+    """Percent-encode a value for use as a single management API path segment.
+
+    "." and ".." are rejected because they are treated as dot segments even
+    when percent-encoded, so they cannot address a single resource.
+    """
+    if not value:
+        raise ValueError(f'{field_name} cannot be empty')
+    if value in ('.', '..'):
+        raise ValueError(
+            f'{field_name} "{value}" cannot be used in a RabbitMQ management API path'
+        )
+    return quote(value, safe='')
+
+
 # https://rawcdn.githack.com/rabbitmq/rabbitmq-server/v4.0.7/deps/rabbitmq_management/priv/www/api/index.html
 class RabbitMQAdmin:
     """RabbitMQAdmin class provides API to call RabbitMQ APIs."""
@@ -132,8 +147,13 @@ class RabbitMQAdmin:
 
     def get_shovel_info(self, shovel_name: str, vhost: str = '/') -> dict:
         """Get detailed information about a specific shovel in a vhost."""
-        vhost_encoded = quote(vhost, safe='')
-        response = self._make_request('GET', f'parameters/shovel/{vhost_encoded}/{shovel_name}')
+        # Shovel names may contain any characters, so they are percent-encoded
+        # rather than validated against a restricted character set.
+        vhost_encoded = _encode_path_segment(vhost, 'Vhost')
+        shovel_name_encoded = _encode_path_segment(shovel_name, 'Shovel name')
+        response = self._make_request(
+            'GET', f'parameters/shovel/{vhost_encoded}/{shovel_name_encoded}'
+        )
         return response.json()
 
     def get_cluster_nodes(self) -> dict:
