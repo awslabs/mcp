@@ -30,6 +30,7 @@ from .audit_utils import (
 from .aws_clients import (
     AWS_REGION,
     applicationsignals_client,
+    get_synthetics_client,
     iam_client,
     s3_client,
     synthetics_client,
@@ -1062,11 +1063,12 @@ async def analyze_canary_failures(
     """
     try:
         # Get recent canary runs
-        response = synthetics_client.get_canary_runs(Name=canary_name, MaxResults=5)
+        regional_synthetics = get_synthetics_client(region)
+        response = regional_synthetics.get_canary_runs(Name=canary_name, MaxResults=5)
         runs = response.get('CanaryRuns', [])
 
         # Get canary details
-        canary_response = synthetics_client.get_canary(Name=canary_name)
+        canary_response = regional_synthetics.get_canary(Name=canary_name)
         canary = canary_response['Canary']
 
         # Get telemetry and service insights
