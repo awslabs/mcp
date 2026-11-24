@@ -15,6 +15,7 @@
 """Path validation to prevent credential exfiltration via file uploads."""
 
 import os
+import sys
 from loguru import logger
 from typing import Optional
 
@@ -33,6 +34,7 @@ BLOCKED_FILENAMES: frozenset[str] = frozenset(
         '.pypirc',
         '.gitconfig',
         '.git-credentials',
+        '.terraformrc',
         'authorized_keys',
         'known_hosts',
         'id_rsa',
@@ -49,14 +51,25 @@ BLOCKED_FILENAMES: frozenset[str] = frozenset(
 
 # Directory prefixes (resolved) that must never be read from.
 _HOME = os.path.realpath(os.path.expanduser('~'))
-BLOCKED_READ_DIRS: tuple[str, ...] = (
-    os.path.join(_HOME, '.aws'),
-    os.path.join(_HOME, '.ssh'),
-    os.path.join(_HOME, '.gnupg'),
-    os.path.join(_HOME, '.docker'),
-    os.path.join(_HOME, '.aws-transform-mcp'),
-    '/etc/shadow',
-    '/etc/passwd',
+BLOCKED_READ_DIRS: tuple[str, ...] = tuple(
+    os.path.realpath(path)
+    for path in (
+        os.path.join(_HOME, '.aws'),
+        os.path.join(_HOME, '.ssh'),
+        os.path.join(_HOME, '.kube'),
+        os.path.join(_HOME, '.gnupg'),
+        os.path.join(_HOME, '.docker'),
+        os.path.join(_HOME, '.aws-transform-mcp'),
+        os.path.join(_HOME, '.azure'),
+        os.path.join(_HOME, '.terraform.d'),
+        os.path.join(_HOME, '.config', 'gcloud'),
+        os.path.join(_HOME, '.config', 'gh'),
+        os.path.join(_HOME, '.config', 'terraform'),
+        '/etc/shadow',
+        '/etc/passwd',
+        '/etc/master.passwd',
+        '/etc/gshadow',
+    )
 )
 
 # Environment variable an operator may set to pin the write base explicitly.
@@ -90,9 +103,18 @@ def _is_blocked_name(path: str) -> bool:
     return os.path.basename(path).lower() in BLOCKED_FILENAMES
 
 
+def _normalize(path: str) -> str:
+    """Normalize sensitive-path comparisons without changing the path used for I/O."""
+    normalized = os.path.normcase(path)
+    return normalized.casefold() if sys.platform in ('darwin', 'win32') else normalized
+
+
 def _in_blocked_dir(resolved: str) -> bool:
+    candidate = _normalize(resolved)
     for d in BLOCKED_READ_DIRS:
-        if resolved == d or resolved.startswith(d + os.sep):
+        # Resolve again in case a directory absent at startup is now a symlink.
+        blocked = _normalize(os.path.realpath(d))
+        if candidate == blocked or candidate.startswith(blocked + os.sep):
             return True
     return False
 
