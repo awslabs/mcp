@@ -32,6 +32,10 @@ def mock_aws_clients():
 
     # Patch the clients in all modules where they're imported
     patches = [
+        # Pin the configured region so tools called with 'us-east-1' use the mocks below
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.AWS_REGION', 'us-east-1'
+        ),
         # Original aws_clients module
         patch(
             'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.logs_client',
@@ -3233,6 +3237,47 @@ async def test_list_canaries_pagination(mock_aws_clients):
     assert 'Found 2 canaries' in result
     assert 'canary-1' in result
     assert 'canary-2' in result
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('profile', [None, 'my-profile'])
+async def test_list_canaries_uses_requested_region(mock_aws_clients, monkeypatch, profile):
+    """Test list_canaries queries the region it is given, not the configured one."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    if profile:
+        monkeypatch.setenv('AWS_PROFILE', profile)
+    else:
+        monkeypatch.delenv('AWS_PROFILE', raising=False)
+
+    mock_aws_clients['synthetics_client'].describe_canaries.return_value = {'Canaries': []}
+    regional_client = MagicMock()
+    regional_client.describe_canaries.return_value = {
+        'Canaries': [
+            {
+                'Name': 'eu-canary',
+                'Status': {'State': 'RUNNING'},
+                'Schedule': {'Expression': 'rate(5 minutes)'},
+                'RuntimeVersion': 'syn-nodejs-puppeteer-13.0',
+            }
+        ],
+    }
+    aws_clients = 'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients'
+    with (
+        patch(f'{aws_clients}.boto3.client', return_value=regional_client) as mock_client,
+        patch(f'{aws_clients}.boto3.Session') as mock_session,
+    ):
+        mock_session.return_value.client.return_value = regional_client
+        result = await list_canaries('eu-west-1')
+
+    if profile:
+        mock_session.assert_called_once_with(profile_name=profile, region_name='eu-west-1')
+        assert mock_session.return_value.client.call_args.args == ('synthetics',)
+    else:
+        assert mock_client.call_args.args == ('synthetics',)
+        assert mock_client.call_args.kwargs['region_name'] == 'eu-west-1'
+    assert 'eu-canary' in result
+    mock_aws_clients['synthetics_client'].describe_canaries.assert_not_called()
 
 
 @pytest.mark.asyncio

@@ -16,6 +16,10 @@
   - Calls the public `application-signals` dynamic instrumentation operations
     (`boto3` >= 1.43.35).
 
+### Fixed
+- `list_canaries` now lists canaries in the `region` it is given. Before, it
+  always queried the configured default region.
+
 ## [0.1.0] - 2025-01-18
 
 ### Added

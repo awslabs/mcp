@@ -30,6 +30,7 @@ from .audit_utils import (
 from .aws_clients import (
     AWS_REGION,
     applicationsignals_client,
+    get_synthetics_client,
     iam_client,
     s3_client,
     synthetics_client,
@@ -1640,6 +1641,7 @@ async def list_canaries(region: str = AWS_REGION, max_results: int = 20) -> str:
     max_results = min(max(max_results, 1), 200)
 
     try:
+        client = get_synthetics_client(region)
         canaries: list = []
         paginator_token = None
 
@@ -1648,7 +1650,7 @@ async def list_canaries(region: str = AWS_REGION, max_results: int = 20) -> str:
             if paginator_token:
                 kwargs['NextToken'] = paginator_token
 
-            response = synthetics_client.describe_canaries(**kwargs)
+            response = client.describe_canaries(**kwargs)
             canaries.extend(response.get('Canaries', []))
             paginator_token = response.get('NextToken')
             if not paginator_token or len(canaries) >= max_results:
