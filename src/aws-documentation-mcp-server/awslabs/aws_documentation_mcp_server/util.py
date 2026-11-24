@@ -294,8 +294,55 @@ _MARKDOWN_HEADING = re.compile(r'^ {0,3}(#{1,6})[ \t]+(.*?)[ \t]*$')
 
 def _heading_text(title: str) -> str:
     """Reduce a Markdown heading title to the text a reader sees."""
-    text = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', title)  # links keep their text
+    text = re.sub(r'<a name="[^"]*"></a>', '', title)  # anchors published Markdown adds
+    text = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', text)  # links keep their text
     return ' '.join(re.sub(r'[*`\\\u00b6]', '', text).split())  # markers, escapes, pilcrow
+
+
+# Converted HTML can open a fence after the ':' markers markdownify writes for <dd> items,
+# or after a list marker inside one.
+_CODE_FENCE = re.compile(r'^[ \t]*(?:(?::|>|[-*+]|\d{1,9}[.)])[ \t]+)*(`{3,}|~{3,})(.*)$')
+# A closing fence carries no list or ':' marker, so a line such as '- ```' inside a block is
+# code. Any indent is allowed because markdownify indents a closer under its list or <dd> item.
+_CODE_FENCE_CLOSE = re.compile(r'^[ \t]*((?:>[ \t]*)*)(`{3,}|~{3,})(.*)$')
+
+# Published Markdown starts each tab (code sample or procedure) with a '------' rule and a
+# '#### [ JSON ]' or '#### [ Console ]' line.
+_TAB_RULE = re.compile(r'-{6}')
+# Published Markdown can follow a closing fence or a tab label with the next element's anchor
+_ANCHOR = r'(?:<a name="[^"]*"></a>)?'
+_TAB_LABEL = re.compile(r'(\[ [^\]]+ \])' + _ANCHOR)
+_FENCE_CLOSE_TAIL = re.compile(r'[ \t]*' + _ANCHOR + r'\s*')
+
+
+class _CodeFences:
+    """Follow fenced code blocks through a page, one line at a time."""
+
+    def __init__(self) -> None:
+        self._fence: Optional[str] = None
+        self._quote_depth = 0
+
+    def consume(self, line: str) -> bool:
+        """Consume a line and report whether it is a fence or code inside one."""
+        if self._fence is None:
+            match = _CODE_FENCE.match(line)
+            # A backtick in the info string means inline code, not a fence
+            if match and not (match.group(1)[0] == '`' and '`' in match.group(2)):
+                self._fence = match.group(1)
+                self._quote_depth = line[: match.start(1)].count('>')
+                return True
+            return False
+        fence = self._fence
+        match = _CODE_FENCE_CLOSE.match(line)
+        if (
+            match
+            and match.group(1).count('>') == self._quote_depth
+            and match.group(2)[0] == fence[0]
+            and len(match.group(2)) >= len(fence)
+            and _FENCE_CLOSE_TAIL.fullmatch(match.group(3))
+        ):
+            self._fence = None
+        return True
 
 
 @dataclass(frozen=True)
@@ -303,6 +350,7 @@ class _Heading:
     line: int
     level: int
     text: str
+    tab: bool = False  # a tab label: selectable by name, never ends another section, never listed
 
 
 @dataclass(frozen=True)
@@ -336,17 +384,17 @@ class SectionSelection:
 def _markdown_headings(lines: List[str]) -> List[_Heading]:
     """List the page's headings. Only the first level-1 heading counts as the page title."""
     headings = []
-    in_code_block = False
+    fences = _CodeFences()
     seen_title = False
     for i, line in enumerate(lines):
-        stripped = line.strip()
-        # Track fenced code blocks — '#' lines inside them are not headings
-        if stripped.startswith('```') or stripped.startswith('~~~'):
-            in_code_block = not in_code_block
-        heading = None if in_code_block else _MARKDOWN_HEADING.match(line)
+        heading = None if fences.consume(line) else _MARKDOWN_HEADING.match(line)
         if not heading:
             continue
         level = len(heading.group(1))
+        label = _TAB_LABEL.fullmatch(heading.group(2)) if level == 4 and i > 0 else None
+        if label and _TAB_RULE.fullmatch(lines[i - 1].strip()):
+            headings.append(_Heading(i, level, _heading_text(label.group(1)), tab=True))
+            continue
         # Converted HTML leaves a paragraph such as '# of hosts' unescaped, so a later
         # level-1 line is text
         if level == 1:
@@ -361,7 +409,9 @@ def select_sections(markdown: str, section_titles: List[str]) -> SectionSelectio
     """Select the requested sections of a page, matching headings at any level.
 
     A title selects every heading below level 1 that carries it. A section runs until the next
-    heading at the same or a higher level. When the titles that match name only the page's
+    heading at the same or a higher level. A published-Markdown tab label can be selected by
+    name but never ends another section and is never offered when a title misses. When the
+    titles that match name only the page's
     level-1 heading, the whole page is selected; otherwise a title that also names the page is
     reported in a note.
 
@@ -397,7 +447,7 @@ def select_sections(markdown: str, section_titles: List[str]) -> SectionSelectio
     if not selected and not any(names_page.values()):
         section_list = ', '.join(f'"{title}"' for title in section_titles)
         # Level-6 headings are callout titles such as "Note" in converted HTML, not sections
-        offered = [h for h in headings if 1 < h.level < 6 and h.text]
+        offered = [h for h in headings if 1 < h.level < 6 and h.text and not h.tab]
         top_level = min((h.level for h in offered), default=None)
         if top_level == 2:  # repeated h2 titles stay listed, as they always have
             available = [h.text for h in offered if h.level == 2]
@@ -427,18 +477,23 @@ def select_sections(markdown: str, section_titles: List[str]) -> SectionSelectio
     page_titles = list(page_named.values())
 
     sections = []
-    open_section = None  # (first line, level) of the section being collected
+    open_section: Optional[_Heading] = None
     for heading in headings:
         if heading.level == 1:
             continue
-        if open_section is not None and heading.level <= open_section[1]:
-            sections.append('\n'.join(lines[open_section[0] : heading.line]).strip())
+        # A tab label ends only a tab's section, so other sections keep their tabs
+        if (
+            open_section is not None
+            and heading.level <= open_section.level
+            and (open_section.tab or not heading.tab)
+        ):
+            sections.append('\n'.join(lines[open_section.line : heading.line]).strip())
             open_section = None
         # A selected heading nested in an open section is already part of it
         if open_section is None and heading.line in selected:
-            open_section = (heading.line, heading.level)
+            open_section = heading
     if open_section is not None:
-        sections.append('\n'.join(lines[open_section[0] :]).strip())
+        sections.append('\n'.join(lines[open_section.line :]).strip())
 
     return SectionSelection('\n\n'.join(sections), False, missing, page_titles)
 
@@ -463,18 +518,11 @@ def truncate_large_tables(
     lines = markdown.split('\n')
     result = []
     i = 0
-    in_code_block = False
+    fences = _CodeFences()
 
     while i < len(lines):
         stripped = lines[i].strip()
-        # Track fenced code blocks — never truncate inside them
-        if stripped.startswith('```') or stripped.startswith('~~~'):
-            in_code_block = not in_code_block
-            result.append(lines[i])
-            i += 1
-            continue
-
-        if in_code_block:
+        if fences.consume(lines[i]):
             result.append(lines[i])
             i += 1
             continue

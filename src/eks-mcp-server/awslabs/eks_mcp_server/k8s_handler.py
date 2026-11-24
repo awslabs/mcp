@@ -184,8 +184,19 @@ class K8sHandler:
                     content=[TextContent(type='text', text=error_msg)],
                 )
 
-            # Parse YAML documents
-            yaml_objects = list(yaml.safe_load_all(yaml_content))
+            # Parse YAML documents. PyYAML error messages quote the offending
+            # line of the file, so return only its location, never its content.
+            try:
+                yaml_objects = list(yaml.safe_load_all(yaml_content))
+            except yaml.YAMLError as e:
+                mark = getattr(e, 'problem_mark', None)
+                location = f' at line {mark.line + 1}, column {mark.column + 1}' if mark else ''
+                error_msg = f'Invalid YAML in file {yaml_path}{location}'
+                log_with_request_id(ctx, LogLevel.ERROR, error_msg)
+                return CallToolResult(
+                    is_error=True,
+                    content=[TextContent(type='text', text=error_msg)],
+                )
             yaml_objects = [doc for doc in yaml_objects if doc]  # Filter out None/empty documents
 
             log_with_request_id(
