@@ -23,6 +23,7 @@ import asyncio
 import boto3
 import json
 import os
+import psycopg
 from aiorwlock import RWLock
 from awslabs.postgres_mcp_server import __user_agent__
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
@@ -30,9 +31,13 @@ from awslabs.postgres_mcp_server.named_params import to_psycopg_placeholders
 from botocore.config import Config
 from datetime import datetime, timedelta
 from loguru import logger
+from psycopg import AsyncConnection, DataError
+from psycopg.abc import AdaptContext, Buffer
+from psycopg.adapt import Loader
 from psycopg.conninfo import make_conninfo
+from psycopg.pq import Format
 from psycopg_pool import AsyncConnectionPool
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 
 # Path to the combined AWS CA bundle shipped inside the wheel by hatch_build.py.
@@ -281,6 +286,50 @@ def get_credentials_from_secret(
         raise ValueError(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
 
 
+def _text_on_overflow(base: type[Loader]) -> type[Loader]:
+    """Wrap a psycopg datetime loader so out-of-range values come back as text.
+
+    PostgreSQL accepts dates and times that Python's ``datetime`` can't hold:
+    ``infinity`` and ``-infinity``, BC dates, years after 9999, ``24:00:00``, and
+    intervals longer than ``timedelta`` allows. psycopg raises ``DataError`` for
+    those, so a single such value fails the whole query. ``execute_query`` sends
+    every non-primitive value back as a string anyway, so for these the server's
+    own text is returned instead. Values Python can hold load exactly as before.
+    """
+
+    class _Loader(Loader):
+        def __init__(self, oid: int, context: Optional[AdaptContext] = None):
+            super().__init__(oid, context)
+            self._loader = base(oid, context)
+
+        def load(self, data: Buffer) -> Any:
+            try:
+                return self._loader.load(data)
+            except DataError:
+                return bytes(data).decode()
+
+    return _Loader
+
+
+# Wrap psycopg's default text loader for each type (the C one from psycopg[binary]),
+# so values in range still take the fast path.
+_DATETIME_LOADERS = {
+    type_name: _text_on_overflow(
+        cast(
+            type[Loader],
+            psycopg.adapters.get_loader(psycopg.adapters.types[type_name].oid, Format.TEXT),
+        )
+    )
+    for type_name in ('date', 'timestamp', 'timestamptz', 'time', 'timetz', 'interval')
+}
+
+
+async def _configure_connection(conn: AsyncConnection) -> None:
+    """Register the datetime loaders above on each new pool connection."""
+    for type_name, loader in _DATETIME_LOADERS.items():
+        conn.adapters.register_loader(type_name, loader)
+
+
 class PsycopgPoolConnection(AbstractDBConnection):
     """Class that wraps DB connection using psycopg connection pool.
 
@@ -524,7 +573,11 @@ class PsycopgPoolConnection(AbstractDBConnection):
             self.conninfo = self._build_conninfo(password)
             self._log_tls_posture()
             self.pool = AsyncConnectionPool(
-                self.conninfo, min_size=self.min_size, max_size=self.max_size, open=False
+                self.conninfo,
+                min_size=self.min_size,
+                max_size=self.max_size,
+                open=False,
+                configure=_configure_connection,
             )
 
             # wait up to 30 seconds to fill the pool with connections
