@@ -591,9 +591,12 @@ class CloudTrailTools:
 
             logger.info(f'Listing CloudTrail Lake Event Data Stores in region {region}')
 
-            # List event data stores
+            # List event data stores across all pages before formatting them.
             response = cloudtrail_client.list_event_data_stores()
-            event_data_stores = response.get('EventDataStores', [])
+            event_data_stores = list(response.get('EventDataStores', []))
+            while next_token := response.get('NextToken'):
+                response = cloudtrail_client.list_event_data_stores(NextToken=next_token)
+                event_data_stores.extend(response.get('EventDataStores', []))
 
             # Process and format the data stores
             formatted_stores = []
