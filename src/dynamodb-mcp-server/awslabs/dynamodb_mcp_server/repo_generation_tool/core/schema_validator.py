@@ -33,6 +33,7 @@ from awslabs.dynamodb_mcp_server.repo_generation_tool.core.identifier_validator 
     validate_key_template,
     validate_python_identifier,
     validate_string_literal_value,
+    validate_table_name,
 )
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.key_template_parser import (
     KeyTemplateParser,
@@ -247,6 +248,13 @@ class SchemaValidator:
                         table_config[string_field], f'{path}.{string_field}', string_field
                     )
                 )
+
+        # The table name is also written into f-strings in the generated usage examples, where a
+        # brace starts an expression, so it is held to the characters DynamoDB allows.
+        if 'table_name' in table_config:
+            self.result.add_errors(
+                validate_table_name(table_config['table_name'], f'{path}.table_name')
+            )
 
     def _validate_entities(
         self, entities: Any, path: str = 'entities', table_index: int = 0

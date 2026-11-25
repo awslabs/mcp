@@ -111,6 +111,10 @@ def _has_disallowed_description_char(value: str) -> bool:
     return any(ch in _DESCRIPTION_DISALLOWED_CHARS for ch in value) or _has_unsafe_text_char(value)
 
 
+# Characters DynamoDB itself allows in a table name. A table name is written into f-strings in the
+# generated usage examples, where ``{`` and ``}`` start an expression, so it must not contain them.
+_TABLE_NAME_PATTERN = re.compile(r'[A-Za-z0-9_.-]+')
+
 # A single well-formed key-template placeholder: ``{field}`` or ``{field:format}`` where the
 # field is a plain identifier-like token and the format spec contains no braces.
 _TEMPLATE_PLACEHOLDER = re.compile(r'\{(\w+)(?::[^{}]*)?\}')
@@ -346,4 +350,35 @@ def validate_comment_text(value: object, path: str, kind: str) -> list:
     )
     return _single_error(
         path, message, 'Remove any newline or other control characters from the value.'
+    )
+
+
+def validate_table_name(value: object, path: str, kind: str = 'table_name') -> list:
+    """Validate a table name that is written into string literals and f-strings in generated code.
+
+    The generated usage examples put the table name inside f-strings, where a brace starts an
+    expression. A table name can only contain the characters DynamoDB allows (letters, digits,
+    underscore, period and hyphen), which also rules out quotes, braces and line breaks, so no
+    real table name is rejected.
+
+    Args:
+        value: The candidate table name. Any non-string value is rejected.
+        path: Field path for error reporting.
+        kind: Human-readable name of the field used in the error message.
+
+    Returns:
+        A list of ``ValidationError`` objects. The list is empty when the value is safe.
+    """
+    if isinstance(value, str) and _TABLE_NAME_PATTERN.fullmatch(value):
+        return []
+
+    message = (
+        f'{kind} must be a string'
+        if not isinstance(value, str)
+        else f'{kind} contains characters DynamoDB does not allow in a table name'
+    )
+    return _single_error(
+        path,
+        message,
+        'Use only letters, digits, underscore (_), period (.) and hyphen (-).',
     )

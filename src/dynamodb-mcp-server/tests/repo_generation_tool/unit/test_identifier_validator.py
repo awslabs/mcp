@@ -19,6 +19,7 @@ from awslabs.dynamodb_mcp_server.repo_generation_tool.core.identifier_validator 
     validate_key_template,
     validate_python_identifier,
     validate_string_literal_value,
+    validate_table_name,
 )
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.schema_validator import (
     SchemaValidator,
@@ -874,3 +875,59 @@ class TestNonFiniteAndUsageDataOutputStaysParseable:
             assert len(tree.body) == 1
             source.encode('utf-8')  # must be writable to a UTF-8 file
             assert ast.literal_eval(source) in (value, [value], {'k': value})
+
+
+@pytest.mark.unit
+class TestValidateTableName:
+    """Unit tests for validate_table_name (placeholder strings only)."""
+
+    @pytest.mark.parametrize(
+        'value', ['Users', 'user-table_1.v2', 'ELearningPlatform', 'a' * 255, 'T1']
+    )
+    def test_accepts_dynamodb_table_names(self, value):
+        """Names made of the characters DynamoDB allows pass."""
+        assert validate_table_name(value, 'p.table_name') == []
+
+    @pytest.mark.parametrize(
+        'value',
+        [
+            '{PLACEHOLDER}',
+            'a{b}c',
+            'a}b',
+            'a{b',
+            'a"b',
+            "a'b",
+            'a b',
+            'a\nb',
+            'a\\b',
+            'a#b',
+            'a(b)',
+            '',
+            'caf\u00e9',
+        ],
+    )
+    def test_rejects_other_characters(self, value):
+        """Braces, quotes, spaces, line breaks and other characters are rejected."""
+        errors = validate_table_name(value, 'p.table_name')
+        assert len(errors) == 1
+        assert errors[0].path == 'p.table_name'
+
+    @pytest.mark.parametrize('value', [None, 5, ['Users']])
+    def test_rejects_non_string(self, value):
+        """Non-string values are rejected."""
+        errors = validate_table_name(value, 'p.table_name')
+        assert 'must be a string' in errors[0].message
+
+    @pytest.mark.parametrize('value', ['{PLACEHOLDER}', 'Users{x}', 'a b'])
+    def test_schema_validator_rejects_bad_table_name(self, value):
+        """SchemaValidator reports the bad table name at its field path."""
+        schema = _load_fixture('USER_REGISTRATION_SCHEMA')
+        schema['tables'][0]['table_config']['table_name'] = value
+        result = _validate_schema_dict(schema)
+        assert result.is_valid is False
+        assert any(e.path.endswith('.table_config.table_name') for e in result.errors)
+
+    def test_schema_validator_keeps_good_table_name(self):
+        """A normal table name still validates."""
+        schema = _load_fixture('USER_REGISTRATION_SCHEMA')
+        assert _validate_schema_dict(schema).is_valid is True
