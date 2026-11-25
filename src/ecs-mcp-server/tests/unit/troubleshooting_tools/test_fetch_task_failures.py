@@ -598,6 +598,60 @@ class TestFetchTaskFailuresIntegration(TestFetchTaskFailuresBase):
             assert len(result["failed_tasks"]) == 1
 
     @pytest.mark.anyio
+    async def test_end_time_excludes_later_tasks(self):
+        """Tasks stopped after end_time must not be reported."""
+        mock_ecs = MagicMock()
+        cluster_data = create_sample_cluster_data("test-cluster")
+        mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+        start_time = now - datetime.timedelta(hours=3)
+        end_time = now - datetime.timedelta(hours=1)
+        inside = create_sample_task_data(
+            task_id="inside", stopped_at=now - datetime.timedelta(hours=2), exit_code=1
+        )
+        after = create_sample_task_data(
+            task_id="after", stopped_at=now - datetime.timedelta(minutes=10), exit_code=1
+        )
+        mock_ecs.list_tasks.return_value = {"taskArns": ["arn:inside", "arn:after"]}
+        mock_ecs.describe_tasks.return_value = {"tasks": [inside, after]}
+
+        with self.mock_aws_clients({"ecs": mock_ecs}):
+            result = await fetch_task_failures(
+                "test-cluster", start_time=start_time, end_time=end_time
+            )
+
+        assert [t["task_id"] for t in result["failed_tasks"]] == ["inside"]
+
+    @pytest.mark.anyio
+    async def test_list_tasks_paginated_and_describe_batched(self):
+        """All ListTasks pages are read and DescribeTasks is called in batches of 100."""
+        mock_ecs = MagicMock()
+        cluster_data = create_sample_cluster_data("test-cluster")
+        mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
+
+        page1 = [f"arn:task/{i}" for i in range(100)]
+        page2 = [f"arn:task/{i}" for i in range(100, 130)]
+        mock_ecs.list_tasks.side_effect = [
+            {"taskArns": page1, "nextToken": "tok"},
+            {"taskArns": page2},
+        ]
+
+        def describe(cluster, tasks):
+            assert len(tasks) <= 100
+            return {"tasks": [create_sample_task_data(task_id=a, exit_code=1) for a in tasks]}
+
+        mock_ecs.describe_tasks.side_effect = describe
+
+        with self.mock_aws_clients({"ecs": mock_ecs}):
+            result = await fetch_task_failures("test-cluster")
+
+        assert mock_ecs.list_tasks.call_count == 2
+        assert mock_ecs.list_tasks.call_args_list[1].kwargs["nextToken"] == "tok"
+        assert mock_ecs.describe_tasks.call_count == 2
+        assert len(result["failed_tasks"]) == 130
+
+    @pytest.mark.anyio
     async def test_running_tasks_count(self):
         """Test that running tasks count is included in results."""
         mock_ecs = MagicMock()
