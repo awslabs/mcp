@@ -38,6 +38,7 @@ from typing import Any, Dict, List, NoReturn, Optional
 
 
 logger = logging.getLogger(__name__)
+_MAX_TEXT_BYTES = 10000
 
 
 class TranslationService:
@@ -197,11 +198,7 @@ class TranslationService:
         if not text or not text.strip():
             raise ValidationError('Text cannot be empty for language detection', field='text')
 
-        if len(text) > self._max_text_length:
-            raise ValidationError(
-                f'Text length ({len(text)}) exceeds maximum allowed length ({self._max_text_length})',
-                field='text',
-            )
+        self._validate_text_length(text)
 
         # Execute language detection with retry logic
         # Use AWS Translate's auto-detection feature by translating with source="auto"
@@ -366,6 +363,22 @@ class TranslationService:
 
         return result
 
+    def _validate_text_length(self, text: str) -> None:
+        """Enforce the configured character limit and TranslateText's UTF-8 byte limit."""
+        if len(text) > self._max_text_length:
+            raise ValidationError(
+                f'Text length ({len(text)}) exceeds maximum allowed length ({self._max_text_length})',
+                field='text',
+            )
+
+        byte_length = len(text.encode('utf-8'))
+        if byte_length > _MAX_TEXT_BYTES:
+            raise ValidationError(
+                f'Text size ({byte_length} bytes) exceeds Amazon Translate maximum '
+                f'({_MAX_TEXT_BYTES} bytes)',
+                field='text',
+            )
+
     def _validate_translation_input(
         self, text: str, source_language: str, target_language: str
     ) -> None:
@@ -383,11 +396,7 @@ class TranslationService:
         if not text or not text.strip():
             raise ValidationError('Text cannot be empty', field='text')
 
-        if len(text) > self._max_text_length:
-            raise ValidationError(
-                f'Text length ({len(text)}) exceeds maximum allowed length ({self._max_text_length})',
-                field='text',
-            )
+        self._validate_text_length(text)
 
         if not source_language:
             raise ValidationError('Source language cannot be empty', field='source_language')

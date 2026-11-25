@@ -159,6 +159,88 @@ class TestTranslationService:
         assert result.target_language == 'es'
         assert result.translated_text == 'Hola mundo'
 
+    @pytest.mark.parametrize('operation', ['translate', 'detect'])
+    @pytest.mark.parametrize(
+        'character, count',
+        [('a', 10000), ('\u00e9', 5000), ('\u4e2d', 3333), ('\U0001f600', 2500)],
+    )
+    def test_text_at_utf8_byte_limit(self, mock_aws_client_manager, operation, character, count):
+        """Accept text at the service byte limit without altering the payload."""
+        service = TranslationService(mock_aws_client_manager)
+        text = character * count
+        if character == '\u4e2d':
+            text += 'a'
+        assert len(text.encode('utf-8')) == 10000
+        client = mock_aws_client_manager.get_translate_client.return_value
+        client.translate_text.return_value = {
+            'TranslatedText': 'translated',
+            'SourceLanguageCode': 'en',
+        }
+
+        if operation == 'translate':
+            result = service.translate_text(text, 'en', 'es')
+            assert result.translated_text == 'translated'
+            source, target = 'en', 'es'
+        else:
+            result = service.detect_language(text)
+            assert result.detected_language == 'en'
+            source, target = 'auto', 'en'
+
+        client.translate_text.assert_called_once_with(
+            Text=text, SourceLanguageCode=source, TargetLanguageCode=target
+        )
+
+    @pytest.mark.parametrize('operation', ['translate', 'detect', 'auto'])
+    @pytest.mark.parametrize(
+        'text',
+        ['\u00e9' * 5000 + 'a', '\u4e2d' * 3334, '\U0001f600' * 2501, 'a' * 10001],
+        ids=['two-byte', 'three-byte', 'four-byte', 'ascii'],
+    )
+    def test_text_over_utf8_byte_limit(self, mock_aws_client_manager, operation, text):
+        """Reject oversized UTF-8 input before any AWS or detection request."""
+        service = TranslationService(mock_aws_client_manager, max_text_length=20000)
+        mock_aws_client_manager.get_translate_client.return_value.translate_text.return_value = {
+            'TranslatedText': 'translated',
+            'SourceLanguageCode': 'en',
+        }
+        assert len(text) <= 20000
+        assert len(text.encode('utf-8')) > 10000
+
+        with pytest.raises(ValidationError, match='10000 bytes') as exc_info:
+            if operation == 'detect':
+                service.detect_language(text)
+            else:
+                service.translate_text(text, 'auto' if operation == 'auto' else 'en', 'es')
+
+        assert exc_info.value.details['field'] == 'text'
+        mock_aws_client_manager.get_translate_client.assert_not_called()
+
+    @pytest.mark.parametrize('operation', ['translate', 'detect'])
+    def test_custom_text_length_remains_a_character_limit(
+        self, mock_aws_client_manager, operation
+    ):
+        """Keep the existing character setting independent of the AWS byte ceiling."""
+        service = TranslationService(mock_aws_client_manager, max_text_length=2)
+        client = mock_aws_client_manager.get_translate_client.return_value
+        client.translate_text.return_value = {
+            'TranslatedText': 'translated',
+            'SourceLanguageCode': 'en',
+        }
+        text = '\u00e9' * 2
+
+        if operation == 'detect':
+            service.detect_language(text)
+        else:
+            service.translate_text(text, 'en', 'es')
+        client.translate_text.assert_called_once()
+
+        with pytest.raises(ValidationError, match='exceeds maximum allowed length'):
+            if operation == 'detect':
+                service.detect_language(text + 'a')
+            else:
+                service.translate_text(text + 'a', 'en', 'es')
+        client.translate_text.assert_called_once()
+
     def test_translate_text_validation_errors(self, translation_service):
         """Test translation input validation errors."""
         # Empty text
