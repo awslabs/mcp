@@ -46,15 +46,14 @@ compute_optimizer_server = FastMCP(
 
 @compute_optimizer_server.tool(
     name='compute-optimizer',
-    description="""Retrieves recommendations from AWS Compute Optimizer.
+    description="""Performance-based rightsizing recommendations from AWS Compute Optimizer, from utilization metrics, for EC2 instances, Auto Scaling groups, EBS volumes, Lambda functions, RDS and Aurora databases, and ECS services on Fargate.
+For cost savings recommendations across services, including Savings Plans and Reserved Instances purchases, use cost-optimization.
 
 IMPORTANT USAGE GUIDELINES:
-- Focus on recommendations with the highest estimated savings first
+- Focus on recommendations with the highest estimated savings first; when presenting only some, state how many were omitted and their combined savings
 - Include all relevant details when presenting specific recommendations
 
 USE THIS TOOL FOR:
-- **Performance optimization** (CPU, memory, network utilization analysis)
-- **Performance-based rightsizing** (not cost-based)
 - **Idle resource detection only when filtering by a specific Finding** — Idle, Unattached,
   or Unused (use get_idle_recommendations). For general idle detection or cost-savings
   recommendations, use cost-optimization instead.
