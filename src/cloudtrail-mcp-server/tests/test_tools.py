@@ -1042,6 +1042,99 @@ class TestListEventDataStores:
 
     @pytest.mark.asyncio
     @patch.object(CloudTrailTools, '_get_cloudtrail_client')
+    @pytest.mark.parametrize('include_details', [False, True])
+    async def test_list_event_data_stores_multiple_pages(
+        self,
+        mock_get_client,
+        tools,
+        mock_context,
+        sample_event_data_stores,
+        sample_event_data_store_details,
+        include_details,
+    ):
+        """Return every page in order, including details for later stores."""
+        stores = sample_event_data_stores['EventDataStores']
+        first_page = {'EventDataStores': stores[:1], 'NextToken': 'second-page'}
+        mock_client = mock_get_client.return_value
+        mock_client.list_event_data_stores.side_effect = [
+            first_page,
+            {'EventDataStores': stores[1:]},
+        ]
+        mock_client.get_event_data_store.return_value = sample_event_data_store_details
+
+        result = await tools.list_event_data_stores(
+            mock_context, include_details=include_details, region='us-west-2'
+        )
+
+        assert [store['name'] for store in result] == [store['Name'] for store in stores]
+        assert mock_client.list_event_data_stores.call_args_list == [
+            call(),
+            call(NextToken='second-page'),
+        ]
+        mock_get_client.assert_called_once_with('us-west-2')
+        assert first_page['EventDataStores'] == stores[:1]
+        if include_details:
+            assert mock_client.get_event_data_store.call_args_list == [
+                call(EventDataStore=store['EventDataStoreArn']) for store in stores
+            ]
+            assert all(
+                store['advanced_event_selectors']
+                == sample_event_data_store_details['AdvancedEventSelectors']
+                for store in result
+            )
+        else:
+            mock_client.get_event_data_store.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch.object(CloudTrailTools, '_get_cloudtrail_client')
+    async def test_list_event_data_stores_empty_intermediate_page(
+        self, mock_get_client, tools, mock_context, sample_event_data_stores
+    ):
+        """Continue when a page has no stores but still has a next token."""
+        stores = sample_event_data_stores['EventDataStores']
+        mock_client = mock_get_client.return_value
+        mock_client.list_event_data_stores.side_effect = [
+            {'EventDataStores': stores[:1], 'NextToken': 'empty-page'},
+            {'NextToken': 'last-page'},
+            {'EventDataStores': stores[1:]},
+        ]
+
+        result = await tools.list_event_data_stores(mock_context, include_details=False)
+
+        assert [store['name'] for store in result] == [store['Name'] for store in stores]
+        assert mock_client.list_event_data_stores.call_args_list == [
+            call(),
+            call(NextToken='empty-page'),
+            call(NextToken='last-page'),
+        ]
+
+    @pytest.mark.asyncio
+    @patch.object(CloudTrailTools, '_get_cloudtrail_client')
+    async def test_list_event_data_stores_later_page_error(
+        self, mock_get_client, tools, mock_context, sample_event_data_stores
+    ):
+        """Do not silently return an incomplete list if a later request fails."""
+        mock_client = mock_get_client.return_value
+        error = Exception('Access denied on next page')
+        mock_client.list_event_data_stores.side_effect = [
+            {**sample_event_data_stores, 'NextToken': 'second-page'},
+            error,
+        ]
+
+        with pytest.raises(Exception, match='Access denied on next page') as exc_info:
+            await tools.list_event_data_stores(mock_context, include_details=False)
+
+        assert exc_info.value is error
+        assert mock_client.list_event_data_stores.call_args_list == [
+            call(),
+            call(NextToken='second-page'),
+        ]
+        mock_context.error.assert_awaited_once_with(
+            'Error listing Event Data Stores: Access denied on next page'
+        )
+
+    @pytest.mark.asyncio
+    @patch.object(CloudTrailTools, '_get_cloudtrail_client')
     async def test_list_event_data_stores_basic(
         self, mock_get_client, tools, mock_context, sample_event_data_stores
     ):
