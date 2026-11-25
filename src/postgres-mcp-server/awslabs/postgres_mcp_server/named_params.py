@@ -69,10 +69,21 @@ def to_parse_placeholders(sql: str) -> str:
 def to_psycopg_placeholders(sql: str) -> str:
     """Rewrite ``:name`` to psycopg's ``%(name)s`` binding syntax.
 
+    Once parameters are passed, psycopg treats every ``%`` in the query text as
+    the start of a placeholder. It doesn't parse SQL, so that includes a ``%``
+    inside a string literal, a comment or a dollar-quoted body, and the escape
+    can't be made literal-aware. So every ``%`` (``LIKE 'a%'``, the modulo
+    operator) is doubled first, and psycopg turns ``%%`` back into ``%`` before
+    sending the query.
+
+    The result is only meant to be passed once to ``cursor.execute(sql, params)``.
+    Don't execute it without parameters or run it through this function again:
+    only psycopg's binding step turns ``%%`` back into ``%``.
+
     Args:
         sql: The statement text as supplied by the caller.
 
     Returns:
         str: The statement with named placeholders in psycopg form.
     """
-    return NAMED_PARAM_PATTERN.sub(r'%(\1)s', sql)
+    return NAMED_PARAM_PATTERN.sub(r'%(\1)s', sql.replace('%', '%%'))
