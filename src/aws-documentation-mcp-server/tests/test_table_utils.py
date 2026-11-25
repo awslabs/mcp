@@ -1143,6 +1143,37 @@ class TestSectionBoundary:
         assert result is None
 
 
+class TestEmptyHeaderRowspan:
+    """Empty spanning headers still occupy their columns in lower header rows."""
+
+    @pytest.mark.parametrize('span', [2, 3])
+    @pytest.mark.parametrize('leading_name', [False, True], ids=['first-column', 'middle-column'])
+    @pytest.mark.parametrize('blank', ['', ' \n ', '&nbsp;'], ids=['empty', 'whitespace', 'nbsp'])
+    def test_empty_spanning_header_preserves_column_alignment(self, span, leading_name, blank):
+        """Do not move a lower-row label into an empty rowspan reservation."""
+        name_cell = f'<th rowspan="{span}">Name</th>' if leading_name else ''
+        first_row = (
+            f'<tr>{name_cell}<th rowspan="{span}">{blank}</th><th colspan="2">Limits</th></tr>'
+        )
+        middle_row = '<tr><th colspan="2">Quota</th></tr>' if span == 3 else ''
+        last_row = '<tr><th>A</th><th>B</th></tr>'
+        group = 'Limits - Quota' if span == 3 else 'Limits'
+        expected = (['Name'] if leading_name else []) + ['', f'{group} - A', f'{group} - B']
+        values = [f'column-{index}' for index in range(len(expected))]
+        data_row = '<tr>' + ''.join(f'<td>{value}</td>' for value in values) + '</tr>'
+        html = (
+            f'<html><body><h2>Sec</h2><table><thead>{first_row}{middle_row}{last_row}'
+            f'</thead><tbody>{data_row}</tbody></table></body></html>'
+        )
+
+        result = parse_html_tables(html, 'Sec')
+
+        assert result is not None
+        assert 'error' not in result
+        assert result['columns'] == expected
+        assert result['rows'] == [dict(zip(expected, values))]
+
+
 class TestDuplicateHeaders:
     """Tests for finding #1: duplicate column-header names."""
 
