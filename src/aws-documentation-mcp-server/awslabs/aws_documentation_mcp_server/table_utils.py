@@ -305,11 +305,18 @@ def _parse_multi_row_thead(header_rows: list[Tag]) -> list[str]:
 def _deduplicate_headers(headers: list[str]) -> list[str]:
     """De-duplicate header names by appending numeric suffixes to collisions."""
     seen: dict[str, int] = {}
+    # Reserve original names so a suffix cannot overwrite a later column.
+    used = set(headers)
     result: list[str] = []
     for h in headers:
         if h in seen:
             seen[h] += 1
-            result.append(f'{h}_{seen[h]}')
+            candidate = f'{h}_{seen[h]}'
+            while candidate in used:
+                seen[h] += 1
+                candidate = f'{h}_{seen[h]}'
+            used.add(candidate)
+            result.append(candidate)
         else:
             seen[h] = 1
             result.append(h)

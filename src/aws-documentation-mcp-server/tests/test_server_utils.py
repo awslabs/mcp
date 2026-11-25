@@ -785,6 +785,39 @@ class TestSearchTableImpl:
     """Tests for search_table_impl URL construction and tracking params."""
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize('section_title', ['Sec', None])
+    @pytest.mark.parametrize('query', ['10', '20', '30'])
+    async def test_colliding_header_suffixes_preserve_searchable_values(
+        self, section_title, query
+    ):
+        """Every column remains searchable when a header resembles a generated suffix."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        html = (
+            '<html><body><h2>Sec</h2><table><thead><tr>'
+            '<th>Value</th><th>Value</th><th>Value_2</th>'
+            '</tr></thead><tbody><tr><td>10</td><td>20</td><td>30</td>'
+            '</tr></tbody></table></body></html>'
+        )
+
+        with patch(
+            'awslabs.aws_documentation_mcp_server.server_utils.fetch_html',
+            new_callable=AsyncMock,
+            return_value=(Page(url, url), html),
+        ):
+            result = await search_table_impl(ctx, url, section_title, query, 20, 'test-uuid')
+
+        assert result.tables_searched == 1
+        assert result.tables_with_matches == 1
+        assert len(result.results) == 1
+        assert result.results[0].columns == ['Value', 'Value_3', 'Value_2']
+        assert result.results[0].rows == [{'Value': '10', 'Value_3': '20', 'Value_2': '30'}]
+        assert result.results[0].matched_rows == 1
+        assert result.hint is None
+        ctx.error.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_url_includes_tracking_params(self):
         """Test that search_table_impl appends tool, query, and section params to URL."""
         from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
