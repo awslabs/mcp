@@ -310,13 +310,13 @@ async def collect_service_details(
             service_names = await find_services(cluster_name=cluster_name)
             service_names = service_names[:50]  # Limit to 50 services
 
-            if service_names:
+            # DescribeServices accepts at most 10 services per call
+            services = []
+            for i in range(0, len(service_names), 10):
                 services_response = ecs_client.describe_services(
-                    cluster=cluster_name, services=service_names
+                    cluster=cluster_name, services=service_names[i : i + 10]
                 )
-                services = services_response.get("services", [])
-            else:
-                services = []
+                services.extend(services_response.get("services", []))
 
         # Format all services using the helper function
         return [_format_service_info(service) for service in services]

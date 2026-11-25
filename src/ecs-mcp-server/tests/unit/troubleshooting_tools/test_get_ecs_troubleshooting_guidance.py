@@ -1090,6 +1090,33 @@ class TestComprehensiveSystem(TestGuidanceBase):
         assert result == []
 
     @pytest.mark.anyio
+    async def test_collect_service_details_batches_describe_services(self, mock_aws_clients):
+        """Cluster-wide discovery must call DescribeServices with at most 10 services."""
+        mock_ecs = mock_aws_clients["ecs"]
+        names = [f"svc-{i}" for i in range(25)]
+
+        def describe(cluster, services):
+            if len(services) > 10:
+                raise Exception("InvalidParameterException: Cannot describe more than 10 services")
+            return {"services": [{"serviceName": n, "status": "ACTIVE"} for n in services]}
+
+        mock_ecs.describe_services.side_effect = describe
+
+        from awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_guidance import (  # noqa: E501
+            collect_service_details,
+        )
+
+        with mock.patch(
+            "awslabs.ecs_mcp_server.api.troubleshooting_tools."
+            "get_ecs_troubleshooting_guidance.find_services",
+            new=mock.AsyncMock(return_value=names),
+        ):
+            result = await collect_service_details("test-cluster", None, mock_ecs)
+
+        assert len(result) == 25
+        assert mock_ecs.describe_services.call_count == 3
+
+    @pytest.mark.anyio
     async def test_generate_assessment_exception_in_main_function(self, mock_aws_clients):
         """Test exception handling when generate_assessment fails."""
         import sys
