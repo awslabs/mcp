@@ -44,6 +44,10 @@ export FASTMCP_LOG_LEVEL=INFO
 export TRANSLATE_MAX_TEXT_LENGTH=10000
 ```
 
+`TRANSLATE_MAX_TEXT_LENGTH` limits the number of input characters. Real-time translation
+and language detection also enforce Amazon Translate's [10,000-byte UTF-8 input limit](https://docs.aws.amazon.com/translate/latest/APIReference/API_TranslateText.html),
+which can be reached with fewer than 10,000 characters for non-ASCII text.
+
 ### MCP Client Setup
 
 Add to your Claude Desktop configuration:
