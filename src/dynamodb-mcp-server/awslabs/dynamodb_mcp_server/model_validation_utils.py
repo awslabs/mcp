@@ -938,8 +938,16 @@ def list_tables(dynamodb_client) -> list:
         List of table names, or empty list if the operation fails.
     """
     try:
-        response = dynamodb_client.list_tables()
-        return response['TableNames']
+        # ListTables returns at most 100 names per call; follow LastEvaluatedTableName.
+        table_names: list = []
+        kwargs: Dict[str, Any] = {}
+        while True:
+            response = dynamodb_client.list_tables(**kwargs)
+            table_names.extend(response['TableNames'])
+            last_evaluated = response.get('LastEvaluatedTableName')
+            if not last_evaluated:
+                return table_names
+            kwargs['ExclusiveStartTableName'] = last_evaluated
     except Exception:
         return []
 
