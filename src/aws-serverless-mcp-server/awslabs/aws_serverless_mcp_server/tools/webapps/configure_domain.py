@@ -186,14 +186,19 @@ class ConfigureDomainTool(BaseTool):
             # List certificates using SDK
             logger.info('Listing certificates using ACM SDK...')
 
-            response = acm_client.list_certificates()
-
-            # Find a certificate for the domain
+            # Find a certificate for the domain, following NextToken across pages
             certificate = None
-            for cert in response.get('CertificateSummaryList', []):
-                if cert.get('DomainName') == domain_name and cert.get('Status') == 'ISSUED':
-                    certificate = cert
+            list_kwargs: Dict[str, Any] = {}
+            while certificate is None:
+                response = acm_client.list_certificates(**list_kwargs)
+                for cert in response.get('CertificateSummaryList', []):
+                    if cert.get('DomainName') == domain_name and cert.get('Status') == 'ISSUED':
+                        certificate = cert
+                        break
+                next_token = response.get('NextToken')
+                if certificate is not None or not next_token:
                     break
+                list_kwargs['NextToken'] = next_token
 
             if not certificate:
                 raise Exception(f'No existing certificate found for {domain_name}')
@@ -227,18 +232,25 @@ class ConfigureDomainTool(BaseTool):
                 f'Finding CloudFront distribution for {project_name} using CloudFront SDK...'
             )
 
-            response = cloudfront_client.list_distributions()
-
-            # Find the distribution by looking for origins that match the project name
+            # Find the distribution by looking for origins that match the project name,
+            # following Marker across pages
             distribution = None
-            for dist in response.get('DistributionList', {}).get('Items', []):
-                origins = dist.get('Origins', {}).get('Items', [])
-                for origin in origins:
-                    if f'{project_name}-bucket' in origin.get('DomainName', ''):
-                        distribution = dist
+            list_kwargs: Dict[str, Any] = {}
+            while distribution is None:
+                response = cloudfront_client.list_distributions(**list_kwargs)
+                distribution_list = response.get('DistributionList', {})
+                for dist in distribution_list.get('Items', []):
+                    origins = dist.get('Origins', {}).get('Items', [])
+                    for origin in origins:
+                        if f'{project_name}-bucket' in origin.get('DomainName', ''):
+                            distribution = dist
+                            break
+                    if distribution:
                         break
-                if distribution:
+                next_marker = distribution_list.get('NextMarker')
+                if distribution is not None or not distribution_list.get('IsTruncated'):
                     break
+                list_kwargs['Marker'] = next_marker
 
             if not distribution:
                 raise Exception(f'No CloudFront distribution found for {project_name}')
@@ -301,17 +313,22 @@ class ConfigureDomainTool(BaseTool):
             # Step 1: Find the hosted zone for the domain using SDK
             logger.info(f'Finding Route 53 hosted zone for {domain_name} using Route53 SDK...')
 
-            zones_response = route53_client.list_hosted_zones()
-
-            # Find the hosted zone that matches the domain
+            # Find the hosted zone that matches the domain, following Marker across pages
             hosted_zone = None
-            for zone in zones_response.get('HostedZones', []):
-                zone_name = zone.get('Name', '')
-                if zone_name.endswith('.'):
-                    zone_name = zone_name[:-1]
-                if zone_name and domain_name.endswith(zone_name):
-                    hosted_zone = zone
+            list_kwargs: Dict[str, Any] = {}
+            while hosted_zone is None:
+                zones_response = route53_client.list_hosted_zones(**list_kwargs)
+                for zone in zones_response.get('HostedZones', []):
+                    zone_name = zone.get('Name', '')
+                    if zone_name.endswith('.'):
+                        zone_name = zone_name[:-1]
+                    if zone_name and domain_name.endswith(zone_name):
+                        hosted_zone = zone
+                        break
+                next_marker = zones_response.get('NextMarker')
+                if hosted_zone is not None or not zones_response.get('IsTruncated'):
                     break
+                list_kwargs['Marker'] = next_marker
 
             if not hosted_zone or not hosted_zone.get('Id'):
                 raise Exception(f'No Route 53 hosted zone found for {domain_name}')
