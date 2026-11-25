@@ -14,6 +14,7 @@
 
 """Comprehensive tests for CloudTrail MCP server tools."""
 
+import asyncio
 import json
 import pytest
 from awslabs.cloudtrail_mcp_server.models import EventDataStore, QueryResult, QueryStatus
@@ -430,7 +431,91 @@ class TestLakeQuery:
     @pytest.mark.asyncio
     @patch.object(CloudTrailTools, '_get_cloudtrail_client')
     @patch.object(CloudTrailTools, 'get_query_results')
-    @patch('time.sleep')  # Mock sleep to speed up tests
+    async def test_lake_query_yields_between_polls(
+        self, mock_get_results, mock_get_client, tools, mock_context
+    ):
+        """Allow another request to run while waiting for query completion."""
+        mock_client = mock_get_client.return_value
+        mock_client.start_query.return_value = {'QueryId': 'query-123'}
+        mock_client.describe_query.side_effect = [
+            {'QueryStatus': 'RUNNING'},
+            {'QueryStatus': 'FINISHED'},
+        ]
+        expected = QueryResult(query_id='query-123', query_status='FINISHED')
+        mock_get_results.return_value = expected
+        other_request_ran = asyncio.Event()
+        original_sleep = asyncio.sleep
+
+        async def other_request():
+            """Record execution of another task on the same event loop."""
+            other_request_ran.set()
+
+        async def polling_delay(seconds):
+            """Yield without making the test wait for the polling interval."""
+            assert seconds == 2
+            await original_sleep(0)
+
+        other_task = asyncio.create_task(other_request())
+        try:
+            with (
+                patch('time.sleep') as blocking_sleep,
+                patch('asyncio.sleep', side_effect=polling_delay) as async_sleep,
+            ):
+                result = await tools.lake_query(mock_context, sql='SELECT * FROM eds-123')
+                assert other_request_ran.is_set()
+                assert result is expected
+                async_sleep.assert_awaited_once_with(2)
+                blocking_sleep.assert_not_called()
+        finally:
+            await other_task
+
+    @pytest.mark.asyncio
+    @patch.object(CloudTrailTools, '_get_cloudtrail_client')
+    async def test_lake_query_can_be_cancelled_while_waiting(
+        self, mock_get_client, tools, mock_context
+    ):
+        """Propagate cancellation during polling without additional AWS requests."""
+        mock_client = mock_get_client.return_value
+        mock_client.start_query.return_value = {'QueryId': 'query-123'}
+        mock_client.describe_query.return_value = {'QueryStatus': 'RUNNING'}
+        waiting = asyncio.Event()
+        resume = asyncio.Event()
+
+        async def polling_delay(seconds):
+            """Keep the query suspended until the caller cancels it."""
+            assert seconds == 2
+            waiting.set()
+            await resume.wait()
+
+        with (
+            patch('time.sleep') as blocking_sleep,
+            patch('asyncio.sleep', side_effect=polling_delay),
+        ):
+            query_task = asyncio.create_task(
+                tools.lake_query(mock_context, sql='SELECT * FROM eds-123')
+            )
+            waiting_task = asyncio.create_task(waiting.wait())
+            try:
+                await asyncio.wait(
+                    [query_task, waiting_task], timeout=1, return_when=asyncio.FIRST_COMPLETED
+                )
+                assert waiting.is_set()
+                assert not query_task.done()
+                query_task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await query_task
+                mock_client.describe_query.assert_called_once_with(QueryId='query-123')
+                mock_context.error.assert_not_awaited()
+                blocking_sleep.assert_not_called()
+            finally:
+                query_task.cancel()
+                waiting_task.cancel()
+                await asyncio.gather(query_task, waiting_task, return_exceptions=True)
+
+    @pytest.mark.asyncio
+    @patch.object(CloudTrailTools, '_get_cloudtrail_client')
+    @patch.object(CloudTrailTools, 'get_query_results')
+    @patch('asyncio.sleep')  # Mock sleep to speed up tests
     async def test_lake_query_basic(
         self,
         mock_sleep,
@@ -482,7 +567,7 @@ class TestLakeQuery:
     @pytest.mark.asyncio
     @patch.object(CloudTrailTools, '_get_cloudtrail_client')
     @patch.object(CloudTrailTools, 'get_query_results')
-    @patch('time.sleep')
+    @patch('asyncio.sleep')
     async def test_lake_query_different_region(
         self,
         mock_sleep,
@@ -527,7 +612,7 @@ class TestLakeQuery:
 
     @pytest.mark.asyncio
     @patch.object(CloudTrailTools, '_get_cloudtrail_client')
-    @patch('time.sleep')
+    @patch('asyncio.sleep')
     async def test_lake_query_running_status(
         self, mock_sleep, mock_get_client, tools, mock_context
     ):
@@ -551,7 +636,7 @@ class TestLakeQuery:
 
     @pytest.mark.asyncio
     @patch.object(CloudTrailTools, '_get_cloudtrail_client')
-    @patch('time.sleep')
+    @patch('asyncio.sleep')
     async def test_lake_query_failed_status(
         self, mock_sleep, mock_get_client, tools, mock_context
     ):
@@ -1260,7 +1345,7 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     @patch.object(CloudTrailTools, '_get_cloudtrail_client')
-    @patch('time.sleep')
+    @patch('asyncio.sleep')
     async def test_lake_query_timeout_scenario(
         self, mock_sleep, mock_get_client, tools, mock_context
     ):

@@ -14,9 +14,9 @@
 
 """CloudTrail tools for MCP server."""
 
+import asyncio
 import boto3
 import os
-import time
 from awslabs.cloudtrail_mcp_server import MCP_SERVER_VERSION
 from awslabs.cloudtrail_mcp_server.common import (
     parse_time_input,
@@ -406,7 +406,7 @@ class CloudTrailTools:
                 if query_status in ['FINISHED', 'FAILED', 'CANCELLED', 'TIMED_OUT']:
                     break
 
-                time.sleep(poll_interval)
+                await asyncio.sleep(poll_interval)
                 elapsed_time += poll_interval
 
             # Get final results
