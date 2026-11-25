@@ -209,6 +209,94 @@ class TestConfigureDomain:
             )
 
     @pytest.mark.asyncio
+    async def test_configure_domain_follows_pagination_for_all_lookups(self):
+        """Matches that are not on the first page of ACM, CloudFront or Route 53 are found."""
+        mock_session = MagicMock()
+        mock_acm_client = MagicMock()
+        mock_cloudfront_client = MagicMock()
+        mock_route53_client = MagicMock()
+        mock_session.client.side_effect = lambda service, *args, **kwargs: {
+            'acm': mock_acm_client,
+            'cloudfront': mock_cloudfront_client,
+            'route53': mock_route53_client,
+        }[service]
+
+        cert_arn = 'arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE-CERT-ID-2'
+        mock_acm_client.list_certificates.side_effect = [
+            {
+                'CertificateSummaryList': [
+                    {'CertificateArn': 'arn:other', 'DomainName': 'other.com', 'Status': 'ISSUED'}
+                ],
+                'NextToken': 'acm-page-2',
+            },
+            {
+                'CertificateSummaryList': [
+                    {
+                        'CertificateArn': cert_arn,
+                        'DomainName': 'test.example.com',
+                        'Status': 'ISSUED',
+                    }
+                ]
+            },
+        ]
+
+        def _dist(dist_id, bucket):
+            return {
+                'Id': dist_id,
+                'Origins': {'Items': [{'DomainName': f'{bucket}.s3.amazonaws.com'}]},
+            }
+
+        mock_cloudfront_client.list_distributions.side_effect = [
+            {
+                'DistributionList': {
+                    'Items': [_dist('DIST1', 'someone-else-bucket')],
+                    'IsTruncated': True,
+                    'NextMarker': 'cf-page-2',
+                }
+            },
+            {
+                'DistributionList': {
+                    'Items': [_dist('DIST2', 'test-project-bucket')],
+                    'IsTruncated': False,
+                }
+            },
+        ]
+        mock_cloudfront_client.get_distribution_config.return_value = {
+            'ETag': 'ETAGVALUE',
+            'DistributionConfig': {'Enabled': True},
+        }
+        mock_route53_client.list_hosted_zones.side_effect = [
+            {
+                'HostedZones': [{'Id': '/hostedzone/ZOTHER', 'Name': 'other.org.'}],
+                'IsTruncated': True,
+                'NextMarker': 'r53-page-2',
+            },
+            {
+                'HostedZones': [{'Id': '/hostedzone/ZMATCH', 'Name': 'example.com.'}],
+                'IsTruncated': False,
+            },
+        ]
+
+        with patch('boto3.Session', return_value=mock_session):
+            result = await ConfigureDomainTool(MagicMock(), True).configure_domain(
+                AsyncMock(),
+                project_name='test-project',
+                domain_name='test.example.com',
+                create_certificate=False,
+                create_route53_record=True,
+                region='us-east-1',
+            )
+
+        assert result['success'] is True
+        assert result['certificate']['arn'] == cert_arn
+        assert result['cloudfront_distribution']['id'] == 'DIST2'
+        mock_acm_client.list_certificates.assert_called_with(NextToken='acm-page-2')
+        mock_cloudfront_client.list_distributions.assert_called_with(Marker='cf-page-2')
+        mock_route53_client.list_hosted_zones.assert_called_with(Marker='r53-page-2')
+        kwargs = mock_route53_client.change_resource_record_sets.call_args.kwargs
+        assert kwargs['HostedZoneId'] == 'ZMATCH'
+
+    @pytest.mark.asyncio
     async def test_configure_domain_with_new_certificate(self):
         """Test configuring a domain with new certificate creation."""
         # Mock boto3 session and clients
