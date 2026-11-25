@@ -26,6 +26,10 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
 )
 from awslabs.aws_healthomics_mcp_server.utils.content_resolver import resolve_single_content
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
+from awslabs.aws_healthomics_mcp_server.utils.local_file_access import (
+    LocalFileAccessDisabledError,
+    require_local_output_access,
+)
 from awslabs.aws_healthomics_mcp_server.utils.path_utils import write_zip_to_local
 from awslabs.aws_healthomics_mcp_server.utils.s3_utils import write_zip_to_s3
 from botocore.exceptions import ClientError, NoCredentialsError
@@ -43,7 +47,7 @@ async def package_workflow(
     ctx: Context,
     main_file_content: str = Field(
         ...,
-        description='Content of the main workflow file. Accepts inline content, a local file path, or an S3 URI (s3://bucket/key).',
+        description='Content of the main workflow file. Accepts inline content, a local file path, or an S3 URI (s3://bucket/key). Local file paths are supported only when the server runs over stdio.',
     ),
     main_file_name: str = Field(
         'main.wdl',
@@ -51,14 +55,15 @@ async def package_workflow(
     ),
     additional_files: Optional[Dict[str, str]] = Field(
         None,
-        description='Dictionary of additional files (filename: content). Values accept inline content, local file paths, or S3 URIs.',
+        description='Dictionary of additional files (filename: content). Values accept inline content, local file paths, or S3 URIs. Local file paths are supported only when the server runs over stdio.',
     ),
     output_path: Optional[str] = Field(
         default=None,
         description=(
             'Optional file path or S3 URI (s3://bucket/key) where the ZIP output '
             'will be written. When provided, the response contains only summary '
-            'metadata instead of the full base64-encoded ZIP content.'
+            'metadata instead of the full base64-encoded ZIP content. Local file paths are '
+            'supported only when the server runs over stdio.'
         ),
     ),
     expected_bucket_owner: Optional[str] = Field(
@@ -87,6 +92,11 @@ async def package_workflow(
         or summary dict when output_path is provided, or error dict
     """
     try:
+        try:
+            require_local_output_access(output_path)
+        except LocalFileAccessDisabledError as e:
+            return json.dumps(await handle_tool_error(ctx, e, 'Error writing packaged workflow'))
+
         try:
             resolved_main = await resolve_single_content(main_file_content, mode='text')
         except (ValueError, FileNotFoundError, PermissionError) as e:

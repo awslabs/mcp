@@ -31,8 +31,8 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/aws-api-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @awslabs/aws-api-mcp @rshevchuk-git @PCManticore @iddv @arnewouters @bidesh
 /src/aws-appsync-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @phani-srikar @maxi114 @neelmurt
 /src/aws-bedrock-custom-model-import-mcp-server                @awslabs/mcp-admins @awslabs/mcp-maintainers  @saidrhs
-/src/aws-dataprocessing-mcp-server                             @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @wetang6677
-/src/aws-documentation-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @JonLim @AadityaBhoota @artb30 @alexisareyn @zjerath @mc5672 @riaagnes @kstich
+/src/aws-dataprocessing-mcp-server                             @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @wetang6677 @keerthicha
+/src/aws-documentation-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @JonLim @AadityaBhoota @artb30 @alexisareyn @zjerath @mc5672 @riaagnes @kstich @mzee002 @jamesward
 /src/aws-for-sap-management-mcp-server                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @conradkchan @jyothihassanramesh
 /src/aws-healthomics-mcp-server                                @awslabs/mcp-admins @awslabs/mcp-maintainers  @markjschreiber @WIIASD @a-li @alxawan @MaisiLi @sren0509 @shysruth
 /src/aws-iac-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @kdbrogan @aemada-aws @kumvprat
@@ -43,7 +43,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/aws-pricing-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @nspring00 @aytech-in @s12v @ChristianBusch
 /src/aws-serverless-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @bx9900 @bnusunny @reedham-aws @roger-zhangg @valerena @Vandita2020 @seshubaws @vicheey @licjun
 /src/aws-support-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @Wook133
-/src/aws-transform-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @occhangg @youtuyy @lexpanteli @linchenk369 @tanvir-anwar @dangmaul-amazon @yuwuc @anushreedesai742 @ddmach
+/src/aws-transform-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @occhangg @youtuyy @lexpanteli @linchenk369 @tanvir-anwar @dangmaul-amazon @yuwuc @anushreedesai742 @ddmach @shwthaa
 /src/bedrock-kb-retrieval-mcp-server                           @awslabs/mcp-admins @awslabs/mcp-maintainers  @laithalsaadoon @pranjbh @ankdav-amazon
 /src/billing-cost-management-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @chittev @Rahul-1404 @shsrams @johnwangwyx @somsubhro @wangyuhere @Comusus @bhatia-di @callnmm @anniewn @finklen-amazon @mattkelsey @yasmeenh11 @junaidgirkar @Dinkie
 /src/ccapi-mcp-server                                          @awslabs/mcp-admins @awslabs/mcp-maintainers

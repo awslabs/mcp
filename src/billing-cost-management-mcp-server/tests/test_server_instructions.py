@@ -31,6 +31,7 @@ from awslabs.billing_cost_management_mcp_server.prompts.savings_plans import (
 from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_helpers import (
     list_recommendations,
 )
+from awslabs.billing_cost_management_mcp_server.utilities import constants
 from contextlib import asynccontextmanager
 from fastmcp import Client, Context
 from fastmcp.exceptions import McpError
@@ -76,7 +77,6 @@ _ENGLISH_COMPOUNDS = {
     'high-level',
     'multi-account',
     'performance-based',
-    'highest-impact',
     'top-level',
 }
 
@@ -151,6 +151,48 @@ async def test_instructions_are_short_enough_to_be_shown_whole():
         assert len(served.instructions) < 4000
 
 
+# Some hosts cut a tool description at 4,096 chars. These descriptions were already longer when
+# the check was added; each keeps its first paragraph inside the cut. Every other description
+# must stay whole, so a description that grows past the cut fails here. The list only shrinks:
+# a listed tool that is no longer served, or now fits, must be removed from it.
+DESCRIPTION_CUT = 4096
+OVER_THE_CUT = {
+    'aws-pricing',
+    'budgets',
+    'business-support',
+    'compute-optimizer',
+    'compute-optimizer-automation',
+    'cost-comparison',
+    'cost-explorer',
+    'cost-optimization',
+    'credits',
+    'enterprise-support',
+    'free-tier-usage',
+    'get-billing-preferences',
+    'invoicing',
+    'list-billing-views',
+    'ri-performance',
+    'sp-performance',
+    'storage-lens',
+}
+
+
+async def test_tool_descriptions_fit_the_host_cut():
+    """No description newly grows past the 4,096-char cut; an over-cut one keeps its lead inside it."""
+    async with _served() as served:
+        length = {name: len(tool.description or '') for name, tool in served.tools.items()}
+        grown = {n: v for n, v in length.items() if n not in OVER_THE_CUT and v > DESCRIPTION_CUT}
+        assert grown == {}
+        stale = sorted(n for n in OVER_THE_CUT if length.get(n, 0) <= DESCRIPTION_CUT)
+        assert stale == [], 'served whole now (or no longer served): remove from OVER_THE_CUT'
+        lead_cut = {
+            n: len(_first_paragraph(served.tools[n].description))
+            for n in OVER_THE_CUT
+            if len(_first_paragraph(served.tools[n].description)) > DESCRIPTION_CUT
+        }
+        assert lead_cut == {}
+
+
 # --- Items 2-4: stale guidance removed, defaults scoped ---
 
 
@@ -176,11 +218,18 @@ async def test_stale_guidance_removed(banned):
         assert banned not in served.instructions
 
 
-async def test_truncation_guidance_states_what_was_omitted():
-    """Optimization guidance no longer truncates silently to the top 2-3."""
+@pytest.mark.parametrize('tool', ['cost-optimization', 'compute-optimizer'])
+async def test_truncation_guidance_states_what_was_omitted(tool):
+    """Optimization tools say to state what was omitted; the rule lives with them, not the server."""
     async with _served() as served:
-        assert 'lead with the highest-impact recommendations' in served.instructions
-        assert 'state how many were omitted and their combined savings' in served.instructions
+        # Both tools are over the cut, so the rule must sit inside what hosts show.
+        description = _flat((served.tools[tool].description or '')[:DESCRIPTION_CUT])
+        assert (
+            'Focus on recommendations with the highest estimated savings first; when presenting '
+            'only some, state how many were omitted and their combined savings'
+        ) in description
+        assert 'combined savings' not in served.instructions
+        assert 'highest-impact' not in served.instructions
 
 
 async def test_defaults_yield_to_user_and_host_instructions():
@@ -195,49 +244,106 @@ async def test_defaults_yield_to_user_and_host_instructions():
         )
 
 
-async def test_metrics_default_is_scoped_to_cost_explorer():
-    """Only cost-explorer returns UnblendedCost when metrics is omitted.
+def _first_paragraph(text):
+    """Text up to the first blank line (a line holding only whitespace counts as blank)."""
+    return re.split(r'\n[ \t]*\n', text or '', maxsplit=1)[0]
 
-    sp-performance coverage defaults to SpendCoveredBySavingsPlans and ri-performance sends
-    no Metrics (the API then returns hours only), so the instructions must not say every
-    tool returns UnblendedCost.
+
+def _flat(text):
+    """Text with every run of whitespace collapsed, so a rewrap does not change what matches."""
+    return ' '.join((text or '').split())
+
+
+def _lead(tool):
+    """The first paragraph of a description: what hosts that cut descriptions and tool search see."""
+    return _flat(_first_paragraph(tool.description))
+
+
+def _param_doc(tool, name):
+    return _flat(tool.inputSchema['properties'][name].get('description', ''))
+
+
+# The routing sentences the instructions used to carry, now in the lead of the tool they route
+# from: when to use the tool, or which tool (or operation) to use instead, so dropping,
+# reversing or misrouting one fails.
+ROUTING_IN_TOOL_LEAD = [
+    ('cost-optimization', 'For performance-based recommendations, use compute-optimizer.'),
+    (
+        'cost-optimization',
+        "For one recommendation, use this tool's get_recommendation operation; use rec-details "
+        'only when Compute Optimizer or Cost Explorer enrichment is wanted.',
+    ),
+    (
+        'compute-optimizer',
+        'For cost savings recommendations across services, including Savings Plans and Reserved '
+        'Instances purchases, use cost-optimization.',
+    ),
+    (
+        'rec-details',
+        'Use it only when that enrichment is wanted; for the recommendation alone, use '
+        'cost-optimization get_recommendation.',
+    ),
+    ('cost-anomaly', 'To find monitor ARNs and see who is alerted, use cost-anomaly-monitors.'),
+    ('storage-lens', 'for S3-specific storage and cost optimization analysis.'),
+]
+
+
+@pytest.mark.parametrize(('tool', 'sentence'), ROUTING_IN_TOOL_LEAD)
+async def test_routing_sentence_is_in_the_tool_lead(tool, sentence):
+    """A routing line moved out of the instructions is in the first paragraph of its tool."""
+    async with _served() as served:
+        assert sentence in _lead(served.tools[tool])
+
+
+@pytest.mark.parametrize(
+    'phrase', ['Scope to accounts with accountIds', '{"accountIds": ["123456789012"]}']
+)
+async def test_account_scoping_example_is_in_the_filters_doc(phrase):
+    """The accountIds example the instructions carried is in cost-optimization's filters doc.
+
+    The grammar line in the description sits past the 4,096-char cut, so the example lives in
+    the parameter doc, which hosts show whole.
     """
     async with _served() as served:
-        text = served.instructions
-        assert 'If `metrics` is omitted, the tool returns UnblendedCost' not in text
-        assert 'If `metrics` is omitted, cost-explorer returns UnblendedCost' in text
-        assert (
-            'sp-performance and ri-performance coverage reject UnblendedCost and use their own '
-            'metrics'
-        ) in text
+        assert phrase in _param_doc(served.tools['cost-optimization'], 'filters')
 
 
-async def test_rec_details_routing():
-    """One COH recommendation routes to get_recommendation, enrichment to rec-details."""
+async def test_instructions_name_no_tool_parameter_or_operation():
+    """Tool facts live with their tools, so the instructions name no tool, parameter or operation.
+
+    A hyphenated tool name anywhere counts; a one-word name (budgets, credits) counts when it
+    is used as a tool ("use budgets", "`credits`"), not as an English word. A snake_case or
+    camelCase identifier (account_ids, accountIds, get_recommendation) is a parameter or
+    operation name, and so is an UPPER_SNAKE value (LINKED_ACCOUNT), a PascalCase API name other
+    than a Cost Explorer cost metric (GetCostAndUsage) or anything in backticks. A brand word in
+    camelCase or PascalCase (macOS, CloudWatch) trips the rule too; reword it. A shared paging
+    contract appended to the instructions, if the server has one, is not tool-specific and is
+    left out of this check.
+    """
     async with _served() as served:
-        assert (
-            'Use cost-optimization `get_recommendation` for one Cost Optimization Hub recommendation; '
-            'use rec-details only when Compute Optimizer and Cost Explorer enrichment is wanted'
-        ) in served.instructions
-        assert 'get_recommendation' in served.tools['cost-optimization'].description
-
-
-async def test_multi_account_parameters_exist_in_the_served_schemas():
-    """The multi-account guidance names the parameters each tool really takes."""
-    async with _served() as served:
-        co = served.tools['compute-optimizer'].inputSchema['properties']
-        coh = served.tools['cost-optimization'].inputSchema['properties']
-        assert 'accountIds' not in co and 'accountIds' not in coh
-        assert 'account_ids' in co and 'single' in co['account_ids']['description']
-        assert 'filters' in coh and 'accountIds' in served.tools['cost-optimization'].description
-        assert 'list_enrollment_statuses only' in coh['account_id']['description']
-        text = served.instructions
-        assert (
-            'compute-optimizer takes `account_ids` as a JSON array with one account ID per call'
-            in text
+        text = served.instructions.replace(getattr(constants, 'PAGING_CONTRACT', ''), '')
+        named = [
+            t
+            for t in served.tools
+            if ('-' in t and re.search(rf'(?<![\w-]){re.escape(t)}(?![\w-])', text))
+            or re.search(rf'(?:\b(?:use|call|run)\s+|`){re.escape(t)}\b', text)
+        ]
+        identifiers = re.findall(
+            r'\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b'  # snake_case parameter or operation
+            r'|\b[a-z]+[A-Z]\w*\b'  # camelCase parameter
+            r'|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b'  # UPPER_SNAKE dimension or enum value
+            r'|\b(?!(?:Net)?(?:Unblended|Blended|Amortized)Cost\b)'
+            r'[A-Z][a-z]+(?:[A-Z][a-z0-9]*)+\b'  # PascalCase API name, not a cost metric
+            r'|`[^`]+`',  # anything backticked
+            text,
         )
-        assert '{"accountIds": ["123456789012"]}' in text
-        assert 'top-level `account_id` applies only to `list_enrollment_statuses`' in text
+        assert named == [] and identifiers == []
+
+
+async def test_metric_default_yields_to_tools_that_take_other_metrics():
+    """The UnblendedCost default is scoped to tools that accept it."""
+    async with _served() as served:
+        assert 'Use the UnblendedCost metric where a tool accepts it' in served.instructions
 
 
 async def test_identifiers_in_instructions_exist():
@@ -253,7 +359,6 @@ async def test_guidance_names_only_mounted_tools():
             set(re.findall(r'\b[a-z][a-z0-9]*(?:-[a-z0-9]+)+\b', served.instructions))
             - _ENGLISH_COMPOUNDS
         )
-        assert named, 'guidance names no tool'
         assert sorted(named - set(served.tools)) == []
 
 

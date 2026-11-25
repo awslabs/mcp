@@ -14,8 +14,10 @@
 # ruff: noqa: D101, D102, D103
 """Tests for the path_validation module."""
 
+import importlib
 import os
 import pytest
+from awslabs.eks_mcp_server import path_validation
 from awslabs.eks_mcp_server.path_validation import (
     BLOCKED_DIRS,
     validate_directory_path,
@@ -148,3 +150,72 @@ class TestValidateDirectoryPath:
     def test_returns_resolved_path(self):
         result = validate_directory_path('/tmp/../tmp/output')
         assert result == os.path.realpath('/tmp/output')
+
+
+class TestCaseInsensitiveFileSystems:
+    """On macOS and Windows, a recased spelling names the same directory."""
+
+    @pytest.fixture
+    def case_insensitive(self, monkeypatch):
+        monkeypatch.setattr(path_validation, '_CASE_INSENSITIVE_FS', True)
+
+    @pytest.fixture
+    def case_sensitive(self, monkeypatch):
+        monkeypatch.setattr(path_validation, '_CASE_INSENSITIVE_FS', False)
+
+    @pytest.mark.parametrize(
+        'sensitive_dir, recased', [('.aws', '.AWS'), ('.ssh', '.SSH'), ('.kube', '.Kube')]
+    )
+    def test_rejects_recased_file_path(self, case_insensitive, sensitive_dir, recased):
+        home = path_validation._HOME
+        with pytest.raises(ValueError, match='sensitive directory'):
+            validate_file_path(os.path.join(home, recased, 'config'))
+
+    def test_rejects_recased_directory_path(self, case_insensitive):
+        home = path_validation._HOME
+        with pytest.raises(ValueError, match='sensitive directory'):
+            validate_directory_path(os.path.join(home, '.GnuPG'))
+
+    def test_rejects_recased_system_dir(self, case_insensitive):
+        with pytest.raises(ValueError, match='sensitive directory'):
+            validate_file_path('/ETC/passwd')
+
+    def test_accepts_unrelated_path(self, case_insensitive):
+        home = path_validation._HOME
+        path = os.path.join(home, 'Projects', 'manifest.yaml')
+        assert validate_file_path(path) == os.path.realpath(path)
+
+    def test_recased_path_allowed_on_case_sensitive_fs(self, case_sensitive):
+        # On a case-sensitive file system ~/.AWS is a different directory.
+        home = path_validation._HOME
+        path = os.path.join(home, '.AWS', 'config')
+        assert validate_file_path(path) == os.path.realpath(path)
+
+
+class TestSymlinkedSystemDirs:
+    """System entries are resolved, so a symlinked /etc (as on macOS) still matches."""
+
+    def test_rejects_resolved_etc(self, monkeypatch):
+        # Simulate macOS, where /etc is a symlink to /private/etc, by rebuilding
+        # the blocklist with a realpath that follows that link.
+        real_realpath = os.path.realpath
+
+        def macos_realpath(p):
+            resolved = real_realpath(p)
+            if resolved == '/etc' or resolved.startswith('/etc/'):
+                return '/private' + resolved
+            return resolved
+
+        monkeypatch.setattr(os.path, 'realpath', macos_realpath)
+        try:
+            importlib.reload(path_validation)
+            assert '/private/etc' in path_validation.BLOCKED_DIRS
+            with pytest.raises(ValueError, match='sensitive directory'):
+                path_validation.validate_file_path('/etc/passwd')
+        finally:
+            monkeypatch.undo()
+            importlib.reload(path_validation)
+
+    def test_blocked_dirs_are_resolved(self):
+        assert os.path.realpath('/etc') in BLOCKED_DIRS
+        assert os.path.realpath('/root') in BLOCKED_DIRS
