@@ -18,8 +18,11 @@ This module defines all the valid values and structures expected in schema.json 
 used for code generation. It serves as the single source of truth for schema validation.
 """
 
+import math
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.identifier_validator import (
+    validate_description,
     validate_python_identifier,
+    validate_string_literal_value,
 )
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.validation_utils import (
     ValidationError,
@@ -439,6 +442,33 @@ def validate_parameter_core(
             )
         else:
             param_names.add(param_name)
+
+    # Parameter descriptions are rendered into generated docstrings (the Args section), where
+    # a quote or brace could break out of the literal, so reject unsafe characters.
+    if 'description' in param:
+        errors.extend(
+            validate_description(
+                param['description'], f'{path}.description', 'Parameter description'
+            )
+        )
+
+    # A string default is written between double quotes in the generated method signature, so a
+    # quote or backslash could break out of it and run at import time.
+    if isinstance(param.get('default'), str):
+        errors.extend(
+            validate_string_literal_value(param['default'], f'{path}.default', 'Parameter default')
+        )
+
+    # A float default is written as a bare literal in the generated signature. JSON parsers accept
+    # NaN and Infinity, which are not valid Python literals and fail when the module is imported.
+    if isinstance(param.get('default'), float) and not math.isfinite(param['default']):
+        errors.append(
+            ValidationError(
+                path=f'{path}.default',
+                message='Parameter default must be a finite number',
+                suggestion='Use a finite number; NaN and Infinity are not supported',
+            )
+        )
 
     # Validate parameter type using shared enum
     if 'type' in param:

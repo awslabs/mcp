@@ -69,6 +69,48 @@ _SOFT_KEYWORDS = frozenset(getattr(keyword, 'softkwlist', ['_', 'case', 'match',
 # Characters that let a value break out of the string literal / f-string it is rendered into.
 _STRING_BREAKOUT_CHARS = ('"', '\\', '\n', '\r')
 
+# Characters rejected in free-text ``description`` values. They are rendered inside triple-quoted
+# docstrings, ``#`` comments, and double-quoted ``print()``/f-string literals, so a quote,
+# backslash, line break, brace, or ``#`` can end the literal/comment or start an f-string
+# expression. ``\r`` is included because it is a line break the same way ``\n`` is. The single
+# quote is deliberately allowed: every description sink is a triple-double-quoted docstring, a
+# ``#`` comment or a double-quoted string, where ``'`` cannot break out, and ordinary text such
+# as "user's profile" must keep validating.
+_DESCRIPTION_DISALLOWED_CHARS = ('"', '\\', '\n', '\r', '{', '}', '#')
+
+
+# Non-ASCII characters rejected in descriptions. Surrogates cannot be written as UTF-8, so output
+# generation would fail half way. The line/paragraph separators, NEL and the bidirectional
+# controls do not execute anything, but they make the generated docstring or comment read
+# differently from what Python parses (Trojan Source). Other format characters, such as the
+# zero-width joiner used in several scripts, stay allowed.
+_DESCRIPTION_DISALLOWED_CODEPOINTS = frozenset(
+    {0x0085, 0x061C, 0x200E, 0x200F, 0x2028, 0x2029}
+    | set(range(0x202A, 0x202F))
+    | set(range(0x2066, 0x206A))
+)
+
+
+def _has_unsafe_text_char(value: str) -> bool:
+    """Return True if ``value`` has a control, line separator, bidi, or surrogate character.
+
+    Control characters (for example NUL) are not injection, but they make the generated source
+    unparseable (``source code string cannot contain null bytes``). A tab is allowed.
+    """
+    for ch in value:
+        code = ord(ch)
+        if ch != '\t' and (code < 0x20 or code == 0x7F):
+            return True
+        if code in _DESCRIPTION_DISALLOWED_CODEPOINTS or 0xD800 <= code <= 0xDFFF:
+            return True
+    return False
+
+
+def _has_disallowed_description_char(value: str) -> bool:
+    """Return True if ``value`` has a description break-out character or unsafe character."""
+    return any(ch in _DESCRIPTION_DISALLOWED_CHARS for ch in value) or _has_unsafe_text_char(value)
+
+
 # A single well-formed key-template placeholder: ``{field}`` or ``{field:format}`` where the
 # field is a plain identifier-like token and the format spec contains no braces.
 _TEMPLATE_PLACEHOLDER = re.compile(r'\{(\w+)(?::[^{}]*)?\}')
@@ -113,7 +155,9 @@ def is_safe_string_literal_value(value: object) -> bool:
     """
     if not isinstance(value, str):
         return False
-    return not any(ch in value for ch in _STRING_BREAKOUT_CHARS)
+    return not any(ch in value for ch in _STRING_BREAKOUT_CHARS) and not _has_unsafe_text_char(
+        value
+    )
 
 
 def is_safe_key_template(template: object) -> bool:
@@ -136,7 +180,7 @@ def is_safe_key_template(template: object) -> bool:
     """
     if not isinstance(template, str):
         return False
-    if any(ch in template for ch in _STRING_BREAKOUT_CHARS):
+    if any(ch in template for ch in _STRING_BREAKOUT_CHARS) or _has_unsafe_text_char(template):
         return False
     # Remove every well-formed placeholder; what remains is the literal text. If any stray brace
     # survives, the template contains a malformed or arbitrary brace expression and is rejected.
@@ -206,10 +250,10 @@ def validate_string_literal_value(value: object, path: str, kind: str) -> list:
     message = (
         f'{kind} must be a string'
         if not isinstance(value, str)
-        else f'{kind} contains disallowed characters (quote, backslash, or newline)'
+        else f'{kind} contains disallowed characters (quote, backslash, or control character)'
     )
     return _single_error(
-        path, message, 'Remove any double-quote, backslash, or newline characters.'
+        path, message, 'Remove any double-quote, backslash, newline or other control characters.'
     )
 
 
@@ -230,8 +274,8 @@ def validate_key_template(template: object, path: str, kind: str) -> list:
 
     if not isinstance(template, str):
         message = f'{kind} must be a string'
-    elif any(ch in template for ch in _STRING_BREAKOUT_CHARS):
-        message = f'{kind} contains disallowed characters (quote, backslash, or newline)'
+    elif any(ch in template for ch in _STRING_BREAKOUT_CHARS) or _has_unsafe_text_char(template):
+        message = f'{kind} contains disallowed characters (quote, backslash, or control character)'
     else:
         message = (
             f'{kind} contains a brace expression that is not a simple {{field}} placeholder; '
@@ -242,4 +286,64 @@ def validate_key_template(template: object, path: str, kind: str) -> list:
         message,
         'Use only literal text and {field_name} (or {field_name:format}) placeholders, '
         'for example "USER#{user_id}".',
+    )
+
+
+def validate_description(value: object, path: str, kind: str = 'description') -> list:
+    """Validate a free-text ``description`` destined for docstrings, comments and string literals.
+
+    Descriptions are interpolated with autoescape disabled into triple-quoted docstrings,
+    ``#`` comments and double-quoted ``print()`` strings in the generated code. A double
+    quote, backslash, newline, brace or ``#`` can close the literal or comment and append code, so
+    these characters are rejected.
+
+    Args:
+        value: The candidate description. Any non-string value is rejected.
+        path: Field path for error reporting.
+        kind: Human-readable name of the field used in the error message.
+
+    Returns:
+        A list of ``ValidationError`` objects. The list is empty when the value is safe.
+    """
+    if isinstance(value, str) and not _has_disallowed_description_char(value):
+        return []
+
+    message = (
+        f'{kind} must be a string'
+        if not isinstance(value, str)
+        else f"{kind} contains disallowed characters (double quote, backslash, control character, '{{', '}}' or '#')"
+    )
+    return _single_error(
+        path,
+        message,
+        "Remove any double-quote, backslash, newline or other control character, '{', '}' and '#' from the description.",
+    )
+
+
+def validate_comment_text(value: object, path: str, kind: str) -> list:
+    """Validate free text that is written into a single-line ``#`` comment in generated code.
+
+    A comment only ends at a line break, so quotes, braces and ``#`` are harmless here (a
+    DynamoDB condition such as ``attribute_not_exists(pk)`` must keep validating). A line break
+    would start a new line of live code, and other control, separator, bidi and surrogate
+    characters make the output unparseable or misleading, so these are rejected.
+
+    Args:
+        value: The candidate text. Any non-string value is rejected.
+        path: Field path for error reporting.
+        kind: Human-readable name of the field used in the error message.
+
+    Returns:
+        A list of ``ValidationError`` objects. The list is empty when the value is safe.
+    """
+    if isinstance(value, str) and not _has_unsafe_text_char(value):
+        return []
+
+    message = (
+        f'{kind} must be a string'
+        if not isinstance(value, str)
+        else f'{kind} contains disallowed characters (line break or other control character)'
+    )
+    return _single_error(
+        path, message, 'Remove any newline or other control characters from the value.'
     )

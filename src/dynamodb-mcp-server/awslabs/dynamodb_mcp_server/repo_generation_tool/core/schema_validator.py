@@ -29,6 +29,7 @@ from awslabs.dynamodb_mcp_server.repo_generation_tool.core.filter_expression_val
 )
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.gsi_validator import GSIValidator
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.identifier_validator import (
+    validate_description,
     validate_key_template,
     validate_python_identifier,
     validate_string_literal_value,
@@ -519,6 +520,14 @@ class SchemaValidator:
                 )
             else:
                 pattern_names.add(pattern_name)
+
+        # The description is rendered into docstrings, comments and print() string literals.
+        if 'description' in pattern:
+            self.result.add_errors(
+                validate_description(
+                    pattern['description'], f'{path}.description', 'Pattern description'
+                )
+            )
 
         # Validate operation
         if 'operation' in pattern:

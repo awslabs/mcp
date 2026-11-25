@@ -14,6 +14,8 @@ from awslabs.dynamodb_mcp_server.repo_generation_tool.core.identifier_validator 
     is_safe_key_template,
     is_safe_string_literal_value,
     is_valid_python_identifier,
+    validate_comment_text,
+    validate_description,
     validate_key_template,
     validate_python_identifier,
     validate_string_literal_value,
@@ -489,3 +491,386 @@ class TestStringAndGsiInjectionRejectedEndToEnd:
         )
         assert result.is_valid is True
         assert len(result.errors) == 0
+
+
+DESCRIPTION_PAYLOADS = [
+    pytest.param('x """ + __import__("os").system("id") + """', id='triple-quote'),
+    pytest.param("{__import__('os').system('id')}", id='fstring-expression'),
+    pytest.param('line one\nimport os', id='newline'),
+    pytest.param('say "hi"', id='double-quote'),
+    pytest.param('back\\slash', id='backslash'),
+    pytest.param('a # comment', id='hash'),
+    pytest.param('a}b', id='close-brace'),
+    pytest.param('a\rb', id='carriage-return'),
+    pytest.param('a\x00b', id='nul-byte'),
+    pytest.param('a\x0bb', id='vertical-tab'),
+    pytest.param('a\x7fb', id='delete-char'),
+    pytest.param('a\ud800b', id='lone-surrogate'),
+    pytest.param('a\u0085b', id='next-line'),
+    pytest.param('a\u2028b', id='line-separator'),
+    pytest.param('a\u2029b', id='paragraph-separator'),
+    pytest.param('evil \u202e txt', id='bidi-override'),
+    pytest.param('a\u2066b', id='bidi-isolate'),
+    pytest.param('a\u200fb', id='right-to-left-mark'),
+]
+
+
+@pytest.mark.unit
+class TestValidateDescription:
+    """Unit tests for validate_description."""
+
+    @pytest.mark.parametrize(
+        'value',
+        [
+            'Get user by ID',
+            "Get user's profile",
+            'Query orders (newest first) - up to 10, e.g. a/b: c; d!',
+            '',
+        ],
+    )
+    def test_accepts_plain_text(self, value):
+        """Ordinary descriptions pass."""
+        assert validate_description(value, 'p', 'Pattern description') == []
+
+    @pytest.mark.parametrize('value', DESCRIPTION_PAYLOADS)
+    def test_rejects_payloads(self, value):
+        """Each break-out character is rejected."""
+        errors = validate_description(value, 'p.description', 'Pattern description')
+        assert len(errors) == 1
+        assert errors[0].path == 'p.description'
+        assert 'Pattern description contains disallowed characters' in errors[0].message
+
+    @pytest.mark.parametrize('value', [None, 5, ['a']])
+    def test_rejects_non_string(self, value):
+        """Non-string values are rejected."""
+        errors = validate_description(value, 'p', 'Parameter description')
+        assert len(errors) == 1
+        assert 'must be a string' in errors[0].message
+
+
+@pytest.mark.unit
+class TestDescriptionInjectionRejectedEndToEnd:
+    """End-to-end: malicious descriptions are rejected by SchemaValidator."""
+
+    def _schema(self, pattern_description='d', param_description=None):
+        param = {'name': 'user_id', 'type': 'string'}
+        if param_description is not None:
+            param['description'] = param_description
+        return {
+            'tables': [
+                {
+                    'table_config': {'table_name': 'Users', 'partition_key': 'pk'},
+                    'entities': {
+                        'User': {
+                            'entity_type': 'USER',
+                            'pk_template': 'USER#{user_id}',
+                            'fields': [{'name': 'user_id', 'type': 'string', 'required': True}],
+                            'access_patterns': [
+                                {
+                                    'pattern_id': 1,
+                                    'name': 'get_user',
+                                    'description': pattern_description,
+                                    'operation': 'GetItem',
+                                    'return_type': 'single_entity',
+                                    'parameters': [param],
+                                }
+                            ],
+                        }
+                    },
+                }
+            ]
+        }
+
+    def test_clean_descriptions_pass(self):
+        """Plain descriptions on the pattern and parameter are accepted."""
+        result = _validate_schema_dict(self._schema('Get user by ID', 'The user id'))
+        assert result.is_valid is True, result.errors
+
+    @pytest.mark.parametrize('payload', DESCRIPTION_PAYLOADS)
+    def test_pattern_description_rejected(self, payload):
+        """A malicious pattern description fails validation."""
+        result = _validate_schema_dict(self._schema(pattern_description=payload))
+        assert result.is_valid is False
+        assert any(
+            'Pattern description' in e.message and e.path.endswith('.description')
+            for e in result.errors
+        )
+
+    @pytest.mark.parametrize('payload', DESCRIPTION_PAYLOADS)
+    def test_parameter_description_rejected(self, payload):
+        """A malicious parameter description fails validation."""
+        result = _validate_schema_dict(self._schema(param_description=payload))
+        assert result.is_valid is False
+        assert any(
+            'Parameter description' in e.message and '.parameters[0].description' in e.path
+            for e in result.errors
+        )
+
+
+@pytest.mark.unit
+def test_nul_description_is_rejected_so_generated_code_stays_parseable():
+    """A NUL in a description is rejected; it would make the generated Python unparseable."""
+    result = _validate_schema_dict(
+        TestDescriptionInjectionRejectedEndToEnd()._schema(pattern_description='bad\x00nul')
+    )
+    assert result.is_valid is False
+    assert any('Pattern description' in e.message for e in result.errors)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('payload', ['a\ud800b', 'evil \u202e txt', 'a\x00b'])
+def test_rejected_description_never_reaches_generated_files(payload, tmp_path):
+    """The CLI stops on these descriptions and writes no output; accepted ones always parse."""
+    import ast
+    from awslabs.dynamodb_mcp_server.repo_generation_tool.codegen import main
+    from unittest.mock import patch
+
+    schema = TestDescriptionInjectionRejectedEndToEnd()._schema(pattern_description=payload)
+    schema_file = tmp_path / 'schema.json'
+    schema_file.write_text(json.dumps(schema))
+    out = tmp_path / 'out'
+    with patch(
+        'sys.argv', ['codegen', '--schema', str(schema_file), '--output', str(out), '--no-lint']
+    ):
+        exit_code = main()
+    assert exit_code != 0
+    assert not out.exists() or not list(out.glob('*.py'))
+    for py in out.glob('*.py') if out.exists() else []:
+        ast.parse(py.read_text(encoding='utf-8'))
+
+
+# --- One-pass audit: every other schema value that reaches generated code -----------------------
+
+_AUDIT_FIELDS = [
+    # (id, fixture, path to the value, payloads that must be rejected)
+    (
+        'cross-table-pattern-name',
+        'USER_REGISTRATION_SCHEMA',
+        ('cross_table_access_patterns', 0, 'name'),
+        ['x(self):\n        ZZEXEC = 1\n    def y', 'a b', 'a"b'],
+    ),
+    (
+        'parameter-default',
+        'FOOD_DELIVERY_SCHEMA',
+        ('tables', 0, 'entities', 'Delivery', 'access_patterns', 1, 'parameters', 1, 'default'),
+        ['a", ZZEXEC=__import__("os").getcwd(), zz="', 'a\\', 'a\nb', 'a\x00b'],
+    ),
+    (
+        'filter-condition-param',
+        'FOOD_DELIVERY_SCHEMA',
+        (
+            'tables',
+            0,
+            'entities',
+            'Delivery',
+            'access_patterns',
+            1,
+            'filter_expression',
+            'conditions',
+            0,
+            'param',
+        ),
+        ['a\n        ZZEXEC = 1\n        #', 'a b', 'a"b'],
+    ),
+    (
+        'filter-condition-params-item',
+        'FOOD_DELIVERY_SCHEMA',
+        (
+            'tables',
+            0,
+            'entities',
+            'Delivery',
+            'access_patterns',
+            3,
+            'filter_expression',
+            'conditions',
+            0,
+            'params',
+            0,
+        ),
+        ['a\n        ZZEXEC = 1\n        #', 'a b', 'a"b'],
+    ),
+    (
+        'entity-involved-condition',
+        'USER_REGISTRATION_SCHEMA',
+        ('cross_table_access_patterns', 0, 'entities_involved', 0, 'condition'),
+        ['a\n        ZZEXEC = 1\n        #', 'a\rb', 'a\u2028b', 'a\x00b'],
+    ),
+    (
+        'gsi-list-partition-key',
+        'DEALS_SCHEMA',
+        ('tables', 0, 'gsi_list', 0, 'partition_key'),
+        ['a\n        ZZEXEC = 1\n        #', 'a"b', 'a\\b', 'a\x00b'],
+    ),
+    (
+        'gsi-list-sort-key',
+        'DEALS_SCHEMA',
+        ('tables', 0, 'gsi_list', 0, 'sort_key'),
+        ['a\n        ZZEXEC = 1\n        #', 'a"b', 'a\\b', 'a\x00b'],
+    ),
+]
+
+
+def _load_fixture(name):
+    from tests.repo_generation_tool import conftest
+
+    with open(getattr(conftest, name)) as f:
+        return json.load(f)
+
+
+def _set_path(obj, path, value):
+    for key in path[:-1]:
+        obj = obj[key]
+    obj[path[-1]] = value
+
+
+@pytest.mark.unit
+class TestRemainingCodeSinksRejectedEndToEnd:
+    """Each schema value that reaches generated code is validated, not only descriptions."""
+
+    @pytest.mark.parametrize('field_id,fixture,path,payloads', _AUDIT_FIELDS)
+    def test_clean_fixture_is_valid(self, field_id, fixture, path, payloads):
+        """The unmodified valid fixtures still validate."""
+        assert _validate_schema_dict(_load_fixture(fixture)).is_valid is True
+
+    @pytest.mark.parametrize(
+        'field_id,fixture,path,payload',
+        [(i, f, p, pay) for i, f, p, payloads in _AUDIT_FIELDS for pay in payloads],
+    )
+    def test_malicious_value_rejected(self, field_id, fixture, path, payload):
+        """A code-injection payload in the field fails validation at the field's path."""
+        schema = _load_fixture(fixture)
+        _set_path(schema, path, payload)
+        result = _validate_schema_dict(schema)
+        assert result.is_valid is False
+        last = path[-1]
+        suffix = f'[{last}]' if isinstance(last, int) else f'.{last}'
+        assert any(e.path.endswith(suffix) for e in result.errors), [e.path for e in result.errors]
+
+    def test_list_form_gsi_keys_are_checked(self):
+        """Multi-attribute (list) GSI keys are checked per element."""
+        schema = _load_fixture('DEALS_SCHEMA')
+        gsi = schema['tables'][0]['gsi_list'][0]
+        gsi['partition_key'] = ['ok_attr', 'a\nZZEXEC = 1\n#']
+        result = _validate_schema_dict(schema)
+        assert result.is_valid is False
+        assert any('partition_key[1]' in e.path for e in result.errors)
+
+    def test_non_string_defaults_are_unchanged(self):
+        """Numeric and boolean defaults are not string literals and are not rejected."""
+        schema = _load_fixture('FOOD_DELIVERY_SCHEMA')
+        params = schema['tables'][0]['entities']['Delivery']['access_patterns'][1]['parameters']
+        params[1]['default'] = 'CANCELLED'
+        assert _validate_schema_dict(schema).is_valid is True
+
+
+@pytest.mark.unit
+class TestValidateCommentText:
+    """Unit tests for validate_comment_text."""
+
+    @pytest.mark.parametrize(
+        'value',
+        ['attribute_not_exists(pk)', 'a #b {c} "d" \'e\' \\ f', 'tab\there', 'caf\u00e9 \u4e2d'],
+    )
+    def test_accepts_single_line_text(self, value):
+        """Quotes, braces, # and backslash are harmless in a one-line comment."""
+        assert validate_comment_text(value, 'p', 'Condition') == []
+
+    @pytest.mark.parametrize(
+        'value',
+        ['a\nb', 'a\rb', 'a\x00b', 'a\u2028b', 'a\u0085b', 'a\u202eb', 'a\ud800b'],
+    )
+    def test_rejects_line_breaks_and_unsafe_characters(self, value):
+        """Anything that starts a new line or corrupts the output is rejected."""
+        errors = validate_comment_text(value, 'p.condition', 'Condition')
+        assert len(errors) == 1
+        assert errors[0].path == 'p.condition'
+
+    @pytest.mark.parametrize('value', [None, 3, ['a']])
+    def test_rejects_non_string(self, value):
+        """Non-string values are rejected."""
+        errors = validate_comment_text(value, 'p', 'Condition')
+        assert 'must be a string' in errors[0].message
+
+
+@pytest.mark.unit
+class TestStringLiteralControlCharacters:
+    """Existing string-literal and key-template guards also reject control characters."""
+
+    @pytest.mark.parametrize('value', ['a\x00b', 'a\x7fb', 'a\u2028b', 'a\u202eb', 'a\ud800b'])
+    def test_string_literal_rejects_control_characters(self, value):
+        """A control character would make the generated source unparseable or misleading."""
+        assert is_safe_string_literal_value(value) is False
+        assert is_safe_key_template('USER#' + value) is False
+
+    def test_string_literal_still_accepts_normal_text(self):
+        """Normal names, including non-ASCII text and tabs, still pass."""
+        assert is_safe_string_literal_value('Users caf\u00e9\tone') is True
+        assert is_safe_key_template('USER#{user_id}') is True
+
+
+@pytest.mark.unit
+class TestNonFiniteAndUsageDataOutputStaysParseable:
+    """Values that would make the generated files unparseable are rejected or escaped."""
+
+    @pytest.mark.parametrize('literal', ['NaN', 'Infinity', '-Infinity'])
+    def test_non_finite_parameter_default_rejected(self, literal, tmp_path):
+        """JSON NaN/Infinity defaults would be written as bare names and fail at import."""
+        from tests.repo_generation_tool import conftest
+
+        text = (
+            open(conftest.FOOD_DELIVERY_SCHEMA)
+            .read()
+            .replace('"default": "CANCELLED"', f'"default": {literal}', 1)
+        )
+        schema_file = tmp_path / 's.json'
+        schema_file.write_text(text)
+        result = SchemaValidator().validate_schema_file(str(schema_file))
+        assert result.is_valid is False
+        assert any(
+            'Parameter default must be a finite number' in e.message
+            and e.path.endswith('.default')
+            for e in result.errors
+        )
+
+    @pytest.mark.parametrize('default', [1.5, 3, True, 'CANCELLED'])
+    def test_finite_and_other_defaults_still_accepted(self, default):
+        """Ordinary numbers, booleans and strings are not affected."""
+        schema = _load_fixture('FOOD_DELIVERY_SCHEMA')
+        params = schema['tables'][0]['entities']['Delivery']['access_patterns'][1]['parameters']
+        params[1]['default'] = default
+        assert _validate_schema_dict(schema).is_valid is True
+
+    @pytest.mark.parametrize(
+        'value',
+        [
+            'a\nb',
+            'a\rb',
+            'a\tb',
+            'a\x00b',
+            'a\x7fb',
+            'a\u0085b',
+            'a\u2028b',
+            'a\ud800b',
+            'say "hi" \\ done',
+            'a"\nZZEXEC = 1\n#',
+            "caf\u00e9 \u4e2d\u6587 it's",
+        ],
+    )
+    def test_usage_data_string_round_trips_through_generated_source(self, value):
+        """The escaped literal parses as one string and evaluates back to the original value."""
+        import ast
+        from awslabs.dynamodb_mcp_server.repo_generation_tool.languages.python.usage_data_formatter import (
+            PythonUsageDataFormatter,
+        )
+
+        fmt = PythonUsageDataFormatter()
+        for source in (
+            fmt.format_value(value, 'string'),
+            fmt.format_value([value], 'array'),
+            fmt.format_value({'k': value}, 'object'),
+        ):
+            tree = ast.parse(f'x = {source}')
+            assert len(tree.body) == 1
+            source.encode('utf-8')  # must be writable to a UTF-8 file
+            assert ast.literal_eval(source) in (value, [value], {'k': value})
