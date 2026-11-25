@@ -64,12 +64,14 @@ class Ledger:
         input_tokens: int,
         output_tokens: int,
         cost_usd: float,
+        cached_input_tokens: int = 0,
     ) -> dict:
         """Append one priced spend entry and return it."""
         entry = {
             'task_id': task_id,
             'model_id': model_id,
             'input_tokens': input_tokens,
+            'cached_input_tokens': cached_input_tokens,
             'output_tokens': output_tokens,
             'cost_usd': round(cost_usd, 6),
             'recorded_at': datetime.now(timezone.utc).isoformat(),

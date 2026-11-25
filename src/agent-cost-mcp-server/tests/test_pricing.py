@@ -173,3 +173,125 @@ def test_compare_rejects_bad_quality_floor():
         compare_models_for_task(TABLE, 100, 100, quality_floor=0)
     with pytest.raises(ValueError, match='quality_floor'):
         compare_models_for_task(TABLE, 100, 100, quality_floor=1.5)
+
+
+def _fixture_table(tmp_path, models):
+    """Build a PricingTable from an inline snapshot written to tmp_path."""
+    import json
+
+    path = tmp_path / 'pricing.json'
+    path.write_text(
+        json.dumps(
+            {'snapshot_version': 99, 'snapshot_date': '2026-01-01', 'models': models}
+        )
+    )
+    return PricingTable(path)
+
+
+def test_compare_rejects_unknown_model_in_success_rates():
+    """A success rate for an unlisted model is refused, not silently dropped."""
+    with pytest.raises(ValueError, match='not in the pricing snapshot'):
+        compare_models_for_task(
+            TABLE, 100, 100, success_rates={'nope.not-a-model': 0.5}
+        )
+
+
+def test_price_usage_carries_row_checked_date():
+    """Priced responses carry the row's own checked date and stale flag."""
+    result = price_usage(TABLE, 'anthropic.claude-haiku-4-5', 1_000, 1_000)
+    row = next(m for m in TABLE.all() if m.model_id == 'anthropic.claude-haiku-4-5')
+    assert result['price_checked_date'] == row.checked_date
+    assert result['price_stale'] is False
+
+
+def test_stale_flag_after_threshold(tmp_path):
+    """Rows checked more than 90 days ago are flagged stale; fresh rows are not."""
+    from datetime import date, timedelta
+
+    fresh = date.today().isoformat()
+    stale = (date.today() - timedelta(days=200)).isoformat()
+    table = _fixture_table(
+        tmp_path,
+        [
+            {
+                'model_id': 'x.fresh',
+                'display_name': 'Fresh',
+                'provider': 'x',
+                'input_per_mtok': 1.0,
+                'output_per_mtok': 1.0,
+                'checked_date': fresh,
+            },
+            {
+                'model_id': 'x.stale',
+                'display_name': 'Stale',
+                'provider': 'x',
+                'input_per_mtok': 1.0,
+                'output_per_mtok': 1.0,
+                'checked_date': stale,
+            },
+        ],
+    )
+    assert price_usage(table, 'x.fresh', 100, 100)['price_stale'] is False
+    assert price_usage(table, 'x.stale', 100, 100)['price_stale'] is True
+    rows = {r['model']: r for r in compare_models_for_task(table, 100, 100)['ranked']}
+    assert rows['x.fresh']['price_checked_date'] == fresh
+    assert rows['x.stale']['price_stale'] is True
+
+
+def test_cached_input_split_math():
+    """Sonnet 4.5: cached input bills at the $0.30 cache-read rate, not $3.00."""
+    result = price_usage(
+        TABLE, 'anthropic.claude-sonnet-4-5', 1_000_000, 0, cached_input_tokens=900_000
+    )
+    assert result['uncached_input_tokens'] == 100_000
+    assert result['cached_input_tokens'] == 900_000
+    assert result['cached_input_cost_usd'] == pytest.approx(0.27)
+    assert result['input_cost_usd'] == pytest.approx(0.30 + 0.27)
+    assert result['cache_rate_applied'] is True
+
+
+def test_cached_input_without_published_rate_bills_full_rate():
+    """No cache rate in the snapshot: cached tokens bill at the input rate, never $0."""
+    plain = price_usage(TABLE, 'anthropic.claude-haiku-3-5', 1_000_000, 0)
+    cached = price_usage(
+        TABLE, 'anthropic.claude-haiku-3-5', 1_000_000, 0, cached_input_tokens=900_000
+    )
+    assert cached['cache_rate_applied'] is False
+    assert cached['cost_usd'] == plain['cost_usd'] == pytest.approx(0.8)
+
+
+def test_cached_tokens_cannot_exceed_input():
+    """Cached input is a subset of input; a larger count is rejected."""
+    with pytest.raises(ValueError, match='cannot exceed'):
+        price_usage(TABLE, 'anthropic.claude-haiku-4-5', 100, 0, cached_input_tokens=101)
+
+
+def test_cache_billing_flips_compare_winner(tmp_path):
+    """Cache billing changes which model wins a cache-heavy comparison."""
+    table = _fixture_table(
+        tmp_path,
+        [
+            {
+                'model_id': 'x.plain',
+                'display_name': 'Plain',
+                'provider': 'x',
+                'input_per_mtok': 1.0,
+                'output_per_mtok': 0.0,
+                'checked_date': '2026-01-01',
+            },
+            {
+                'model_id': 'x.cache',
+                'display_name': 'Cache',
+                'provider': 'x',
+                'input_per_mtok': 2.0,
+                'output_per_mtok': 0.0,
+                'cached_input_per_mtok': 0.1,
+                'checked_date': '2026-01-01',
+            },
+        ],
+    )
+    uncached = compare_models_for_task(table, 1_000_000, 0)
+    assert uncached['ranked'][0]['model'] == 'x.plain'
+    cached = compare_models_for_task(table, 1_000_000, 0, cached_input_tokens=900_000)
+    assert cached['ranked'][0]['model'] == 'x.cache'
+    assert cached['ranked'][0]['cost_per_run_usd'] == pytest.approx(0.29)

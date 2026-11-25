@@ -2,6 +2,8 @@
   "currency": "USD",
   "models": [
     {
+      "cached_input_per_mtok": 0.1,
+      "checked_date": "2026-11-24",
       "display_name": "Claude Haiku 4.5",
       "input_per_mtok": 1.0,
       "model_id": "anthropic.claude-haiku-4-5",
@@ -9,6 +11,8 @@
       "provider": "anthropic"
     },
     {
+      "cached_input_per_mtok": 0.3,
+      "checked_date": "2026-11-24",
       "display_name": "Claude Sonnet 4.5",
       "input_per_mtok": 3.0,
       "model_id": "anthropic.claude-sonnet-4-5",
@@ -16,6 +20,8 @@
       "provider": "anthropic"
     },
     {
+      "cached_input_per_mtok": 0.5,
+      "checked_date": "2026-11-24",
       "display_name": "Claude Opus 4.5",
       "input_per_mtok": 5.0,
       "model_id": "anthropic.claude-opus-4-5",
@@ -23,6 +29,7 @@
       "provider": "anthropic"
     },
     {
+      "checked_date": "2026-10-20",
       "display_name": "Claude Haiku 3.5",
       "input_per_mtok": 0.8,
       "model_id": "anthropic.claude-haiku-3-5",
@@ -30,6 +37,8 @@
       "provider": "anthropic"
     },
     {
+      "cached_input_per_mtok": 0.00875,
+      "checked_date": "2026-11-24",
       "display_name": "Amazon Nova Micro",
       "input_per_mtok": 0.035,
       "model_id": "amazon.nova-micro",
@@ -37,6 +46,8 @@
       "provider": "amazon"
     },
     {
+      "cached_input_per_mtok": 0.015,
+      "checked_date": "2026-11-24",
       "display_name": "Amazon Nova Lite",
       "input_per_mtok": 0.06,
       "model_id": "amazon.nova-lite",
@@ -44,6 +55,8 @@
       "provider": "amazon"
     },
     {
+      "cached_input_per_mtok": 0.2,
+      "checked_date": "2026-11-24",
       "display_name": "Amazon Nova Pro",
       "input_per_mtok": 0.8,
       "model_id": "amazon.nova-pro",
@@ -51,6 +64,8 @@
       "provider": "amazon"
     },
     {
+      "cached_input_per_mtok": 0.125,
+      "checked_date": "2026-11-24",
       "display_name": "GPT-5",
       "input_per_mtok": 1.25,
       "model_id": "openai.gpt-5",
@@ -58,6 +73,8 @@
       "provider": "openai"
     },
     {
+      "cached_input_per_mtok": 0.025,
+      "checked_date": "2026-11-24",
       "display_name": "GPT-5 mini",
       "input_per_mtok": 0.25,
       "model_id": "openai.gpt-5-mini",
@@ -65,6 +82,8 @@
       "provider": "openai"
     },
     {
+      "cached_input_per_mtok": 0.005,
+      "checked_date": "2026-11-24",
       "display_name": "GPT-5 nano",
       "input_per_mtok": 0.05,
       "model_id": "openai.gpt-5-nano",
@@ -72,6 +91,8 @@
       "provider": "openai"
     },
     {
+      "cached_input_per_mtok": 0.5,
+      "checked_date": "2026-11-24",
       "display_name": "GPT-4.1",
       "input_per_mtok": 2.0,
       "model_id": "openai.gpt-4.1",
@@ -79,6 +100,8 @@
       "provider": "openai"
     },
     {
+      "cached_input_per_mtok": 0.1,
+      "checked_date": "2026-11-24",
       "display_name": "GPT-4.1 mini",
       "input_per_mtok": 0.4,
       "model_id": "openai.gpt-4.1-mini",
@@ -86,6 +109,8 @@
       "provider": "openai"
     },
     {
+      "cached_input_per_mtok": 1.25,
+      "checked_date": "2026-11-24",
       "display_name": "GPT-4o",
       "input_per_mtok": 2.5,
       "model_id": "openai.gpt-4o",
@@ -93,6 +118,8 @@
       "provider": "openai"
     },
     {
+      "cached_input_per_mtok": 0.075,
+      "checked_date": "2026-11-24",
       "display_name": "GPT-4o mini",
       "input_per_mtok": 0.15,
       "model_id": "openai.gpt-4o-mini",
@@ -100,6 +127,8 @@
       "provider": "openai"
     },
     {
+      "cached_input_per_mtok": 0.275,
+      "checked_date": "2026-11-24",
       "display_name": "o4-mini",
       "input_per_mtok": 1.1,
       "model_id": "openai.o4-mini",
@@ -107,6 +136,8 @@
       "provider": "openai"
     },
     {
+      "cached_input_per_mtok": 0.125,
+      "checked_date": "2026-11-24",
       "display_name": "Gemini 2.5 Pro",
       "input_per_mtok": 1.25,
       "model_id": "google.gemini-2.5-pro",
@@ -114,6 +145,8 @@
       "provider": "google"
     },
     {
+      "cached_input_per_mtok": 0.03,
+      "checked_date": "2026-11-24",
       "display_name": "Gemini 2.5 Flash",
       "input_per_mtok": 0.3,
       "model_id": "google.gemini-2.5-flash",
@@ -121,6 +154,8 @@
       "provider": "google"
     },
     {
+      "cached_input_per_mtok": 0.01,
+      "checked_date": "2026-11-24",
       "display_name": "Gemini 2.5 Flash-Lite",
       "input_per_mtok": 0.1,
       "model_id": "google.gemini-2.5-flash-lite",
@@ -128,7 +163,7 @@
       "provider": "google"
     }
   ],
-  "note": "List prices per 1M tokens from provider pricing pages at snapshot time. Prices change; verify against the provider before making spending decisions. Update this file to refresh the snapshot \u2014 the server reads it at startup.",
-  "snapshot_date": "2026-10-20",
-  "snapshot_version": 1
+  "note": "List prices per 1M tokens from provider pricing pages. Each row carries the date its prices were last checked (checked_date); responses flag rows older than 90 days as stale. Rows in this snapshot were re-verified on 2026-11-24 against the llm-prices dataset (https://github.com/Mattbusel/llm-prices, MIT license), whose per-row source URLs and checked dates agree with the rates here; anthropic.claude-haiku-3-5 has no row there and keeps its 2026-10-20 checked date. Prices change; verify against the provider before making spending decisions. Update this file to refresh the snapshot \u2014 the server reads it at startup.",
+  "snapshot_date": "2026-11-24",
+  "snapshot_version": 2
 }

@@ -113,10 +113,11 @@ Price a concrete usage record at a model's list rates.
 | Name | Type | Description |
 |------|------|-------------|
 | `model_id` | string | Model identifier from the pricing snapshot, e.g. `anthropic.claude-sonnet-4-5` or `openai.gpt-5-mini` |
-| `input_tokens` | integer | Input (prompt) tokens consumed |
+| `input_tokens` | integer | Input (prompt) tokens consumed, including any cached input tokens |
 | `output_tokens` | integer | Output (completion) tokens consumed |
+| `cached_input_tokens` | integer | Optional part of `input_tokens` served from the provider's prompt cache |
 
-**Returns:** The model, token counts, and the input, output, and total cost in USD. Every priced response also carries `price_source_date` (the pricing snapshot date) and `price_confidence` (`list`: provider list rates from the snapshot).
+**Returns:** The model, token counts, and the input, output, and total cost in USD. Cached input is reported separately (`cached_input_tokens`, `cached_input_cost_usd`) and billed at the model's published cache-read rate where the snapshot carries one, otherwise at the standard input rate — never at $0. Unknown models are refused with an error naming the model. Every priced response also carries `price_source_date` (the pricing snapshot date), `price_confidence` (`list`: provider list rates from the snapshot), and the row's own `price_checked_date` with a `price_stale` flag when that check is over 90 days old.
 
 ### estimate_run_cost
 
@@ -131,6 +132,7 @@ Estimate what one run of a workload will cost on a model.
 | `output_tokens` | integer | Expected output tokens for one run |
 | `expected_attempts` | number | Optional expected attempts per solved task (at least 1.0) |
 | `attempts_source` | string | Optional source of the attempts term: `measured` (observed run history) or `prior` (an assumption) |
+| `cached_input_tokens` | integer | Optional part of `input_tokens` served from the provider's prompt cache |
 
 **Returns:** The model's cost for the run, plus the same workload priced on every other model in the snapshot, cheapest first, and the pricing snapshot version. When `expected_attempts` is given, the response also carries `cost_per_solved_task_usd` — the per-run cost times the attempts term — kept separate from the per-run cost, with the attempts source labeled.
 
@@ -148,8 +150,9 @@ Cost per token is the wrong ranking for agent work: a cheap model that fails hal
 | `output_tokens` | integer | Output tokens for one attempt at the task |
 | `success_rates` | object | Optional map of `model_id` to success rate in (0, 1] |
 | `quality_floor` | number | Optional hard floor on the success rate in (0, 1], applied before ranking |
+| `cached_input_tokens` | integer | Optional part of `input_tokens` served from the provider's prompt cache |
 
-**Returns:** All models ranked by cost per successful task, with cost per run, the success rate used for each, and each row's `expected_attempts` (1 / success rate). When `quality_floor` is set, models below it — and models with no supplied rate to check against it — are excluded before ranking and reported in `excluded_by_quality_floor` with the reason.
+**Returns:** All models ranked by cost per successful task, with cost per run, the success rate used for each, each row's `expected_attempts` (1 / success rate), and each row's `price_checked_date` / `price_stale`. A `success_rates` entry naming a model outside the snapshot is an error naming the model, not a silent omission. When `quality_floor` is set, models below it — and models with no supplied rate to check against it — are excluded before ranking and reported in `excluded_by_quality_floor` with the reason.
 
 ### record_spend
 
@@ -161,10 +164,11 @@ Record a run's actual token usage in the local per-task ledger.
 |------|------|-------------|
 | `task_id` | string | Caller-chosen identifier grouping one task's runs |
 | `model_id` | string | Model the run used |
-| `input_tokens` | integer | Actual input tokens consumed |
+| `input_tokens` | integer | Actual input tokens consumed, including any cached input tokens |
 | `output_tokens` | integer | Actual output tokens consumed |
+| `cached_input_tokens` | integer | Optional part of `input_tokens` served from the provider's prompt cache |
 
-**Returns:** The recorded ledger entry, priced at the model's list rates, with a UTC timestamp.
+**Returns:** The recorded ledger entry, priced at the model's list rates, with a UTC timestamp. Unknown models are refused with an error naming the model — an unpriced model is never booked as $0.
 
 ### budget_status
 

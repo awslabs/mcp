@@ -51,18 +51,28 @@ _ledger = ledger_mod.Ledger()
 
 
 @mcp.tool()
-def price_usage(model_id: str, input_tokens: int, output_tokens: int) -> dict:
+def price_usage(
+    model_id: str, input_tokens: int, output_tokens: int, cached_input_tokens: int = 0
+) -> dict:
     """Price a concrete usage record at a model's list rates.
 
     Args:
         model_id: Model identifier from the pricing snapshot, e.g.
             "anthropic.claude-sonnet-4-5" or "openai.gpt-5-mini".
-        input_tokens: Input (prompt) tokens consumed.
+            Unknown models are refused with an error naming the model.
+        input_tokens: Input (prompt) tokens consumed, including any
+            cached input tokens.
         output_tokens: Output (completion) tokens consumed.
+        cached_input_tokens: The part of input_tokens served from the
+            provider's prompt cache. Billed at the model's published
+            cache-read rate where the snapshot carries one, otherwise
+            at the standard input rate; reported separately either way.
 
-    Returns the input/output/total cost in USD.
+    Returns the input/output/total cost in USD, the cached/uncached
+    input split, and the date the model's prices were last checked
+    (with a stale flag when that check is over 90 days old).
     """
-    return pricing.price_usage(_table, model_id, input_tokens, output_tokens)
+    return pricing.price_usage(_table, model_id, input_tokens, output_tokens, cached_input_tokens)
 
 
 @mcp.tool()
@@ -72,6 +82,7 @@ def estimate_run_cost(
     output_tokens: int,
     expected_attempts: float | None = None,
     attempts_source: str | None = None,
+    cached_input_tokens: int = 0,
 ) -> dict:
     """Estimate what one run of a workload will cost on a model.
 
@@ -86,13 +97,21 @@ def estimate_run_cost(
         attempts_source: Where expected_attempts comes from: 'measured'
             for observed run history, 'prior' for an assumption. The
             label is returned with the estimate.
+        cached_input_tokens: The part of input_tokens served from the
+            provider's prompt cache, priced as in price_usage.
 
     Returns the model's cost plus the same workload priced on every
     other model in the snapshot, cheapest first. Every priced response
     carries the price source date and confidence.
     """
     return pricing.estimate_run_cost(
-        _table, model_id, input_tokens, output_tokens, expected_attempts, attempts_source
+        _table,
+        model_id,
+        input_tokens,
+        output_tokens,
+        expected_attempts,
+        attempts_source,
+        cached_input_tokens,
     )
 
 
@@ -102,6 +121,7 @@ def compare_models_for_task(
     output_tokens: int,
     success_rates: dict[str, float] | None = None,
     quality_floor: float | None = None,
+    cached_input_tokens: int = 0,
 ) -> dict:
     """Rank models for a task by expected cost per successful task.
 
@@ -119,26 +139,47 @@ def compare_models_for_task(
             (0, 1]. Models below it — and models with no supplied rate
             to check against it — are excluded before ranking and
             reported in excluded_by_quality_floor.
+        cached_input_tokens: The part of input_tokens served from the
+            provider's prompt cache, priced as in price_usage. Cache
+            billing can change which model wins.
+
+    A success_rates entry naming a model outside the snapshot is an
+    error naming the model, not a silent omission.
     """
     return pricing.compare_models_for_task(
-        _table, input_tokens, output_tokens, success_rates, quality_floor
+        _table, input_tokens, output_tokens, success_rates, quality_floor, cached_input_tokens
     )
 
 
 @mcp.tool()
-def record_spend(task_id: str, model_id: str, input_tokens: int, output_tokens: int) -> dict:
+def record_spend(
+    task_id: str,
+    model_id: str,
+    input_tokens: int,
+    output_tokens: int,
+    cached_input_tokens: int = 0,
+) -> dict:
     """Record a run's actual token usage in the local per-task ledger.
 
     Args:
         task_id: Caller-chosen identifier grouping one task's runs.
-        model_id: Model the run used.
-        input_tokens: Actual input tokens consumed.
+        model_id: Model the run used. Unknown models are refused with
+            an error naming the model — an unpriced model is never
+            booked into the ledger as $0.
+        input_tokens: Actual input tokens consumed, including any
+            cached input tokens.
         output_tokens: Actual output tokens consumed.
+        cached_input_tokens: The part of input_tokens served from the
+            provider's prompt cache, priced as in price_usage.
 
     Returns the recorded entry, priced at the model's list rates.
     """
-    priced = pricing.price_usage(_table, model_id, input_tokens, output_tokens)
-    return _ledger.record(task_id, model_id, input_tokens, output_tokens, priced['cost_usd'])
+    priced = pricing.price_usage(
+        _table, model_id, input_tokens, output_tokens, cached_input_tokens
+    )
+    return _ledger.record(
+        task_id, model_id, input_tokens, output_tokens, priced['cost_usd'], cached_input_tokens
+    )
 
 
 @mcp.tool()
