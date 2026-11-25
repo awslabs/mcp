@@ -1146,6 +1146,47 @@ class TestSectionBoundary:
 class TestDuplicateHeaders:
     """Tests for finding #1: duplicate column-header names."""
 
+    @pytest.mark.parametrize('header_style', ['single-row', 'multi-row', 'implicit'])
+    @pytest.mark.parametrize(
+        'headers, expected',
+        [
+            (['Value', 'Value', 'Value_2'], ['Value', 'Value_3', 'Value_2']),
+            (['Value', 'Value_2', 'Value'], ['Value', 'Value_2', 'Value_3']),
+            (
+                ['Value', 'Value', 'Value_2', 'Value_3', 'Value'],
+                ['Value', 'Value_4', 'Value_2', 'Value_3', 'Value_5'],
+            ),
+            (
+                ['Value', 'Value', 'Value_2', 'Value_2'],
+                ['Value', 'Value_3', 'Value_2', 'Value_2_2'],
+            ),
+        ],
+    )
+    def test_generated_suffixes_do_not_collide_with_existing_headers(
+        self, header_style, headers, expected
+    ):
+        """Preserve every value when a generated name is also an original header."""
+        header_row = '<tr>' + ''.join(f'<th>{name}</th>' for name in headers) + '</tr>'
+        if header_style == 'single-row':
+            heading = f'<thead>{header_row}</thead>'
+        elif header_style == 'multi-row':
+            heading = f'<thead><tr><th colspan="{len(headers)}"></th></tr>{header_row}</thead>'
+        else:
+            heading = header_row
+        values = [f'column-{index}' for index in range(len(headers))]
+        row = '<tr>' + ''.join(f'<td>{value}</td>' for value in values) + '</tr>'
+        html = (
+            f'<html><body><h2>Sec</h2><table>{heading}<tbody>{row}</tbody></table></body></html>'
+        )
+
+        result = parse_html_tables(html, 'Sec')
+
+        assert result is not None
+        assert 'error' not in result
+        assert result['columns'] == expected
+        assert len(set(result['columns'])) == len(headers)
+        assert result['rows'] == [dict(zip(expected, values))]
+
     def test_duplicate_headers_deduplicated(self):
         """Two columns sharing the same name get deduplicated with suffix."""
         html = """<html><body><h2>Sec</h2><table>
