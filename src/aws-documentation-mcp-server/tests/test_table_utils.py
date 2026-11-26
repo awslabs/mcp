@@ -291,6 +291,22 @@ class TestFilterTableRows:
         assert len(matches) == 1
         assert 'us-east-1' in matches[0]['Name']
 
+    def test_trailing_parts_of_compound_identifiers_match(self):
+        """'m5.xlarge' matches 'ml.m5.xlarge', as each of its parts already does alone."""
+        rows = [
+            {'Instance type': 'ml.m5.xlarge', 'vCPU': '4'},
+            {'Instance type': 'ml.m5.2xlarge', 'vCPU': '8'},
+            {'Instance type': 'db.r5.large', 'vCPU': '2'},
+            {'Instance type': 'Region us-east-1', 'vCPU': '0'},
+        ]
+        for query, expected in [
+            ('m5.xlarge', 'ml.m5.xlarge'),
+            ('r5.large', 'db.r5.large'),
+            ('east-1', 'Region us-east-1'),
+        ]:
+            matches = filter_table_rows(rows, query)
+            assert [m['Instance type'] for m in matches] == [expected]
+
     def test_nested_row_filtering(self):
         """Filtering works on nested rows (searches parent + child fields)."""
         rows = [
