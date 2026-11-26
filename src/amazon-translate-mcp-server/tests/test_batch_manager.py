@@ -156,13 +156,16 @@ class TestBatchJobManager:
         assert call_args['OutputDataConfig']['S3Uri'] == sample_output_config.s3_uri
         assert call_args['Settings']['Formality'] == 'FORMAL'
 
+    @pytest.mark.parametrize('source_language', ['en', 'auto'])
     def test_start_batch_translation_minimal_config(
-        self, batch_manager, sample_input_config, sample_output_config
+        self, batch_manager, sample_input_config, sample_output_config, source_language
     ):
         """Test batch translation with minimal configuration."""
         # Create minimal job config
         job_config = JobConfig(
-            job_name='minimal-job', source_language_code='en', target_language_codes=['es']
+            job_name='minimal-job',
+            source_language_code=source_language,
+            target_language_codes=['es'],
         )
 
         # Mock S3 validation
@@ -185,6 +188,8 @@ class TestBatchJobManager:
 
         # Verify API call doesn't include optional parameters
         call_args = batch_manager.translate_client.start_text_translation_job.call_args[1]
+        assert call_args['SourceLanguageCode'] == source_language
+        assert call_args['TargetLanguageCodes'] == ['es']
         assert 'TerminologyNames' not in call_args
         assert 'ParallelDataNames' not in call_args
         assert 'Settings' not in call_args

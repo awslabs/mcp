@@ -297,6 +297,34 @@ class TestTranslationSettings:
 class TestJobConfig:
     """Test JobConfig model."""
 
+    @pytest.mark.parametrize('targets', [['es'], ['fr', 'zh-TW'], ['en', 'pt-PT', 'de']])
+    def test_auto_source_language(self, targets):
+        """Allow per-document source detection with explicit target languages."""
+        config = JobConfig(
+            job_name='auto-source-job',
+            source_language_code='auto',
+            target_language_codes=targets,
+        )
+
+        assert config.source_language_code == 'auto'
+        assert config.target_language_codes == targets
+
+    @pytest.mark.parametrize('source', ['AUTO', ' auto', 'auto ', 'auto-detect'])
+    def test_invalid_auto_source_language(self, source):
+        """Reject malformed source detection codes."""
+        with pytest.raises(ValueError, match='Invalid source language code format'):
+            JobConfig(
+                job_name='test-job', source_language_code=source, target_language_codes=['es']
+            )
+
+    @pytest.mark.parametrize('targets', [['auto'], ['es', 'auto']])
+    def test_auto_target_language_is_rejected(self, targets):
+        """Keep source detection unavailable as a target language."""
+        with pytest.raises(ValueError, match='Invalid target language code format'):
+            JobConfig(
+                job_name='test-job', source_language_code='en', target_language_codes=targets
+            )
+
     def test_valid_job_config(self):
         """Test creating a valid job config."""
         config = JobConfig(
