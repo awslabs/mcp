@@ -35,6 +35,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The connection string is parsed at startup, and the server exits with a
   redacted message if it is invalid. `retryWrites=false` is also checked when the
   connection is created.
+- **BREAKING**: `delete` and `update` reject an empty filter unless
+  `confirm_destructive=True`.
+- **BREAKING**: `update` no longer replaces a document when the update document
+  has no `$` operators. Pass `replace=True` to replace a whole document;
+  `replace=True` cannot be combined with `many=True`.
+
+### Added
+
+- `--allowed-namespaces` (or `DOCUMENTDB_ALLOWED_NAMESPACES`) restricts every tool
+  to matching `database` or `database.collection` patterns, including collections
+  referenced by aggregation stages. `listDatabases` and `listCollections` return
+  only allowed namespaces.
 
 ### Removed
 

@@ -24,7 +24,7 @@ from awslabs.documentdb_mcp_server.analytic_tools import (
     get_collection_stats,
     get_database_stats,
 )
-from awslabs.documentdb_mcp_server.config import serverConfig
+from awslabs.documentdb_mcp_server.config import parse_allowed_namespaces, serverConfig
 from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
 from awslabs.documentdb_mcp_server.db_management_tools import (
     create_collection,
@@ -112,6 +112,17 @@ def main():
         action='store_true',
         help='Allow write operations (insert, update, delete). By default, the server runs in read-only mode.',
     )
+    parser.add_argument(
+        '--allowed-namespaces',
+        type=str,
+        default=None,
+        help=(
+            'Comma-separated database or database.collection patterns (shell-style wildcards) '
+            'that tools may access, for example "app,reports.daily_*". Collections referenced by '
+            'aggregation stages ($lookup, $unionWith, $out, $merge, ...) are checked too. May also '
+            'be set via the DOCUMENTDB_ALLOWED_NAMESPACES environment variable. Default: all namespaces.'
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -146,6 +157,17 @@ def main():
             'No DocumentDB connection string configured. Database tools will fail '
             'until --connection-string (or DOCUMENTDB_CONNECTION_STRING) is set.'
         )
+
+    # Configure the namespace allowlist (CLI arg takes precedence over the environment variable).
+    try:
+        serverConfig.allowed_namespaces = parse_allowed_namespaces(
+            args.allowed_namespaces or os.environ.get('DOCUMENTDB_ALLOWED_NAMESPACES')
+        )
+    except ValueError as e:
+        logger.critical(f'Invalid --allowed-namespaces: {str(e)}')
+        sys.exit(1)
+    if serverConfig.allowed_namespaces is not None:
+        logger.info(f'Allowed namespaces: {", ".join(serverConfig.allowed_namespaces)}')
 
     # Configure read-only mode
     serverConfig.read_only_mode = not args.allow_write

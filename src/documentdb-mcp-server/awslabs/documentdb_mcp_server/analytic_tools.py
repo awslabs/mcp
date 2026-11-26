@@ -16,6 +16,9 @@
 
 from awslabs.documentdb_mcp_server.config import (
     MAX_RESULTS,
+    assert_database_allowed,
+    assert_namespace_allowed,
+    assert_pipeline_namespaces_allowed,
     assert_pipeline_readonly,
     bounded_limit,
     serverConfig,
@@ -42,6 +45,8 @@ async def count_documents(
     Returns:
         Dict[str, Any]: Count result
     """
+    assert_namespace_allowed(database, collection)
+
     try:
         client = DocumentDBConnection.get_client()
 
@@ -71,6 +76,8 @@ async def get_database_stats(
     Returns:
         Dict[str, Any]: Database statistics
     """
+    assert_database_allowed(database)
+
     try:
         client = DocumentDBConnection.get_client()
 
@@ -97,6 +104,8 @@ async def get_collection_stats(
     Returns:
         Dict[str, Any]: Collection statistics
     """
+    assert_namespace_allowed(database, collection)
+
     try:
         client = DocumentDBConnection.get_client()
 
@@ -191,6 +200,8 @@ async def analyze_schema(
     Returns:
         Dict[str, Any]: Schema analysis results including field coverage
     """
+    assert_namespace_allowed(database, collection)
+
     try:
         client = DocumentDBConnection.get_client()
 
@@ -296,6 +307,8 @@ async def explain_operation(
     Returns:
         Dict[str, Any]: Operation explanation
     """
+    assert_namespace_allowed(database, collection)
+
     try:
         client = DocumentDBConnection.get_client()
 
@@ -328,6 +341,7 @@ async def explain_operation(
                 raise SafeToolError('Pipeline is required for aggregate operations')
 
             assert_pipeline_readonly(pipeline)
+            assert_pipeline_namespaces_allowed(database, collection, pipeline)
             if serverConfig.read_only_mode and verbosity.lower() != 'queryplanner':
                 logger.info('Read-only mode: explaining aggregate with queryPlanner only')
                 verbosity = 'queryPlanner'

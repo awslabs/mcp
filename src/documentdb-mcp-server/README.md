@@ -82,6 +82,7 @@ python -m awslabs.documentdb_mcp_server.server \
 | `--log-level` | Set logging level (TRACE, DEBUG, INFO, etc.) | INFO |
 | `--connection-string` | DocumentDB connection string for the cluster to connect to. Prefer the `DOCUMENTDB_CONNECTION_STRING` environment variable, which keeps credentials out of process listings. | None |
 | `--allow-write` | Enable write operations (otherwise defaults to read-only mode) | False |
+| `--allowed-namespaces` | Comma-separated `database` or `database.collection` patterns, with shell-style wildcards, that tools may access (for example `app,reports.daily_*`). Collections that aggregation stages reference (`$lookup`, `$graphLookup`, `$unionWith`, `$out`, `$merge`) are checked too, and `listDatabases` / `listCollections` show only allowed namespaces. May also be set with the `DOCUMENTDB_ALLOWED_NAMESPACES` environment variable. | All namespaces |
 
 ### Read-Only Mode
 
@@ -134,6 +135,13 @@ To enable write operations, start the server with the `--allow-write` flag:
 python -m awslabs.documentdb_mcp_server.server \
   --connection-string "mongodb://...&retryWrites=false" --allow-write
 ```
+
+Write tools ask for explicit intent before destructive changes:
+
+- `delete` and `update` reject an empty filter (`{}`), which matches every document, unless `confirm_destructive` is `true`.
+- `update` takes update operators such as `{"$set": {...}}`. To replace a whole document, pass the replacement document and set `replace` to `true`; fields missing from it are removed.
+
+Combine `--allow-write` with `--allowed-namespaces` and a least-privilege database user to limit what a write-enabled server can change.
 
 When the server is running with write operations enabled:
 

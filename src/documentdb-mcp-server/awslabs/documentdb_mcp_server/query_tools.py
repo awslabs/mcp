@@ -17,6 +17,8 @@
 from awslabs.documentdb_mcp_server.config import (
     MAX_RESULTS,
     WRITE_STAGES,
+    assert_namespace_allowed,
+    assert_pipeline_namespaces_allowed,
     assert_pipeline_readonly,
     bounded_limit,
 )
@@ -53,6 +55,8 @@ async def find(
     Returns:
         List[Dict[str, Any]]: List of matching documents
     """
+    assert_namespace_allowed(database, collection)
+
     try:
         client = DocumentDBConnection.get_client()
 
@@ -95,6 +99,7 @@ async def aggregate(
         List[Dict[str, Any]]: List of aggregation results
     """
     assert_pipeline_readonly(pipeline)
+    assert_pipeline_namespaces_allowed(database, collection, pipeline)
 
     try:
         client = DocumentDBConnection.get_client()

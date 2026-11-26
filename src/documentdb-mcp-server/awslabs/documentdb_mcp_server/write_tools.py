@@ -14,7 +14,7 @@
 
 """Write tools for DocumentDB MCP Server."""
 
-from awslabs.documentdb_mcp_server.config import serverConfig
+from awslabs.documentdb_mcp_server.config import assert_namespace_allowed, serverConfig
 from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
 from awslabs.documentdb_mcp_server.errors import SafeToolError, tool_error
 from loguru import logger
@@ -41,6 +41,8 @@ async def insert(
     if serverConfig.read_only_mode:
         logger.warning('Insert operation denied: Server is in read-only mode')
         raise SafeToolError('Operation not permitted: Server is configured in read-only mode')
+
+    assert_namespace_allowed(database, collection)
 
     try:
         client = DocumentDBConnection.get_client()
@@ -71,7 +73,7 @@ async def update(
     update: Annotated[
         Dict[str, Any],
         Field(
-            description='Update operations to apply. It should either include DocumentDB operators like $set, or an entire document if the entire document needs to be replaced.'
+            description='Update operators to apply, such as {"$set": {...}}. To replace a whole document instead, pass the replacement document and set replace=True.'
         ),
     ],
     upsert: Annotated[
@@ -83,10 +85,25 @@ async def update(
     many: Annotated[
         bool, Field(description='Whether to update multiple documents (default: False)')
     ] = False,
+    replace: Annotated[
+        bool,
+        Field(
+            description='Replace the matched document with `update`, which must then contain no $ operators. '
+            'Fields not in `update` are removed. Cannot be combined with many=True (default: False)'
+        ),
+    ] = False,
+    confirm_destructive: Annotated[
+        bool,
+        Field(
+            description='Required when `filter` is empty ({}), which matches every document in the collection (default: False)'
+        ),
+    ] = False,
 ) -> Dict[str, Any]:
     """Update documents in a DocumentDB collection.
 
-    This tool updates existing documents that match a specified filter.
+    This tool updates existing documents that match a specified filter. An empty
+    filter needs confirm_destructive=True. Replacing a whole document needs
+    replace=True.
 
     Returns:
         Dict[str, Any]: Update operation results
@@ -96,14 +113,36 @@ async def update(
         logger.warning('Update operation denied: Server is in read-only mode')
         raise SafeToolError('Operation not permitted: Server is configured in read-only mode')
 
+    if not filter and not confirm_destructive:
+        raise SafeToolError(
+            'An empty filter matches every document in the collection. '
+            'Pass a filter, or set confirm_destructive=True to update all matching documents.'
+        )
+
+    has_operators = any(key.startswith('$') for key in update.keys())
+    if replace and has_operators:
+        raise SafeToolError(
+            'With replace=True, update must be a replacement document without $ operators.'
+        )
+    if replace and many:
+        raise SafeToolError(
+            'replace=True replaces one document; it cannot be combined with many=True.'
+        )
+    if not replace and not has_operators:
+        raise SafeToolError(
+            'update has no $ operators (for example $set). Use operators to change fields, '
+            'or set replace=True to replace the whole document.'
+        )
+
+    assert_namespace_allowed(database, collection)
+
     try:
         client = DocumentDBConnection.get_client()
 
         db = client[database]
         coll = db[collection]
 
-        # If the update doesn't have any operators, then it's a replace
-        if not any(key.startswith('$') for key in update.keys()):
+        if replace:
             result = coll.replace_one(filter, update, upsert=upsert)
             matched = result.matched_count
             modified = result.modified_count
@@ -138,10 +177,17 @@ async def delete(
     many: Annotated[
         bool, Field(description='Whether to delete multiple documents (default: False)')
     ] = False,
+    confirm_destructive: Annotated[
+        bool,
+        Field(
+            description='Required when `filter` is empty ({}), which matches every document in the collection (default: False)'
+        ),
+    ] = False,
 ) -> Dict[str, Any]:
     """Delete documents from a DocumentDB collection.
 
-    This tool deletes documents that match a specified filter.
+    This tool deletes documents that match a specified filter. An empty filter
+    needs confirm_destructive=True.
 
     Returns:
         Dict[str, Any]: Delete operation results
@@ -150,6 +196,14 @@ async def delete(
     if serverConfig.read_only_mode:
         logger.warning('Delete operation denied: Server is in read-only mode')
         raise SafeToolError('Operation not permitted: Server is configured in read-only mode')
+
+    if not filter and not confirm_destructive:
+        raise SafeToolError(
+            'An empty filter matches every document in the collection. '
+            'Pass a filter, or set confirm_destructive=True to delete all matching documents.'
+        )
+
+    assert_namespace_allowed(database, collection)
 
     try:
         client = DocumentDBConnection.get_client()

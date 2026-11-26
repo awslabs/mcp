@@ -25,6 +25,10 @@ from awslabs.documentdb_mcp_server.config import (
     MAX_RESULTS,
     assert_pipeline_readonly,
     bounded_limit,
+    is_database_allowed,
+    is_namespace_allowed,
+    parse_allowed_namespaces,
+    pipeline_namespaces,
     serverConfig,
 )
 from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
@@ -513,3 +517,260 @@ class TestStartupValidation:
 
         with pytest.raises(SafeToolError, match="missing 'retryWrites=false'"):
             DocumentDBConnection.get_client()
+
+
+class TestWriteGuardrails:
+    """V2381766516: destructive writes need explicit intent once --allow-write is on."""
+
+    async def test_delete_with_empty_filter_is_rejected(self, patch_client, writable):
+        """Delete with {} would empty the collection; it needs confirm_destructive."""
+        collection = seed(patch_client(), 3)
+
+        with pytest.raises(SafeToolError, match='confirm_destructive=True'):
+            await write_tools.delete('test_db', 'test_collection', {}, True)
+        assert collection.count_documents({}) == 3
+
+    async def test_delete_with_empty_filter_and_confirmation(self, patch_client, writable):
+        """confirm_destructive=True allows deleting every document."""
+        collection = seed(patch_client(), 3)
+
+        result = await write_tools.delete(
+            'test_db', 'test_collection', {}, True, confirm_destructive=True
+        )
+
+        assert result['deleted_count'] == 3
+        assert collection.count_documents({}) == 0
+
+    async def test_update_with_empty_filter_is_rejected(self, patch_client, writable):
+        """Update with {} needs confirm_destructive; with it, the update runs."""
+        patch_client()
+
+        with pytest.raises(SafeToolError, match='confirm_destructive=True'):
+            await write_tools.update(
+                'test_db', 'test_collection', {}, {'$set': {'x': 1}}, False, True
+            )
+
+        result = await write_tools.update(
+            'test_db',
+            'test_collection',
+            {},
+            {'$set': {'x': 1}},
+            False,
+            True,
+            confirm_destructive=True,
+        )
+        assert result['success'] is True
+
+    async def test_update_without_operators_needs_replace(self, patch_client, writable):
+        """A $-free update document no longer silently replaces the document."""
+        patch_client()['test_db']['test_collection'].insert_one(
+            {'_id': 1, 'name': 'a', 'keep': 'me'}
+        )
+
+        with pytest.raises(SafeToolError, match='replace=True'):
+            await write_tools.update('test_db', 'test_collection', {'_id': 1}, {'name': 'b'})
+
+    @pytest.mark.parametrize(
+        'update_doc,many,message',
+        [
+            ({'$set': {'name': 'b'}}, False, 'without \\$ operators'),
+            ({'name': 'b'}, True, 'cannot be combined with many=True'),
+        ],
+    )
+    async def test_replace_argument_errors(
+        self, patch_client, writable, update_doc, many, message
+    ):
+        """replace=True takes a plain document and a single target."""
+        patch_client()
+
+        with pytest.raises(SafeToolError, match=message):
+            await write_tools.update(
+                'test_db', 'test_collection', {'_id': 1}, update_doc, False, many, replace=True
+            )
+
+    async def test_guardrail_parameters_default_to_off(self):
+        """The tool schema publishes replace and confirm_destructive, both defaulting to False."""
+        tools = {tool.name: tool for tool in await mcp.list_tools()}
+        update_props = tools['update'].input_schema['properties']
+        delete_props = tools['delete'].input_schema['properties']
+
+        assert update_props['replace']['default'] is False
+        assert update_props['confirm_destructive']['default'] is False
+        assert delete_props['confirm_destructive']['default'] is False
+
+
+@pytest.fixture
+def allowlist(monkeypatch):
+    """Restrict the server to the 'app' database and reports.daily_* collections."""
+    monkeypatch.setattr(serverConfig, 'allowed_namespaces', ['app', 'reports.daily_*'])
+
+
+class TestAllowedNamespaces:
+    """V2381766516: --allowed-namespaces limits which namespaces any tool can touch."""
+
+    def test_parse(self):
+        """Patterns are comma-separated; an empty value allows everything."""
+        assert parse_allowed_namespaces(None) is None
+        assert parse_allowed_namespaces('  ') is None
+        assert parse_allowed_namespaces('app, reports.daily_*') == ['app', 'reports.daily_*']
+        with pytest.raises(ValueError, match='database part is empty'):
+            parse_allowed_namespaces('.orphan')
+
+    def test_matching(self, allowlist):
+        """'db' covers every collection; 'db.pattern' covers matching collections only."""
+        assert is_namespace_allowed('app', 'anything')
+        assert is_namespace_allowed('reports', 'daily_2026')
+        assert not is_namespace_allowed('reports', 'weekly')
+        assert not is_namespace_allowed('other', 'x')
+        assert is_database_allowed('reports')
+        assert not is_database_allowed('other')
+
+    def test_everything_allowed_by_default(self):
+        """Without --allowed-namespaces, nothing changes."""
+        assert serverConfig.allowed_namespaces is None
+        assert is_namespace_allowed('any', 'thing')
+
+    @pytest.mark.parametrize(
+        'database,collection',
+        [('other', 'c'), ('reports', 'weekly')],
+    )
+    async def test_find_outside_allowlist_is_rejected(
+        self, patch_client, allowlist, database, collection
+    ):
+        """The check runs before the client is touched."""
+        patch_client()
+
+        with pytest.raises(SafeToolError, match='allowed namespaces'):
+            await find(database, collection, {})
+
+    async def test_find_inside_allowlist(self, patch_client, allowlist):
+        """Allowed namespaces work as before."""
+        seed(patch_client(), 2, db='reports', coll='daily_1')
+
+        assert len(await find('reports', 'daily_1', {})) == 2
+
+    def test_pipeline_namespaces_covers_every_stage(self):
+        """Every stage that names another collection is found, including nested pipelines."""
+        pipeline = [
+            {'$lookup': {'from': 'a', 'pipeline': [{'$unionWith': {'coll': 'b'}}]}},
+            {'$graphLookup': {'from': 'c'}},
+            {'$unionWith': 'd'},
+            {'$facet': {'x': [{'$lookup': {'from': 'e'}}]}},
+            {'$merge': {'into': {'db': 'other', 'coll': 'f'}}},
+        ]
+        assert pipeline_namespaces('db', pipeline) == {
+            ('db', 'a'),
+            ('db', 'b'),
+            ('db', 'c'),
+            ('db', 'd'),
+            ('db', 'e'),
+            ('other', 'f'),
+        }
+        assert pipeline_namespaces('db', [{'$out': {'db': 'other', 'coll': 'g'}}]) == {
+            ('other', 'g')
+        }
+
+    def test_pipeline_namespaces_edge_cases(self):
+        """Sub-pipeline-only stages are walked; unresolvable targets fail closed."""
+        assert pipeline_namespaces('db', None) == set()
+        assert pipeline_namespaces(
+            'db',
+            [
+                'not-a-stage',
+                {'$match': {}},
+                {'$lookup': {'pipeline': [{'$lookup': {'from': 'h'}}], 'as': 'x'}},
+                {'$unionWith': {'pipeline': [{'$unionWith': 'i'}]}},
+            ],
+        ) == {('db', 'h'), ('db', 'i')}
+        with pytest.raises(SafeToolError, match='cannot check'):
+            pipeline_namespaces('db', [{'$out': {'db': 1, 'coll': 'x'}}])
+
+    @pytest.mark.parametrize(
+        'stage',
+        [
+            {'$lookup': {'from': 'weekly', 'localField': 'a', 'foreignField': 'b', 'as': 'c'}},
+            {'$unionWith': {'coll': 'weekly'}},
+            {'$facet': {'x': [{'$lookup': {'from': 'weekly', 'as': 'y'}}]}},
+            {'$merge': {'into': {'db': 'other', 'coll': 'x'}}},
+        ],
+    )
+    async def test_aggregate_cannot_reach_other_collections(
+        self, patch_client, allowlist, writable, stage
+    ):
+        """A pipeline on an allowed collection cannot read or write a disallowed one."""
+        patch_client()
+
+        with pytest.raises(SafeToolError, match='allowed namespaces'):
+            await aggregate('reports', 'daily_1', [stage], 10)
+
+    async def test_unparseable_stage_target_fails_closed(self, patch_client, allowlist):
+        """A stage target the server cannot resolve is rejected rather than allowed."""
+        patch_client()
+
+        with pytest.raises(SafeToolError, match='cannot check'):
+            await aggregate('app', 'c', [{'$graphLookup': {'from': 123}}], 10)
+
+    async def test_explain_pipeline_is_checked(self, patch_client, allowlist):
+        """ExplainOperation applies the same pipeline check."""
+        patch_client()
+
+        with pytest.raises(SafeToolError, match='allowed namespaces'):
+            await explain_operation(
+                'reports',
+                'daily_1',
+                'aggregate',
+                pipeline=[{'$lookup': {'from': 'weekly', 'as': 'w'}}],
+            )
+
+    async def test_write_outside_allowlist_is_rejected(self, patch_client, allowlist, writable):
+        """Write tools check the namespace too."""
+        patch_client()
+
+        with pytest.raises(SafeToolError, match='allowed namespaces'):
+            await write_tools.insert('other', 'c', {'a': 1})
+        with pytest.raises(SafeToolError, match='allowed namespaces'):
+            await db_management_tools.drop_collection('reports', 'weekly')
+
+    async def test_listings_are_filtered(self, patch_client, allowlist):
+        """ListDatabases and listCollections show only allowed namespaces."""
+        client = patch_client()
+        for db, coll in [
+            ('app', 'a'),
+            ('reports', 'daily_1'),
+            ('reports', 'weekly'),
+            ('other', 'x'),
+        ]:
+            client[db][coll].insert_one({'_id': 1})
+
+        databases = (await db_management_tools.list_databases())['databases']
+        assert sorted(databases) == ['app', 'reports']
+        assert await db_management_tools.list_collections('reports') == ['daily_1']
+        with pytest.raises(SafeToolError, match='allowed namespaces'):
+            await db_management_tools.list_collections('other')
+
+    @patch('awslabs.documentdb_mcp_server.server.mcp.run')
+    @patch(
+        'sys.argv',
+        ['awslabs.documentdb-mcp-server', '--allowed-namespaces', 'app,reports.daily_*'],
+    )
+    def test_cli_flag(self, mock_run, restore_logger):
+        """--allowed-namespaces configures the allowlist."""
+        main()
+        assert serverConfig.allowed_namespaces == ['app', 'reports.daily_*']
+
+    @patch('awslabs.documentdb_mcp_server.server.mcp.run')
+    @patch('sys.argv', ['awslabs.documentdb-mcp-server'])
+    @patch.dict('os.environ', {'DOCUMENTDB_ALLOWED_NAMESPACES': 'app'})
+    def test_env_var(self, mock_run, restore_logger):
+        """DOCUMENTDB_ALLOWED_NAMESPACES configures the allowlist when the flag is absent."""
+        main()
+        assert serverConfig.allowed_namespaces == ['app']
+
+    @patch('awslabs.documentdb_mcp_server.server.mcp.run')
+    @patch('sys.argv', ['awslabs.documentdb-mcp-server', '--allowed-namespaces', '.bad'])
+    def test_invalid_flag_exits(self, mock_run, restore_logger):
+        """An invalid pattern stops startup."""
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 1
+        mock_run.assert_not_called()

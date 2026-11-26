@@ -14,7 +14,13 @@
 
 """Database management tools for DocumentDB MCP Server."""
 
-from awslabs.documentdb_mcp_server.config import serverConfig
+from awslabs.documentdb_mcp_server.config import (
+    assert_database_allowed,
+    assert_namespace_allowed,
+    is_database_allowed,
+    is_namespace_allowed,
+    serverConfig,
+)
 from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
 from awslabs.documentdb_mcp_server.errors import SafeToolError, tool_error
 from loguru import logger
@@ -32,7 +38,7 @@ async def list_databases() -> Dict[str, Any]:
     """
     try:
         client = DocumentDBConnection.get_client()
-        databases = client.list_database_names()
+        databases = [db for db in client.list_database_names() if is_database_allowed(db)]
         logger.info(f'Found {len(databases)} databases')
         return {'databases': databases, 'count': len(databases)}
     except Exception as e:
@@ -54,6 +60,8 @@ async def create_collection(
     if serverConfig.read_only_mode:
         logger.warning('Create collection operation denied: Server is in read-only mode')
         raise SafeToolError('Operation not permitted: Server is configured in read-only mode')
+
+    assert_namespace_allowed(database, collection)
 
     try:
         client = DocumentDBConnection.get_client()
@@ -87,10 +95,12 @@ async def list_collections(
     Returns:
         List[str]: List of collection names
     """
+    assert_database_allowed(database)
+
     try:
         client = DocumentDBConnection.get_client()
         db = client[database]
-        collections = db.list_collection_names()
+        collections = [c for c in db.list_collection_names() if is_namespace_allowed(database, c)]
         logger.info(f"Found {len(collections)} collections in database '{database}'")
         return collections
     except Exception as e:
@@ -113,6 +123,8 @@ async def drop_collection(
     if serverConfig.read_only_mode:
         logger.warning('Drop collection operation denied: Server is in read-only mode')
         raise SafeToolError('Operation not permitted: Server is configured in read-only mode')
+
+    assert_namespace_allowed(database, collection)
 
     try:
         client = DocumentDBConnection.get_client()

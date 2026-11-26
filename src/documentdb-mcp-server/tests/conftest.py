@@ -823,11 +823,14 @@ def reset_connection_state():
     from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
 
     saved = serverConfig.connection_string
+    saved_namespaces = serverConfig.allowed_namespaces
     DocumentDBConnection._client = None
     serverConfig.connection_string = None
+    serverConfig.allowed_namespaces = None
     yield
     DocumentDBConnection._client = None
     serverConfig.connection_string = saved
+    serverConfig.allowed_namespaces = saved_namespaces
 
 
 @pytest.fixture
