@@ -90,10 +90,7 @@ async def query_database_resource(
     region: str,
     namespace: str,
     query: str,
-    uri: str = 'https://s3tables.us-west-2.amazonaws.com/iceberg',
     catalog_name: str = 's3tablescatalog',
-    rest_signing_name: str = 's3tables',
-    rest_sigv4_enabled: str = 'true',
 ) -> Dict[str, Any]:
     """Execute a read-only query against a database using PyIceberg."""
     operations = _get_query_operations(query)
@@ -102,12 +99,9 @@ async def query_database_resource(
         raise ValueError(f'Write operations are not allowed in read-only queries: {disallowed}')
     config = PyIcebergConfig(
         warehouse=warehouse,
-        uri=uri,
         region=region,
         namespace=namespace,
         catalog_name=catalog_name,
-        rest_signing_name=rest_signing_name,
-        rest_sigv4_enabled=rest_sigv4_enabled,
     )
     engine = PyIcebergEngine(config)
     result = engine.execute_query(query)
@@ -120,20 +114,14 @@ async def append_rows_to_table_resource(
     namespace: str,
     table_name: str,
     rows: list,
-    uri: str = 'https://s3tables.us-west-2.amazonaws.com/iceberg',
     catalog_name: str = 's3tablescatalog',
-    rest_signing_name: str = 's3tables',
-    rest_sigv4_enabled: str = 'true',
 ) -> Dict[str, Any]:
     """Append rows to an Iceberg table using PyIceberg."""
     config = PyIcebergConfig(
         warehouse=warehouse,
-        uri=uri,
         region=region,
         namespace=namespace,
         catalog_name=catalog_name,
-        rest_signing_name=rest_signing_name,
-        rest_sigv4_enabled=rest_sigv4_enabled,
     )
     engine = PyIcebergEngine(config)
     engine.append_rows(table_name, rows)

@@ -130,12 +130,9 @@ class PyIcebergConfig(BaseModel):
     """Configuration for PyIceberg/Daft connection."""
 
     warehouse: str  # e.g. 'arn:aws:s3tables:us-west-2:484907528679:bucket/customer-data-bucket'
-    uri: str  # e.g. 'https://s3tables.us-west-2.amazonaws.com/iceberg'
     region: str  # e.g. 'us-west-2'
     namespace: str  # e.g. 'retail_data'
     catalog_name: str = 's3tablescatalog'  # default
-    rest_signing_name: str = 's3tables'
-    rest_sigv4_enabled: str = 'true'
 
 
 class PyIcebergEngine:
@@ -157,10 +154,7 @@ class PyIcebergEngine:
             self._catalog = pyiceberg_load_catalog(
                 self.config.catalog_name,
                 self.config.warehouse,
-                self.config.uri,
                 self.config.region,
-                self.config.rest_signing_name,
-                self.config.rest_sigv4_enabled,
             )
             self._session = Session()
             self._session.attach(DaftCatalog.from_iceberg(self._catalog))

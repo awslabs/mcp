@@ -587,10 +587,6 @@ async def update_table_metadata_location(
     )
 
 
-def _default_uri_for_region(region: str) -> str:
-    return f'https://s3tables.{region}.amazonaws.com/iceberg'
-
-
 @app.tool()
 @log_tool_call_with_response
 async def query_database(
@@ -600,41 +596,28 @@ async def query_database(
     ],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
     query: Annotated[str, QUERY_FIELD],
-    uri: Annotated[str, Field(..., description='REST URI for Iceberg catalog')],
     catalog_name: Annotated[
         str, Field('s3tablescatalog', description='Catalog name')
     ] = 's3tablescatalog',
-    rest_signing_name: Annotated[
-        str, Field('s3tables', description='REST signing name')
-    ] = 's3tables',
-    rest_sigv4_enabled: Annotated[str, Field('true', description='Enable SigV4 signing')] = 'true',
 ):
     """Execute SQL queries against S3 Tables using PyIceberg/Daft.
 
     This tool provides a secure interface to run read-only SQL queries against your S3 Tables data using the PyIceberg and Daft engine.
-    Use a correct region for warehouse, region, and uri.
+    Use a correct region for the warehouse.
 
     Example input values:
         warehouse: 'arn:aws:s3tables:<Region>:<accountID>:bucket/<bucketname>'
         region: 'us-west-2'
         namespace: 'retail_data'
         query: 'SELECT * FROM customers LIMIT 10'
-        uri: 'https://s3tables.us-west-2.amazonaws.com/iceberg'
         catalog_name: 's3tablescatalog'
-        rest_signing_name: 's3tables'
-        rest_sigv4_enabled: 'true'
     """
-    if uri is None:
-        uri = _default_uri_for_region(region)
     return await database.query_database_resource(
         warehouse=warehouse,
         region=region,
         namespace=namespace,
         query=query,
-        uri=uri,
         catalog_name=catalog_name,
-        rest_signing_name=rest_signing_name,
-        rest_sigv4_enabled=rest_sigv4_enabled,
     )
 
 
@@ -649,14 +632,9 @@ async def import_csv_to_table(
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
     table_name: Annotated[str, TABLE_NAME_FIELD],
     s3_url: Annotated[str, S3_URL_FIELD],
-    uri: Annotated[str, Field(..., description='REST URI for Iceberg catalog')],
     catalog_name: Annotated[
         str, Field('s3tablescatalog', description='Catalog name')
     ] = 's3tablescatalog',
-    rest_signing_name: Annotated[
-        str, Field('s3tables', description='REST signing name')
-    ] = 's3tables',
-    rest_sigv4_enabled: Annotated[str, Field('true', description='Enable SigV4 signing')] = 'true',
     preserve_case: Annotated[
         bool, Field(..., description='Preserve case of column names')
     ] = False,
@@ -683,10 +661,7 @@ async def import_csv_to_table(
         namespace: 'retail_data'
         table_name: 'customers'
         s3_url: 's3://bucket-name/path/to/file.csv'
-        uri: 'https://s3tables.us-west-2.amazonaws.com/iceberg'
         catalog_name: 's3tablescatalog'
-        rest_signing_name: 's3tables'
-        rest_sigv4_enabled: 'true'
         preserve_case: False
 
     Permissions:
@@ -695,18 +670,13 @@ async def import_csv_to_table(
     - s3tables:GetTable and s3tables:GetTables permissions to access table information
     - s3tables:PutTableData permission to write to the table
     """
-    if uri is None:
-        uri = _default_uri_for_region(region)
     return await import_csv_to_table_func(
         warehouse=warehouse,
         region=region,
         namespace=namespace,
         table_name=table_name,
         s3_url=s3_url,
-        uri=uri,
         catalog_name=catalog_name,
-        rest_signing_name=rest_signing_name,
-        rest_sigv4_enabled=rest_sigv4_enabled,
         preserve_case=preserve_case,
     )
 
@@ -722,14 +692,9 @@ async def import_parquet_to_table(
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
     table_name: Annotated[str, TABLE_NAME_FIELD],
     s3_url: Annotated[str, S3_URL_FIELD],
-    uri: Annotated[str, Field(..., description='REST URI for Iceberg catalog')],
     catalog_name: Annotated[
         str, Field('s3tablescatalog', description='Catalog name')
     ] = 's3tablescatalog',
-    rest_signing_name: Annotated[
-        str, Field('s3tables', description='REST signing name')
-    ] = 's3tables',
-    rest_sigv4_enabled: Annotated[str, Field('true', description='Enable SigV4 signing')] = 'true',
     preserve_case: Annotated[
         bool, Field(..., description='Preserve case of column names')
     ] = False,
@@ -761,10 +726,7 @@ async def import_parquet_to_table(
         namespace: 'retail_data'
         table_name: 'customers'
         s3_url: 's3://bucket-name/path/to/file.parquet'
-        uri: 'https://s3tables.us-west-2.amazonaws.com/iceberg'
         catalog_name: 's3tablescatalog'
-        rest_signing_name: 's3tables'
-        rest_sigv4_enabled: 'true'
         preserve_case: False
 
     Permissions:
@@ -773,18 +735,13 @@ async def import_parquet_to_table(
     - s3tables:GetTable and s3tables:GetTables permissions to access table information
     - s3tables:PutTableData permission to write to the table
     """
-    if uri is None:
-        uri = _default_uri_for_region(region)
     return await import_parquet_to_table_func(
         warehouse=warehouse,
         region=region,
         namespace=namespace,
         table_name=table_name,
         s3_url=s3_url,
-        uri=uri,
         catalog_name=catalog_name,
-        rest_signing_name=rest_signing_name,
-        rest_sigv4_enabled=rest_sigv4_enabled,
         preserve_case=preserve_case,
     )
 
@@ -861,14 +818,9 @@ async def append_rows_to_table(
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
     table_name: Annotated[str, TABLE_NAME_FIELD],
     rows: Annotated[list[dict], Field(..., description='List of rows to append, each as a dict')],
-    uri: Annotated[str, Field(..., description='REST URI for Iceberg catalog')],
     catalog_name: Annotated[
         str, Field('s3tablescatalog', description='Catalog name')
     ] = 's3tablescatalog',
-    rest_signing_name: Annotated[
-        str, Field('s3tables', description='REST signing name')
-    ] = 's3tables',
-    rest_sigv4_enabled: Annotated[str, Field('true', description='Enable SigV4 signing')] = 'true',
 ) -> dict:
     """Append rows to an Iceberg table using PyIceberg/Daft.
 
@@ -882,23 +834,15 @@ async def append_rows_to_table(
         namespace: 'retail_data'
         table_name: 'customers'
         rows: [{"customer_id": 1, "customer_name": "Alice"}, ...]
-        uri: 'https://s3tables.us-west-2.amazonaws.com/iceberg'
         catalog_name: 's3tablescatalog'
-        rest_signing_name: 's3tables'
-        rest_sigv4_enabled: 'true'
     """
-    if uri is None:
-        uri = _default_uri_for_region(region)
     return await database.append_rows_to_table_resource(
         warehouse=warehouse,
         region=region,
         namespace=namespace,
         table_name=table_name,
         rows=rows,
-        uri=uri,
         catalog_name=catalog_name,
-        rest_signing_name=rest_signing_name,
-        rest_sigv4_enabled=rest_sigv4_enabled,
     )
 
 

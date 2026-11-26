@@ -232,6 +232,7 @@ When using this MCP server, consider:
 - Resource creation is disabled by default, enable it by setting the `--allow-write` flag
 - Follow the principle of least privilege when setting up IAM permissions
 - Use separate AWS profiles for different environments (dev, test, prod)
+- The Iceberg REST catalog endpoint is derived from the `region` argument. To use a non-default endpoint, set `AWS_USE_FIPS_ENDPOINT`, `AWS_USE_DUALSTACK_ENDPOINT` or `AWS_ENDPOINT_URL_S3TABLES` in your environment or profile
 
 ## Troubleshooting
 
