@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import functools
 import inspect
 import json
@@ -364,8 +365,6 @@ class MCPLambdaHandler:
         """
         if isinstance(result, bytes):
             # Handle byte stream (likely an image)
-            import base64
-
             # Try to determine MIME type from the first few bytes
             mime_type = 'application/octet-stream'  # Default MIME type
 
@@ -431,7 +430,10 @@ class MCPLambdaHandler:
                 return self._create_error_response(-32700, 'Unsupported Media Type')
 
             try:
-                body = json.loads(event['body'])
+                body = event['body']
+                if event.get('isBase64Encoded', False):
+                    body = base64.b64decode(body, validate=True).decode('utf-8')
+                body = json.loads(body)
                 logger.debug(f'Parsed request body: {body}')
                 request_id = body.get('id') if isinstance(body, dict) else None
 
@@ -452,7 +454,7 @@ class MCPLambdaHandler:
                 ):
                     return self._create_error_response(-32700, 'Parse error', request_id)
 
-            except json.JSONDecodeError:
+            except ValueError:
                 return self._create_error_response(-32700, 'Parse error')
 
             # Parse and validate the request
