@@ -594,8 +594,9 @@ def _tokenize(text: str) -> list[str]:
 
     Splits on whitespace and punctuation boundaries, preserving hyphenated
     terms (e.g., 'us-east-1') and version numbers (e.g., 'v2') as single tokens.
-    Also generates sub-tokens from hyphenated/dotted terms so that 'east' matches 'us-east-1'.
-    Normalizes thousands separators so '6,000' and '6000' both match.
+    Also generates sub-tokens from hyphenated/dotted terms so that 'east' matches 'us-east-1',
+    and trailing parts so that 'm5.xlarge' matches 'ml.m5.xlarge' and 'east-1' matches
+    'us-east-1'. Normalizes thousands separators so '6,000' and '6000' both match.
     """
     # Normalize thousands separators (e.g., '6,000' -> '6000')
     text = re.sub(r'(?<=\d),(?=\d)', '', text)
@@ -604,4 +605,5 @@ def _tokenize(text: str) -> list[str]:
     for token in tokens:
         if '-' in token or '.' in token or '_' in token:
             result.extend(re.split(r'[-_.]', token))
+            result.extend(token[sep.end() :] for sep in re.finditer(r'[-_.]', token))
     return result
