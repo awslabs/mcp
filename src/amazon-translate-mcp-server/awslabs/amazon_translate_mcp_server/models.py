@@ -207,7 +207,9 @@ class JobConfig:
 
         # Validate language codes format (basic validation)
         lang_pattern = r'^[a-z]{2}(-[A-Z]{2})?$'
-        if not re.match(lang_pattern, self.source_language_code):
+        if self.source_language_code != 'auto' and not re.match(
+            lang_pattern, self.source_language_code
+        ):
             raise ValueError(f'Invalid source language code format: {self.source_language_code}')
 
         for lang in self.target_language_codes:

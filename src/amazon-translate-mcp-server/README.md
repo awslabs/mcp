@@ -114,6 +114,10 @@ detect_language(text="Bonjour le monde")
 
 ### Batch Translation
 
+Set `source_language="auto"` in `start_batch_translation` or
+`trigger_batch_translation` to detect each input document's source language.
+Target languages must still be explicit language codes.
+
 ```python
 # Start batch job
 start_batch_translation(

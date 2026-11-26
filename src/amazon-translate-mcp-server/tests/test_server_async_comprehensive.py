@@ -165,7 +165,8 @@ class TestAsyncBatchTranslationTools:
     """Comprehensive async tests for batch translation tools."""
 
     @pytest.mark.asyncio
-    async def test_start_batch_translation_success(self):
+    @pytest.mark.parametrize('source_language', ['en', 'auto'])
+    async def test_start_batch_translation_success(self, source_language):
         """Test successful batch translation start."""
         with patch.object(server, 'batch_manager') as mock_manager:
             mock_manager.start_batch_translation.return_value = 'job-123'
@@ -179,13 +180,16 @@ class TestAsyncBatchTranslationTools:
                 output_s3_uri='s3://bucket/output/',
                 data_access_role_arn='arn:aws:iam::123456789012:role/TranslateRole',
                 job_name='test-job',
-                source_language='en',
+                source_language=source_language,
                 target_languages=['es', 'fr'],
             )
 
             assert result['job_id'] == 'job-123'
             assert result['status'] == 'SUBMITTED'
             assert 'successfully' in result['message']
+            job_config = mock_manager.start_batch_translation.call_args.args[2]
+            assert job_config.source_language_code == source_language
+            assert job_config.target_language_codes == ['es', 'fr']
 
     @pytest.mark.asyncio
     async def test_start_batch_translation_manager_not_initialized(self):
@@ -611,7 +615,8 @@ class TestAsyncSeparateBatchTools:
     """Comprehensive async tests for separate batch translation tools."""
 
     @pytest.mark.asyncio
-    async def test_trigger_batch_translation_success(self):
+    @pytest.mark.parametrize('source_language', ['en', 'auto'])
+    async def test_trigger_batch_translation_success(self, source_language):
         """Test successful batch translation trigger."""
         with (
             patch.object(server, 'workflow_orchestrator'),
@@ -623,7 +628,7 @@ class TestAsyncSeparateBatchTools:
 
             # Mock language pairs validation
             mock_pair = MagicMock()
-            mock_pair.source_language = 'en'
+            mock_pair.source_language = source_language
             mock_pair.target_language = 'es'
             mock_lang_ops.list_language_pairs.return_value = [mock_pair]
 
@@ -652,7 +657,7 @@ class TestAsyncSeparateBatchTools:
                 output_s3_uri='s3://bucket/output/',
                 data_access_role_arn='arn:aws:iam::123456789012:role/TranslateRole',
                 job_name='test-trigger-job',
-                source_language='en',
+                source_language=source_language,
                 target_languages=['es'],
                 terminology_names=['tech-terms'],
             )
@@ -660,8 +665,11 @@ class TestAsyncSeparateBatchTools:
             assert 'job_id' in result
             assert result['job_id'] == 'job-123'
             assert result['status'] == 'SUBMITTED'
-            assert result['validation_results']['supported_pairs'] == ['en->es']
+            assert result['validation_results']['supported_pairs'] == [f'{source_language}->es']
             assert 'successfully' in result['message']
+            job_config = mock_batch_manager.start_batch_translation.call_args.args[2]
+            assert job_config.source_language_code == source_language
+            assert job_config.target_language_codes == ['es']
 
     @pytest.mark.asyncio
     async def test_trigger_batch_translation_unsupported_language_pair(self):
