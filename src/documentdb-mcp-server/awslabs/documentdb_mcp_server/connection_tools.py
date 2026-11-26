@@ -16,9 +16,15 @@
 
 import threading
 from awslabs.documentdb_mcp_server.config import serverConfig
+from awslabs.documentdb_mcp_server.errors import (
+    CONNECTION_ERROR_MESSAGE,
+    SafeToolError,
+    redact,
+)
 from loguru import logger
 from pymongo import MongoClient
-from pymongo.errors import ConnectionFailure, OperationFailure
+from pymongo.errors import ConfigurationError
+from pymongo.uri_parser import parse_uri
 from urllib.parse import parse_qs, urlparse
 
 
@@ -39,17 +45,34 @@ class DocumentDBConnection:
             A new, verified pymongo client.
 
         Raises:
-            ConnectionFailure/OperationFailure: If the initial connection fails.
+            SafeToolError: If the connection string is invalid or the initial
+                connection fails. The message never includes the cluster endpoint
+                or driver diagnostics; those are logged server-side.
         """
         logger.info('Creating DocumentDB connection from operator configuration')
-        client = MongoClient(serverConfig.connection_string)
+        # get_client() only calls this once a connection string is configured.
+        conn_str = serverConfig.connection_string or ''
+        # Validate here as well as in main(), so a path that sets the connection
+        # string without going through main() is still checked.
+        cls.validate_retry_writes_false(conn_str)
+
+        try:
+            client = MongoClient(conn_str)
+        except Exception as e:
+            # pymongo raises InvalidURI/ConfigurationError/ValueError from the
+            # constructor; keep the detail out of the client-facing message.
+            logger.error(
+                f'Failed to create DocumentDB client: {type(e).__name__}: {redact(str(e))}'
+            )
+            raise SafeToolError(CONNECTION_ERROR_MESSAGE) from None
+
         try:
             client.admin.command('ping')
             logger.info('Connected successfully to DocumentDB')
-        except (ConnectionFailure, OperationFailure) as e:
-            logger.error(f'Failed to connect to DocumentDB: {str(e)}')
+        except Exception as e:
+            logger.error(f'Failed to connect to DocumentDB: {type(e).__name__}: {redact(str(e))}')
             client.close()
-            raise
+            raise SafeToolError(CONNECTION_ERROR_MESSAGE) from None
         return client
 
     @classmethod
@@ -60,10 +83,11 @@ class DocumentDBConnection:
             A pymongo client connected to the configured DocumentDB.
 
         Raises:
-            ValueError: If no connection string has been configured (fail closed).
+            SafeToolError: If no connection string has been configured (fail closed),
+                or the connection cannot be established.
         """
         if not serverConfig.connection_string:
-            raise ValueError(
+            raise SafeToolError(
                 'DocumentDB connection is not configured. Start the server with '
                 '--connection-string (or set DOCUMENTDB_CONNECTION_STRING) to the '
                 'cluster endpoint this server should connect to.'
@@ -97,7 +121,7 @@ class DocumentDBConnection:
             conn_str: The connection string to validate
 
         Raises:
-            ValueError: If retryWrites is missing or set to a value other than 'false'
+            SafeToolError: If retryWrites is missing or set to a value other than 'false'
         """
         parsed = urlparse(conn_str)
         query_params = parse_qs(parsed.query)
@@ -105,7 +129,32 @@ class DocumentDBConnection:
         retry_value = query_params.get('retryWrites', [None])[0]
 
         if retry_value is None:
-            raise ValueError("Connection string is missing 'retryWrites=false'.")
+            raise SafeToolError("Connection string is missing 'retryWrites=false'.")
 
         if retry_value.lower() != 'false':
-            raise ValueError(f"Invalid retryWrites value: '{retry_value}'. Expected 'false'.")
+            raise SafeToolError(f"Invalid retryWrites value: '{retry_value}'. Expected 'false'.")
+
+    @classmethod
+    def validate_connection_string(cls, conn_str: str) -> None:
+        """Validate the operator's connection string at startup.
+
+        Parses the URI with pymongo's own parser, then checks retryWrites=false.
+        No network connection is made. mongodb+srv:// URIs are not parsed here,
+        because parsing them requires a DNS lookup; they are validated on first
+        connection instead.
+
+        Args:
+            conn_str: The connection string to validate
+
+        Raises:
+            SafeToolError: If the URI cannot be parsed or retryWrites is not 'false'.
+                The message never includes the URI or its credentials.
+        """
+        if not conn_str.lower().startswith('mongodb+srv://'):
+            try:
+                parse_uri(conn_str)
+            except (ConfigurationError, ValueError) as e:
+                raise SafeToolError(
+                    f'Connection string could not be parsed: {redact(str(e))}'
+                ) from None
+        cls.validate_retry_writes_false(conn_str)

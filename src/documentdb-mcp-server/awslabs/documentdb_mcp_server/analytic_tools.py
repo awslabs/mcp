@@ -14,7 +14,14 @@
 
 """Analytic tools for DocumentDB MCP Server."""
 
+from awslabs.documentdb_mcp_server.config import (
+    MAX_RESULTS,
+    assert_pipeline_readonly,
+    bounded_limit,
+    serverConfig,
+)
 from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
+from awslabs.documentdb_mcp_server.errors import SafeToolError, tool_error
 from loguru import logger
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional
@@ -49,12 +56,8 @@ async def count_documents(
 
         logger.info(f"Counted {count} documents in '{database}.{collection}'")
         return {'count': count, 'database': database, 'collection': collection, 'filter': filter}
-    except ValueError as e:
-        logger.error(f'Connection error: {str(e)}')
-        raise ValueError(str(e))
     except Exception as e:
-        logger.error(f'Error counting documents: {str(e)}')
-        raise ValueError(f'Failed to count documents: {str(e)}')
+        raise tool_error('count documents', e) from None
 
 
 async def get_database_stats(
@@ -78,12 +81,8 @@ async def get_database_stats(
 
         logger.info(f"Retrieved database statistics for '{database}'")
         return {'stats': stats, 'database': database}
-    except ValueError as e:
-        logger.error(f'Connection error: {str(e)}')
-        raise ValueError(str(e))
     except Exception as e:
-        logger.error(f'Error retrieving database statistics: {str(e)}')
-        raise ValueError(f'Failed to get database statistics: {str(e)}')
+        raise tool_error('get database statistics', e) from None
 
 
 async def get_collection_stats(
@@ -108,12 +107,8 @@ async def get_collection_stats(
 
         logger.info(f"Retrieved collection statistics for '{database}.{collection}'")
         return {'stats': stats, 'database': database, 'collection': collection}
-    except ValueError as e:
-        logger.error(f'Connection error: {str(e)}')
-        raise ValueError(str(e))
     except Exception as e:
-        logger.error(f'Error retrieving collection statistics: {str(e)}')
-        raise ValueError(f'Failed to get collection statistics: {str(e)}')
+        raise tool_error('get collection statistics', e) from None
 
 
 def get_field_type(docs, path):
@@ -160,7 +155,12 @@ def get_field_type(docs, path):
                 else:
                     types.add(value_type)
         except (ValueError, IndexError, KeyError, TypeError, AttributeError) as e:
-            logger.warning(f'Error processing document: {doc}. Error: {e}')
+            # Never log the document or the exception text: both can contain field values.
+            doc_id_type = type(doc.get('_id')).__name__ if isinstance(doc, dict) else 'n/a'
+            logger.warning(
+                f'Error processing field {path!r} (document _id type: {doc_id_type}): '
+                f'{type(e).__name__}'
+            )
             continue
 
     if not types:
@@ -175,7 +175,12 @@ async def analyze_schema(
     database: Annotated[str, Field(description='Name of the database')],
     collection: Annotated[str, Field(description='Name of the collection to analyze')],
     sample_size: Annotated[
-        int, Field(description='Number of documents to sample (default: 100)')
+        int,
+        Field(
+            ge=1,
+            le=MAX_RESULTS,
+            description=f'Number of documents to sample (default: 100, max: {MAX_RESULTS})',
+        ),
     ] = 100,
 ) -> Dict[str, Any]:
     """Analyze the schema of a collection by sampling documents.
@@ -194,7 +199,7 @@ async def analyze_schema(
 
         # Count total documents to adjust sample size if needed
         total_docs = coll.count_documents({})
-        actual_sample_size = min(sample_size, total_docs)
+        actual_sample_size = min(bounded_limit(sample_size), total_docs)
 
         if actual_sample_size == 0:
             return {
@@ -252,12 +257,8 @@ async def analyze_schema(
             'database': database,
             'collection': collection,
         }
-    except ValueError as e:
-        logger.error(f'Connection error: {str(e)}')
-        raise ValueError(str(e))
     except Exception as e:
-        logger.error(f'Error analyzing schema: {str(e)}')
-        raise ValueError(f'Failed to analyze collection schema: {str(e)}')
+        raise tool_error('analyze collection schema', e) from None
 
 
 async def explain_operation(
@@ -274,13 +275,23 @@ async def explain_operation(
         Field(description='Pipeline for DocumentDB aggregation operations'),
     ] = None,
     verbosity: Annotated[
-        str, Field(description='Explanation verbosity level (queryPlanner, executionStats)')
+        str,
+        Field(
+            description=(
+                'Explanation verbosity level (queryPlanner, executionStats). In read-only '
+                'mode, aggregate explains always use queryPlanner.'
+            )
+        ),
     ] = 'queryPlanner',
 ) -> Dict[str, Any]:
     """Get an explanation of how an operation will be executed.
 
     This tool returns the execution plan for a query or aggregation operation,
     helping you understand how DocumentDB will process your operations.
+
+    In read-only mode, aggregation pipelines are checked for write stages ($out,
+    $merge) and explained with queryPlanner only, so the pipeline is planned but
+    not executed.
 
     Returns:
         Dict[str, Any]: Operation explanation
@@ -295,7 +306,7 @@ async def explain_operation(
         # Validate operation type
         operation_type = operation_type.lower()
         if operation_type not in ['find', 'aggregate']:
-            raise ValueError('Operation type must be one of: find, aggregate')
+            raise SafeToolError('Operation type must be one of: find, aggregate')
 
         # Validate verbosity
         verbosity_lower = verbosity.lower()
@@ -314,7 +325,12 @@ async def explain_operation(
 
         else:  # aggregate
             if not pipeline:
-                raise ValueError('Pipeline is required for aggregate operations')
+                raise SafeToolError('Pipeline is required for aggregate operations')
+
+            assert_pipeline_readonly(pipeline)
+            if serverConfig.read_only_mode and verbosity.lower() != 'queryplanner':
+                logger.info('Read-only mode: explaining aggregate with queryPlanner only')
+                verbosity = 'queryPlanner'
 
             explanation = db.command(
                 {
@@ -327,12 +343,9 @@ async def explain_operation(
         return {
             'explanation': explanation,
             'operation_type': operation_type,
+            'verbosity': verbosity,
             'database': database,
             'collection': collection,
         }
-    except ValueError as e:
-        logger.error(f'Connection error or invalid parameters: {str(e)}')
-        raise ValueError(str(e))
     except Exception as e:
-        logger.error(f'Error explaining operation: {str(e)}')
-        raise ValueError(f'Failed to explain operation: {str(e)}')
+        raise tool_error('explain operation', e) from None

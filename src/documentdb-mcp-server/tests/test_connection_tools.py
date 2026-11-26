@@ -18,6 +18,7 @@ import threading
 import time
 from awslabs.documentdb_mcp_server.config import serverConfig
 from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
+from awslabs.documentdb_mcp_server.errors import CONNECTION_ERROR_MESSAGE, SafeToolError
 from pymongo.errors import ConnectionFailure
 
 
@@ -123,13 +124,20 @@ class TestGetClient:
             serverConfig.connection_string = original
 
     def test_get_client_connection_failure(self, patch_client):
-        """Test that a connection (ping) failure is propagated."""
+        """Test that a connection (ping) failure raises a fixed, endpoint-free error."""
         # Arrange
-        patch_client(raise_on_connect=ConnectionFailure('Connection refused'))
+        patch_client(raise_on_connect=ConnectionFailure('example.com:27017: Connection refused'))
 
         # Act/Assert
-        with pytest.raises(ConnectionFailure):
+        with pytest.raises(SafeToolError) as exc_info:
             DocumentDBConnection.get_client()
+        assert str(exc_info.value) == CONNECTION_ERROR_MESSAGE
+        assert 'example.com' not in str(exc_info.value)
+        # The fixed error replaces the driver error rather than chaining it.
+        assert exc_info.value.__cause__ is None
+        assert exc_info.value.__suppress_context__ is True
+        # No client is cached after a failed connection.
+        assert DocumentDBConnection._client is None
 
     def test_close(self, patch_client):
         """Test closing the connection resets the cached client."""

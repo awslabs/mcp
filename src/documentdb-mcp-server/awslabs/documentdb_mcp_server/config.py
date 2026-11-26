@@ -14,7 +14,16 @@
 
 """Configuration settings for DocumentDB MCP Server."""
 
-from typing import Optional
+from awslabs.documentdb_mcp_server.errors import SafeToolError
+from loguru import logger
+from typing import Any, Dict, List, Optional
+
+
+# Upper bound on documents returned by find/aggregate and sampled by analyzeSchema.
+MAX_RESULTS = 1000
+
+# Aggregation stages that write to the database.
+WRITE_STAGES = ('$out', '$merge')
 
 
 class ServerConfig:
@@ -34,3 +43,33 @@ class ServerConfig:
 
 # Singleton instance
 serverConfig = ServerConfig()
+
+
+def assert_pipeline_readonly(pipeline: List[Dict[str, Any]]) -> None:
+    """Reject aggregation write stages while the server is in read-only mode.
+
+    Every tool that accepts an aggregation pipeline must call this before the
+    pipeline reaches the database.
+
+    Args:
+        pipeline: The aggregation pipeline supplied by the client.
+
+    Raises:
+        SafeToolError: If read-only mode is on and the pipeline contains $out or $merge.
+    """
+    if not serverConfig.read_only_mode:
+        return
+
+    for stage in pipeline:
+        denied = next((s for s in WRITE_STAGES if s in stage), None)
+        if denied:
+            logger.warning(f'Pipeline denied: contains write stage ({denied}) in read-only mode')
+            raise SafeToolError(
+                'Operation not permitted: Server is configured in read-only mode. '
+                'Aggregation pipeline contains write stages ($out or $merge) which are not allowed.'
+            )
+
+
+def bounded_limit(limit: int) -> int:
+    """Clamp a client-supplied result limit to the range [1, MAX_RESULTS]."""
+    return max(1, min(limit, MAX_RESULTS))

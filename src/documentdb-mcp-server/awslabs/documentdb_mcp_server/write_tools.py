@@ -16,6 +16,7 @@
 
 from awslabs.documentdb_mcp_server.config import serverConfig
 from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
+from awslabs.documentdb_mcp_server.errors import SafeToolError, tool_error
 from loguru import logger
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Union
@@ -39,7 +40,7 @@ async def insert(
     # Check if server is in read-only mode
     if serverConfig.read_only_mode:
         logger.warning('Insert operation denied: Server is in read-only mode')
-        raise ValueError('Operation not permitted: Server is configured in read-only mode')
+        raise SafeToolError('Operation not permitted: Server is configured in read-only mode')
 
     try:
         client = DocumentDBConnection.get_client()
@@ -59,12 +60,8 @@ async def insert(
 
         logger.info(f'Inserted {count} documents')
         return {'success': True, 'inserted_count': count, 'inserted_ids': inserted_ids}
-    except ValueError as e:
-        logger.error(f'Connection error: {str(e)}')
-        raise ValueError(str(e))
     except Exception as e:
-        logger.error(f'Error inserting into DocumentDB: {str(e)}')
-        raise ValueError(f'Failed to insert documents: {str(e)}')
+        raise tool_error('insert documents', e) from None
 
 
 async def update(
@@ -97,7 +94,7 @@ async def update(
     # Check if server is in read-only mode
     if serverConfig.read_only_mode:
         logger.warning('Update operation denied: Server is in read-only mode')
-        raise ValueError('Operation not permitted: Server is configured in read-only mode')
+        raise SafeToolError('Operation not permitted: Server is configured in read-only mode')
 
     try:
         client = DocumentDBConnection.get_client()
@@ -130,12 +127,8 @@ async def update(
             'modified_count': modified,
             'upserted_id': upserted_id,
         }
-    except ValueError as e:
-        logger.error(f'Connection error: {str(e)}')
-        raise ValueError(str(e))
     except Exception as e:
-        logger.error(f'Error updating DocumentDB: {str(e)}')
-        raise ValueError(f'Failed to update documents: {str(e)}')
+        raise tool_error('update documents', e) from None
 
 
 async def delete(
@@ -156,7 +149,7 @@ async def delete(
     # Check if server is in read-only mode
     if serverConfig.read_only_mode:
         logger.warning('Delete operation denied: Server is in read-only mode')
-        raise ValueError('Operation not permitted: Server is configured in read-only mode')
+        raise SafeToolError('Operation not permitted: Server is configured in read-only mode')
 
     try:
         client = DocumentDBConnection.get_client()
@@ -173,9 +166,5 @@ async def delete(
 
         logger.info(f'Deleted {deleted} documents')
         return {'success': True, 'deleted_count': deleted}
-    except ValueError as e:
-        logger.error(f'Connection error: {str(e)}')
-        raise ValueError(str(e))
     except Exception as e:
-        logger.error(f'Error deleting from DocumentDB: {str(e)}')
-        raise ValueError(f'Failed to delete documents: {str(e)}')
+        raise tool_error('delete documents', e) from None

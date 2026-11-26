@@ -16,6 +16,7 @@
 
 from awslabs.documentdb_mcp_server.config import serverConfig
 from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
+from awslabs.documentdb_mcp_server.errors import SafeToolError, tool_error
 from loguru import logger
 from pydantic import Field
 from typing import Annotated, Any, Dict, List
@@ -34,12 +35,8 @@ async def list_databases() -> Dict[str, Any]:
         databases = client.list_database_names()
         logger.info(f'Found {len(databases)} databases')
         return {'databases': databases, 'count': len(databases)}
-    except ValueError as e:
-        logger.error(f'Connection error: {str(e)}')
-        raise ValueError(str(e))
     except Exception as e:
-        logger.error(f'Error listing databases: {str(e)}')
-        raise ValueError(f'Failed to list databases: {str(e)}')
+        raise tool_error('list databases', e) from None
 
 
 async def create_collection(
@@ -56,7 +53,7 @@ async def create_collection(
     # Check if server is in read-only mode
     if serverConfig.read_only_mode:
         logger.warning('Create collection operation denied: Server is in read-only mode')
-        raise ValueError('Operation not permitted: Server is configured in read-only mode')
+        raise SafeToolError('Operation not permitted: Server is configured in read-only mode')
 
     try:
         client = DocumentDBConnection.get_client()
@@ -76,12 +73,8 @@ async def create_collection(
 
         logger.info(f"Created collection '{collection}' in database '{database}'")
         return {'success': True, 'message': f"Collection '{collection}' created successfully"}
-    except ValueError as e:
-        logger.error(f'Connection error: {str(e)}')
-        raise ValueError(str(e))
     except Exception as e:
-        logger.error(f'Error creating collection: {str(e)}')
-        raise ValueError(f'Failed to create collection: {str(e)}')
+        raise tool_error('create collection', e) from None
 
 
 async def list_collections(
@@ -100,12 +93,8 @@ async def list_collections(
         collections = db.list_collection_names()
         logger.info(f"Found {len(collections)} collections in database '{database}'")
         return collections
-    except ValueError as e:
-        logger.error(f'Connection error: {str(e)}')
-        raise ValueError(str(e))
     except Exception as e:
-        logger.error(f'Error listing collections: {str(e)}')
-        raise ValueError(f'Failed to list collections: {str(e)}')
+        raise tool_error('list collections', e) from None
 
 
 async def drop_collection(
@@ -123,7 +112,7 @@ async def drop_collection(
     # Check if server is in read-only mode
     if serverConfig.read_only_mode:
         logger.warning('Drop collection operation denied: Server is in read-only mode')
-        raise ValueError('Operation not permitted: Server is configured in read-only mode')
+        raise SafeToolError('Operation not permitted: Server is configured in read-only mode')
 
     try:
         client = DocumentDBConnection.get_client()
@@ -143,9 +132,5 @@ async def drop_collection(
 
         logger.info(f"Dropped collection '{collection}' from database '{database}'")
         return {'success': True, 'message': f"Collection '{collection}' dropped successfully"}
-    except ValueError as e:
-        logger.error(f'Connection error: {str(e)}')
-        raise ValueError(str(e))
     except Exception as e:
-        logger.error(f'Error dropping collection: {str(e)}')
-        raise ValueError(f'Failed to drop collection: {str(e)}')
+        raise tool_error('drop collection', e) from None

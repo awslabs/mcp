@@ -14,8 +14,14 @@
 
 """Query tools for DocumentDB MCP Server."""
 
-from awslabs.documentdb_mcp_server.config import serverConfig
+from awslabs.documentdb_mcp_server.config import (
+    MAX_RESULTS,
+    WRITE_STAGES,
+    assert_pipeline_readonly,
+    bounded_limit,
+)
 from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
+from awslabs.documentdb_mcp_server.errors import tool_error
 from loguru import logger
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional
@@ -32,7 +38,12 @@ async def find(
         Field(description='Fields to include/exclude (e.g., {"_id": 0, "name": 1})'),
     ] = None,
     limit: Annotated[
-        int, Field(description='Maximum number of documents to return (default: 10)')
+        int,
+        Field(
+            ge=1,
+            le=MAX_RESULTS,
+            description=f'Maximum number of documents to return (default: 10, max: {MAX_RESULTS})',
+        ),
     ] = 10,
 ) -> List[Dict[str, Any]]:
     """Run a query against a DocumentDB collection.
@@ -48,7 +59,7 @@ async def find(
         db = client[database]
         coll = db[collection]
 
-        result = list(coll.find(query, projection).limit(limit))
+        result = list(coll.find(query, projection).limit(bounded_limit(limit)))
 
         # Convert ObjectId to string for JSON serialization
         for doc in result:
@@ -57,12 +68,8 @@ async def find(
 
         logger.info(f'Query returned {len(result)} documents')
         return result
-    except ValueError as e:
-        logger.error(f'Connection error: {str(e)}')
-        raise ValueError(str(e))
     except Exception as e:
-        logger.error(f'Error querying DocumentDB: {str(e)}')
-        raise ValueError(f'Failed to query DocumentDB: {str(e)}')
+        raise tool_error('query DocumentDB', e) from None
 
 
 async def aggregate(
@@ -72,7 +79,12 @@ async def aggregate(
         List[Dict[str, Any]], Field(description='DocumentDB aggregation pipeline')
     ],
     limit: Annotated[
-        int, Field(description='Maximum number of documents to return (default: 10)')
+        int,
+        Field(
+            ge=1,
+            le=MAX_RESULTS,
+            description=f'Maximum number of documents to return (default: 10, max: {MAX_RESULTS})',
+        ),
     ] = 10,
 ) -> List[Dict[str, Any]]:
     """Run an aggregation pipeline against a DocumentDB collection.
@@ -82,17 +94,7 @@ async def aggregate(
     Returns:
         List[Dict[str, Any]]: List of aggregation results
     """
-    # Check if pipeline contains write stages in read-only mode
-    if serverConfig.read_only_mode:
-        for stage in pipeline:
-            if '$out' in stage or '$merge' in stage:
-                denied_stage = '$out' if '$out' in stage else '$merge'
-                logger.warning(
-                    f'Aggregation operation denied: Pipeline contains write stage ({denied_stage}) in read-only mode'
-                )
-                raise ValueError(
-                    'Operation not permitted: Server is configured in read-only mode. Aggregation pipeline contains write stages ($out or $merge) which are not allowed.'
-                )
+    assert_pipeline_readonly(pipeline)
 
     try:
         client = DocumentDBConnection.get_client()
@@ -100,9 +102,12 @@ async def aggregate(
         db = client[database]
         coll = db[collection]
 
-        # Add limit stage if not already in pipeline
-        if limit > 0 and not any('$limit' in stage for stage in pipeline):
-            pipeline.append({'$limit': limit})
+        # Always cap the result with a final server-controlled $limit, even if the
+        # pipeline has its own. A pipeline that ends in $out/$merge (write mode
+        # only) returns no documents and must keep that stage last.
+        last_stage = pipeline[-1] if pipeline else {}
+        if not any(s in last_stage for s in WRITE_STAGES):
+            pipeline = [*pipeline, {'$limit': bounded_limit(limit)}]
 
         result = list(coll.aggregate(pipeline))
 
@@ -113,9 +118,5 @@ async def aggregate(
 
         logger.info(f'Aggregation returned {len(result)} results')
         return result
-    except ValueError as e:
-        logger.error(f'Connection error: {str(e)}')
-        raise ValueError(str(e))
     except Exception as e:
-        logger.error(f'Error running aggregation in DocumentDB: {str(e)}')
-        raise ValueError(f'Failed to run aggregation: {str(e)}')
+        raise tool_error('run aggregation', e) from None

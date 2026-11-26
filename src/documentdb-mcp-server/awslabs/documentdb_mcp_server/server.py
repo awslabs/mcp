@@ -115,10 +115,11 @@ def main():
 
     args = parser.parse_args()
 
-    # Configure logging
+    # Configure logging. Logs go to stderr: with the stdio transport, stdout
+    # carries the MCP JSON-RPC stream and must contain nothing else.
     logger.remove()
     logger.add(
-        lambda msg: print(msg),
+        sys.stderr,
         level=args.log_level,
         format='<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>',
     )
@@ -133,7 +134,7 @@ def main():
     )
     if serverConfig.connection_string:
         try:
-            DocumentDBConnection.validate_retry_writes_false(serverConfig.connection_string)
+            DocumentDBConnection.validate_connection_string(serverConfig.connection_string)
         except ValueError as e:
             # Fail fast on a misconfigured connection string, but surface a clear
             # operator-facing message rather than a raw traceback.
