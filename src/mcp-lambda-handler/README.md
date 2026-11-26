@@ -33,6 +33,10 @@ def lambda_handler(event, context):
     return mcp.handle_request(event, context)
 ```
 
+The handler accepts plain JSON request bodies and API Gateway proxy events with
+`isBase64Encoded: true`. Encoded bodies are decoded as UTF-8 before JSON-RPC
+processing. Invalid base64, UTF-8, or JSON returns an HTTP 400 parse error.
+
 ## Session Management
 
 The library provides flexible session management with built-in support for DynamoDB and the ability to create custom session backends. You can use the default stateless (NoOp) session store, or configure a DynamoDB-backed store for persistent sessions.

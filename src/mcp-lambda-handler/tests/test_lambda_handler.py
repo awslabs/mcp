@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import pytest
@@ -391,6 +392,127 @@ def test_lambda_handler_invalid_json():
         assert body['error']['code'] in (-32700, -32600)  # Parse error or invalid request
     else:
         pytest.fail(f'Unexpected response: {resp}')
+
+
+@pytest.mark.parametrize('method', ['initialize', 'ping', 'tools/list', 'resources/list'])
+def test_handle_request_base64_encoded(method):
+    """Decode API Gateway request bodies before dispatching JSON-RPC methods."""
+    handler = MCPLambdaHandler('test-server')
+    event = make_lambda_event({'jsonrpc': '2.0', 'id': 42, 'method': method})
+    event['body'] = base64.b64encode(event['body'].encode('utf-8')).decode('ascii')
+    event['isBase64Encoded'] = True
+    original_body = event['body']
+
+    response = handler.handle_request(event, None)
+    body = json.loads(response['body'])
+
+    assert response['statusCode'] == 200
+    assert body['jsonrpc'] == '2.0'
+    assert body['id'] == 42
+    if method == 'initialize':
+        assert body['result']['serverInfo']['name'] == 'test-server'
+        assert response['headers']['MCP-Session-Id']
+    else:
+        expected_result = {
+            'ping': {},
+            'tools/list': {'tools': []},
+            'resources/list': {'resources': []},
+        }
+        assert body['result'] == expected_result[method]
+    assert event['body'] == original_body
+
+
+@pytest.mark.parametrize('encoded', [None, False, True])
+@pytest.mark.parametrize('text', ['hello', 'caf\u00e9 \u4f60\u597d \U0001f680'])
+def test_handle_request_encoded_tool_arguments(encoded, text):
+    """Preserve UTF-8 tool arguments for encoded and ordinary proxy events."""
+    handler = MCPLambdaHandler('test-server')
+    received = []
+
+    @handler.tool()
+    def echo(value: str) -> str:
+        """Return the supplied text."""
+        received.append(value)
+        return value
+
+    request = {
+        'jsonrpc': '2.0',
+        'id': 'echo-request',
+        'method': 'tools/call',
+        'params': {'name': 'echo', 'arguments': {'value': text}},
+    }
+    event = make_lambda_event(json.dumps(request, ensure_ascii=False))
+    if encoded is None:
+        event.pop('isBase64Encoded')
+    elif encoded:
+        event['body'] = base64.b64encode(event['body'].encode('utf-8')).decode('ascii')
+        event['isBase64Encoded'] = True
+
+    response = handler.handle_request(event, None)
+
+    assert response['statusCode'] == 200
+    assert json.loads(response['body']) == {
+        'jsonrpc': '2.0',
+        'id': 'echo-request',
+        'result': {'content': [{'type': 'text', 'text': text}]},
+    }
+    assert received == [text]
+
+
+def test_handle_request_base64_encoded_notification():
+    """A decoded notification keeps the existing empty accepted response."""
+    handler = MCPLambdaHandler('test-server')
+    event = make_lambda_event({'jsonrpc': '2.0', 'method': 'notifications/initialized'})
+    event['body'] = base64.b64encode(event['body'].encode('utf-8')).decode('ascii')
+    event['isBase64Encoded'] = True
+
+    response = handler.handle_request(event, None)
+
+    assert response['statusCode'] == 202
+    assert response['body'] == ''
+
+
+@pytest.mark.parametrize(
+    'encoded_body',
+    [
+        '%%%',
+        'a',
+        '\u00e9',
+        '/w==',
+        '',
+        'bm90IGpzb24=',
+        base64.b64encode(b'{"jsonrpc":"2.0","id":1,"method":"ping"}').decode('ascii') + '!',
+    ],
+)
+def test_handle_request_invalid_base64_encoded_body(encoded_body):
+    """Malformed base64, UTF-8, or decoded JSON returns a parse error."""
+    handler = MCPLambdaHandler('test-server')
+    event = make_lambda_event(encoded_body)
+    event['isBase64Encoded'] = True
+
+    response = handler.handle_request(event, None)
+
+    assert response['statusCode'] == 400
+    assert json.loads(response['body']) == {
+        'jsonrpc': '2.0',
+        'id': None,
+        'error': {'code': -32700, 'message': 'Parse error'},
+    }
+
+
+@pytest.mark.parametrize('encoded', [None, False])
+def test_handle_request_does_not_decode_unflagged_base64(encoded):
+    """Only decode a body when the proxy event explicitly marks it as encoded."""
+    handler = MCPLambdaHandler('test-server')
+    event = make_lambda_event({'jsonrpc': '2.0', 'id': 1, 'method': 'ping'})
+    event['body'] = base64.b64encode(event['body'].encode('utf-8')).decode('ascii')
+    if encoded is None:
+        event.pop('isBase64Encoded')
+
+    response = handler.handle_request(event, None)
+
+    assert response['statusCode'] == 400
+    assert json.loads(response['body'])['error']['code'] == -32700
 
 
 def test_lambda_handler_method_not_found():
