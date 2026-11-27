@@ -14,6 +14,7 @@
 
 """Tests for the MCP server tools."""
 
+import os
 import pytest
 from awslabs.security_agent_mcp_server.server import mcp
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -258,6 +259,121 @@ class TestSetupCheckNotReady:
 
 class TestStartSecurityScan:
     """Tests for start_security_scan lazy bucket creation."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'scan_path',
+        [
+            pytest.param('../outside', id='parent-directory-escape'),
+            pytest.param('absolute', id='absolute-escape'),
+        ],
+    )
+    @patch('awslabs.security_agent_mcp_server.server._ensure_s3_bucket')
+    @patch('awslabs.security_agent_mcp_server.server._scanner')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    async def test_rejects_workspace_escapes_before_scanning(
+        self, mock_state, mock_scanner, mock_ensure_s3_bucket, tmp_path, monkeypatch, scan_path
+    ):
+        """Escaping paths are rejected before any S3 setup or source upload can occur."""
+        import awslabs.security_agent_mcp_server.server as srv
+        from awslabs.security_agent_mcp_server.server import start_security_scan
+
+        workspace = tmp_path / 'workspace'
+        workspace.mkdir()
+        outside = tmp_path / 'outside'
+        outside.mkdir()
+        monkeypatch.chdir(workspace)
+        monkeypatch.setattr(srv, '_ALLOWED_ROOT', str(workspace))
+        mock_state.get_config.return_value = {'agent_space_id': 'as-1', 'service_role': 'arn:role'}
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        if scan_path == 'absolute':
+            scan_path = str(outside)
+
+        result = await start_security_scan(ctx, path=scan_path, title='test')
+
+        assert 'outside the allowed workspace' in result
+        mock_ensure_s3_bucket.assert_not_called()
+        mock_scanner.start_scan.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.security_agent_mcp_server.server._ensure_s3_bucket')
+    @patch('awslabs.security_agent_mcp_server.server._scanner')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    async def test_rejects_symlink_escape_before_scanning(
+        self, mock_state, mock_scanner, mock_ensure_s3_bucket, tmp_path, monkeypatch
+    ):
+        """A workspace symlink that resolves outside cannot be scanned."""
+        import awslabs.security_agent_mcp_server.server as srv
+        from awslabs.security_agent_mcp_server.server import start_security_scan
+
+        workspace = tmp_path / 'workspace'
+        workspace.mkdir()
+        outside = tmp_path / 'outside'
+        outside.mkdir()
+        (workspace / 'outside-link').symlink_to(outside, target_is_directory=True)
+        monkeypatch.chdir(workspace)
+        monkeypatch.setattr(srv, '_ALLOWED_ROOT', str(workspace))
+        mock_state.get_config.return_value = {'agent_space_id': 'as-1', 'service_role': 'arn:role'}
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        result = await start_security_scan(ctx, path='outside-link', title='test')
+
+        assert 'outside the allowed workspace' in result
+        mock_ensure_s3_bucket.assert_not_called()
+        mock_scanner.start_scan.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.security_agent_mcp_server.server._ensure_s3_bucket')
+    @patch('awslabs.security_agent_mcp_server.server._scanner')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    async def test_rejects_filesystem_root_workspace_before_scanning(
+        self, mock_state, mock_scanner, mock_ensure_s3_bucket, tmp_path, monkeypatch
+    ):
+        """A filesystem-root workspace is unsafe even for an otherwise valid path."""
+        import awslabs.security_agent_mcp_server.server as srv
+        from awslabs.security_agent_mcp_server.server import start_security_scan
+
+        monkeypatch.setattr(srv, '_ALLOWED_ROOT', os.path.sep)
+        mock_state.get_config.return_value = {'agent_space_id': 'as-1', 'service_role': 'arn:role'}
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        result = await start_security_scan(ctx, path=str(tmp_path), title='test')
+
+        assert 'safe workspace' in result
+        assert 'filesystem root' in result
+        mock_ensure_s3_bucket.assert_not_called()
+        mock_scanner.start_scan.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.security_agent_mcp_server.server._ensure_s3_bucket')
+    @patch('awslabs.security_agent_mcp_server.server._scanner')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    async def test_rejects_workspace_escape_using_cwd_fallback_before_scanning(
+        self, mock_state, mock_scanner, mock_ensure_s3_bucket, tmp_path, monkeypatch
+    ):
+        """The cwd fallback keeps parent-directory escapes out of scans."""
+        import awslabs.security_agent_mcp_server.server as srv
+        from awslabs.security_agent_mcp_server.server import start_security_scan
+
+        workspace = tmp_path / 'workspace'
+        workspace.mkdir()
+        outside = tmp_path / 'outside'
+        outside.mkdir()
+        monkeypatch.chdir(workspace)
+        monkeypatch.setattr(srv, '_ALLOWED_ROOT', None)
+        mock_state.get_config.return_value = {'agent_space_id': 'as-1', 'service_role': 'arn:role'}
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        result = await start_security_scan(ctx, path='../outside', title='test')
+
+        assert 'outside the allowed workspace' in result
+        mock_ensure_s3_bucket.assert_not_called()
+        mock_scanner.start_scan.assert_not_called()
 
     @pytest.mark.asyncio
     @patch(
@@ -1184,6 +1300,20 @@ class TestValidatePath:
             ctx = MagicMock()
             with pytest.raises(ValueError, match='outside the allowed workspace'):
                 await srv._validate_path(ctx, '/etc')
+        finally:
+            srv._ALLOWED_ROOT = original
+
+    @pytest.mark.asyncio
+    async def test_filesystem_root_is_not_a_safe_workspace(self):
+        """A filesystem-root workspace cannot confine a source upload."""
+        import awslabs.security_agent_mcp_server.server as srv
+
+        original = srv._ALLOWED_ROOT
+        srv._ALLOWED_ROOT = os.sep
+        try:
+            ctx = MagicMock()
+            with pytest.raises(ValueError, match='WORKSPACE_ROOT'):
+                await srv._validate_path(ctx, os.sep)
         finally:
             srv._ALLOWED_ROOT = original
 
