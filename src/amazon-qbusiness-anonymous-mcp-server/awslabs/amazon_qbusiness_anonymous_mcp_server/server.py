@@ -14,6 +14,7 @@
 
 """awslabs amazon-qbusiness-anonymous MCP Server implementation."""
 
+import warnings
 from awslabs.amazon_qbusiness_anonymous_mcp_server.clients import get_qbiz_client, make_query
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
@@ -36,9 +37,17 @@ AWS Credentials:
 
 """
 
+DEPRECATION_NOTICE = (
+    'awslabs.amazon-qbusiness-anonymous-mcp-server is deprecated and will not receive further updates. '
+    'Use the AWS MCP Server (https://github.com/aws/agent-toolkit-for-aws) instead. '
+    'Migration guide: https://github.com/awslabs/mcp/blob/main/docs/migration-qbusiness-anonymous.md'
+)
+
 mcp = MCPServer(
     'awslabs.amazon-qbusiness-anonymous-mcp-server',
-    instructions='Use this MCP server to query the Amazon Q Business application created using anonymous mode to get responses based on the content you have ingested in it.',
+    instructions=DEPRECATION_NOTICE
+    + '\n\n'
+    + 'Use this MCP server to query the Amazon Q Business application created using anonymous mode to get responses based on the content you have ingested in it.',
     dependencies=['pydantic', 'loguru', 'boto3'],
 )
 
@@ -49,7 +58,7 @@ async def qbiz_local_query(
         ..., description='User query, question or request to the Amazon Q Business application'
     ),
 ) -> str:
-    """MCP tool to query Amazon Q Business and return a formatted response.
+    """[DEPRECATED] MCP tool to query Amazon Q Business and return a formatted response.
 
     This tool provides a Model Context Protocol interface for querying Amazon Q Business.
     It handles client initialization, query execution, and error handling automatically.
@@ -91,6 +100,7 @@ async def qbiz_local_query(
 
 def main():
     """Main function to run the MCP server."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     mcp.run()
 
 
