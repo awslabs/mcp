@@ -19,6 +19,9 @@ ensuring fields exist, operators/functions are supported, parameter requirements
 are met, and key attributes are not used in filter expressions.
 """
 
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core.identifier_validator import (
+    validate_python_identifier,
+)
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.schema_definitions import (
     VALID_FILTER_FUNCTIONS,
     VALID_FILTER_LOGICAL_OPERATORS,
@@ -144,6 +147,23 @@ class FilterExpressionValidator:
             List of ValidationError objects for invalid configurations
         """
         errors = []
+
+        # Parameter references are written into the generated repository (docstring comments and
+        # parameter names), so each must be a plain identifier.
+        for key in ('param', 'param2'):
+            if key in condition:
+                errors.extend(
+                    validate_python_identifier(
+                        condition[key], f'{condition_path}.{key}', 'Filter parameter'
+                    )
+                )
+        if isinstance(condition.get('params'), list):
+            for i, name in enumerate(condition['params']):
+                errors.extend(
+                    validate_python_identifier(
+                        name, f'{condition_path}.params[{i}]', 'Filter parameter'
+                    )
+                )
 
         # Validate field exists
         field = condition.get('field')

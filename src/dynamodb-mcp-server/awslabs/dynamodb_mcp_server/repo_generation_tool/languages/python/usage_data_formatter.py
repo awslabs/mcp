@@ -49,8 +49,33 @@ class PythonUsageDataFormatter(UsageDataFormatterInterface):
             return self._format_string_value(value)
 
     def _escape_string(self, value: str) -> str:
-        """Escape backslashes and quotes in string."""
-        return value.replace('\\', '\\\\').replace('"', '\\"')
+        """Escape a value so it is safe between double quotes in generated Python source.
+
+        Backslashes and quotes are escaped. Line breaks and other control characters are written
+        as escape sequences, because a raw line break leaves the string unterminated and a raw
+        NUL byte makes the whole file unparseable. Lone surrogates cannot be encoded as UTF-8, so
+        they are escaped too.
+        """
+        out = []
+        for ch in value:
+            code = ord(ch)
+            if ch == '\\':
+                out.append('\\\\')
+            elif ch == '"':
+                out.append('\\"')
+            elif ch == '\n':
+                out.append('\\n')
+            elif ch == '\r':
+                out.append('\\r')
+            elif ch == '\t':
+                out.append('\\t')
+            elif code < 0x20 or code == 0x7F or code == 0x85:
+                out.append(f'\\x{code:02x}')
+            elif 0xD800 <= code <= 0xDFFF or code in (0x2028, 0x2029):
+                out.append(f'\\u{code:04x}')
+            else:
+                out.append(ch)
+        return ''.join(out)
 
     def _format_string_value(self, value: Any) -> str:
         """Format value as Python string literal."""

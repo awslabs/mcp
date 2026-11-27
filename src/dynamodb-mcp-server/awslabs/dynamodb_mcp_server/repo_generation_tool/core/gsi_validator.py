@@ -22,6 +22,7 @@ with the schema requirements.
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.identifier_validator import (
     validate_key_template,
     validate_python_identifier,
+    validate_string_literal_value,
 )
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.key_template_parser import (
     KeyTemplateParser,
@@ -108,6 +109,11 @@ class GSIValidator:
                         suggestion='Provide a valid attribute name',
                     )
                 )
+            else:
+                # Key attribute names are written into generated code and comments.
+                errors.extend(
+                    validate_string_literal_value(key_value, f'{path}.{key_name}', key_name)
+                )
             return errors
 
         # Validate array
@@ -145,6 +151,10 @@ class GSIValidator:
                         message=f'Attribute at index {i} cannot be empty',
                         suggestion='Provide a valid attribute name',
                     )
+                )
+            else:
+                errors.extend(
+                    validate_string_literal_value(attr, f'{path}.{key_name}[{i}]', key_name)
                 )
 
         return errors

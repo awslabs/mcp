@@ -18,6 +18,11 @@ This module provides validation for cross_table_access_patterns in schema.json f
 supporting atomic transactions (TransactWrite, TransactGet) and future operation types.
 """
 
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core.identifier_validator import (
+    validate_comment_text,
+    validate_description,
+    validate_python_identifier,
+)
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.schema_definitions import (
     ParameterType,
     validate_parameter_core,
@@ -149,6 +154,20 @@ class CrossTableValidator:
                     )
                 else:
                     pattern_ids.add(pattern_id)
+
+        # The pattern name is emitted as a method name in the generated transaction service.
+        if 'name' in pattern:
+            errors.extend(
+                validate_python_identifier(pattern['name'], f'{path}.name', 'Pattern name')
+            )
+
+        # The description is rendered into the generated docstrings, comments and print() strings.
+        if 'description' in pattern:
+            errors.extend(
+                validate_description(
+                    pattern['description'], f'{path}.description', 'Pattern description'
+                )
+            )
 
         # Validate operation type
         if 'operation' in pattern:
@@ -316,6 +335,12 @@ class CrossTableValidator:
                                 suggestion=f'Ensure the entity is defined in table {table_name}',
                             )
                         )
+
+        # The condition is written into a comment in the generated transaction service.
+        if 'condition' in entity_inv:
+            errors.extend(
+                validate_comment_text(entity_inv['condition'], f'{path}.condition', 'Condition')
+            )
 
         # Validate action compatibility with operation
         if 'action' in entity_inv and operation:

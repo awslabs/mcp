@@ -104,6 +104,49 @@ class TestCrossTableValidation:
         )
         assert len(result.errors) == 0
 
+    @pytest.mark.parametrize(
+        'payload',
+        [
+            'x """ + __import__("os").system("id") + """',
+            "{__import__('os').system('id')}",
+            'line one\nimport os',
+            'say "hi"',
+        ],
+    )
+    def test_cross_table_pattern_description_injection_rejected(
+        self, validator, valid_cross_table_schema, payload
+    ):
+        """A cross-table pattern description with code-injection characters is rejected."""
+        valid_cross_table_schema['cross_table_access_patterns'][0]['description'] = payload
+        result = self._validate_schema_dict(validator, valid_cross_table_schema)
+        assert not result.is_valid
+        assert any(
+            'Pattern description' in e.message and e.path.endswith('.description')
+            for e in result.errors
+        )
+
+    @pytest.mark.parametrize(
+        'payload',
+        [
+            'x """ + __import__("os").system("id") + """',
+            "{__import__('os').system('id')}",
+            'line one\nimport os',
+            'say "hi"',
+        ],
+    )
+    def test_cross_table_parameter_description_injection_rejected(
+        self, validator, valid_cross_table_schema, payload
+    ):
+        """A cross-table parameter description with code-injection characters is rejected."""
+        params = valid_cross_table_schema['cross_table_access_patterns'][0]['parameters']
+        params[0]['description'] = payload
+        result = self._validate_schema_dict(validator, valid_cross_table_schema)
+        assert not result.is_valid
+        assert any(
+            'Parameter description' in e.message and '.parameters[0].description' in e.path
+            for e in result.errors
+        )
+
     def test_validate_user_registration_schema_fixture(self, validator):
         """Test successful validation with the actual user_registration schema fixture."""
         # Load the actual user_registration schema fixture
