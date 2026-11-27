@@ -18,6 +18,7 @@ from typing import Any, Dict, List
 
 import boto3
 import botocore.exceptions
+from loguru import logger
 from mcp.server.mcpserver import Context
 
 from awslabs.well_architected_security_mcp_server.consts import USER_AGENT_CONFIG
@@ -224,7 +225,7 @@ async def find_network_resources(
 ) -> Dict[str, Any]:
     """Find network resources using Resource Explorer."""
     try:
-        print(
+        logger.debug(
             f"[DEBUG:NetworkSecurity] Finding network resources in {region} using Resource Explorer"
         )
 
@@ -234,21 +235,23 @@ async def find_network_resources(
         )
 
         # Try to get the default view for Resource Explorer
-        print("[DEBUG:NetworkSecurity] Listing Resource Explorer views...")
+        logger.debug("[DEBUG:NetworkSecurity] Listing Resource Explorer views...")
         views = resource_explorer.list_views()
-        print(f"[DEBUG:NetworkSecurity] Found {len(views.get('Views', []))} views")
+        logger.debug(f"[DEBUG:NetworkSecurity] Found {len(views.get('Views', []))} views")
 
         default_view = None
         # Find the default view
         for view in views.get("Views", []):
-            print(f"[DEBUG:NetworkSecurity] View: {view.get('ViewArn')}")
+            logger.debug(f"[DEBUG:NetworkSecurity] View: {view.get('ViewArn')}")
             if view.get("Filters", {}).get("FilterString", "") == "":
                 default_view = view.get("ViewArn")
-                print(f"[DEBUG:NetworkSecurity] Found default view: {default_view}")
+                logger.debug(f"[DEBUG:NetworkSecurity] Found default view: {default_view}")
                 break
 
         if not default_view:
-            print("[DEBUG:NetworkSecurity] No default view found. Cannot use Resource Explorer.")
+            logger.debug(
+                "[DEBUG:NetworkSecurity] No default view found. Cannot use Resource Explorer."
+            )
             await ctx.warning(
                 "No default Resource Explorer view found. Will fall back to direct service API calls."
             )
@@ -270,7 +273,7 @@ async def find_network_resources(
 
         # Combine with OR
         filter_string = " OR ".join(service_filters)
-        print(f"[DEBUG:NetworkSecurity] Using filter string: {filter_string}")
+        logger.debug(f"[DEBUG:NetworkSecurity] Using filter string: {filter_string}")
 
         # Get resources
         resources = []
@@ -282,7 +285,7 @@ async def find_network_resources(
         for page in page_iterator:
             resources.extend(page.get("Resources", []))
 
-        print(f"[DEBUG:NetworkSecurity] Found {len(resources)} total network resources")
+        logger.debug(f"[DEBUG:NetworkSecurity] Found {len(resources)} total network resources")
 
         # Organize by service
         resources_by_service = {}
@@ -315,7 +318,7 @@ async def find_network_resources(
 
         # Print summary
         for service, svc_resources in resources_by_service.items():
-            print(f"[DEBUG:NetworkSecurity] {service}: {len(svc_resources)} resources")
+            logger.debug(f"[DEBUG:NetworkSecurity] {service}: {len(svc_resources)} resources")
 
         return {
             "total_resources": len(resources),
@@ -324,7 +327,7 @@ async def find_network_resources(
         }
 
     except botocore.exceptions.BotoCoreError as e:
-        print(f"[DEBUG:NetworkSecurity] Error finding network resources: {e}")
+        logger.warning(f"[DEBUG:NetworkSecurity] Error finding network resources: {e}")
         await ctx.error(f"Error finding network resources: {e}")
         return {"error": str(e), "resources_by_service": {}}
 
@@ -333,7 +336,7 @@ async def check_classic_load_balancers(
     region: str, elb_client: Any, ctx: Context, network_resources: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Check Classic Load Balancers for data-in-transit security best practices."""
-    print(f"[DEBUG:NetworkSecurity] Checking Classic Load Balancers in {region}")
+    logger.debug(f"[DEBUG:NetworkSecurity] Checking Classic Load Balancers in {region}")
 
     results = {
         "service": "elb",
@@ -364,7 +367,7 @@ async def check_classic_load_balancers(
             for lb in response["LoadBalancerDescriptions"]:
                 load_balancers.append(lb["LoadBalancerName"])
 
-        print(
+        logger.debug(
             f"[DEBUG:NetworkSecurity] Found {len(load_balancers)} Classic Load Balancers in region {region}"
         )
         results["resources_checked"] = len(load_balancers)
@@ -451,7 +454,9 @@ async def check_classic_load_balancers(
                                 }
                             )
                 except Exception as e:
-                    print(f"[DEBUG:NetworkSecurity] Error checking SSL policy for {lb_name}: {e}")
+                    logger.warning(
+                        f"[DEBUG:NetworkSecurity] Error checking SSL policy for {lb_name}: {e}"
+                    )
                     lb_result["issues"].append("Error checking SSL policy")
 
             # Generate remediation steps
@@ -476,7 +481,7 @@ async def check_classic_load_balancers(
         return results
 
     except botocore.exceptions.BotoCoreError as e:
-        print(f"[DEBUG:NetworkSecurity] Error checking Classic Load Balancers: {e}")
+        logger.warning(f"[DEBUG:NetworkSecurity] Error checking Classic Load Balancers: {e}")
         await ctx.error(f"Error checking Classic Load Balancers: {e}")
         return {
             "service": "elb",
@@ -492,7 +497,7 @@ async def check_elbv2_load_balancers(
     region: str, elbv2_client: Any, ctx: Context, network_resources: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Check Application and Network Load Balancers for data-in-transit security best practices."""
-    print(f"[DEBUG:NetworkSecurity] Checking ALB/NLB Load Balancers in {region}")
+    logger.debug(f"[DEBUG:NetworkSecurity] Checking ALB/NLB Load Balancers in {region}")
 
     results = {
         "service": "elbv2",
@@ -522,7 +527,7 @@ async def check_elbv2_load_balancers(
             for lb in response["LoadBalancers"]:
                 load_balancers.append(lb["LoadBalancerArn"])
 
-        print(
+        logger.debug(
             f"[DEBUG:NetworkSecurity] Found {len(load_balancers)} ALB/NLB Load Balancers in region {region}"
         )
         results["resources_checked"] = len(load_balancers)
@@ -638,7 +643,9 @@ async def check_elbv2_load_balancers(
                             )
 
             except Exception as e:
-                print(f"[DEBUG:NetworkSecurity] Error checking listeners for {lb_arn}: {e}")
+                logger.warning(
+                    f"[DEBUG:NetworkSecurity] Error checking listeners for {lb_arn}: {e}"
+                )
                 lb_result["issues"].append("Error checking listeners")
                 lb_result["compliant"] = False
 
@@ -667,7 +674,7 @@ async def check_elbv2_load_balancers(
         return results
 
     except botocore.exceptions.BotoCoreError as e:
-        print(f"[DEBUG:NetworkSecurity] Error checking ALB/NLB Load Balancers: {e}")
+        logger.warning(f"[DEBUG:NetworkSecurity] Error checking ALB/NLB Load Balancers: {e}")
         await ctx.error(f"Error checking ALB/NLB Load Balancers: {e}")
         return {
             "service": "elbv2",
@@ -683,7 +690,7 @@ async def check_vpc_endpoints(
     region: str, ec2_client: Any, ctx: Context, network_resources: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Check VPC endpoints for data-in-transit security best practices."""
-    print(f"[DEBUG:NetworkSecurity] Checking VPC endpoints in {region}")
+    logger.debug(f"[DEBUG:NetworkSecurity] Checking VPC endpoints in {region}")
 
     results = {
         "service": "vpc",
@@ -711,7 +718,7 @@ async def check_vpc_endpoints(
                 endpoint["VpcEndpointId"] for endpoint in response.get("VpcEndpoints", [])
             ]
 
-        print(
+        logger.debug(
             f"[DEBUG:NetworkSecurity] Found {len(vpc_endpoints)} VPC endpoints in region {region}"
         )
         results["resources_checked"] = len(vpc_endpoints)
@@ -783,7 +790,7 @@ async def check_vpc_endpoints(
         return results
 
     except botocore.exceptions.BotoCoreError as e:
-        print(f"[DEBUG:NetworkSecurity] Error checking VPC endpoints: {e}")
+        logger.warning(f"[DEBUG:NetworkSecurity] Error checking VPC endpoints: {e}")
         await ctx.error(f"Error checking VPC endpoints: {e}")
         return {
             "service": "vpc",
@@ -799,7 +806,7 @@ async def check_security_groups(
     region: str, ec2_client: Any, ctx: Context, network_resources: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Check security groups for data-in-transit security best practices."""
-    print(f"[DEBUG:NetworkSecurity] Checking security groups in {region}")
+    logger.debug(f"[DEBUG:NetworkSecurity] Checking security groups in {region}")
 
     results = {
         "service": "security_groups",
@@ -826,7 +833,7 @@ async def check_security_groups(
             response = ec2_client.describe_security_groups()
             security_groups = [sg["GroupId"] for sg in response.get("SecurityGroups", [])]
 
-        print(
+        logger.debug(
             f"[DEBUG:NetworkSecurity] Found {len(security_groups)} security groups in region {region}"
         )
         results["resources_checked"] = len(security_groups)
@@ -924,7 +931,7 @@ async def check_security_groups(
         return results
 
     except botocore.exceptions.BotoCoreError as e:
-        print(f"[DEBUG:NetworkSecurity] Error checking security groups: {e}")
+        logger.warning(f"[DEBUG:NetworkSecurity] Error checking security groups: {e}")
         await ctx.error(f"Error checking security groups: {e}")
         return {
             "service": "security_groups",
@@ -940,7 +947,7 @@ async def check_api_gateway(
     region: str, apigw_client: Any, ctx: Context, network_resources: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Check API Gateway for data-in-transit security best practices."""
-    print(f"[DEBUG:NetworkSecurity] Checking API Gateway in {region}")
+    logger.debug(f"[DEBUG:NetworkSecurity] Checking API Gateway in {region}")
 
     results = {
         "service": "apigateway",
@@ -967,7 +974,7 @@ async def check_api_gateway(
             response = apigw_client.get_rest_apis()
             apis = [api["id"] for api in response.get("items", [])]
 
-        print(f"[DEBUG:NetworkSecurity] Found {len(apis)} APIs in region {region}")
+        logger.debug(f"[DEBUG:NetworkSecurity] Found {len(apis)} APIs in region {region}")
         results["resources_checked"] = len(apis)
 
         # Check each API
@@ -1014,7 +1021,9 @@ async def check_api_gateway(
                             {"name": stage_name, "https_enforced": https_enforced}
                         )
             except Exception as e:
-                print(f"[DEBUG:NetworkSecurity] Error checking stages for API {api_id}: {e}")
+                logger.warning(
+                    f"[DEBUG:NetworkSecurity] Error checking stages for API {api_id}: {e}"
+                )
                 api_result["issues"].append("Error checking API stages")
 
             # Check for custom domain names with secure TLS
@@ -1047,7 +1056,9 @@ async def check_api_gateway(
                                     {"name": domain_name, "security_policy": security_policy}
                                 )
             except Exception as e:
-                print(f"[DEBUG:NetworkSecurity] Error checking domains for API {api_id}: {e}")
+                logger.warning(
+                    f"[DEBUG:NetworkSecurity] Error checking domains for API {api_id}: {e}"
+                )
                 # Don't fail compliance just because we couldn't check domains
 
             # Generate remediation steps
@@ -1076,7 +1087,7 @@ async def check_api_gateway(
         return results
 
     except botocore.exceptions.BotoCoreError as e:
-        print(f"[DEBUG:NetworkSecurity] Error checking API Gateway: {e}")
+        logger.warning(f"[DEBUG:NetworkSecurity] Error checking API Gateway: {e}")
         await ctx.error(f"Error checking API Gateway: {e}")
         return {
             "service": "apigateway",
@@ -1092,7 +1103,7 @@ async def check_cloudfront_distributions(
     region: str, cf_client: Any, ctx: Context, network_resources: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Check CloudFront distributions for data-in-transit security best practices."""
-    print("[DEBUG:NetworkSecurity] Checking CloudFront distributions")
+    logger.debug("[DEBUG:NetworkSecurity] Checking CloudFront distributions")
 
     results = {
         "service": "cloudfront",
@@ -1120,7 +1131,9 @@ async def check_cloudfront_distributions(
             if "DistributionList" in response and "Items" in response["DistributionList"]:
                 distributions = [dist["Id"] for dist in response["DistributionList"]["Items"]]
 
-        print(f"[DEBUG:NetworkSecurity] Found {len(distributions)} CloudFront distributions")
+        logger.debug(
+            f"[DEBUG:NetworkSecurity] Found {len(distributions)} CloudFront distributions"
+        )
         results["resources_checked"] = len(distributions)
 
         # Check each distribution
@@ -1233,7 +1246,7 @@ async def check_cloudfront_distributions(
         return results
 
     except botocore.exceptions.BotoCoreError as e:
-        print(f"[DEBUG:NetworkSecurity] Error checking CloudFront distributions: {e}")
+        logger.warning(f"[DEBUG:NetworkSecurity] Error checking CloudFront distributions: {e}")
         await ctx.error(f"Error checking CloudFront distributions: {e}")
         return {
             "service": "cloudfront",
