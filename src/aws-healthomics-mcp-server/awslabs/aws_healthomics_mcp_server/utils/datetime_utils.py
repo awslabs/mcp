@@ -14,7 +14,7 @@
 
 """Datetime utility functions for the AWS HealthOmics MCP server."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 
@@ -49,3 +49,25 @@ def convert_datetime_to_string(obj: Any) -> Any:
         return [convert_datetime_to_string(item) for item in obj]
     else:
         return obj
+
+
+def parse_iso_datetime_utc(value: str) -> datetime:
+    """Parse an ISO 8601 string into a timezone-aware datetime.
+
+    A string without a UTC offset (for example '2024-01-15T10:00:00') is treated as UTC rather
+    than as the server's local time. A trailing 'Z' or an explicit offset is kept as given.
+
+    Args:
+        value: ISO 8601 datetime string
+
+    Returns:
+        Timezone-aware datetime
+
+    Raises:
+        ValueError: If the string is not a valid ISO 8601 datetime
+    """
+    # Python 3.10's fromisoformat does not accept a trailing 'Z'
+    if value.endswith('Z'):
+        value = value[:-1] + '+00:00'
+    parsed = datetime.fromisoformat(value)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)

@@ -14,11 +14,13 @@
 
 """Unit tests for datetime utility functions."""
 
+import pytest
 from awslabs.aws_healthomics_mcp_server.utils.datetime_utils import (
     convert_datetime_to_string,
     datetime_to_iso,
+    parse_iso_datetime_utc,
 )
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 
 class TestDatetimeToIso:
@@ -90,3 +92,47 @@ class TestConvertDatetimeToString:
         data = {'string': 'test', 'number': 42, 'boolean': True, 'none': None}
         result = convert_datetime_to_string(data)
         assert result == data
+
+
+class TestParseIsoDatetimeUtc:
+    """Tests for parse_iso_datetime_utc function."""
+
+    @pytest.mark.parametrize(
+        'value',
+        [
+            '2024-01-15T10:00:00',
+            '2024-01-15T10:00',
+            '2024-01-15T10:00:00.250',
+            '2024-01-15',
+        ],
+    )
+    def test_value_without_offset_is_treated_as_utc(self, value, non_utc_local_timezone):
+        """A value without an offset is UTC, not the server's local time."""
+        result = parse_iso_datetime_utc(value)
+        assert result.utcoffset() == timedelta(0)
+        expected = datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
+        assert result == expected
+        assert result.timestamp() == expected.timestamp()
+
+    def test_naive_and_z_values_give_the_same_instant(self, non_utc_local_timezone):
+        """The same wall-clock time with and without a trailing Z is the same instant."""
+        naive = parse_iso_datetime_utc('2024-01-15T10:00:00')
+        zulu = parse_iso_datetime_utc('2024-01-15T10:00:00Z')
+        assert naive == zulu
+        assert int(naive.timestamp() * 1000) == 1705312800000
+
+    def test_trailing_z_is_utc(self):
+        """A trailing Z parses as UTC."""
+        result = parse_iso_datetime_utc('2024-01-15T10:00:00Z')
+        assert result == datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc)
+
+    def test_explicit_offset_is_kept(self):
+        """An explicit offset is not overwritten with UTC."""
+        result = parse_iso_datetime_utc('2024-01-15T10:00:00-05:00')
+        assert result.utcoffset() == timedelta(hours=-5)
+        assert result == datetime(2024, 1, 15, 15, 0, 0, tzinfo=timezone.utc)
+
+    def test_invalid_value_raises_value_error(self):
+        """An invalid value raises ValueError."""
+        with pytest.raises(ValueError):
+            parse_iso_datetime_utc('not-a-date')

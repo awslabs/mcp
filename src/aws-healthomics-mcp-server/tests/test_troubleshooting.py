@@ -662,6 +662,19 @@ class TestTimeWindowCalculation:
         assert log_start == '2024-01-01T09:50:00+00:00'
         assert log_end == '2024-01-01T10:40:00+00:00'
 
+    def test_calculate_log_time_window_with_strings_without_offset(self, non_utc_local_timezone):
+        """Strings without an offset are treated as UTC, the same as strings ending in Z."""
+        from awslabs.aws_healthomics_mcp_server.tools.troubleshooting import (
+            calculate_log_time_window,
+        )
+
+        log_start, log_end = calculate_log_time_window(
+            '2024-01-01T10:00:00', '2024-01-01T10:30:00', buffer_minutes=10
+        )
+
+        assert log_start == '2024-01-01T09:50:00+00:00'
+        assert log_end == '2024-01-01T10:40:00+00:00'
+
     def test_calculate_log_time_window_with_invalid_inputs(self):
         """Test calculate_log_time_window with invalid inputs."""
         from awslabs.aws_healthomics_mcp_server.tools.troubleshooting import (
