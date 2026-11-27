@@ -111,7 +111,7 @@ To run in readonly mode:
 {
   "mcpServers": {
     "awslabs.memcached-mcp-server": {
-      "command": "uvx",
+      "command": "uv",
       "args": [
         "tool",
         "run",
