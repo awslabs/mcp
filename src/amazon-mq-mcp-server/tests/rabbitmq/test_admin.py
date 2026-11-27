@@ -20,6 +20,13 @@ from awslabs.amazon_mq_mcp_server.rabbitmq.admin import RabbitMQAdmin
 from unittest.mock import MagicMock, patch
 
 
+def _response(status_code: int) -> requests.Response:
+    """Build a real response so raise_for_status() behaves as it does against a broker."""
+    response = requests.Response()
+    response.status_code = status_code
+    return response
+
+
 class TestRabbitMQAdmin:
     """Tests for RabbitMQAdmin class."""
 
@@ -239,4 +246,29 @@ class TestRabbitMQAdmin:
         mock_request.return_value.status_code = 200
         result = self.admin.get_is_node_quorum_critical()
         assert result == 200
-        mock_request.assert_called_once_with('GET', 'checks/node-is-quorum-critical')
+        mock_request.assert_called_once_with('GET', 'health/checks/node-is-quorum-critical')
+
+    @pytest.mark.parametrize(
+        'method_name, endpoint',
+        [
+            ('get_alarm_status', 'health/checks/alarms'),
+            ('get_is_node_quorum_critical', 'health/checks/node-is-quorum-critical'),
+        ],
+    )
+    @patch('awslabs.amazon_mq_mcp_server.rabbitmq.admin.requests.request')
+    def test_failing_health_check_returns_503(self, mock_request, method_name, endpoint):
+        """Test a failing health check returns its 503 instead of raising.
+
+        RabbitMQ answers a health check with 200 when it passes and 503 when it fails.
+        """
+        mock_request.return_value = _response(503)
+        result = getattr(self.admin, method_name)()
+        assert result == 503
+        assert mock_request.call_args.args == ('GET', f'https://test-host/api/{endpoint}')
+
+    @patch('awslabs.amazon_mq_mcp_server.rabbitmq.admin.requests.request')
+    def test_health_check_other_error_raises(self, mock_request):
+        """Test an error status other than 503 is still raised by a health check."""
+        mock_request.return_value = _response(401)
+        with pytest.raises(requests.HTTPError):
+            self.admin.get_alarm_status()

@@ -166,15 +166,27 @@ class RabbitMQAdmin:
         response = self._make_request('GET', 'users')
         return response.json()
 
+    def _get_health_check_status(self, check: str) -> int:
+        """Get the status code of a RabbitMQ health check.
+
+        A health check answers 200 when it passes and 503 when it fails, so a 503 is the
+        result of the check and is returned. Any other error status is still raised.
+        """
+        try:
+            response = self._make_request('GET', f'health/checks/{check}')
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code == 503:
+                return e.response.status_code
+            raise
+        return response.status_code
+
     def get_alarm_status(self) -> int:
         """Get the alarm status of the RabbitMQ broker."""
-        response = self._make_request('GET', 'health/checks/alarms')
-        return response.status_code
+        return self._get_health_check_status('alarms')
 
     def get_is_node_quorum_critical(self) -> int:
         """Check if there are quorum queues with minimum online quorum."""
-        response = self._make_request('GET', 'checks/node-is-quorum-critical')
-        return response.status_code
+        return self._get_health_check_status('node-is-quorum-critical')
 
     def get_broker_definition(self) -> dict:
         """Get the broker definition."""
