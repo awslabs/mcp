@@ -169,7 +169,7 @@ The Timestream for InfluxDB MCP server provides the following tools:
 | `INFLUXDB_TOKEN` | No | — | InfluxDB v2 authentication token |
 | `INFLUXDB_ORG` | No | — | InfluxDB v2 organization name |
 | `INFLUXDB_ALLOWED_URLS` | No | — | Comma-separated list of additional approved InfluxDB URLs |
-| `INFLUXDB_WRITE_MODE` | No | `false` | Enable write-producing Flux operations in queries (see below) |
+| `INFLUXDB_WRITE_MODE` | No | `false` | Turn off the read-only check on Flux queries, which allows writes and network calls from queries (see below) |
 | `ALLOW_WRITE` | No | `false` | Enable mutating tools (create/update/delete and data-plane writes). Operator-controlled; see below |
 | `FASTMCP_LOG_LEVEL` | No | — | Logging level (`ERROR`, `WARNING`, `INFO`, `DEBUG`) |
 
@@ -185,14 +185,21 @@ When `ALLOW_WRITE` is not enabled, mutating tools raise an error and never call 
 
 ### Flux Query Write Mode
 
-By default, the `InfluxDBQuery` tool rejects Flux queries that contain write-producing operations such as `to()`, `experimental.to()`, and `wideTo()`. This ensures that the query tool behaves as read-only, even when the configured InfluxDB token has write permissions.
+By default, the `InfluxDBQuery` tool only runs Flux queries that cannot write data or make InfluxDB connect to another server. Before it runs a query, the server sends the query to the InfluxDB `POST /api/v2/query/ast` endpoint, which parses it with the same Flux parser that runs queries. The server then rejects the query if the parsed program does any of the following:
 
-To enable write-producing Flux operations through the query tool, set:
+- References the write functions `to()` or `wideTo()`, in any form, including `experimental.to()`, `experimental["to"]()`, and `writer = to`.
+- Imports a package that is not on the read-only package list. The list is `array`, `bitwise`, `date`, `date/boundaries`, `dict`, `experimental/aggregate`, `experimental/table`, `influxdata/influxdb/schema`, `influxdata/influxdb/v1`, `interpolate`, `join`, `json`, `math`, `regexp`, `runtime`, `strings`, `system`, `timezone`, and `types`. This blocks packages such as `experimental`, `http`, `experimental/http/requests`, `sql`, and `influxdata/influxdb/secrets`. Because `experimental` is blocked, queries that use functions such as `experimental.group()` or `experimental.join()` require `INFLUXDB_WRITE_MODE=true`.
+- Calls a function with a `host` argument, such as `from(bucket: "b", host: "...")`.
+- Contains syntax the check does not support, such as `builtin` or `testcase` statements.
+
+If InfluxDB cannot parse the query, or the AST request fails, the query is rejected.
+
+To turn off these checks for the query tool, set:
 
 ```
 INFLUXDB_WRITE_MODE=true
 ```
 
-This setting is operator-controlled and cannot be overridden by tool callers.
+When `INFLUXDB_WRITE_MODE=true`, the query tool runs any Flux query, including queries that write data or send network requests from the InfluxDB server. This setting is operator-controlled and cannot be overridden by tool callers.
 
-> **Best practice:** For deployments that need both read and write capabilities, configure a **read-only InfluxDB token** for general use and enable writes with `ALLOW_WRITE=true` (and `INFLUXDB_WRITE_MODE=true` for Flux-query writes) only when needed. This provides the strongest data integrity guarantee regardless of the MCP server's write-mode setting.
+> **Best practice:** Configure a **read-only InfluxDB token** for general use, and enable writes with `ALLOW_WRITE=true` (and `INFLUXDB_WRITE_MODE=true` for Flux-query writes) only when needed. A read-only token stops writes to the connected InfluxDB, but it does not stop Flux functions such as `http.post()` from sending data to other servers. The query check above is what blocks those functions, so leave `INFLUXDB_WRITE_MODE` unset unless you need it.

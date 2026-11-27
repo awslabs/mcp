@@ -16,15 +16,18 @@
 """awslabs Timestream for InfluxDB MCP Server implementation."""
 
 import boto3
+import json
 import os
-import re
 from awslabs.timestream_for_influxdb_mcp_server import __version__
 from botocore.config import Config
 from influxdb_client.client.influxdb_client import InfluxDBClient
 from influxdb_client.client.write.point import Point
 from influxdb_client.client.write_api import ASYNCHRONOUS, SYNCHRONOUS
 from influxdb_client.domain.bucket_retention_rules import BucketRetentionRules
+from influxdb_client.domain.language_request import LanguageRequest
 from influxdb_client.domain.write_precision import WritePrecision
+from influxdb_client.rest import ApiException
+from influxdb_client.service.query_service import QueryService
 from loguru import logger
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
@@ -440,14 +443,95 @@ def get_influxdb_client(url, token, org=None, timeout=10000, verify_ssl: bool = 
     )
 
 
-# Names of Flux functions capable of writing data back to a bucket.
-FLUX_WRITE_FUNCTION_NAMES = ('to', 'wideTo')
+# Flux functions that write data back to a bucket. Both are in the Flux
+# prelude, so a query can call them without an import statement.
+FLUX_WRITE_FUNCTION_NAMES = frozenset({'to', 'wideTo'})
 
-# A write function referenced as a whole identifier, in any position and with or
-# without a package qualifier: `to(...)`, `result = to(...)`, `writer = to`,
-# `experimental.to(...)`, `influxdb.wideTo(...)`. Word boundaries keep
-# identifiers that merely contain the name, such as `toString`, from matching.
-_WRITE_REFERENCE_RE = re.compile(r'\b(?:' + '|'.join(FLUX_WRITE_FUNCTION_NAMES) + r')\b')
+# Flux packages a query may import when INFLUXDB_WRITE_MODE is not enabled.
+# Each package in this list only exports functions that compute values from
+# their arguments or read from the connected InfluxDB instance. Packages that
+# can write data or reach the network (for example `experimental`,
+# `influxdata/influxdb`, `http`, `experimental/http/requests`, `sql`, `csv`,
+# `socket`, `experimental/mqtt`, `influxdata/influxdb/secrets`, and the
+# `contrib/*` notification packages) are not in this list.
+FLUX_READ_ONLY_PACKAGES = frozenset(
+    {
+        'array',
+        'bitwise',
+        'date',
+        'date/boundaries',
+        'dict',
+        'experimental/aggregate',
+        'experimental/table',
+        'influxdata/influxdb/schema',
+        'influxdata/influxdb/v1',
+        'interpolate',
+        'join',
+        'json',
+        'math',
+        'regexp',
+        'runtime',
+        'strings',
+        'system',
+        'timezone',
+        'types',
+    }
+)
+
+# Call argument that makes from(), buckets(), cardinality() and similar
+# functions connect to a different InfluxDB host. A query that sets it can make
+# the InfluxDB server send requests to an arbitrary address.
+FLUX_REMOTE_HOST_ARGUMENT = 'host'
+
+# Flux AST node types that a read query may contain. The guard rejects any
+# other node type, so that syntax added in a later Flux version is refused
+# until it is reviewed. BuiltinStatement, TestCaseStatement, BadStatement,
+# BadExpression and type-expression nodes are deliberately not listed.
+FLUX_ALLOWED_AST_NODE_TYPES = frozenset(
+    {
+        'Package',
+        'File',
+        'PackageClause',
+        'ImportDeclaration',
+        'Block',
+        'ExpressionStatement',
+        'ReturnStatement',
+        'OptionStatement',
+        'VariableAssignment',
+        'MemberAssignment',
+        'CallExpression',
+        'PipeExpression',
+        'MemberExpression',
+        'IndexExpression',
+        'FunctionExpression',
+        'BinaryExpression',
+        'UnaryExpression',
+        'LogicalExpression',
+        'ObjectExpression',
+        'ConditionalExpression',
+        'ArrayExpression',
+        'DictExpression',
+        'DictItem',
+        'ParenExpression',
+        'Property',
+        'Identifier',
+        'PipeLiteral',
+        'StringLiteral',
+        'StringExpression',
+        'TextPart',
+        'InterpolatedPart',
+        'BooleanLiteral',
+        'FloatLiteral',
+        'IntegerLiteral',
+        'UnsignedIntegerLiteral',
+        'RegexpLiteral',
+        'DurationLiteral',
+        'DateTimeLiteral',
+        'LabelLiteral',
+    }
+)
+
+_WRITE_MODE_HINT = 'Set the INFLUXDB_WRITE_MODE=true environment variable to allow it.'
 
 _WRITE_BLOCKED_MESSAGE = (
     'Query contains a write-producing Flux operation (to(), experimental.to(), '
@@ -457,114 +541,220 @@ _WRITE_BLOCKED_MESSAGE = (
 )
 
 
-def mask_flux_comments_and_strings(query: str) -> str:
-    r"""Blank out comment and string-literal content in a Flux query.
+def parse_flux_query(client: InfluxDBClient, query: str) -> Dict[str, Any]:
+    """Parse a Flux query with the InfluxDB server's own Flux parser.
 
-    Replaces the contents of `// ...` comments and `"..."` string literals with
-    spaces, leaving all other characters in place. Offsets and newlines are
-    preserved so that reported positions and multi-line patterns still line up
-    with the original query.
-
-    Scanning left to right is what distinguishes code from data. A plain regex
-    substitution cannot: `re.sub(r'//[^\n]*', '', query)` treats the `//` in
-    `"http://example"` as the start of a comment and deletes the remainder of
-    the line, which can hide a trailing write call. Conversely, a string literal
-    such as `"experimental.to("` is data and must not be scanned as code.
+    Calls the InfluxDB `POST /api/v2/query/ast` endpoint on the same server that
+    will run the query. The server uses one parser for this endpoint and for
+    query execution, so the returned AST describes exactly the program that
+    InfluxDB would run.
 
     Args:
-        query: The Flux query string to mask.
+        client: The InfluxDB client for the server that will run the query.
+        query: The Flux query string to parse.
 
     Returns:
-        A string of the same length as the input, with comment and string
-        contents replaced by spaces (newlines preserved).
+        The `ast` object from the endpoint response, as a dictionary.
+
+    Raises:
+        ValueError: If the query cannot be parsed, or if the endpoint does not
+            return an AST. The caller must treat this as a rejection.
     """
-    masked: list[str] = []
-    index = 0
-    length = len(query)
-    while index < length:
-        char = query[index]
-        # Line comment: blank to end of line, leaving the newline itself.
-        if char == '/' and index + 1 < length and query[index + 1] == '/':
-            while index < length and query[index] != '\n':
-                masked.append(' ')
-                index += 1
+    try:
+        response = QueryService(client.api_client).post_query_ast(
+            language_request=LanguageRequest(query=query),
+            _preload_content=False,
+        )
+        body = json.loads(response.data)
+    except ApiException as e:
+        detail = e.body.decode() if isinstance(e.body, bytes) else e.body
+        raise ValueError(
+            f'Flux query could not be parsed for read-only validation: {detail or e.reason}'
+        ) from e
+    except Exception as e:
+        raise ValueError(
+            f'Flux query could not be parsed for read-only validation: {str(e)}'
+        ) from e
+
+    ast = body.get('ast') if isinstance(body, dict) else None
+    if not isinstance(ast, dict) or ast.get('type') != 'Package':
+        raise ValueError(
+            'Flux query could not be parsed for read-only validation: '
+            'InfluxDB did not return an AST.'
+        )
+    return ast
+
+
+def _flux_property_key_name(key: Any) -> Optional[str]:
+    """Return the name of a Flux record or call-argument key.
+
+    A key is either an identifier (`host: ...`) or a string literal
+    (`"host": ...`). Both forms are accepted by the Flux parser.
+    """
+    if not isinstance(key, dict):
+        return None
+    if key.get('type') == 'Identifier':
+        return key.get('name')
+    if key.get('type') == 'StringLiteral':
+        return key.get('value')
+    return None
+
+
+def check_flux_ast(ast: Dict[str, Any]) -> None:
+    """Reject a parsed Flux query that can write data or reach the network.
+
+    The check walks every node of the AST returned by `parse_flux_query` and
+    applies these rules:
+
+    - A reference to the prelude write functions `to` or `wideTo` is rejected.
+      This covers direct calls, calls through another name (`writer = to`),
+      and record values (`{f: to}`). An identifier that is a record field name
+      (`r.to`) or a key (`{to: 1}`) is not a reference and is allowed.
+    - A member access whose property is `to` or `wideTo` on an imported package
+      is rejected. This covers both `experimental.to` and `experimental["to"]`.
+    - An import of a package that is not in FLUX_READ_ONLY_PACKAGES is
+      rejected. This blocks package functions that write or send network
+      requests, such as `experimental.to()`, `http.post()`,
+      `requests.get()`, and `sql.to()`, regardless of how they are called.
+    - A call with a `host` argument is rejected, because it makes InfluxDB
+      connect to another server (for example `from(bucket:, host:)`).
+    - Any node type that is not in FLUX_ALLOWED_AST_NODE_TYPES is rejected,
+      so that syntax this check does not know about fails closed.
+
+    Args:
+        ast: The `Package` node returned by `parse_flux_query`.
+
+    Raises:
+        ValueError: If the query breaks any rule.
+    """
+    # Names under which the query refers to its imported packages. Imports are
+    # only declared at the top of a file, so they are collected before the walk.
+    import_aliases: set[str] = set()
+    for file_node in ast.get('files') or []:
+        for declaration in (file_node or {}).get('imports') or []:
+            path = ((declaration or {}).get('path') or {}).get('value')
+            alias = ((declaration or {}).get('as') or {}).get('name')
+            if isinstance(alias, str):
+                import_aliases.add(alias)
+            elif isinstance(path, str):
+                import_aliases.add(path.rsplit('/', 1)[-1])
+
+    disallowed_imports: list[str] = []
+    write_reference = False
+    remote_host_call = False
+    unsupported_node_types: set[str] = set()
+
+    # Each stack entry is (node, key under which the parent holds the node,
+    # type of the parent node).
+    stack: list[tuple[Any, Optional[str], Optional[str]]] = [(ast, None, None)]
+    while stack:
+        node, parent_key, parent_type = stack.pop()
+
+        if isinstance(node, list):
+            stack.extend((child, parent_key, parent_type) for child in node)
             continue
-        # String literal: blank the quotes and everything between them.
-        if char == '"':
-            masked.append(' ')
-            index += 1
-            while index < length:
-                # Escape sequence: consume both characters so that an escaped
-                # quote does not terminate the literal early.
-                if query[index] == '\\' and index + 1 < length:
-                    masked.append('  ')
-                    index += 2
-                    continue
-                if query[index] == '"':
-                    masked.append(' ')
-                    index += 1
-                    break
-                masked.append('\n' if query[index] == '\n' else ' ')
-                index += 1
+        if not isinstance(node, dict):
             continue
-        masked.append(char)
-        index += 1
-    return ''.join(masked)
+
+        node_type = node.get('type')
+        if node_type is not None:
+            if node_type not in FLUX_ALLOWED_AST_NODE_TYPES:
+                unsupported_node_types.add(str(node_type))
+            if node.get('errors'):
+                unsupported_node_types.add(f'{node_type} with parse errors')
+
+        if node_type == 'ImportDeclaration':
+            path = (node.get('path') or {}).get('value')
+            if not isinstance(path, str) or path not in FLUX_READ_ONLY_PACKAGES:
+                disallowed_imports.append(str(path))
+
+        elif node_type == 'Identifier':
+            # An identifier is a reference unless it is the property of a
+            # member access (`r.to`) or the key of a record, argument, or
+            # function parameter (`{to: 1}`).
+            is_member_property = parent_type == 'MemberExpression' and parent_key == 'property'
+            is_property_key = parent_type == 'Property' and parent_key == 'key'
+            if (
+                not is_member_property
+                and not is_property_key
+                and node.get('name') in FLUX_WRITE_FUNCTION_NAMES
+            ):
+                write_reference = True
+
+        elif node_type == 'MemberExpression':
+            target = node.get('object') or {}
+            if (
+                target.get('type') == 'Identifier'
+                and target.get('name') in import_aliases
+                and _flux_property_key_name(node.get('property')) in FLUX_WRITE_FUNCTION_NAMES
+            ):
+                write_reference = True
+
+        elif node_type == 'CallExpression':
+            for argument in node.get('arguments') or []:
+                for prop in (argument or {}).get('properties') or []:
+                    if _flux_property_key_name(prop.get('key')) == FLUX_REMOTE_HOST_ARGUMENT:
+                        remote_host_call = True
+
+        for key, child in node.items():
+            # `location` holds the raw source text of the node. It is not part
+            # of the program structure and must not be scanned.
+            if key == 'location':
+                continue
+            if isinstance(child, (dict, list)):
+                stack.append((child, key, node_type))
+
+    # Rejections are ordered from the most specific message to the most
+    # general, so the caller sees the most useful reason.
+    if write_reference:
+        raise ValueError(_WRITE_BLOCKED_MESSAGE)
+    if disallowed_imports:
+        raise ValueError(
+            'Query imports a Flux package that is not permitted when INFLUXDB_WRITE_MODE '
+            f'is not enabled: {", ".join(sorted(set(disallowed_imports)))}. Permitted '
+            f'packages: {", ".join(sorted(FLUX_READ_ONLY_PACKAGES))}. {_WRITE_MODE_HINT}'
+        )
+    if remote_host_call:
+        raise ValueError(
+            'Query calls a Flux function with a host argument, which connects InfluxDB '
+            'to another server. This is not permitted when INFLUXDB_WRITE_MODE is not '
+            f'enabled. {_WRITE_MODE_HINT}'
+        )
+    if unsupported_node_types:
+        raise ValueError(
+            'Query contains Flux syntax that the read-only validation does not support: '
+            f'{", ".join(sorted(unsupported_node_types))}. {_WRITE_MODE_HINT}'
+        )
 
 
-def validate_flux_query(query: str) -> None:
-    """Validate that a Flux query does not contain write-producing operations.
+def validate_flux_query(query: str, client: InfluxDBClient) -> None:
+    """Validate that a Flux query cannot write data or reach the network.
 
-    When INFLUXDB_WRITE_MODE is disabled (default), this function rejects Flux
-    queries that contain functions capable of writing data to InfluxDB.
+    When INFLUXDB_WRITE_MODE is enabled, the query is not checked.
 
-    The following write-producing Flux functions are blocked:
-    - to() — standard write function (influxdata/influxdb/to)
-    - experimental.to() — experimental write function
-    - wideTo() / influxdb.wideTo() — writes wide/pivoted data
+    When INFLUXDB_WRITE_MODE is disabled (default), the query is parsed by the
+    InfluxDB server that will run it (see `parse_flux_query`) and the AST is
+    checked by `check_flux_ast`. If the query cannot be parsed, it is rejected.
 
-    Detection operates on the query with comments and string literals masked,
-    and matches write functions as whole identifiers in any position rather than
-    only in specific call syntax. Matching the identifier rather than the call
-    form is what rejects indirection such as `writer = to` followed by
-    `|> writer(...)`, and matching regardless of qualifier is what rejects
-    aliased package imports such as `import e "experimental"` then `e.to(...)`.
+    The check works on the parsed program, not on the query text. Comments,
+    string literals, regular expression literals, and string-keyed member
+    access (`experimental["to"]`) therefore cannot hide a call from it.
 
-    The check is deliberately biased towards rejection: record field access on a
-    column literally named `to` (`r.to`) is refused, because a qualifier cannot
-    be distinguished from a package alias without resolving the whole query.
-    Operators who need such a query can set INFLUXDB_WRITE_MODE=true.
-
-    This is a defense-in-depth control, not a complete one. Flux has
-    first-class functions, so no static inspection of query text can be
-    exhaustive. The authoritative control is a read-scoped InfluxDB token, so
-    that a write is refused by InfluxDB even if it reaches the server.
+    This check does not replace a read-scoped InfluxDB token. Use a token that
+    only has read permission for deployments that do not need writes.
 
     Args:
         query: The Flux query string to validate.
+        client: The InfluxDB client for the server that will run the query.
 
     Raises:
-        ValueError: If the query contains write-producing operations and
+        ValueError: If the query is rejected or cannot be parsed, and
             INFLUXDB_WRITE_MODE is not enabled.
     """
     if INFLUXDB_WRITE_MODE:
         return
 
-    # Interpolation is checked on the raw query, because masking blanks the
-    # string contents in which `${...}` appears. Nested quotes inside an
-    # interpolated expression can desynchronize masking, so interpolation is
-    # refused rather than analyzed. It is rare in a read query.
-    if '${' in query:
-        raise ValueError(
-            'Flux string interpolation is not permitted when INFLUXDB_WRITE_MODE '
-            'is not enabled, because the query cannot be reliably inspected for '
-            'write operations. Set INFLUXDB_WRITE_MODE=true to allow it.'
-        )
-
-    code = mask_flux_comments_and_strings(query)
-
-    if _WRITE_REFERENCE_RE.search(code):
-        raise ValueError(_WRITE_BLOCKED_MESSAGE)
+    check_flux_ast(parse_flux_query(client, query))
 
 
 @mcp.tool(
@@ -1495,15 +1685,25 @@ async def influxdb_query(
     Returns:
         Query results in the specified format.
     """
-    # Validate query does not contain write-producing operations in read-only mode
-    validate_flux_query(query)
-
     resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
 
     try:
         client = get_influxdb_client(
             url=resolved_url, token=resolved_token, org=resolved_org, verify_ssl=verify_ssl
         )
+    except Exception as e:
+        logger.error(f'Error querying InfluxDB: {str(e)}')
+        return {'status': 'error', 'message': str(e)}
+
+    # In read-only mode, parse the query on the server that will run it and
+    # reject it before execution if it can write data or reach the network.
+    try:
+        validate_flux_query(query, client)
+    except ValueError:
+        client.close()
+        raise
+
+    try:
         query_api = client.query_api()
 
         # Return as JSON
@@ -1525,19 +1725,21 @@ async def influxdb_query(
         result = []
         for table in tables:
             for record in table.records:
+                values = record.values
                 # Extract tags by filtering out system keys
-                tags = {
-                    k: v
-                    for k, v in record.values.items()
-                    if k not in system_keys and v is not None
-                }
+                tags = {k: v for k, v in values.items() if k not in system_keys and v is not None}
 
+                # Read system columns with .get(): not every Flux result has
+                # them. For example, schema.measurements(), v1.measurements()
+                # and buckets() return no _measurement, _field, or _time column,
+                # and the FluxRecord getters raise KeyError for a missing column.
+                record_time = values.get('_time')
                 result.append(
                     {
-                        'measurement': record.get_measurement(),
-                        'field': record.get_field(),
-                        'value': record.get_value(),
-                        'time': record.get_time().isoformat() if record.get_time() else None,
+                        'measurement': values.get('_measurement'),
+                        'field': values.get('_field'),
+                        'value': values.get('_value'),
+                        'time': record_time.isoformat() if record_time else None,
                         'tags': tags,
                     }
                 )

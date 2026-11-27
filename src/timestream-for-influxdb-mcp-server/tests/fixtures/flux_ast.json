@@ -1,0 +1,5423 @@
+{
+  "buckets()": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "callee": {
+                "name": "buckets",
+                "type": "Identifier"
+              },
+              "type": "CallExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "buckets(host: \"https://other.example.com\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "arguments": [
+                {
+                  "properties": [
+                    {
+                      "key": {
+                        "name": "host",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "type": "StringLiteral",
+                        "value": "https://other.example.com"
+                      }
+                    }
+                  ],
+                  "type": "ObjectExpression"
+                }
+              ],
+              "callee": {
+                "name": "buckets",
+                "type": "Identifier"
+              },
+              "type": "CallExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "builtin x : int": {
+    "files": [
+      {
+        "body": [
+          {
+            "id": {
+              "name": "x",
+              "type": "Identifier"
+            },
+            "ty": {
+              "constraints": [],
+              "monotype": {
+                "name": {
+                  "name": "int",
+                  "type": "Identifier"
+                },
+                "type": "NamedType"
+              },
+              "type": "TypeExpression"
+            },
+            "type": "BuiltinStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "data = from(bucket: \"src\")\nresult = to(bucket: \"dst\", tables: data)": {
+    "files": [
+      {
+        "body": [
+          {
+            "id": {
+              "name": "data",
+              "type": "Identifier"
+            },
+            "init": {
+              "arguments": [
+                {
+                  "properties": [
+                    {
+                      "key": {
+                        "name": "bucket",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "type": "StringLiteral",
+                        "value": "src"
+                      }
+                    }
+                  ],
+                  "type": "ObjectExpression"
+                }
+              ],
+              "callee": {
+                "name": "from",
+                "type": "Identifier"
+              },
+              "type": "CallExpression"
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "id": {
+              "name": "result",
+              "type": "Identifier"
+            },
+            "init": {
+              "arguments": [
+                {
+                  "properties": [
+                    {
+                      "key": {
+                        "name": "bucket",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "type": "StringLiteral",
+                        "value": "dst"
+                      }
+                    },
+                    {
+                      "key": {
+                        "name": "tables",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "name": "data",
+                        "type": "Identifier"
+                      }
+                    }
+                  ],
+                  "type": "ObjectExpression"
+                }
+              ],
+              "callee": {
+                "name": "to",
+                "type": "Identifier"
+              },
+              "type": "CallExpression"
+            },
+            "type": "VariableAssignment"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "f = (tables=<-) => tables |> to(bucket: \"dst\")\nfrom(bucket: \"src\") |> f()": {
+    "files": [
+      {
+        "body": [
+          {
+            "id": {
+              "name": "f",
+              "type": "Identifier"
+            },
+            "init": {
+              "body": {
+                "argument": {
+                  "name": "tables",
+                  "type": "Identifier"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "dst"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "to",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "params": [
+                {
+                  "key": {
+                    "name": "tables",
+                    "type": "Identifier"
+                  },
+                  "type": "Property",
+                  "value": {
+                    "type": "PipeLiteral"
+                  }
+                }
+              ],
+              "type": "FunctionExpression"
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "callee": {
+                  "name": "f",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "f = from\nf(bucket: \"src\", host: \"https://other.example.com\") |> range(start: -1h)": {
+    "files": [
+      {
+        "body": [
+          {
+            "id": {
+              "name": "f",
+              "type": "Identifier"
+            },
+            "init": {
+              "name": "from",
+              "type": "Identifier"
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      },
+                      {
+                        "key": {
+                          "name": "host",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "https://other.example.com"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "f",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "start",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "argument": {
+                            "type": "DurationLiteral",
+                            "values": [
+                              {
+                                "magnitude": 1,
+                                "unit": "h"
+                              }
+                            ]
+                          },
+                          "operator": "-",
+                          "type": "UnaryExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "range",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> filter(fn: (r) => r.m == \"a\\\"b\") |> to(bucket: \"dst\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "fn",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "body": {
+                              "left": {
+                                "object": {
+                                  "name": "r",
+                                  "type": "Identifier"
+                                },
+                                "property": {
+                                  "name": "m",
+                                  "type": "Identifier"
+                                },
+                                "type": "MemberExpression"
+                              },
+                              "operator": "==",
+                              "right": {
+                                "type": "StringLiteral",
+                                "value": "a\"b"
+                              },
+                              "type": "BinaryExpression"
+                            },
+                            "params": [
+                              {
+                                "key": {
+                                  "name": "r",
+                                  "type": "Identifier"
+                                },
+                                "type": "Property",
+                                "value": null
+                              }
+                            ],
+                            "type": "FunctionExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "filter",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "dst"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "to",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> filter(fn: (r) => r.message == \"experimental.to(\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "fn",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "body": {
+                            "left": {
+                              "object": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "property": {
+                                "name": "message",
+                                "type": "Identifier"
+                              },
+                              "type": "MemberExpression"
+                            },
+                            "operator": "==",
+                            "right": {
+                              "type": "StringLiteral",
+                              "value": "experimental.to("
+                            },
+                            "type": "BinaryExpression"
+                          },
+                          "params": [
+                            {
+                              "key": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "type": "Property",
+                              "value": null
+                            }
+                          ],
+                          "type": "FunctionExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "filter",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> map(fn: (r) => ({r with u: \"http://example\"})) |> to(bucket: \"dst\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "fn",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "body": {
+                              "expression": {
+                                "properties": [
+                                  {
+                                    "key": {
+                                      "name": "u",
+                                      "type": "Identifier"
+                                    },
+                                    "type": "Property",
+                                    "value": {
+                                      "type": "StringLiteral",
+                                      "value": "http://example"
+                                    }
+                                  }
+                                ],
+                                "type": "ObjectExpression",
+                                "with": {
+                                  "name": "r",
+                                  "type": "Identifier"
+                                }
+                              },
+                              "type": "ParenExpression"
+                            },
+                            "params": [
+                              {
+                                "key": {
+                                  "name": "r",
+                                  "type": "Identifier"
+                                },
+                                "type": "Property",
+                                "value": null
+                              }
+                            ],
+                            "type": "FunctionExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "map",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "dst"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "to",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> range(start: -1h)\n// |> to(bucket: \"dst\")\n|> yield()": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "start",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "argument": {
+                              "type": "DurationLiteral",
+                              "values": [
+                                {
+                                  "magnitude": 1,
+                                  "unit": "h"
+                                }
+                              ]
+                            },
+                            "operator": "-",
+                            "type": "UnaryExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "range",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "callee": {
+                  "name": "yield",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "comments": [
+                {
+                  "text": "// |> to(bucket: \"dst\")\n"
+                }
+              ],
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> range(start: -1h) |> aggregateWindow(every: 5m, fn: mean, createEmpty: false) |> yield(name: \"mean\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "argument": {
+                    "arguments": [
+                      {
+                        "properties": [
+                          {
+                            "key": {
+                              "name": "bucket",
+                              "type": "Identifier"
+                            },
+                            "type": "Property",
+                            "value": {
+                              "type": "StringLiteral",
+                              "value": "src"
+                            }
+                          }
+                        ],
+                        "type": "ObjectExpression"
+                      }
+                    ],
+                    "callee": {
+                      "name": "from",
+                      "type": "Identifier"
+                    },
+                    "type": "CallExpression"
+                  },
+                  "call": {
+                    "arguments": [
+                      {
+                        "properties": [
+                          {
+                            "key": {
+                              "name": "start",
+                              "type": "Identifier"
+                            },
+                            "type": "Property",
+                            "value": {
+                              "argument": {
+                                "type": "DurationLiteral",
+                                "values": [
+                                  {
+                                    "magnitude": 1,
+                                    "unit": "h"
+                                  }
+                                ]
+                              },
+                              "operator": "-",
+                              "type": "UnaryExpression"
+                            }
+                          }
+                        ],
+                        "type": "ObjectExpression"
+                      }
+                    ],
+                    "callee": {
+                      "name": "range",
+                      "type": "Identifier"
+                    },
+                    "type": "CallExpression"
+                  },
+                  "type": "PipeExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "every",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "DurationLiteral",
+                            "values": [
+                              {
+                                "magnitude": 5,
+                                "unit": "m"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "key": {
+                            "name": "fn",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "name": "mean",
+                            "type": "Identifier"
+                          }
+                        },
+                        {
+                          "key": {
+                            "name": "createEmpty",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "name": "false",
+                            "type": "Identifier"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "aggregateWindow",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "name",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "mean"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "yield",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"cpu\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "start",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "argument": {
+                              "type": "DurationLiteral",
+                              "values": [
+                                {
+                                  "magnitude": 1,
+                                  "unit": "h"
+                                }
+                              ]
+                            },
+                            "operator": "-",
+                            "type": "UnaryExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "range",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "fn",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "body": {
+                            "left": {
+                              "object": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "property": {
+                                "name": "_measurement",
+                                "type": "Identifier"
+                              },
+                              "type": "MemberExpression"
+                            },
+                            "operator": "==",
+                            "right": {
+                              "type": "StringLiteral",
+                              "value": "cpu"
+                            },
+                            "type": "BinaryExpression"
+                          },
+                          "params": [
+                            {
+                              "key": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "type": "Property",
+                              "value": null
+                            }
+                          ],
+                          "type": "FunctionExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "filter",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> range(start: -1h) |> filter(fn: (r) => r.host =~ /^web-[0-9]+$/)": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "start",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "argument": {
+                              "type": "DurationLiteral",
+                              "values": [
+                                {
+                                  "magnitude": 1,
+                                  "unit": "h"
+                                }
+                              ]
+                            },
+                            "operator": "-",
+                            "type": "UnaryExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "range",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "fn",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "body": {
+                            "left": {
+                              "object": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "property": {
+                                "name": "host",
+                                "type": "Identifier"
+                              },
+                              "type": "MemberExpression"
+                            },
+                            "operator": "=~",
+                            "right": {
+                              "type": "RegexpLiteral",
+                              "value": "^web-[0-9]+$"
+                            },
+                            "type": "BinaryExpression"
+                          },
+                          "params": [
+                            {
+                              "key": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "type": "Property",
+                              "value": null
+                            }
+                          ],
+                          "type": "FunctionExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "filter",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> range(start: -1h) |> filter(fn: (r) => r.path !~ /\"|\\/\\//)": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "start",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "argument": {
+                              "type": "DurationLiteral",
+                              "values": [
+                                {
+                                  "magnitude": 1,
+                                  "unit": "h"
+                                }
+                              ]
+                            },
+                            "operator": "-",
+                            "type": "UnaryExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "range",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "fn",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "body": {
+                            "left": {
+                              "object": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "property": {
+                                "name": "path",
+                                "type": "Identifier"
+                              },
+                              "type": "MemberExpression"
+                            },
+                            "operator": "!~",
+                            "right": {
+                              "type": "RegexpLiteral",
+                              "value": "\"|//"
+                            },
+                            "type": "BinaryExpression"
+                          },
+                          "params": [
+                            {
+                              "key": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "type": "Property",
+                              "value": null
+                            }
+                          ],
+                          "type": "FunctionExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "filter",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> range(start: -1h) |> filter(fn: (r) => r[\"_measurement\"] == \"cpu\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "start",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "argument": {
+                              "type": "DurationLiteral",
+                              "values": [
+                                {
+                                  "magnitude": 1,
+                                  "unit": "h"
+                                }
+                              ]
+                            },
+                            "operator": "-",
+                            "type": "UnaryExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "range",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "fn",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "body": {
+                            "left": {
+                              "object": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "property": {
+                                "type": "StringLiteral",
+                                "value": "_measurement"
+                              },
+                              "type": "MemberExpression"
+                            },
+                            "operator": "==",
+                            "right": {
+                              "type": "StringLiteral",
+                              "value": "cpu"
+                            },
+                            "type": "BinaryExpression"
+                          },
+                          "params": [
+                            {
+                              "key": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "type": "Property",
+                              "value": null
+                            }
+                          ],
+                          "type": "FunctionExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "filter",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> range(start: -1h) |> map(fn: (r) => ({r with host: \"a\"}))": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "start",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "argument": {
+                              "type": "DurationLiteral",
+                              "values": [
+                                {
+                                  "magnitude": 1,
+                                  "unit": "h"
+                                }
+                              ]
+                            },
+                            "operator": "-",
+                            "type": "UnaryExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "range",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "fn",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "body": {
+                            "expression": {
+                              "properties": [
+                                {
+                                  "key": {
+                                    "name": "host",
+                                    "type": "Identifier"
+                                  },
+                                  "type": "Property",
+                                  "value": {
+                                    "type": "StringLiteral",
+                                    "value": "a"
+                                  }
+                                }
+                              ],
+                              "type": "ObjectExpression",
+                              "with": {
+                                "name": "r",
+                                "type": "Identifier"
+                              }
+                            },
+                            "type": "ParenExpression"
+                          },
+                          "params": [
+                            {
+                              "key": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "type": "Property",
+                              "value": null
+                            }
+                          ],
+                          "type": "FunctionExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "map",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> range(start: -1h) |> map(fn: (r) => ({r with s: string(v: r._value)})) |> toFloat()": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "argument": {
+                    "arguments": [
+                      {
+                        "properties": [
+                          {
+                            "key": {
+                              "name": "bucket",
+                              "type": "Identifier"
+                            },
+                            "type": "Property",
+                            "value": {
+                              "type": "StringLiteral",
+                              "value": "src"
+                            }
+                          }
+                        ],
+                        "type": "ObjectExpression"
+                      }
+                    ],
+                    "callee": {
+                      "name": "from",
+                      "type": "Identifier"
+                    },
+                    "type": "CallExpression"
+                  },
+                  "call": {
+                    "arguments": [
+                      {
+                        "properties": [
+                          {
+                            "key": {
+                              "name": "start",
+                              "type": "Identifier"
+                            },
+                            "type": "Property",
+                            "value": {
+                              "argument": {
+                                "type": "DurationLiteral",
+                                "values": [
+                                  {
+                                    "magnitude": 1,
+                                    "unit": "h"
+                                  }
+                                ]
+                              },
+                              "operator": "-",
+                              "type": "UnaryExpression"
+                            }
+                          }
+                        ],
+                        "type": "ObjectExpression"
+                      }
+                    ],
+                    "callee": {
+                      "name": "range",
+                      "type": "Identifier"
+                    },
+                    "type": "CallExpression"
+                  },
+                  "type": "PipeExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "fn",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "body": {
+                              "expression": {
+                                "properties": [
+                                  {
+                                    "key": {
+                                      "name": "s",
+                                      "type": "Identifier"
+                                    },
+                                    "type": "Property",
+                                    "value": {
+                                      "arguments": [
+                                        {
+                                          "properties": [
+                                            {
+                                              "key": {
+                                                "name": "v",
+                                                "type": "Identifier"
+                                              },
+                                              "type": "Property",
+                                              "value": {
+                                                "object": {
+                                                  "name": "r",
+                                                  "type": "Identifier"
+                                                },
+                                                "property": {
+                                                  "name": "_value",
+                                                  "type": "Identifier"
+                                                },
+                                                "type": "MemberExpression"
+                                              }
+                                            }
+                                          ],
+                                          "type": "ObjectExpression"
+                                        }
+                                      ],
+                                      "callee": {
+                                        "name": "string",
+                                        "type": "Identifier"
+                                      },
+                                      "type": "CallExpression"
+                                    }
+                                  }
+                                ],
+                                "type": "ObjectExpression",
+                                "with": {
+                                  "name": "r",
+                                  "type": "Identifier"
+                                }
+                              },
+                              "type": "ParenExpression"
+                            },
+                            "params": [
+                              {
+                                "key": {
+                                  "name": "r",
+                                  "type": "Identifier"
+                                },
+                                "type": "Property",
+                                "value": null
+                              }
+                            ],
+                            "type": "FunctionExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "map",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "callee": {
+                  "name": "toFloat",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> range(start: -1h) |> map(fn: (r) => ({r with to: 1, x: r.to}))": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "start",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "argument": {
+                              "type": "DurationLiteral",
+                              "values": [
+                                {
+                                  "magnitude": 1,
+                                  "unit": "h"
+                                }
+                              ]
+                            },
+                            "operator": "-",
+                            "type": "UnaryExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "range",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "fn",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "body": {
+                            "expression": {
+                              "properties": [
+                                {
+                                  "key": {
+                                    "name": "to",
+                                    "type": "Identifier"
+                                  },
+                                  "type": "Property",
+                                  "value": {
+                                    "type": "IntegerLiteral",
+                                    "value": "1"
+                                  }
+                                },
+                                {
+                                  "key": {
+                                    "name": "x",
+                                    "type": "Identifier"
+                                  },
+                                  "type": "Property",
+                                  "value": {
+                                    "object": {
+                                      "name": "r",
+                                      "type": "Identifier"
+                                    },
+                                    "property": {
+                                      "name": "to",
+                                      "type": "Identifier"
+                                    },
+                                    "type": "MemberExpression"
+                                  }
+                                }
+                              ],
+                              "type": "ObjectExpression",
+                              "with": {
+                                "name": "r",
+                                "type": "Identifier"
+                              }
+                            },
+                            "type": "ParenExpression"
+                          },
+                          "params": [
+                            {
+                              "key": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "type": "Property",
+                              "value": null
+                            }
+                          ],
+                          "type": "FunctionExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "map",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> range(start: -1h) |> map(fn: (r) => ({r with u: \"http://a//b\"}))": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "start",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "argument": {
+                              "type": "DurationLiteral",
+                              "values": [
+                                {
+                                  "magnitude": 1,
+                                  "unit": "h"
+                                }
+                              ]
+                            },
+                            "operator": "-",
+                            "type": "UnaryExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "range",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "fn",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "body": {
+                            "expression": {
+                              "properties": [
+                                {
+                                  "key": {
+                                    "name": "u",
+                                    "type": "Identifier"
+                                  },
+                                  "type": "Property",
+                                  "value": {
+                                    "type": "StringLiteral",
+                                    "value": "http://a//b"
+                                  }
+                                }
+                              ],
+                              "type": "ObjectExpression",
+                              "with": {
+                                "name": "r",
+                                "type": "Identifier"
+                              }
+                            },
+                            "type": "ParenExpression"
+                          },
+                          "params": [
+                            {
+                              "key": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "type": "Property",
+                              "value": null
+                            }
+                          ],
+                          "type": "FunctionExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "map",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> range(start: -1h) |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "start",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "argument": {
+                              "type": "DurationLiteral",
+                              "values": [
+                                {
+                                  "magnitude": 1,
+                                  "unit": "h"
+                                }
+                              ]
+                            },
+                            "operator": "-",
+                            "type": "UnaryExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "range",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "rowKey",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "elements": [
+                            {
+                              "type": "StringLiteral",
+                              "value": "_time"
+                            }
+                          ],
+                          "type": "ArrayExpression"
+                        }
+                      },
+                      {
+                        "key": {
+                          "name": "columnKey",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "elements": [
+                            {
+                              "type": "StringLiteral",
+                              "value": "_field"
+                            }
+                          ],
+                          "type": "ArrayExpression"
+                        }
+                      },
+                      {
+                        "key": {
+                          "name": "valueColumn",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "_value"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "pivot",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> range(start: -1h) |> to(bucket: \"dst\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "start",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "argument": {
+                              "type": "DurationLiteral",
+                              "values": [
+                                {
+                                  "magnitude": 1,
+                                  "unit": "h"
+                                }
+                              ]
+                            },
+                            "operator": "-",
+                            "type": "UnaryExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "range",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "dst"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "to",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> to\n(bucket: \"dst\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "dst"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "to",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> to(bucket: \"dst\", host: \"https://other.example.com\", token: \"t\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "dst"
+                        }
+                      },
+                      {
+                        "key": {
+                          "name": "host",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "https://other.example.com"
+                        }
+                      },
+                      {
+                        "key": {
+                          "name": "token",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "t"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "to",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\") |> wideTo(bucket: \"dst\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "dst"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "wideTo",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\", \"host\": \"https://other.example.com\") |> range(start: -1h)": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      },
+                      {
+                        "key": {
+                          "type": "StringLiteral",
+                          "value": "host"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "https://other.example.com"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "start",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "argument": {
+                            "type": "DurationLiteral",
+                            "values": [
+                              {
+                                "magnitude": 1,
+                                "unit": "h"
+                              }
+                            ]
+                          },
+                          "operator": "-",
+                          "type": "UnaryExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "range",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "from(bucket: \"src\", host: \"https://other.example.com\") |> range(start: -1h)": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      },
+                      {
+                        "key": {
+                          "name": "host",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "https://other.example.com"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "start",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "argument": {
+                            "type": "DurationLiteral",
+                            "values": [
+                              {
+                                "magnitude": 1,
+                                "unit": "h"
+                              }
+                            ]
+                          },
+                          "operator": "-",
+                          "type": "UnaryExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "range",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "import \"array\"\narray.from(rows: [{_measurement: \"m\", _field: \"f\", _value: 1.0}])": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "arguments": [
+                {
+                  "properties": [
+                    {
+                      "key": {
+                        "name": "rows",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "elements": [
+                          {
+                            "properties": [
+                              {
+                                "key": {
+                                  "name": "_measurement",
+                                  "type": "Identifier"
+                                },
+                                "type": "Property",
+                                "value": {
+                                  "type": "StringLiteral",
+                                  "value": "m"
+                                }
+                              },
+                              {
+                                "key": {
+                                  "name": "_field",
+                                  "type": "Identifier"
+                                },
+                                "type": "Property",
+                                "value": {
+                                  "type": "StringLiteral",
+                                  "value": "f"
+                                }
+                              },
+                              {
+                                "key": {
+                                  "name": "_value",
+                                  "type": "Identifier"
+                                },
+                                "type": "Property",
+                                "value": {
+                                  "type": "FloatLiteral",
+                                  "value": 1
+                                }
+                              }
+                            ],
+                            "type": "ObjectExpression"
+                          }
+                        ],
+                        "type": "ArrayExpression"
+                      }
+                    }
+                  ],
+                  "type": "ObjectExpression"
+                }
+              ],
+              "callee": {
+                "object": {
+                  "name": "array",
+                  "type": "Identifier"
+                },
+                "property": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "MemberExpression"
+              },
+              "type": "CallExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": [
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "array"
+            },
+            "type": "ImportDeclaration"
+          }
+        ],
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "import \"dict\"\nd = [\"a\": 1]\nl = [1, 2]\nfrom(bucket: \"src\") |> range(start: -1h) |> map(fn: (r) => ({r with x: if r._value > 0.0 then dict.get(dict: d, key: \"a\", default: l[0]) else -1}))": {
+    "files": [
+      {
+        "body": [
+          {
+            "id": {
+              "name": "d",
+              "type": "Identifier"
+            },
+            "init": {
+              "elements": [
+                {
+                  "key": {
+                    "type": "StringLiteral",
+                    "value": "a"
+                  },
+                  "type": "DictItem",
+                  "val": {
+                    "type": "IntegerLiteral",
+                    "value": "1"
+                  }
+                }
+              ],
+              "type": "DictExpression"
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "id": {
+              "name": "l",
+              "type": "Identifier"
+            },
+            "init": {
+              "elements": [
+                {
+                  "type": "IntegerLiteral",
+                  "value": "1"
+                },
+                {
+                  "type": "IntegerLiteral",
+                  "value": "2"
+                }
+              ],
+              "type": "ArrayExpression"
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "start",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "argument": {
+                              "type": "DurationLiteral",
+                              "values": [
+                                {
+                                  "magnitude": 1,
+                                  "unit": "h"
+                                }
+                              ]
+                            },
+                            "operator": "-",
+                            "type": "UnaryExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "range",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "fn",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "body": {
+                            "expression": {
+                              "properties": [
+                                {
+                                  "key": {
+                                    "name": "x",
+                                    "type": "Identifier"
+                                  },
+                                  "type": "Property",
+                                  "value": {
+                                    "alternate": {
+                                      "argument": {
+                                        "type": "IntegerLiteral",
+                                        "value": "1"
+                                      },
+                                      "operator": "-",
+                                      "type": "UnaryExpression"
+                                    },
+                                    "consequent": {
+                                      "arguments": [
+                                        {
+                                          "properties": [
+                                            {
+                                              "key": {
+                                                "name": "dict",
+                                                "type": "Identifier"
+                                              },
+                                              "type": "Property",
+                                              "value": {
+                                                "name": "d",
+                                                "type": "Identifier"
+                                              }
+                                            },
+                                            {
+                                              "key": {
+                                                "name": "key",
+                                                "type": "Identifier"
+                                              },
+                                              "type": "Property",
+                                              "value": {
+                                                "type": "StringLiteral",
+                                                "value": "a"
+                                              }
+                                            },
+                                            {
+                                              "key": {
+                                                "name": "default",
+                                                "type": "Identifier"
+                                              },
+                                              "type": "Property",
+                                              "value": {
+                                                "array": {
+                                                  "name": "l",
+                                                  "type": "Identifier"
+                                                },
+                                                "index": {
+                                                  "type": "IntegerLiteral",
+                                                  "value": "0"
+                                                },
+                                                "type": "IndexExpression"
+                                              }
+                                            }
+                                          ],
+                                          "type": "ObjectExpression"
+                                        }
+                                      ],
+                                      "callee": {
+                                        "object": {
+                                          "name": "dict",
+                                          "type": "Identifier"
+                                        },
+                                        "property": {
+                                          "name": "get",
+                                          "type": "Identifier"
+                                        },
+                                        "type": "MemberExpression"
+                                      },
+                                      "type": "CallExpression"
+                                    },
+                                    "test": {
+                                      "left": {
+                                        "object": {
+                                          "name": "r",
+                                          "type": "Identifier"
+                                        },
+                                        "property": {
+                                          "name": "_value",
+                                          "type": "Identifier"
+                                        },
+                                        "type": "MemberExpression"
+                                      },
+                                      "operator": ">",
+                                      "right": {
+                                        "type": "FloatLiteral",
+                                        "value": 0
+                                      },
+                                      "type": "BinaryExpression"
+                                    },
+                                    "type": "ConditionalExpression"
+                                  }
+                                }
+                              ],
+                              "type": "ObjectExpression",
+                              "with": {
+                                "name": "r",
+                                "type": "Identifier"
+                              }
+                            },
+                            "type": "ParenExpression"
+                          },
+                          "params": [
+                            {
+                              "key": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "type": "Property",
+                              "value": null
+                            }
+                          ],
+                          "type": "FunctionExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "map",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": [
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "dict"
+            },
+            "type": "ImportDeclaration"
+          }
+        ],
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "import \"experimental\"\ne = experimental\nfrom(bucket: \"src\") |> e.to(bucket: \"dst\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "id": {
+              "name": "e",
+              "type": "Identifier"
+            },
+            "init": {
+              "name": "experimental",
+              "type": "Identifier"
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "dst"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "object": {
+                    "name": "e",
+                    "type": "Identifier"
+                  },
+                  "property": {
+                    "name": "to",
+                    "type": "Identifier"
+                  },
+                  "type": "MemberExpression"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": [
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "experimental"
+            },
+            "type": "ImportDeclaration"
+          }
+        ],
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "import \"experimental\"\nfrom(bucket: \"src\") |> experimental.to(bucket: \"dst\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "dst"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "object": {
+                    "name": "experimental",
+                    "type": "Identifier"
+                  },
+                  "property": {
+                    "name": "to",
+                    "type": "Identifier"
+                  },
+                  "type": "MemberExpression"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": [
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "experimental"
+            },
+            "type": "ImportDeclaration"
+          }
+        ],
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "import \"experimental\"\nfrom(bucket: \"src\") |> experimental[\"to\"](bucket: \"dst\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "dst"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "object": {
+                    "name": "experimental",
+                    "type": "Identifier"
+                  },
+                  "property": {
+                    "type": "StringLiteral",
+                    "value": "to"
+                  },
+                  "type": "MemberExpression"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": [
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "experimental"
+            },
+            "type": "ImportDeclaration"
+          }
+        ],
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "import \"experimental/http/requests\"\nrequests.get(url: \"https://other.example.com\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "arguments": [
+                {
+                  "properties": [
+                    {
+                      "key": {
+                        "name": "url",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "type": "StringLiteral",
+                        "value": "https://other.example.com"
+                      }
+                    }
+                  ],
+                  "type": "ObjectExpression"
+                }
+              ],
+              "callee": {
+                "object": {
+                  "name": "requests",
+                  "type": "Identifier"
+                },
+                "property": {
+                  "name": "get",
+                  "type": "Identifier"
+                },
+                "type": "MemberExpression"
+              },
+              "type": "CallExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": [
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "experimental/http/requests"
+            },
+            "type": "ImportDeclaration"
+          }
+        ],
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "import \"http\"\nhttp.post(url: \"https://other.example.com\", data: bytes(v: \"x\"))": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "arguments": [
+                {
+                  "properties": [
+                    {
+                      "key": {
+                        "name": "url",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "type": "StringLiteral",
+                        "value": "https://other.example.com"
+                      }
+                    },
+                    {
+                      "key": {
+                        "name": "data",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "arguments": [
+                          {
+                            "properties": [
+                              {
+                                "key": {
+                                  "name": "v",
+                                  "type": "Identifier"
+                                },
+                                "type": "Property",
+                                "value": {
+                                  "type": "StringLiteral",
+                                  "value": "x"
+                                }
+                              }
+                            ],
+                            "type": "ObjectExpression"
+                          }
+                        ],
+                        "callee": {
+                          "name": "bytes",
+                          "type": "Identifier"
+                        },
+                        "type": "CallExpression"
+                      }
+                    }
+                  ],
+                  "type": "ObjectExpression"
+                }
+              ],
+              "callee": {
+                "object": {
+                  "name": "http",
+                  "type": "Identifier"
+                },
+                "property": {
+                  "name": "post",
+                  "type": "Identifier"
+                },
+                "type": "MemberExpression"
+              },
+              "type": "CallExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": [
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "http"
+            },
+            "type": "ImportDeclaration"
+          }
+        ],
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "import \"http\"\nr = /\"/\nhttp.post(url: \"https://other.example.com\", data: bytes(v: \"x\"))": {
+    "files": [
+      {
+        "body": [
+          {
+            "id": {
+              "name": "r",
+              "type": "Identifier"
+            },
+            "init": {
+              "type": "RegexpLiteral",
+              "value": "\""
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "expression": {
+              "arguments": [
+                {
+                  "properties": [
+                    {
+                      "key": {
+                        "name": "url",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "type": "StringLiteral",
+                        "value": "https://other.example.com"
+                      }
+                    },
+                    {
+                      "key": {
+                        "name": "data",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "arguments": [
+                          {
+                            "properties": [
+                              {
+                                "key": {
+                                  "name": "v",
+                                  "type": "Identifier"
+                                },
+                                "type": "Property",
+                                "value": {
+                                  "type": "StringLiteral",
+                                  "value": "x"
+                                }
+                              }
+                            ],
+                            "type": "ObjectExpression"
+                          }
+                        ],
+                        "callee": {
+                          "name": "bytes",
+                          "type": "Identifier"
+                        },
+                        "type": "CallExpression"
+                      }
+                    }
+                  ],
+                  "type": "ObjectExpression"
+                }
+              ],
+              "callee": {
+                "object": {
+                  "name": "http",
+                  "type": "Identifier"
+                },
+                "property": {
+                  "name": "post",
+                  "type": "Identifier"
+                },
+                "type": "MemberExpression"
+              },
+              "type": "CallExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": [
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "http"
+            },
+            "type": "ImportDeclaration"
+          }
+        ],
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "import \"influxdata/influxdb\"\nfrom(bucket: \"src\") |> influxdb[\"wideTo\"](bucket: \"dst\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "dst"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "object": {
+                    "name": "influxdb",
+                    "type": "Identifier"
+                  },
+                  "property": {
+                    "type": "StringLiteral",
+                    "value": "wideTo"
+                  },
+                  "type": "MemberExpression"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": [
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "influxdata/influxdb"
+            },
+            "type": "ImportDeclaration"
+          }
+        ],
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "import \"influxdata/influxdb/schema\"\nschema.measurements(bucket: \"src\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "arguments": [
+                {
+                  "properties": [
+                    {
+                      "key": {
+                        "name": "bucket",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "type": "StringLiteral",
+                        "value": "src"
+                      }
+                    }
+                  ],
+                  "type": "ObjectExpression"
+                }
+              ],
+              "callee": {
+                "object": {
+                  "name": "schema",
+                  "type": "Identifier"
+                },
+                "property": {
+                  "name": "measurements",
+                  "type": "Identifier"
+                },
+                "type": "MemberExpression"
+              },
+              "type": "CallExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": [
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "influxdata/influxdb/schema"
+            },
+            "type": "ImportDeclaration"
+          }
+        ],
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "import \"influxdata/influxdb/secrets\"\nx = secrets.get(key: \"k\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "id": {
+              "name": "x",
+              "type": "Identifier"
+            },
+            "init": {
+              "arguments": [
+                {
+                  "properties": [
+                    {
+                      "key": {
+                        "name": "key",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "type": "StringLiteral",
+                        "value": "k"
+                      }
+                    }
+                  ],
+                  "type": "ObjectExpression"
+                }
+              ],
+              "callee": {
+                "object": {
+                  "name": "secrets",
+                  "type": "Identifier"
+                },
+                "property": {
+                  "name": "get",
+                  "type": "Identifier"
+                },
+                "type": "MemberExpression"
+              },
+              "type": "CallExpression"
+            },
+            "type": "VariableAssignment"
+          }
+        ],
+        "imports": [
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "influxdata/influxdb/secrets"
+            },
+            "type": "ImportDeclaration"
+          }
+        ],
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "import \"join\"\na = from(bucket: \"src\") |> range(start: -1h)\nb = from(bucket: \"src\") |> range(start: -1h)\njoin.inner(left: a, right: b, on: (l, r) => l._time == r._time, as: (l, r) => ({l with v2: r._value}))": {
+    "files": [
+      {
+        "body": [
+          {
+            "id": {
+              "name": "a",
+              "type": "Identifier"
+            },
+            "init": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "start",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "argument": {
+                            "type": "DurationLiteral",
+                            "values": [
+                              {
+                                "magnitude": 1,
+                                "unit": "h"
+                              }
+                            ]
+                          },
+                          "operator": "-",
+                          "type": "UnaryExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "range",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "id": {
+              "name": "b",
+              "type": "Identifier"
+            },
+            "init": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "start",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "argument": {
+                            "type": "DurationLiteral",
+                            "values": [
+                              {
+                                "magnitude": 1,
+                                "unit": "h"
+                              }
+                            ]
+                          },
+                          "operator": "-",
+                          "type": "UnaryExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "range",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "expression": {
+              "arguments": [
+                {
+                  "properties": [
+                    {
+                      "key": {
+                        "name": "left",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "name": "a",
+                        "type": "Identifier"
+                      }
+                    },
+                    {
+                      "key": {
+                        "name": "right",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "name": "b",
+                        "type": "Identifier"
+                      }
+                    },
+                    {
+                      "key": {
+                        "name": "on",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "body": {
+                          "left": {
+                            "object": {
+                              "name": "l",
+                              "type": "Identifier"
+                            },
+                            "property": {
+                              "name": "_time",
+                              "type": "Identifier"
+                            },
+                            "type": "MemberExpression"
+                          },
+                          "operator": "==",
+                          "right": {
+                            "object": {
+                              "name": "r",
+                              "type": "Identifier"
+                            },
+                            "property": {
+                              "name": "_time",
+                              "type": "Identifier"
+                            },
+                            "type": "MemberExpression"
+                          },
+                          "type": "BinaryExpression"
+                        },
+                        "params": [
+                          {
+                            "key": {
+                              "name": "l",
+                              "type": "Identifier"
+                            },
+                            "type": "Property",
+                            "value": null
+                          },
+                          {
+                            "key": {
+                              "name": "r",
+                              "type": "Identifier"
+                            },
+                            "type": "Property",
+                            "value": null
+                          }
+                        ],
+                        "type": "FunctionExpression"
+                      }
+                    },
+                    {
+                      "key": {
+                        "name": "as",
+                        "type": "Identifier"
+                      },
+                      "type": "Property",
+                      "value": {
+                        "body": {
+                          "expression": {
+                            "properties": [
+                              {
+                                "key": {
+                                  "name": "v2",
+                                  "type": "Identifier"
+                                },
+                                "type": "Property",
+                                "value": {
+                                  "object": {
+                                    "name": "r",
+                                    "type": "Identifier"
+                                  },
+                                  "property": {
+                                    "name": "_value",
+                                    "type": "Identifier"
+                                  },
+                                  "type": "MemberExpression"
+                                }
+                              }
+                            ],
+                            "type": "ObjectExpression",
+                            "with": {
+                              "name": "l",
+                              "type": "Identifier"
+                            }
+                          },
+                          "type": "ParenExpression"
+                        },
+                        "params": [
+                          {
+                            "key": {
+                              "name": "l",
+                              "type": "Identifier"
+                            },
+                            "type": "Property",
+                            "value": null
+                          },
+                          {
+                            "key": {
+                              "name": "r",
+                              "type": "Identifier"
+                            },
+                            "type": "Property",
+                            "value": null
+                          }
+                        ],
+                        "type": "FunctionExpression"
+                      }
+                    }
+                  ],
+                  "type": "ObjectExpression"
+                }
+              ],
+              "callee": {
+                "object": {
+                  "name": "join",
+                  "type": "Identifier"
+                },
+                "property": {
+                  "name": "inner",
+                  "type": "Identifier"
+                },
+                "type": "MemberExpression"
+              },
+              "type": "CallExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": [
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "join"
+            },
+            "type": "ImportDeclaration"
+          }
+        ],
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "import \"strings\"\nimport \"date\"\nimport \"math\"\nimport \"influxdata/influxdb/schema\"\nfrom(bucket: \"src\") |> range(start: -1h) |> map(fn: (r) => ({r with u: strings.toUpper(v: r.host), h: date.hour(t: r._time), m: math.abs(x: r._value)}))": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "start",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "argument": {
+                              "type": "DurationLiteral",
+                              "values": [
+                                {
+                                  "magnitude": 1,
+                                  "unit": "h"
+                                }
+                              ]
+                            },
+                            "operator": "-",
+                            "type": "UnaryExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "range",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "fn",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "body": {
+                            "expression": {
+                              "properties": [
+                                {
+                                  "key": {
+                                    "name": "u",
+                                    "type": "Identifier"
+                                  },
+                                  "type": "Property",
+                                  "value": {
+                                    "arguments": [
+                                      {
+                                        "properties": [
+                                          {
+                                            "key": {
+                                              "name": "v",
+                                              "type": "Identifier"
+                                            },
+                                            "type": "Property",
+                                            "value": {
+                                              "object": {
+                                                "name": "r",
+                                                "type": "Identifier"
+                                              },
+                                              "property": {
+                                                "name": "host",
+                                                "type": "Identifier"
+                                              },
+                                              "type": "MemberExpression"
+                                            }
+                                          }
+                                        ],
+                                        "type": "ObjectExpression"
+                                      }
+                                    ],
+                                    "callee": {
+                                      "object": {
+                                        "name": "strings",
+                                        "type": "Identifier"
+                                      },
+                                      "property": {
+                                        "name": "toUpper",
+                                        "type": "Identifier"
+                                      },
+                                      "type": "MemberExpression"
+                                    },
+                                    "type": "CallExpression"
+                                  }
+                                },
+                                {
+                                  "key": {
+                                    "name": "h",
+                                    "type": "Identifier"
+                                  },
+                                  "type": "Property",
+                                  "value": {
+                                    "arguments": [
+                                      {
+                                        "properties": [
+                                          {
+                                            "key": {
+                                              "name": "t",
+                                              "type": "Identifier"
+                                            },
+                                            "type": "Property",
+                                            "value": {
+                                              "object": {
+                                                "name": "r",
+                                                "type": "Identifier"
+                                              },
+                                              "property": {
+                                                "name": "_time",
+                                                "type": "Identifier"
+                                              },
+                                              "type": "MemberExpression"
+                                            }
+                                          }
+                                        ],
+                                        "type": "ObjectExpression"
+                                      }
+                                    ],
+                                    "callee": {
+                                      "object": {
+                                        "name": "date",
+                                        "type": "Identifier"
+                                      },
+                                      "property": {
+                                        "name": "hour",
+                                        "type": "Identifier"
+                                      },
+                                      "type": "MemberExpression"
+                                    },
+                                    "type": "CallExpression"
+                                  }
+                                },
+                                {
+                                  "key": {
+                                    "name": "m",
+                                    "type": "Identifier"
+                                  },
+                                  "type": "Property",
+                                  "value": {
+                                    "arguments": [
+                                      {
+                                        "properties": [
+                                          {
+                                            "key": {
+                                              "name": "x",
+                                              "type": "Identifier"
+                                            },
+                                            "type": "Property",
+                                            "value": {
+                                              "object": {
+                                                "name": "r",
+                                                "type": "Identifier"
+                                              },
+                                              "property": {
+                                                "name": "_value",
+                                                "type": "Identifier"
+                                              },
+                                              "type": "MemberExpression"
+                                            }
+                                          }
+                                        ],
+                                        "type": "ObjectExpression"
+                                      }
+                                    ],
+                                    "callee": {
+                                      "object": {
+                                        "name": "math",
+                                        "type": "Identifier"
+                                      },
+                                      "property": {
+                                        "name": "abs",
+                                        "type": "Identifier"
+                                      },
+                                      "type": "MemberExpression"
+                                    },
+                                    "type": "CallExpression"
+                                  }
+                                }
+                              ],
+                              "type": "ObjectExpression",
+                              "with": {
+                                "name": "r",
+                                "type": "Identifier"
+                              }
+                            },
+                            "type": "ParenExpression"
+                          },
+                          "params": [
+                            {
+                              "key": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "type": "Property",
+                              "value": null
+                            }
+                          ],
+                          "type": "FunctionExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "map",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": [
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "strings"
+            },
+            "type": "ImportDeclaration"
+          },
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "date"
+            },
+            "type": "ImportDeclaration"
+          },
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "math"
+            },
+            "type": "ImportDeclaration"
+          },
+          {
+            "as": null,
+            "path": {
+              "type": "StringLiteral",
+              "value": "influxdata/influxdb/schema"
+            },
+            "type": "ImportDeclaration"
+          }
+        ],
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "import e \"experimental\"\nfrom(bucket: \"src\") |> e.to(bucket: \"dst\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "dst"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "object": {
+                    "name": "e",
+                    "type": "Identifier"
+                  },
+                  "property": {
+                    "name": "to",
+                    "type": "Identifier"
+                  },
+                  "type": "MemberExpression"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": [
+          {
+            "as": {
+              "name": "e",
+              "type": "Identifier"
+            },
+            "path": {
+              "type": "StringLiteral",
+              "value": "experimental"
+            },
+            "type": "ImportDeclaration"
+          }
+        ],
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "m = \"cpu\"\nfrom(bucket: \"src\") |> range(start: -1h) |> map(fn: (r) => ({r with s: \"m=${m}\"}))": {
+    "files": [
+      {
+        "body": [
+          {
+            "id": {
+              "name": "m",
+              "type": "Identifier"
+            },
+            "init": {
+              "type": "StringLiteral",
+              "value": "cpu"
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "start",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "argument": {
+                              "type": "DurationLiteral",
+                              "values": [
+                                {
+                                  "magnitude": 1,
+                                  "unit": "h"
+                                }
+                              ]
+                            },
+                            "operator": "-",
+                            "type": "UnaryExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "range",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "fn",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "body": {
+                            "expression": {
+                              "properties": [
+                                {
+                                  "key": {
+                                    "name": "s",
+                                    "type": "Identifier"
+                                  },
+                                  "type": "Property",
+                                  "value": {
+                                    "parts": [
+                                      {
+                                        "type": "TextPart",
+                                        "value": "m="
+                                      },
+                                      {
+                                        "expression": {
+                                          "name": "m",
+                                          "type": "Identifier"
+                                        },
+                                        "type": "InterpolatedPart"
+                                      }
+                                    ],
+                                    "type": "StringExpression"
+                                  }
+                                }
+                              ],
+                              "type": "ObjectExpression",
+                              "with": {
+                                "name": "r",
+                                "type": "Identifier"
+                              }
+                            },
+                            "type": "ParenExpression"
+                          },
+                          "params": [
+                            {
+                              "key": {
+                                "name": "r",
+                                "type": "Identifier"
+                              },
+                              "type": "Property",
+                              "value": null
+                            }
+                          ],
+                          "type": "FunctionExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "map",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "option now = () => 2030-01-01T00:00:00Z\nf = (tables=<-) => tables |> limit(n: 1)\nfrom(bucket: \"src\") |> range(start: -1h) |> f()": {
+    "files": [
+      {
+        "body": [
+          {
+            "assignment": {
+              "id": {
+                "name": "now",
+                "type": "Identifier"
+              },
+              "init": {
+                "body": {
+                  "type": "DateTimeLiteral",
+                  "value": "2030-01-01T00:00:00Z"
+                },
+                "params": [],
+                "type": "FunctionExpression"
+              },
+              "type": "VariableAssignment"
+            },
+            "type": "OptionStatement"
+          },
+          {
+            "id": {
+              "name": "f",
+              "type": "Identifier"
+            },
+            "init": {
+              "body": {
+                "argument": {
+                  "name": "tables",
+                  "type": "Identifier"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "n",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "IntegerLiteral",
+                            "value": "1"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "limit",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "params": [
+                {
+                  "key": {
+                    "name": "tables",
+                    "type": "Identifier"
+                  },
+                  "type": "Property",
+                  "value": {
+                    "type": "PipeLiteral"
+                  }
+                }
+              ],
+              "type": "FunctionExpression"
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "expression": {
+              "argument": {
+                "argument": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "bucket",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "type": "StringLiteral",
+                            "value": "src"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "from",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "call": {
+                  "arguments": [
+                    {
+                      "properties": [
+                        {
+                          "key": {
+                            "name": "start",
+                            "type": "Identifier"
+                          },
+                          "type": "Property",
+                          "value": {
+                            "argument": {
+                              "type": "DurationLiteral",
+                              "values": [
+                                {
+                                  "magnitude": 1,
+                                  "unit": "h"
+                                }
+                              ]
+                            },
+                            "operator": "-",
+                            "type": "UnaryExpression"
+                          }
+                        }
+                      ],
+                      "type": "ObjectExpression"
+                    }
+                  ],
+                  "callee": {
+                    "name": "range",
+                    "type": "Identifier"
+                  },
+                  "type": "CallExpression"
+                },
+                "type": "PipeExpression"
+              },
+              "call": {
+                "callee": {
+                  "name": "f",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "r = /\"/\nfrom(bucket: \"src\") |> to(bucket: \"dst\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "id": {
+              "name": "r",
+              "type": "Identifier"
+            },
+            "init": {
+              "type": "RegexpLiteral",
+              "value": "\""
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "dst"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "to",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "r = /\\/\\// from(bucket: \"src\") |> to(bucket: \"dst\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "id": {
+              "name": "r",
+              "type": "Identifier"
+            },
+            "init": {
+              "type": "RegexpLiteral",
+              "value": "//"
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "dst"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "to",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "testcase t { x = 1 }": {
+    "files": [
+      {
+        "body": [
+          {
+            "block": {
+              "body": [
+                {
+                  "id": {
+                    "name": "x",
+                    "type": "Identifier"
+                  },
+                  "init": {
+                    "type": "IntegerLiteral",
+                    "value": "1"
+                  },
+                  "type": "VariableAssignment"
+                }
+              ],
+              "type": "Block"
+            },
+            "id": {
+              "name": "t",
+              "type": "Identifier"
+            },
+            "type": "TestCaseStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "w = {f: to}\nfrom(bucket: \"src\") |> w.f(bucket: \"dst\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "id": {
+              "name": "w",
+              "type": "Identifier"
+            },
+            "init": {
+              "properties": [
+                {
+                  "key": {
+                    "name": "f",
+                    "type": "Identifier"
+                  },
+                  "type": "Property",
+                  "value": {
+                    "name": "to",
+                    "type": "Identifier"
+                  }
+                }
+              ],
+              "type": "ObjectExpression"
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "dst"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "object": {
+                    "name": "w",
+                    "type": "Identifier"
+                  },
+                  "property": {
+                    "name": "f",
+                    "type": "Identifier"
+                  },
+                  "type": "MemberExpression"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "writer = to\nfrom(bucket: \"src\") |> writer(bucket: \"dst\")": {
+    "files": [
+      {
+        "body": [
+          {
+            "id": {
+              "name": "writer",
+              "type": "Identifier"
+            },
+            "init": {
+              "name": "to",
+              "type": "Identifier"
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "dst"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "writer",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  },
+  "x = \"${to}\"\nfrom(bucket: \"src\") |> range(start: -1h)": {
+    "files": [
+      {
+        "body": [
+          {
+            "id": {
+              "name": "x",
+              "type": "Identifier"
+            },
+            "init": {
+              "parts": [
+                {
+                  "expression": {
+                    "name": "to",
+                    "type": "Identifier"
+                  },
+                  "type": "InterpolatedPart"
+                }
+              ],
+              "type": "StringExpression"
+            },
+            "type": "VariableAssignment"
+          },
+          {
+            "expression": {
+              "argument": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "bucket",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "type": "StringLiteral",
+                          "value": "src"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "from",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "call": {
+                "arguments": [
+                  {
+                    "properties": [
+                      {
+                        "key": {
+                          "name": "start",
+                          "type": "Identifier"
+                        },
+                        "type": "Property",
+                        "value": {
+                          "argument": {
+                            "type": "DurationLiteral",
+                            "values": [
+                              {
+                                "magnitude": 1,
+                                "unit": "h"
+                              }
+                            ]
+                          },
+                          "operator": "-",
+                          "type": "UnaryExpression"
+                        }
+                      }
+                    ],
+                    "type": "ObjectExpression"
+                  }
+                ],
+                "callee": {
+                  "name": "range",
+                  "type": "Identifier"
+                },
+                "type": "CallExpression"
+              },
+              "type": "PipeExpression"
+            },
+            "type": "ExpressionStatement"
+          }
+        ],
+        "imports": null,
+        "metadata": "parser-type=rust",
+        "package": null,
+        "type": "File"
+      }
+    ],
+    "package": "main",
+    "type": "Package"
+  }
+}
