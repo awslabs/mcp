@@ -21,6 +21,7 @@ from awslabs.mcp_lambda_handler.types import (
     StaticResource,
     TextContent,
 )
+from enum import Enum, IntEnum
 from typing import Dict, List, Optional
 from unittest.mock import MagicMock, patch
 
@@ -554,6 +555,89 @@ def test_tool_decorator_enum_type():
     body = json.loads(resp['body'])
     assert 'result' in body
     assert body['result']['content'][0]['text'] == 'Painted with blue'
+
+
+@pytest.mark.parametrize(
+    ('enum_type', 'expected_type'),
+    [
+        (Enum('StringMode', {'FIRST': 'first', 'SECOND': 'second'}), 'string'),
+        (IntEnum('IntMode', {'FIRST': 1, 'SECOND': 2}), 'integer'),
+        (Enum('IntegerMode', {'FIRST': 1, 'SECOND': 2}), 'integer'),
+        (Enum('NumberMode', {'FIRST': 1.5, 'SECOND': 2.5}), 'number'),
+        (Enum('BooleanMode', {'FIRST': True, 'SECOND': False}), 'boolean'),
+        (Enum('MixedMode', {'FIRST': 1, 'SECOND': 'second'}), None),
+        (Enum('NullableMode', {'FIRST': 'first', 'SECOND': None}), None),
+        (Enum('NullMode', {'UNSET': None}), 'null'),
+        (Enum('ArrayMode', {'FIRST': [1], 'SECOND': [2]}), None),
+        (Enum('ObjectMode', {'FIRST': {'code': 1}, 'SECOND': {'code': 2}}), None),
+    ],
+)
+def test_tool_enum_schema_matches_values_and_tool_calls(enum_type, expected_type):
+    """Advertise enum values without contradicting their JSON types."""
+    handler = MCPLambdaHandler('test-server')
+    received = []
+
+    def select(value):
+        """Select a mode.
+
+        Args:
+            value: Selected mode
+        """
+        received.append(value)
+        return value.name
+
+    select.__annotations__ = {'value': enum_type, 'return': str}
+    handler.tool()(select)
+    expected_schema = {
+        'enum': [member.value for member in enum_type],
+        'description': 'Selected mode',
+    }
+    if expected_type is not None:
+        expected_schema['type'] = expected_type
+
+    listed = handler.handle_request(
+        make_lambda_event({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list'}), None
+    )
+    assert listed['statusCode'] == 200
+    tool_schema = json.loads(listed['body'])['result']['tools'][0]
+    assert tool_schema['inputSchema']['properties']['value'] == expected_schema
+
+    for member in enum_type:
+        response = handler.handle_request(
+            make_lambda_event(
+                {
+                    'jsonrpc': '2.0',
+                    'id': 2,
+                    'method': 'tools/call',
+                    'params': {'name': 'select', 'arguments': {'value': member.value}},
+                }
+            ),
+            None,
+        )
+        assert response['statusCode'] == 200
+        assert json.loads(response['body'])['result']['content'][0]['text'] == member.name
+        assert received[-1] is member
+
+
+def test_tool_enum_schema_in_nested_and_optional_annotations():
+    """Reuse the enum value schema in supported container and optional types."""
+
+    class Level(IntEnum):
+        LOW = 1
+        HIGH = 2
+
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def select(values: List[Level], mapping: Dict[str, Level], optional: Optional[Level]) -> str:
+        """Select levels."""
+        return 'selected'
+
+    properties = handler.tools['select']['inputSchema']['properties']
+    expected = {'type': 'integer', 'enum': [1, 2]}
+    assert properties['values'] == {'type': 'array', 'items': expected}
+    assert properties['mapping'] == {'type': 'object', 'additionalProperties': expected}
+    assert properties['optional'] == expected
 
 
 def test_tool_decorator_type_hints():
