@@ -152,8 +152,15 @@ class KeyTemplateParser:
                 )
             )
 
-        # Check for invalid parameter names (non-word characters)
-        invalid_params = re.findall(r'\{([^}]*[^\w}][^}]*)\}', template)
+        # Check for invalid parameter names. A well-formed placeholder is {name} or
+        # {name:format_spec} (see PARAMETER_PATTERN), e.g. {score:05d} or {price:.2f};
+        # only brace contents that are neither — such as a name containing spaces — are
+        # invalid. Empty placeholders ({}) are reported separately above.
+        invalid_params = [
+            content
+            for content in re.findall(r'\{([^{}]*)\}', template)
+            if content.strip() and not re.fullmatch(r'\w+(?::[^{}]*)?', content)
+        ]
         if invalid_params:
             errors.append(
                 ValidationError(

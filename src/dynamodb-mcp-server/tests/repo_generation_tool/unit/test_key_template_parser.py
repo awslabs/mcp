@@ -147,3 +147,23 @@ class TestValidateTemplateSyntax(TestKeyTemplateParser):
         assert len(errors) == 1
         assert 'invalid parameter names' in errors[0].message
         assert 'user id' in errors[0].message
+
+    def test_validate_syntax_allows_format_specifiers(self):
+        """Format specifiers like {score:05d} are a supported placeholder form.
+
+        extract_parameters, is_safe_key_template and the jinja2 generator all accept
+        {field_name:format_spec}, so validate_template_syntax must not reject it as an
+        invalid parameter name.
+        """
+        assert self.parser.validate_template_syntax('SCORE#{score:05d}') == []
+        assert self.parser.validate_template_syntax('PRICE#{price:.2f}') == []
+        assert self.parser.validate_template_syntax('AMOUNT#{amount:,.2f}') == []
+        assert self.parser.validate_template_syntax('NAME#{name:>20}') == []
+        assert self.parser.validate_template_syntax('USER#{user_id}#SCORE#{score:05d}') == []
+
+    def test_validate_syntax_still_flags_spaced_name_alongside_format_spec(self):
+        """A malformed name (space) is still flagged even when a format spec is present."""
+        errors = self.parser.validate_template_syntax('USER#{user id}#SCORE#{score:05d}')
+        assert len(errors) == 1
+        assert 'invalid parameter names' in errors[0].message
+        assert 'user id' in errors[0].message
