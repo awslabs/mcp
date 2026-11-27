@@ -9,4 +9,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `REDSHIFT_CONNECTION_MODE=direct` runs statements over a direct connection to a provisioned cluster, for credentials that may fetch cluster credentials but not call the Data API. The driver it needs is the optional `direct` extra (`pip install 'awslabs-redshift-mcp-server[direct]'`)
 - Initial project setup

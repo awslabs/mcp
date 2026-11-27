@@ -20,6 +20,10 @@ from awslabs.redshift_mcp_server.consts import (
     ACCESS_MODE_DEFAULT,
     ACCESS_MODE_READ_WRITE,
     ACCESS_MODES,
+    CONNECTION_MODE_DEFAULT,
+    CONNECTION_MODES,
+    DIRECT_SSLMODE_DEFAULT,
+    DIRECT_SSLMODES,
     MAX_OPEN_TRANSACTIONS_PER_TARGET_DEFAULT,
     MAX_RESULT_ROWS_DEFAULT,
     SESSION_KEEPALIVE_DEFAULT,
@@ -27,6 +31,7 @@ from awslabs.redshift_mcp_server.consts import (
     UNSAFE_SKIP_WRITE_CONFIRMATION_DEFAULT,
 )
 from loguru import logger
+from mcp.server.mcpserver.exceptions import ToolError
 
 
 def _resolve_int_env(
@@ -103,6 +108,59 @@ def max_result_rows() -> int:
         The configured cap.
     """
     return _resolve_int_env('MAX_RESULT_ROWS', MAX_RESULT_ROWS_DEFAULT)
+
+
+@functools.cache
+def connection_mode() -> str:
+    """How SQL reaches the cluster: `data-api`, or `direct` over a connection of the server's own.
+
+    Anything other than a supported mode falls back to `CONNECTION_MODE_DEFAULT`, so a typo keeps
+    the Data API rather than failing to start.
+
+    Returns:
+        The resolved mode, always one of `CONNECTION_MODES`.
+    """
+    mode = os.environ.get('REDSHIFT_CONNECTION_MODE', CONNECTION_MODE_DEFAULT).strip().lower()
+
+    if mode not in CONNECTION_MODES:
+        logger.warning(
+            f'REDSHIFT_CONNECTION_MODE={mode!r} is not a supported mode '
+            f'({", ".join(sorted(CONNECTION_MODES))}); falling back to {CONNECTION_MODE_DEFAULT}.'
+        )
+        return CONNECTION_MODE_DEFAULT
+
+    return mode
+
+
+def resolve_direct_sslmode() -> str:
+    """How a direct connection checks the cluster's certificate.
+
+    Not cached: the direct client reads it once, when it is built. Unlike the settings above, an
+    unsupported value is refused rather than replaced, since a typo should neither loosen the
+    check nor quietly undo the loosening the operator asked for.
+
+    Returns:
+        The resolved mode, always one of `DIRECT_SSLMODES`.
+
+    Raises:
+        ToolError: If REDSHIFT_DIRECT_SSLMODE is set to an unsupported mode.
+    """
+    raw = os.environ.get('REDSHIFT_DIRECT_SSLMODE', DIRECT_SSLMODE_DEFAULT)
+    mode = raw.strip().lower()
+
+    if mode not in DIRECT_SSLMODES:
+        raise ToolError(
+            f'REDSHIFT_DIRECT_SSLMODE={raw!r} is not a supported mode '
+            f'({", ".join(sorted(DIRECT_SSLMODES))}).'
+        )
+
+    if mode != DIRECT_SSLMODE_DEFAULT:
+        logger.warning(
+            f'REDSHIFT_DIRECT_SSLMODE={mode}: direct connections do not check that the '
+            "cluster's certificate names its endpoint."
+        )
+
+    return mode
 
 
 # Not cached, unlike those above: the server calls each of these once and binds the result

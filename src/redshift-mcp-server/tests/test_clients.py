@@ -18,7 +18,10 @@
 import os
 import pytest
 import threading
+import time
 from awslabs.redshift_mcp_server.clients import RedshiftClientManager, client_manager
+from awslabs.redshift_mcp_server.direct import DirectConnectionClient
+from awslabs.redshift_mcp_server.settings import connection_mode
 from botocore.config import Config
 
 
@@ -221,6 +224,82 @@ class TestRedshiftClientManagerDataClient:
         assert client1 == client2 == mock_client
         # Session should only be called once
         mock_boto3_session.assert_called_once()
+
+
+class TestRedshiftClientManagerConnectionMode:
+    """REDSHIFT_CONNECTION_MODE picks the data client, and the default stays the Data API's."""
+
+    @pytest.fixture(autouse=True)
+    def _fresh_mode(self):
+        """Resolve the mode afresh for each test."""
+        connection_mode.cache_clear()
+        yield
+        connection_mode.cache_clear()
+
+    def test_the_default_is_the_data_api_client(self, monkeypatch, mocker):
+        """Unset, nothing changes for anyone who has not asked for direct connections."""
+        monkeypatch.delenv('REDSHIFT_CONNECTION_MODE', raising=False)
+        session = mocker.patch('boto3.Session')
+
+        data_client = RedshiftClientManager(Config()).redshift_data_client()
+
+        assert data_client is session.return_value.client.return_value
+        session.return_value.client.assert_called_once_with('redshift-data', config=mocker.ANY)
+
+    def test_direct_builds_the_direct_client_and_closes_it_at_exit(self, monkeypatch, mocker):
+        """No Data API client is built, and the region is the one the manager resolves."""
+        monkeypatch.setenv('REDSHIFT_CONNECTION_MODE', 'direct')
+        session = mocker.patch('boto3.Session')
+        session.return_value.client.return_value.meta.region_name = 'eu-west-1'
+        register = mocker.patch('awslabs.redshift_mcp_server.clients.atexit.register')
+
+        manager = RedshiftClientManager(Config())
+        data_client = manager.redshift_data_client()
+
+        assert isinstance(data_client, DirectConnectionClient)
+        assert manager.redshift_data_client() is data_client
+        register.assert_called_once_with(data_client.close)
+        assert data_client._region() == 'eu-west-1'
+        session.return_value.client.assert_called_once_with('redshift', config=mocker.ANY)
+
+
+class TestRedshiftClientManagerDataClientFirstUse:
+    """Two first uses at once build one data client, and register one closer."""
+
+    def test_two_first_calls_at_once_build_one_client(self, monkeypatch, mocker):
+        """The second caller waits for the first one's client rather than building its own."""
+        monkeypatch.setenv('REDSHIFT_CONNECTION_MODE', 'direct')
+        connection_mode.cache_clear()
+        start = threading.Barrier(2)
+
+        def slow_client(region):
+            # Long enough that, unguarded, both callers find no client and build one each.
+            time.sleep(0.1)
+            return mocker.MagicMock()
+
+        built = mocker.patch(
+            'awslabs.redshift_mcp_server.clients.DirectConnectionClient', side_effect=slow_client
+        )
+        register = mocker.patch('awslabs.redshift_mcp_server.clients.atexit.register')
+        manager = RedshiftClientManager(Config())
+        got = []
+
+        def first_use():
+            start.wait()
+            got.append(manager.redshift_data_client())
+
+        try:
+            threads = [threading.Thread(target=first_use) for _ in range(2)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+        finally:
+            connection_mode.cache_clear()
+
+        assert built.call_count == 1
+        assert register.call_count == 1
+        assert got[0] is got[1]
 
 
 class TestTheServersClientsReadTheEnvironment:
