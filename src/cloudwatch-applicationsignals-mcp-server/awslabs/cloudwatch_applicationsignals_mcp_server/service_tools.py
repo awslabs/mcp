@@ -31,7 +31,7 @@ def _get_instrumentation_type(service: dict) -> str:
 
 
 async def list_monitored_services() -> str:
-    """OPTIONAL TOOL for service discovery - audit_services() can automatically discover services using wildcard patterns.
+    """[DEPRECATED] OPTIONAL TOOL for service discovery - audit_services() can automatically discover services using wildcard patterns.
 
     **ROUTING:**
     - For a **general health/performance question** ("any performance issues?",
@@ -184,7 +184,7 @@ async def query_service_metrics(
         default=1, description='Number of hours to look back (default 1, max 168 for 1 week)'
     ),
 ) -> str:
-    """Get CloudWatch metrics for a specific Application Signals service.
+    """[DEPRECATED] Get CloudWatch metrics for a specific Application Signals service.
 
     Use this tool to:
     - Analyze service performance (latency, throughput)

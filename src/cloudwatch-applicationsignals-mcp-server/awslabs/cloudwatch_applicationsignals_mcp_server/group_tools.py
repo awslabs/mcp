@@ -231,7 +231,7 @@ async def list_group_services(
         description="End time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now UTC.",
     ),
 ) -> str:
-    """SERVICE DISCOVERY TOOL - Find all services belonging to a group.
+    """[DEPRECATED] SERVICE DISCOVERY TOOL - Find all services belonging to a group.
 
     Use this tool when users ask:
     - "What services belong to the Payment group?"
@@ -370,7 +370,7 @@ async def audit_group_health(
         description='Latency P99 threshold in milliseconds for CRITICAL when using metrics fallback (default: 5000.0)',
     ),
 ) -> str:
-    """HEALTH AUDIT TOOL - Detect anomalies and unhealthy services in a group.
+    """[DEPRECATED] HEALTH AUDIT TOOL - Detect anomalies and unhealthy services in a group.
 
     Use this tool when users ask:
     - "Is the Payment application healthy?"
@@ -795,7 +795,7 @@ async def get_group_dependencies(
         description="End time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now UTC.",
     ),
 ) -> str:
-    """DEPENDENCY MAPPING TOOL - Analyze dependencies within and across groups.
+    """[DEPRECATED] DEPENDENCY MAPPING TOOL - Analyze dependencies within and across groups.
 
     Use this tool when users ask:
     - "What are the dependencies of the Payment group?"
@@ -1010,7 +1010,7 @@ async def get_group_changes(
         description="End time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now UTC.",
     ),
 ) -> str:
-    """CHANGE TRACKING TOOL - Monitor deployments in a group.
+    """[DEPRECATED] CHANGE TRACKING TOOL - Monitor deployments in a group.
 
     Use this tool when users ask:
     - "What deployments happened in the Payment group today?"
@@ -1191,7 +1191,7 @@ async def get_group_changes(
 
 
 async def list_grouping_attribute_definitions() -> str:
-    """GROUPING CONFIGURATION TOOL - List all custom grouping attribute definitions.
+    """[DEPRECATED] GROUPING CONFIGURATION TOOL - List all custom grouping attribute definitions.
 
     Use this tool when users ask:
     - "What grouping attributes are configured?"

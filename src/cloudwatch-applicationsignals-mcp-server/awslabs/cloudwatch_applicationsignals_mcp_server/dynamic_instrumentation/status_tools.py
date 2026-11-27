@@ -107,7 +107,7 @@ def get_instrumentation_configuration_status(
     next_token: Optional[str] = None,
     signal_type: str = SNAPSHOT_SIGNAL_TYPE,
 ) -> str:
-    """Get status-event history for one instrumentation configuration and one explicit status.
+    """[DEPRECATED] Get status-event history for one instrumentation configuration and one explicit status.
 
     This API is intentionally strict: callers must provide exactly one status
     filter because AWS defaults can be ambiguous. The response distinguishes
@@ -248,7 +248,7 @@ def check_instrumentation_status(
     end_time: str,
     signal_type: str = SNAPSHOT_SIGNAL_TYPE,
 ) -> str:
-    """Run a consolidated READY/ACTIVE/ERROR status check over a time window.
+    """[DEPRECATED] Run a consolidated READY/ACTIVE/ERROR status check over a time window.
 
     This helper is opinionated: it first fetches the instrumentation creation
     time, clamps the ACTIVE search window so it does not start before creation,

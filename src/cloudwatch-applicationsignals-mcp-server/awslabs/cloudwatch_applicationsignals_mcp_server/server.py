@@ -19,6 +19,7 @@ import os
 import re
 import sys
 import tempfile
+import warnings
 from .audit_presentation_utils import format_pagination_info
 from .audit_utils import (
     execute_audit_api,
@@ -85,8 +86,15 @@ BATCH_SIZE_THRESHOLD = 5
 
 RUN_STATES = {'RUNNING': 'RUNNING', 'PASSED': 'PASSED', 'FAILED': 'FAILED'}
 
+DEPRECATION_NOTICE = (
+    'awslabs.cloudwatch-applicationsignals-mcp-server is deprecated and will not receive '
+    'further updates. Use the AWS MCP Server (https://github.com/aws/agent-toolkit-for-aws) '
+    'instead. Migration guide: '
+    'https://github.com/awslabs/mcp/blob/main/docs/migration-cloudwatch-applicationsignals.md'
+)
+
 # Initialize MCPServer server
-mcp = MCPServer('cloudwatch-applicationsignals')
+mcp = MCPServer('cloudwatch-applicationsignals', instructions=DEPRECATION_NOTICE)
 
 # Configure logging
 log_level = os.environ.get('MCP_CLOUDWATCH_APPLICATION_SIGNALS_LOG_LEVEL', 'INFO').upper()
@@ -190,7 +198,7 @@ async def audit_services(
         description='Optional. Maximum number of services to process per call when using wildcard patterns (default: 5, max: 10). This controls pagination size for service discovery.',
     ),
 ) -> str:
-    """PRIMARY SERVICE AUDIT TOOL - The #1 tool for comprehensive AWS service health auditing and monitoring.
+    """[DEPRECATED] PRIMARY SERVICE AUDIT TOOL - The #1 tool for comprehensive AWS service health auditing and monitoring.
 
     **ROUTING — read first:** This tool analyzes Application Signals metrics, SLOs,
     traces, logs, dependencies, and top contributors. It does **NOT** include
@@ -524,7 +532,7 @@ async def audit_slos(
         description='Optional. Maximum number of SLOs to process per call when using wildcard patterns (default: 5, max: 10). This controls pagination size for SLO discovery.',
     ),
 ) -> str:
-    """PRIMARY SLO AUDIT TOOL - The #1 tool for comprehensive SLO compliance monitoring and breach analysis.
+    """[DEPRECATED] PRIMARY SLO AUDIT TOOL - The #1 tool for comprehensive SLO compliance monitoring and breach analysis.
 
     **PREFERRED TOOL FOR SLO ROOT CAUSE ANALYSIS**
     This is the RECOMMENDED tool after using get_slo() to understand SLO configuration:
@@ -778,7 +786,7 @@ async def audit_service_operations(
         description='Optional. Maximum number of services to process per call when using wildcard patterns (default: 5, max: 10). This controls pagination size for service discovery.',
     ),
 ) -> str:
-    """🥇 PRIMARY OPERATION AUDIT TOOL - The #1 RECOMMENDED tool for operation-specific analysis and performance investigation.
+    """[DEPRECATED] 🥇 PRIMARY OPERATION AUDIT TOOL - The #1 RECOMMENDED tool for operation-specific analysis and performance investigation.
 
     **⭐ USE THIS AS THE PRIMARY TOOL FOR ALL OPERATION-SPECIFIC AUDITING TASKS ⭐**
 
@@ -1011,7 +1019,7 @@ async def audit_service_operations(
 async def analyze_canary_failures(
     canary_name: str, region: str = AWS_REGION, description: str = ''
 ) -> str:
-    """Comprehensive canary failure analysis with deep dive into issues.
+    """[DEPRECATED] Comprehensive canary failure analysis with deep dive into issues.
 
     Use this tool to:
     - Deep dive into canary failures with root cause identification
@@ -1623,7 +1631,7 @@ async def analyze_canary_failures(
 
 @mcp.tool()
 async def list_canaries(region: str = AWS_REGION, max_results: int = 20) -> str:
-    """List all CloudWatch Synthetics canaries in the account.
+    """[DEPRECATED] List all CloudWatch Synthetics canaries in the account.
 
     Use this tool to discover canaries before analyzing them with analyze_canary_failures().
     Returns canary names, status, schedule, runtime version, and last run state.
@@ -1734,6 +1742,8 @@ register_dynamic_instrumentation_tools(mcp)
 
 def main():
     """Run the MCP server."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
+
     logger.debug('Starting CloudWatch Application Signals MCP server')
 
     # This server *is* Application Signals, so service_events's integration fallback is

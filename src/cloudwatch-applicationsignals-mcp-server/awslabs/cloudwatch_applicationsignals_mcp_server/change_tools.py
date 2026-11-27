@@ -371,7 +371,7 @@ async def list_change_events(
         description='If True, uses ListEntityEvents API for complete change history (REQUIRES service_key_attributes). If False, uses ListServiceStates API for current service state information (service_key_attributes optional).',
     ),
 ) -> str:
-    """Query AWS Application Signals change events to correlate infrastructure and application changes with service performance issues.
+    """[DEPRECATED] Query AWS Application Signals change events to correlate infrastructure and application changes with service performance issues.
 
     This tool provides access to AWS Application Signals' change detection capabilities through two complementary APIs:
     - **ListEntityEvents**: Comprehensive change history for incident investigation and root cause analysis

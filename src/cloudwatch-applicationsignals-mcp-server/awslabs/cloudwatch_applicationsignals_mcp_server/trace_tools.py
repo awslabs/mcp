@@ -123,7 +123,7 @@ async def search_transaction_spans(
         default=30, description='Maximum time in seconds to wait for query completion'
     ),
 ) -> Dict:
-    """Executes a CloudWatch Logs Insights query against trace span records stored in CloudWatch Logs with the OpenTelemetry semantic-convention schema (@data_format = "AWS-OTEL-TRACE-V1").
+    """[DEPRECATED] Executes a CloudWatch Logs Insights query against trace span records stored in CloudWatch Logs with the OpenTelemetry semantic-convention schema (@data_format = "AWS-OTEL-TRACE-V1").
 
     Scope: only log records tagged `@data_format = "AWS-OTEL-TRACE-V1"` will match,
     so span records must follow the OpenTelemetry semantic-convention schema (e.g.
@@ -364,7 +364,7 @@ async def list_slis(
         description='Number of hours to look back (default 24, typically use 24 for daily checks)',
     ),
 ) -> str:
-    """SPECIALIZED TOOL - Use audit_service_health() as the PRIMARY tool for service auditing.
+    """[DEPRECATED] SPECIALIZED TOOL - Use audit_service_health() as the PRIMARY tool for service auditing.
 
     **IMPORTANT: audit_service_health() is the PRIMARY and PREFERRED tool for all service auditing tasks.**
 
@@ -724,7 +724,7 @@ async def get_xray_trace(
         ),
     ),
 ) -> Dict:
-    """Look up X-Ray traces to analyze downstream dependency calls and their health.
+    """[DEPRECATED] Look up X-Ray traces to analyze downstream dependency calls and their health.
 
     Use this tool when investigating incidents where the root cause may be in a
     downstream dependency (external API, database, AWS service). The tool retrieves

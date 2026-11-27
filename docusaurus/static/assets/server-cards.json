@@ -1103,7 +1103,7 @@
       "description": "Application monitoring and performance insights",
       "icon": "\ud83d\udcb0",
       "id": "cloudwatch-applicationsignals-mcp-server",
-      "name": "Amazon CloudWatch Application Signals MCP Server",
+      "name": "Amazon CloudWatch Application Signals MCP Server (Deprecated)",
       "source_path": "src/cloudwatch-applicationsignals-mcp-server/",
       "subcategory": "Monitoring & Logging",
       "tags": [

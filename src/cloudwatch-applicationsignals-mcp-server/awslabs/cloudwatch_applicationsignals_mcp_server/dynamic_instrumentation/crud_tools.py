@@ -59,7 +59,7 @@ def create_instrumentation(
     description: str = 'MCP dynamic instrumentation',
     ttl_hours: Optional[int] = None,
 ) -> str:
-    """Create a dynamic instrumentation configuration for BREAKPOINT or PROBE.
+    """[DEPRECATED] Create a dynamic instrumentation configuration for BREAKPOINT or PROBE.
 
     This is the main creation entrypoint for the MCP server. BREAKPOINT and PROBE
     create code-based instrumentation and require an explicit code location. Set
@@ -314,7 +314,7 @@ def list_instrumentations(
     max_results: int = 100,
     next_token: Optional[str] = None,
 ) -> str:
-    """List active instrumentation configurations for one service, environment, and type.
+    """[DEPRECATED] List active instrumentation configurations for one service, environment, and type.
 
     Args:
         service: Backend service identifier.
@@ -370,7 +370,7 @@ def batch_delete_instrumentations_by_scope(
     environment: str,
     instrumentation_type: str,
 ) -> str:
-    """Batch delete instrumentation configurations by scope.
+    """[DEPRECATED] Batch delete instrumentation configurations by scope.
 
     This deletes all configurations that match the provided service, environment,
     and instrumentation type.
@@ -425,7 +425,7 @@ def batch_delete_instrumentations_by_arns(
     resource_arns: List[str],
     instrumentation_type: str,
 ) -> str:
-    """Batch delete instrumentation configurations by explicit resource ARN list.
+    """[DEPRECATED] Batch delete instrumentation configurations by explicit resource ARN list.
 
     Args:
         resource_arns: One to fifty instrumentation resource ARNs.
@@ -506,7 +506,7 @@ def delete_instrumentation(
     method_name: Optional[str] = None,
     line_number: Optional[int] = None,
 ) -> str:
-    """Delete a single instrumentation configuration.
+    """[DEPRECATED] Delete a single instrumentation configuration.
 
     The target can be resolved by `location_hash` or by a full location
     description. The target can be resolved by `location_hash` or by a full code
@@ -604,7 +604,7 @@ def get_instrumentation(
     method_name: Optional[str] = None,
     line_number: Optional[int] = None,
 ) -> str:
-    """Get the full backend configuration for a single instrumentation target.
+    """[DEPRECATED] Get the full backend configuration for a single instrumentation target.
 
     The target can be resolved by `location_hash` or by a full location
     description. The target can be resolved by `location_hash` or by a full code
