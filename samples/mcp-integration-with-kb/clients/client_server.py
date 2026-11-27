@@ -146,7 +146,8 @@ async def process_query(query: str, kb_id: str) -> Dict[str, Any]:
         logger.info('Creating ChatBedrock with tools')
         chat_model = ChatBedrock(
             client=bedrock_runtime,
-            model_id='anthropic.claude-3-sonnet-20240229-v1:0',
+            model_id='global.anthropic.claude-sonnet-4-6',
+            provider='anthropic',
             model_kwargs={
                 'temperature': 0.7,
                 'max_tokens': 2048,
