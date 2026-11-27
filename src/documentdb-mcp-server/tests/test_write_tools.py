@@ -235,7 +235,7 @@ class TestUpdateTool:
 
     @pytest.mark.asyncio
     async def test_update_ensure_operators(self, mock_ctx, patch_client, monkeypatch):
-        """Test update with implicit $set."""
+        """Test update replaces the whole document when replace=True."""
         # Arrange
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
@@ -245,12 +245,12 @@ class TestUpdateTool:
         document = {'name': 'Old Name', 'value': 42}
         mock_client['test_db']['test_collection'].insert_one(document)
 
-        # Set up filter and update without $set operator
+        # Set up filter and a replacement document (no $ operators)
         filter_doc = {'name': 'Old Name'}
-        update_doc = {'name': 'New Name'}  # No $set operator
+        update_doc = {'name': 'New Name'}
 
         # Act
-        result = await update('test_db', 'test_collection', filter_doc, update_doc)
+        result = await update('test_db', 'test_collection', filter_doc, update_doc, replace=True)
 
         # Assert
         assert result['success'] is True

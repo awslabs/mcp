@@ -41,13 +41,15 @@ The DocumentDB MCP Server provides the following tools. All tools operate on the
 
 - `find`: Query documents from a collection
 - `aggregate`: Run aggregation pipelines (pipelines with `$out` or `$merge` stages are blocked in read-only mode)
+
+`find` and `aggregate` return at most 1000 documents (`limit` must be between 1 and 1000), and `analyzeSchema` samples at most 1000 documents. A `$limit` stage inside a pipeline cannot raise this cap.
 - `insert`: Insert documents (blocked in read-only mode)
 - `update`: Update documents (blocked in read-only mode)
 - `delete`: Delete documents (blocked in read-only mode)
 
 ### Query Planning
 
-- `explainOperation`: Get an explanation of how an operation will be executed
+- `explainOperation`: Get an explanation of how an operation will be executed (aggregation pipelines are checked for `$out`/`$merge` and explained with `queryPlanner` only in read-only mode)
 
 ## Server Configuration
 
@@ -80,19 +82,29 @@ python -m awslabs.documentdb_mcp_server.server \
 | `--log-level` | Set logging level (TRACE, DEBUG, INFO, etc.) | INFO |
 | `--connection-string` | DocumentDB connection string for the cluster to connect to. Prefer the `DOCUMENTDB_CONNECTION_STRING` environment variable, which keeps credentials out of process listings. | None |
 | `--allow-write` | Enable write operations (otherwise defaults to read-only mode) | False |
+| `--allowed-namespaces` | Comma-separated `database` or `database.collection` patterns, with shell-style wildcards, that tools may access (for example `app,reports.daily_*`). Collections that aggregation stages reference (`$lookup`, `$graphLookup`, `$unionWith`, `$out`, `$merge`) are checked too, and `listDatabases` / `listCollections` show only allowed namespaces. May also be set with the `DOCUMENTDB_ALLOWED_NAMESPACES` environment variable. | All namespaces |
 
 ### Read-Only Mode
 
 By default, the server runs in read-only mode that only allows read operations. This enhances security by preventing any modifications to the database. In read-only mode:
 
 - Read operations (`find`, `listCollections`) work normally
-- Aggregation pipelines (`aggregate`) work normally, except pipelines containing `$out` or `$merge` stages are blocked
+- Aggregation pipelines (`aggregate`, and aggregate explains in `explainOperation`) work normally, except pipelines containing `$out` or `$merge` stages are blocked
+- `explainOperation` explains aggregation pipelines with `queryPlanner` only, so the pipeline is planned but not executed
 - Write operations (`insert`, `update`, `delete`, `createCollection`, `dropCollection`) are blocked and return a permission error
 
 This mode is particularly useful for:
 - Demonstration environments
 - Security-sensitive applications
 - Integration with public-facing AI assistants
+
+Read-only mode is enforced by this server only. Connect with a DocumentDB user that has only the privileges the agent needs (for example, a read-only role when you don't pass `--allow-write`), so the database enforces the same limits.
+
+### Logging and Errors
+
+Server logs are written to stderr, because with the stdio transport stdout carries the MCP protocol stream. Logs never include document contents, and credentials in connection strings are redacted.
+
+When the server can't connect to the cluster, tools return a fixed message ("Failed to connect to the configured DocumentDB cluster. See server logs for details.") rather than the driver's error, which names the cluster endpoint. The details are in the server logs. The connection string is parsed at startup, and the server exits if it is invalid (`mongodb+srv://` strings are checked on first connection instead, because parsing them needs a DNS lookup).
 - Protecting production databases from unintended modifications
 
 ## Usage Examples
@@ -123,6 +135,13 @@ To enable write operations, start the server with the `--allow-write` flag:
 python -m awslabs.documentdb_mcp_server.server \
   --connection-string "mongodb://...&retryWrites=false" --allow-write
 ```
+
+Write tools ask for explicit intent before destructive changes:
+
+- `delete` and `update` reject an empty filter (`{}`), which matches every document, unless `confirm_destructive` is `true`.
+- `update` takes update operators such as `{"$set": {...}}`. To replace a whole document, pass the replacement document and set `replace` to `true`; fields missing from it are removed.
+
+Combine `--allow-write` with `--allowed-namespaces` and a least-privilege database user to limit what a write-enabled server can change.
 
 When the server is running with write operations enabled:
 

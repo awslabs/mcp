@@ -18,6 +18,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `explainOperation`) no longer accept a `connection_id` argument and operate on the
   configured cluster directly.
 - Hardened connection handling.
+- **BREAKING**: `find` and `aggregate` now require `limit` between 1 and 1000
+  (default 10). `limit=0` no longer means "no limit". `aggregate` always appends a
+  final `$limit`, so a `$limit` stage in the caller's pipeline cannot raise the
+  cap (pipelines that end in `$out` or `$merge` are unchanged). `analyzeSchema`
+  `sample_size` must also be between 1 and 1000.
+- In read-only mode, `explainOperation` rejects aggregation pipelines that contain
+  `$out` or `$merge`, and explains aggregation pipelines with `queryPlanner` only.
+  The response now includes the `verbosity` used.
+- Server logs are written to stderr instead of stdout, so they no longer mix with
+  the stdio protocol stream. `analyzeSchema` no longer logs sampled documents.
+- Connection and configuration errors return a fixed message instead of the
+  driver's error text, which named the cluster endpoint and topology. Query
+  errors return only the server's error message and code. Deliberate errors (such
+  as read-only denials) are returned to the client as tool errors.
+- The connection string is parsed at startup, and the server exits with a
+  redacted message if it is invalid. `retryWrites=false` is also checked when the
+  connection is created.
+- **BREAKING**: `delete` and `update` reject an empty filter unless
+  `confirm_destructive=True`.
+- **BREAKING**: `update` no longer replaces a document when the update document
+  has no `$` operators. Pass `replace=True` to replace a whole document;
+  `replace=True` cannot be combined with `many=True`.
+
+### Added
+
+- `--allowed-namespaces` (or `DOCUMENTDB_ALLOWED_NAMESPACES`) restricts every tool
+  to matching `database` or `database.collection` patterns, including collections
+  referenced by aggregation stages. `listDatabases` and `listCollections` return
+  only allowed namespaces.
 
 ### Removed
 
