@@ -448,3 +448,41 @@ class TestAnalyzeLogGroup:
             assert query['log_group_identifiers'] == [log_group_arn]
             assert query['start_time'] == '2023-01-01T00:00:00+00:00'
             assert query['end_time'] == '2023-01-01T01:00:00+00:00'
+
+    async def test_analyze_log_group_forwards_profile_name(self, ctx, cloudwatch_tools):
+        """Test that analyze_log_group runs its pattern queries with the caller's profile."""
+        log_group_arn = 'arn:aws:logs:eu-west-1:123456789012:log-group:/aws/test/group1'
+
+        empty_paginator = MagicMock()
+        empty_paginator.paginate.return_value = [{'anomalyDetectors': [], 'anomalies': []}]
+        logs_client = MagicMock()
+        logs_client.get_paginator.return_value = empty_paginator
+
+        executed_queries = []
+
+        async def mock_execute_query(*args, **kwargs):
+            executed_queries.append(kwargs)
+            return {'queryId': 'test-query-id', 'status': 'Complete', 'results': []}
+
+        with (
+            patch(
+                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.get_aws_client',
+                return_value=logs_client,
+            ) as mock_get_client,
+            patch.object(
+                cloudwatch_tools, 'execute_log_insights_query', side_effect=mock_execute_query
+            ),
+        ):
+            await cloudwatch_tools.analyze_log_group(
+                ctx,
+                log_group_arn=log_group_arn,
+                start_time='2023-01-01T00:00:00+00:00',
+                end_time='2023-01-01T01:00:00+00:00',
+                region='eu-west-1',
+                profile_name='prod',
+            )
+
+        mock_get_client.assert_called_once_with('logs', 'eu-west-1', 'prod')
+        assert len(executed_queries) == 2
+        for query in executed_queries:
+            assert query.get('profile_name') == 'prod'
