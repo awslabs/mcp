@@ -61,7 +61,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/healthimaging-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @manish364
 /src/healthlake-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @aws-steve @awsri
 /src/iam-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @tildemit
-/src/lambda-tool-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @danilop @jsamuel1
+/src/lambda-tool-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @danilop
 /src/mcp-lambda-handler                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @mikegc-aws @Lukas-Xue
 /src/memcached-mcp-server                                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @swarnaprakash @madolson @allenss-amazon @kevinmcgehee
 /src/mssql-mcp-server                                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @RobinGolden @shreyaskshekhar
