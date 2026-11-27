@@ -212,7 +212,16 @@ class MCPLambdaHandler:
 
                 # Handle Enums
                 if isinstance(type_hint, type) and issubclass(type_hint, Enum):
-                    return {'type': 'string', 'enum': [e.value for e in type_hint]}
+                    values = [member.value for member in type_hint]
+                    enum_schema: Dict[str, Any] = {'enum': values}
+                    value_types = {type(value) for value in values}
+                    if len(value_types) == 1:
+                        value_type = value_types.pop()
+                        if value_type in (str, int, float, bool):
+                            enum_schema.update(get_type_schema(value_type))
+                        elif value_type is type(None):
+                            enum_schema['type'] = 'null'
+                    return enum_schema
 
                 # Get origin type (e.g., Dict from Dict[str, int])
                 origin = get_origin(type_hint)

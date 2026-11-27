@@ -33,6 +33,11 @@ def lambda_handler(event, context):
     return mcp.handle_request(event, context)
 ```
 
+Tool parameters annotated with Python enums expose their member values in the
+input schema. Homogeneous string, integer, number, boolean, and null enums include
+the corresponding JSON Schema type; mixed-value enums use the enum constraint
+without imposing a single type.
+
 ## Session Management
 
 The library provides flexible session management with built-in support for DynamoDB and the ability to create custom session backends. You can use the default stateless (NoOp) session store, or configure a DynamoDB-backed store for persistent sessions.
