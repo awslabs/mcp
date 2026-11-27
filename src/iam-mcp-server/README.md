@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [AWS MCP Server](https://github.com/aws/agent-toolkit-for-aws), part of the Agent Toolkit for AWS, which runs IAM API calls through its `run_script` tool (sandboxed Python that calls AWS APIs with your own IAM credentials) and provides IAM guidance through the `aws-iam` Agent Skill. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-iam.md) for a detailed tool-by-tool mapping.
+
 # AWS IAM MCP Server
 
 A Model Context Protocol (MCP) server for comprehensive AWS Identity and Access Management (IAM) operations. This server provides AI assistants with the ability to manage IAM users, roles, policies, and permissions while following security best practices.

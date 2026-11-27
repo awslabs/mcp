@@ -30,7 +30,11 @@ from awslabs.aws_serverless_mcp_server.tools.webapps.utils.deploy_service import
     DeploymentStatus,
     deploy_application,
 )
-from awslabs.aws_serverless_mcp_server.utils.const import DEPLOYMENT_STATUS_DIR
+from awslabs.aws_serverless_mcp_server.utils.const import (
+    DEPLOYMENT_STATUS_DIR,
+    PROJECT_NAME_PATTERN,
+    get_deployment_status_file_path,
+)
 from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
@@ -52,7 +56,13 @@ class DeployWebAppTool(BaseTool):
         deployment_type: Literal['backend', 'frontend', 'fullstack'] = Field(
             description='Type of deployment'
         ),
-        project_name: str = Field(description='Project name'),
+        project_name: str = Field(
+            pattern=PROJECT_NAME_PATTERN.pattern,
+            description=(
+                'Project name. May contain only letters, digits, hyphens, and underscores, '
+                'up to 128 characters.'
+            ),
+        ),
         project_root: str = Field(description='Absolute path to the project root directory'),
         region: Optional[str] = Field(
             default=None, description='AWS Region to deploy to (e.g., us-east-1)'
@@ -82,12 +92,31 @@ class DeployWebAppTool(BaseTool):
                 backend_configuration=backend_configuration,
                 frontend_configuration=frontend_configuration,
             )
-            os.makedirs(DEPLOYMENT_STATUS_DIR, exist_ok=True)
+            os.makedirs(DEPLOYMENT_STATUS_DIR, mode=0o700, exist_ok=True)
 
-            # Check if this is a destructive deployment type change
+            # Check if this is a destructive deployment type change. This also validates
+            # the status path before the background deploy starts, so a rejected path
+            # is reported here rather than after "initiated successfully".
             destructive_check = await self.check_destructive_deployment_change(
                 project_name, deployment_type
             )
+
+            if destructive_check.get('verificationFailed'):
+                return {
+                    'content': [
+                        {
+                            'type': 'text',
+                            'text': json.dumps(
+                                {
+                                    'success': False,
+                                    'message': 'Could not verify the existing deployment',
+                                    'error': destructive_check.get('warning'),
+                                },
+                                indent=2,
+                            ),
+                        }
+                    ]
+                }
 
             if destructive_check.get('isDestructive'):
                 return {
@@ -274,11 +303,12 @@ class DeployWebAppTool(BaseTool):
             new_type: New deployment type
 
         Returns:
-            Dict: Object with isDestructive flag and warning message
+            Dict: isDestructive, an optional warning, and verificationFailed=True when
+            the existing deployment could not be checked (also sets isDestructive=True).
         """
         try:
             # Check if there's an existing deployment
-            status_file_path = os.path.join(DEPLOYMENT_STATUS_DIR, f'{project_name}.json')
+            status_file_path = get_deployment_status_file_path(project_name)
 
             if not os.path.exists(status_file_path):
                 # No existing deployment, so not destructive
@@ -326,5 +356,12 @@ class DeployWebAppTool(BaseTool):
 
             return {'isDestructive': False}
         except Exception as e:
+            # Fail closed: if the existing deployment cannot be checked (rejected path,
+            # unreadable or corrupt status file), do not report the change as safe.
             logger.error(f'Error checking for destructive deployment change: {str(e)}')
-            return {'isDestructive': False}  # Default to non-destructive on error
+            warning = f'Cannot verify the existing deployment type for {project_name!r}: {e}.'
+            if isinstance(e, json.JSONDecodeError):
+                warning += (
+                    f' The status file in {DEPLOYMENT_STATUS_DIR} is corrupt; delete it and retry.'
+                )
+            return {'isDestructive': True, 'verificationFailed': True, 'warning': warning}

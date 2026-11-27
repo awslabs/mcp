@@ -22,6 +22,10 @@ from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
 )
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_account_id, get_omics_client
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
+from awslabs.aws_healthomics_mcp_server.utils.local_file_access import (
+    LocalFileAccessDisabledError,
+    require_local_output_access,
+)
 from awslabs.aws_healthomics_mcp_server.utils.path_utils import write_svg_to_local
 from awslabs.aws_healthomics_mcp_server.utils.s3_utils import write_svg_to_s3
 from awslabs.aws_healthomics_mcp_server.visualization.gantt_generator import GanttGenerator
@@ -78,7 +82,8 @@ async def generate_run_timeline(
             'Optional file path or S3 URI (s3://bucket/key) where the SVG output '
             'will be written. When provided, the response contains only summary '
             'metadata instead of the full SVG content. Recommended for complex '
-            'workflows to avoid context window overflow.'
+            'workflows to avoid context window overflow. Local file paths are supported '
+            'only when the server runs over stdio.'
         ),
     ),
     theme: str = Field(
@@ -141,6 +146,12 @@ async def generate_run_timeline(
     """
     try:
         logger.info(f'Generating timeline for run {run_id}')
+
+        # Reject a local output_path over network transports before any AWS work.
+        try:
+            require_local_output_access(output_path)
+        except LocalFileAccessDisabledError as e:
+            return json.dumps(await handle_tool_error(ctx, e, 'Error writing timeline output'))
 
         # Validate time_unit
         if time_unit not in VALID_TIME_UNITS:

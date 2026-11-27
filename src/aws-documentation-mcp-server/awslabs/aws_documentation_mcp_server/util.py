@@ -17,9 +17,10 @@ import httpx
 import markdownify
 import re
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
+from dataclasses import dataclass, field
 from mcp.server.mcpserver.exceptions import ToolError
-from typing import Any, Dict, List, Sequence
-from urllib.parse import quote_plus, urljoin
+from typing import Any, Dict, List, Optional, Sequence
+from urllib.parse import quote_plus, urljoin, urlsplit, urlunsplit
 
 
 # An unresolved cross-reference leaves an href with no filename, e.g. './.html#anchor'.
@@ -287,75 +288,214 @@ def format_documentation_result(url: str, content: str, start_index: int, max_le
     return result
 
 
-def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
-    """Extract requested sections from HTML.
+# ATX headings; four or more leading spaces make an indented code block instead.
+_MARKDOWN_HEADING = re.compile(r'^ {0,3}(#{1,6})[ \t]+(.*?)[ \t]*$')
+
+
+def _heading_text(title: str) -> str:
+    """Reduce a Markdown heading title to the text a reader sees."""
+    text = re.sub(r'<a name="[^"]*"></a>', '', title)  # anchors published Markdown adds
+    text = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', text)  # links keep their text
+    return ' '.join(re.sub(r'[*`\\\u00b6]', '', text).split())  # markers, escapes, pilcrow
+
+
+# Converted HTML can open a fence after the ':' markers markdownify writes for <dd> items,
+# or after a list marker inside one.
+_CODE_FENCE = re.compile(r'^[ \t]*(?:(?::|>|[-*+]|\d{1,9}[.)])[ \t]+)*(`{3,}|~{3,})(.*)$')
+# A closing fence carries no list or ':' marker, so a line such as '- ```' inside a block is
+# code. Any indent is allowed because markdownify indents a closer under its list or <dd> item.
+_CODE_FENCE_CLOSE = re.compile(r'^[ \t]*((?:>[ \t]*)*)(`{3,}|~{3,})(.*)$')
+
+# Published Markdown starts each tab (code sample or procedure) with a '------' rule and a
+# '#### [ JSON ]' or '#### [ Console ]' line.
+_TAB_RULE = re.compile(r'-{6}')
+# Published Markdown can follow a closing fence or a tab label with the next element's anchor
+_ANCHOR = r'(?:<a name="[^"]*"></a>)?'
+_TAB_LABEL = re.compile(r'(\[ [^\]]+ \])' + _ANCHOR)
+_FENCE_CLOSE_TAIL = re.compile(r'[ \t]*' + _ANCHOR + r'\s*')
+
+
+class _CodeFences:
+    """Follow fenced code blocks through a page, one line at a time."""
+
+    def __init__(self) -> None:
+        self._fence: Optional[str] = None
+        self._quote_depth = 0
+
+    def consume(self, line: str) -> bool:
+        """Consume a line and report whether it is a fence or code inside one."""
+        if self._fence is None:
+            match = _CODE_FENCE.match(line)
+            # A backtick in the info string means inline code, not a fence
+            if match and not (match.group(1)[0] == '`' and '`' in match.group(2)):
+                self._fence = match.group(1)
+                self._quote_depth = line[: match.start(1)].count('>')
+                return True
+            return False
+        fence = self._fence
+        match = _CODE_FENCE_CLOSE.match(line)
+        if (
+            match
+            and match.group(1).count('>') == self._quote_depth
+            and match.group(2)[0] == fence[0]
+            and len(match.group(2)) >= len(fence)
+            and _FENCE_CLOSE_TAIL.fullmatch(match.group(3))
+        ):
+            self._fence = None
+        return True
+
+
+@dataclass(frozen=True)
+class _Heading:
+    line: int
+    level: int
+    text: str
+    tab: bool = False  # a tab label: selectable by name, never ends another section, never listed
+
+
+@dataclass(frozen=True)
+class SectionSelection:
+    """What read_sections returns for a page: the matched sections, or the page itself."""
+
+    markdown: str
+    whole_page: bool  # every title that matched named only the page's level-1 heading
+    missing: List[str]
+    page_titles: List[str] = field(default_factory=list)  # set only alongside sections
+
+    @property
+    def notes(self) -> str:
+        """Notes on requested titles that matched no heading or were not returned as sections."""
+        notes = ''
+        if self.missing:
+            missing_list = ', '.join(f'"{title}"' for title in self.missing)
+            notes += (
+                f'\n\n> **Note**: The following requested sections were not found: {missing_list}'
+            )
+        if self.page_titles:
+            page_list = ', '.join(f'"{title}"' for title in self.page_titles)
+            verb = 'names' if len(self.page_titles) == 1 else 'name'
+            notes += (
+                f'\n\n> **Note**: {page_list} also {verb} the whole page. Use the'
+                ' read_documentation tool to read all of it.'
+            )
+        return notes
+
+
+def _markdown_headings(lines: List[str]) -> List[_Heading]:
+    """List the page's headings. Only the first level-1 heading counts as the page title."""
+    headings = []
+    fences = _CodeFences()
+    seen_title = False
+    for i, line in enumerate(lines):
+        heading = None if fences.consume(line) else _MARKDOWN_HEADING.match(line)
+        if not heading:
+            continue
+        level = len(heading.group(1))
+        label = _TAB_LABEL.fullmatch(heading.group(2)) if level == 4 and i > 0 else None
+        if label and _TAB_RULE.fullmatch(lines[i - 1].strip()):
+            headings.append(_Heading(i, level, _heading_text(label.group(1)), tab=True))
+            continue
+        # Converted HTML leaves a paragraph such as '# of hosts' unescaped, so a later
+        # level-1 line is text
+        if level == 1:
+            if seen_title:
+                continue
+            seen_title = True
+        headings.append(_Heading(i, level, _heading_text(heading.group(2))))
+    return headings
+
+
+def select_sections(markdown: str, section_titles: List[str]) -> SectionSelection:
+    """Select the requested sections of a page, matching headings at any level.
+
+    A title selects every heading below level 1 that carries it. A section runs until the next
+    heading at the same or a higher level. A published-Markdown tab label can be selected by
+    name but never ends another section and is never offered when a title misses. When the
+    titles that match name only the page's
+    level-1 heading, the whole page is selected; otherwise a title that also names the page is
+    reported in a note.
 
     Args:
-        html: Raw HTML content
+        markdown: Markdown content of the whole page
         section_titles: List of section titles to extract
 
     Returns:
-        Filtered HTML content containing only the requested sections
+        The selected sections in page order, or the page when whole_page is set
     """
-    if not html or not section_titles:
-        return 'No content or section titles provided'
-
-    from bs4 import BeautifulSoup, Tag
-
-    soup = BeautifulSoup(html, 'html.parser')
-
-    if not has_readable_text(soup):
+    if not markdown.strip():
         raise UnreadablePageError('The page carries no readable content.')
 
-    normalized_titles = {}
-    for title in section_titles:
-        normalized_key = ' '.join(title.strip().lower().split())
-        normalized_titles[normalized_key] = title.strip()
+    if not section_titles:
+        return SectionSelection('No content or section titles provided', False, [])
 
-    h2_tags = soup.find_all('h2')
-    available_level2_sections = []
-    matched_sections_html = []
-    found_sections = set()
+    lines = markdown.split('\n')
+    headings = _markdown_headings(lines)
 
-    for h2 in h2_tags:
-        h2_text = ' '.join(h2.get_text().split())
-        available_level2_sections.append(h2_text)
+    # Normalize like page headings, so a title copied with its markup still matches
+    requested = [(title.strip(), _heading_text(title).lower()) for title in section_titles]
+    sections_for: Dict[str, List[_Heading]] = {}
+    names_page: Dict[str, bool] = {}
+    for _, key in requested:
+        if key in sections_for:
+            continue
+        matches = [h for h in headings if key and h.text.lower() == key]
+        sections_for[key] = [h for h in matches if h.level > 1]
+        names_page[key] = any(h.level == 1 for h in matches)
 
-        normalized_h2 = h2_text.lower()
+    selected = {h.line for matched in sections_for.values() for h in matched}
 
-        if normalized_h2 in normalized_titles:
-            section_content = [h2]
-
-            for sibling in h2.find_next_siblings():
-                # Only Tag elements have name attribute; skip NavigableStrings
-                if isinstance(sibling, Tag) and sibling.name in ['h1', 'h2']:
-                    break
-                section_content.append(sibling)
-
-            section_html_str = ''.join(str(elem) for elem in section_content)
-            matched_sections_html.append(section_html_str)
-            found_sections.add(normalized_titles[normalized_h2])
-
-    if not found_sections:
+    if not selected and not any(names_page.values()):
         section_list = ', '.join(f'"{title}"' for title in section_titles)
-        if available_level2_sections:
-            available_list = ', '.join(f'"{section}"' for section in available_level2_sections)
+        # Level-6 headings are callout titles such as "Note" in converted HTML, not sections
+        offered = [h for h in headings if 1 < h.level < 6 and h.text and not h.tab]
+        top_level = min((h.level for h in offered), default=None)
+        if top_level == 2:  # repeated h2 titles stay listed, as they always have
+            available = [h.text for h in offered if h.level == 2]
+        else:
+            available = list(dict.fromkeys(h.text for h in offered if h.level == top_level))
+        if available:
+            available_list = ', '.join(f'"{section}"' for section in available)
             error_msg = f'No matching sections were found: {section_list}. Available sections: {available_list}. Please retry with one or more of these sections or use the read_documentation tool instead to get the full document content.'
             raise DocumentationToolError(error_msg)
         else:
             error_msg = 'This document does not contain subsections. Please use the read_documentation tool instead to get the full document content.'
             raise DocumentationToolError(error_msg)
 
-    result_html = ''.join(matched_sections_html)
+    # One note entry per normalized title, spelled as first requested
+    unmatched: Dict[str, str] = {}
+    page_named: Dict[str, str] = {}
+    for title, key in requested:
+        if not sections_for[key] and not names_page[key]:
+            unmatched.setdefault(key, title)
+        elif names_page[key]:
+            page_named.setdefault(key, title)
+    missing = list(unmatched.values())
 
-    if len(found_sections) < len(section_titles):
-        missing_sections = [
-            title.strip() for title in section_titles if title.strip() not in found_sections
-        ]
-        missing_list = ', '.join(f'"{title}"' for title in missing_sections)
-        result_html += f'\n\n<blockquote><strong>Note</strong>: The following requested sections were not found: {missing_list}</blockquote>'
+    if not selected:
+        return SectionSelection(markdown, True, missing)
 
-    return result_html
+    page_titles = list(page_named.values())
+
+    sections = []
+    open_section: Optional[_Heading] = None
+    for heading in headings:
+        if heading.level == 1:
+            continue
+        # A tab label ends only a tab's section, so other sections keep their tabs
+        if (
+            open_section is not None
+            and heading.level <= open_section.level
+            and (open_section.tab or not heading.tab)
+        ):
+            sections.append('\n'.join(lines[open_section.line : heading.line]).strip())
+            open_section = None
+        # A selected heading nested in an open section is already part of it
+        if open_section is None and heading.line in selected:
+            open_section = heading
+    if open_section is not None:
+        sections.append('\n'.join(lines[open_section.line :]).strip())
+
+    return SectionSelection('\n\n'.join(sections), False, missing, page_titles)
 
 
 def truncate_large_tables(
@@ -378,18 +518,11 @@ def truncate_large_tables(
     lines = markdown.split('\n')
     result = []
     i = 0
-    in_code_block = False
+    fences = _CodeFences()
 
     while i < len(lines):
         stripped = lines[i].strip()
-        # Track fenced code blocks — never truncate inside them
-        if stripped.startswith('```') or stripped.startswith('~~~'):
-            in_code_block = not in_code_block
-            result.append(lines[i])
-            i += 1
-            continue
-
-        if in_code_block:
+        if fences.consume(lines[i]):
             result.append(lines[i])
             i += 1
             continue
@@ -430,6 +563,31 @@ def truncate_large_tables(
             i += 1
 
     return '\n'.join(result)
+
+
+def to_html_page_url(url: str) -> Optional[str]:
+    """Return the '.html' page URL for a documentation page given as '.html' or '.md'.
+
+    Published Markdown links its sibling pages as relative '.md' files, often with a section
+    fragment. Accepting those URLs lets agents follow links as published, without the read tools
+    expanding every link to an absolute URL. Fetches still target the bare '.html' page: it
+    negotiates Markdown or HTML, which search_table needs, and search results key their query
+    IDs by the '.html' URL.
+
+    Args:
+        url: Documentation page URL, optionally with a query or fragment
+
+    Returns:
+        The '.html' page URL without query or fragment, or None when the path ends with
+        neither '.html' nor '.md'
+    """
+    parts = urlsplit(url)._replace(query='', fragment='')
+    path = parts.path.casefold()
+    if path.endswith('.html'):
+        return urlunsplit(parts)
+    if path.endswith('.md'):
+        return urlunsplit(parts._replace(path=parts.path[: -len('.md')] + '.html'))
+    return None
 
 
 def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationResult]:

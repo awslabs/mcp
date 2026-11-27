@@ -23,6 +23,7 @@ every request parameter and response field.
 """
 
 from ..utilities.aws_service_base import format_response
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from .enterprise_support_operations import get_charge_summary as _get_charge_summary
 from .enterprise_support_operations import get_contract_details as _get_contract_details
 from .enterprise_support_operations import (
@@ -133,8 +134,10 @@ async def _enterprise_support(
 3) list_linked_account_charges - the per-linked-account Enterprise Support charge breakdown for one billing period
    Required: operation="list_linked_account_charges", billing_month. Same billing_month rules as above.
    Optional:
-     - account_id: filter to ONE linked account. This narrows the results to that account inside the payer's Support profile. Omit it to get every linked account, which is what "break down my Support charge by account" asks for. Do not pass the payer's own account id here expecting the whole organization. Omitting it sends no account filter at all and the tool never infers one from the caller credentials, so never report that a filter was applied when you left it out. An account id that appears in an error message is the caller's payer account, not a filter that was used.
-     - max_items: total linked accounts returned. Omit it to fetch every page (no limit). Pass it, or filter with account_id, when the Support profile has many linked accounts.
+     - account_id: filter to ONE linked account. This narrows the results to that account inside the payer's Support profile. An empty list (with no error) means that account has no entry in the Support profile's charge data for that billing month, for example because it is not one of the profile's accounts that month. It does not mean the account had a $0 Support charge or $0 Support-eligible spend. Omit it to get every linked account, which is what "break down my Support charge by account" asks for. Do not pass the payer's own account id here expecting the whole organization. Omitting it sends no account filter at all and the tool never infers one from the caller credentials, so never report that a filter was applied when you left it out. An account id that appears in an error message is the caller's payer account, not a filter that was used.
+     - max_items: total linked accounts returned. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result. Pass it, or filter with account_id, when the Support profile has many linked accounts.
      - next_token: the `pagination.next_token` from a previous response, to continue where it stopped. Send billing_month and account_id unchanged.
    Paginated: this is the only operation that pages, and the only one that takes max_items and next_token. The tool follows nextToken for you.
    Returns: `data.linked_account_charges`, a list where each item contains:

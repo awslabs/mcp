@@ -1,7 +1,7 @@
 [project]
 name = "awslabs.aws-transform-mcp-server"
-version = "0.2.4"
-description = "An AWS Labs Model Context Protocol (MCP) server for AWS Transform — manage transformation workspaces, jobs, connectors, HITL tasks, artifacts, and chat"
+version = "0.2.6"
+description = "An AWS Labs Model Context Protocol (MCP) server for AWS Transform — manage transformation workspaces, jobs, connectors, engagements, HITL tasks, artifacts, and chat"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -43,7 +43,7 @@ changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-transform-mcp-serv
 [dependency-groups]
 dev = [
     "commitizen>=4.2.2",
-    "pre-commit>=4.1.0",
+    "pre-commit>=4.1.0; python_version >= '3.11'",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
     "pytest>=9.0.3",

@@ -20,6 +20,7 @@ contract, and the pagination token spelling, which is NextPageToken here and
 lowercase nextToken on the Savings Plans service.
 """
 
+import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools import (
     get_savings_plan_purchase_recommendation_details,
@@ -29,6 +30,8 @@ from awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools im
     sp_recommendation_server,
     start_savings_plans_purchase_recommendation_generation,
 )
+from awslabs.billing_cost_management_mcp_server.utilities.error_contract import add_retry_guidance
+from botocore.exceptions import ClientError
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -169,6 +172,44 @@ class TestGetSavingsPlansPurchaseRecommendation:
             == (sample_recommendation['SavingsPlansPurchaseRecommendation'])
         )
         assert result['data']['pagination'] == PAGINATION_COMPLETE
+        # A recommendation with details carries no explanatory message.
+        assert 'message' not in result
+
+    async def test_empty_recommendation_explains_itself(self, mock_context, mock_ce_client):
+        """An unsold combination returns an empty recommendation that is not a zero-savings answer.
+
+        Cost Explorer returns SavingsPlansPurchaseRecommendation: {} for DATABASE_SP with
+        THREE_YEARS or ALL_UPFRONT, the same as for a combination with no eligible usage.
+        """
+        mock_ce_client.get_savings_plans_purchase_recommendation.return_value = {
+            'Metadata': {'GenerationTimestamp': '2026-10-27T00:00:00Z'},
+            'SavingsPlansPurchaseRecommendation': {},
+            'ResponseMetadata': {'RequestId': 'req-1', 'HTTPStatusCode': 200},
+        }
+
+        result = await get_savings_plans_purchase_recommendation(
+            mock_context,
+            mock_ce_client,
+            'DATABASE_SP',
+            'THREE_YEARS',
+            'NO_UPFRONT',
+            'THIRTY_DAYS',
+            None,
+            None,
+            None,
+            None,
+        )
+
+        assert result['status'] == 'success'
+        assert result['data']['SavingsPlansPurchaseRecommendation'] == {
+            'SavingsPlansPurchaseRecommendationDetails': []
+        }
+        message = result['message']
+        assert 'DATABASE_SP, THREE_YEARS, NO_UPFRONT' in message
+        assert 'ONE_YEAR with NO_UPFRONT' in message
+        assert 'does not mean potential savings are zero' in message
+        # botocore's envelope is not part of the result.
+        assert 'ResponseMetadata' not in result['data']
 
     async def test_optional_parameters(self, mock_context, mock_ce_client):
         """Account scope, filter, and paging are added only when supplied."""
@@ -709,7 +750,142 @@ class TestSpRecommendationDispatch:
         assert result['status'] == 'error'
 
 
+@pytest.mark.asyncio
+async def test_filter_doc_states_not_is_supported():
+    """The filter arg doc says Not is accepted around the LINKED_ACCOUNT dimension, with an example."""
+    tool = await sp_recommendation_server.get_tool('sp-recommendation')
+    assert tool is not None
+    filter_doc = ' '.join(tool.parameters['properties']['filter'].get('description', '').split())
+    assert 'optionally wrapped in a single Not to exclude those accounts' in filter_doc
+    example = json.JSONDecoder().raw_decode(filter_doc, filter_doc.index('{"Not"'))[0]
+    assert example == {
+        'Not': {'Dimensions': {'Key': 'LINKED_ACCOUNT', 'Values': ['111122223333']}}
+    }
+    assert 'MatchOptions, if given, must be EQUALS' in filter_doc
+    assert 'And, Or, and a Not inside another Not are not supported' in filter_doc
+
+
 def test_sp_recommendation_server_initialization():
     """The server is named and carries instructions."""
     assert sp_recommendation_server.name == 'sp-recommendation-tools'
     assert sp_recommendation_server.instructions is not None
+
+
+def _access_denied_without_message(operation_name):
+    """The error Cost Explorer returns for a rejected NextPageToken on these operations."""
+    return ClientError(
+        {
+            'Error': {'Code': 'AccessDeniedException'},
+            'ResponseMetadata': {'RequestId': 'r1', 'HTTPStatusCode': 400},
+        },
+        operation_name,
+    )
+
+
+def _access_denied_with_message(operation_name):
+    """A real permission error, which carries a message."""
+    return ClientError(
+        {
+            'Error': {
+                'Code': 'AccessDeniedException',
+                'Message': 'User is not authorized to perform: ce:' + operation_name,
+            },
+            'ResponseMetadata': {'RequestId': 'r1', 'HTTPStatusCode': 400},
+        },
+        operation_name,
+    )
+
+
+async def _call_get(mock_context, ce_client, next_token):
+    return await get_savings_plans_purchase_recommendation(
+        mock_context,
+        ce_client,
+        savings_plans_type='COMPUTE_SP',
+        term_in_years='ONE_YEAR',
+        payment_option='NO_UPFRONT',
+        lookback_period_in_days='SEVEN_DAYS',
+        account_scope=None,
+        filter_expr=None,
+        max_items=1,
+        next_token=next_token,
+    )
+
+
+async def _call_list(mock_context, ce_client, next_token):
+    return await list_savings_plans_purchase_recommendation_generation(
+        mock_context,
+        ce_client,
+        generation_status=None,
+        recommendation_ids=None,
+        max_items=1,
+        next_token=next_token,
+    )
+
+
+TOKEN_OPERATIONS = [
+    (
+        'get_savings_plans_purchase_recommendation',
+        'GetSavingsPlansPurchaseRecommendation',
+        _call_get,
+    ),
+    (
+        'list_savings_plans_purchase_recommendation_generation',
+        'ListSavingsPlansPurchaseRecommendationGeneration',
+        _call_list,
+    ),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('method,operation_name,call', TOKEN_OPERATIONS)
+async def test_rejected_next_token_reported_as_token_error_not_access_denied(
+    mock_context, method, operation_name, call
+):
+    """A rejected next_token comes back as AccessDeniedException with no message.
+
+    Cost Explorer answers a stale, truncated or made-up NextPageToken on both paginated
+    operations this way. The caller must restart without the token, not report a
+    missing permission.
+    """
+    ce_client = MagicMock()
+    getattr(ce_client, method).side_effect = _access_denied_without_message(operation_name)
+
+    result = add_retry_guidance(await call(mock_context, ce_client, 'stale-token'))
+
+    assert result['status'] == 'error'
+    assert result['error_type'] == 'invalid_next_token'
+    assert 'AccessDeniedException' in result['message']
+    assert result['retry_strategy'] == 'modify_request'
+    assert 'without next_token' in result['hint']
+    assert getattr(ce_client, method).call_args.kwargs['NextPageToken'] == 'stale-token'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('method,operation_name,call', TOKEN_OPERATIONS)
+async def test_access_denied_without_next_token_stays_access_denied(
+    mock_context, method, operation_name, call
+):
+    """Without a caller token, AccessDeniedException is a permission error as before."""
+    ce_client = MagicMock()
+    getattr(ce_client, method).side_effect = _access_denied_without_message(operation_name)
+
+    result = add_retry_guidance(await call(mock_context, ce_client, None))
+
+    assert result['error_type'] == 'AccessDeniedException'
+    assert result['retry_strategy'] == 'do_not_retry'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('method,operation_name,call', TOKEN_OPERATIONS)
+async def test_access_denied_with_a_message_and_next_token_stays_access_denied(
+    mock_context, method, operation_name, call
+):
+    """A real permission error on a continuation is still reported as a permission error."""
+    ce_client = MagicMock()
+    getattr(ce_client, method).side_effect = _access_denied_with_message(operation_name)
+
+    result = add_retry_guidance(await call(mock_context, ce_client, 'some-token'))
+
+    assert result['error_type'] == 'AccessDeniedException'
+    assert 'not authorized' in result['message']
+    assert result['retry_strategy'] == 'do_not_retry'

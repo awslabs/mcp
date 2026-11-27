@@ -32,19 +32,37 @@ import os
 import re
 import time
 from . import constants
-from .error_contract import DO_NOT_RETRY, InvalidNextTokenError
+from .error_contract import DO_NOT_RETRY, MODIFY_REQUEST, InvalidNextTokenError
 from .logging_utils import get_context_logger, get_logger
 from botocore.config import Config
 from botocore.exceptions import (
     BotoCoreError,
+    CapacityNotAvailableError,
+    ChecksumError,
     ClientError,
+    ConfigNotFound,
+    ConfigParseError,
+    CredentialRetrievalError,
+    FlexibleChecksumError,
+    HTTPClientError,
+    IncompleteReadError,
+    InvalidConfigError,
+    LoginError,
+    MetadataRetrievalError,
+    NoAuthTokenError,
     NoCredentialsError,
     NoRegionError,
     ParamValidationError,
     PartialCredentialsError,
     ProfileNotFound,
+    RefreshWithMFAUnsupportedError,
+    SSOError,
+    TokenRetrievalError,
+    UnknownCredentialError,
     UnknownServiceError,
 )
+from botocore.exceptions import ConnectionError as BotoConnectionError
+from botocore.exceptions import ValidationError as BotoValidationError
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from fastmcp import Context
@@ -54,23 +72,66 @@ from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Tup
 # Configure logger for this module
 logger = get_logger(__name__)
 
-# BotoCoreError subclasses that report a credential or configuration problem rather
-# than a connection failure. Retrying the same request cannot fix them during the run,
-# so handle_aws_error keeps error_type='aws_connection_error' (stable for callers) but
-# sets retry_strategy='do_not_retry' explicitly; ErrorSignalingMiddleware keeps a
-# retry_strategy that is already set. Real connection failures (EndpointConnectionError,
-# ConnectTimeoutError, ReadTimeoutError, ConnectionClosedError) stay retryable.
-_NON_RETRYABLE_BOTOCORE_ERRORS = (
+# The only BotoCoreError subclasses that are transient: the classes botocore's own
+# standard retry mode retries (ConnectionError: endpoint, connect timeout, proxy, SSL;
+# HTTPClientError: read timeout, connection closed, response streaming),
+# CapacityNotAvailableError (botocore's client-side token bucket on a non-blocking
+# acquire; botocore does not raise it in the standard retry mode this server uses, so it
+# is kept retryable defensively), and a response body cut short or corrupted in transit
+# (raised while reading the body, after botocore's retries; FlexibleChecksumError is
+# also raised for request checksum settings, which no tool sets). botocore's
+# ValidationError family is modify_request. Every other BotoCoreError is raised the
+# same way on every attempt (credentials, configuration, an SDK-side check), so
+# handle_aws_error keeps error_type='aws_connection_error' (stable for callers) but sets
+# retry_strategy explicitly; ErrorSignalingMiddleware keeps a retry_strategy that is
+# already set. botocore tries a container-metadata credential fetch 3 times (2 retries)
+# before it raises CredentialRetrievalError; an instance-metadata fetch is tried once by
+# default (metadata_service_num_attempts) and a failure usually ends as
+# NoCredentialsError.
+_TRANSIENT_BOTOCORE_ERRORS = (
+    BotoConnectionError,
+    HTTPClientError,
+    CapacityNotAvailableError,
+    IncompleteReadError,
+    ChecksumError,
+    FlexibleChecksumError,
+)
+
+# Non-transient BotoCoreErrors the user can fix in their AWS setup: the credential source
+# (e.g. a credential_process or SSO session that expired), the region, or an outdated
+# botocore that does not know the service.
+_CONFIGURATION_BOTOCORE_ERRORS = (
     NoCredentialsError,
     PartialCredentialsError,
+    CredentialRetrievalError,
+    TokenRetrievalError,
+    SSOError,
+    LoginError,
+    MetadataRetrievalError,
+    NoAuthTokenError,
+    RefreshWithMFAUnsupportedError,
+    UnknownCredentialError,
     NoRegionError,
     ProfileNotFound,
+    ConfigNotFound,
+    ConfigParseError,
+    InvalidConfigError,
     UnknownServiceError,
 )
 
 _HINT_AWS_CONFIGURATION = (
     'AWS credentials or client configuration are missing or invalid. Do not retry; '
-    'ask the user to fix the AWS profile, credentials, or region.'
+    'ask the user to check the credential source (profile, SSO session, credential_process, '
+    'or instance/container role) or the region, or to upgrade boto3/botocore if the '
+    'service is unknown.'
+)
+_HINT_BOTO_VALIDATION = (
+    'The AWS SDK rejected the request arguments before sending them. Correct them using '
+    'details, then retry.'
+)
+_HINT_AWS_SDK = (
+    'The AWS SDK raised a client-side error; this is not a network failure, and the same '
+    'request fails the same way. Do not retry; report the details to the user.'
 )
 
 
@@ -160,7 +221,44 @@ def parse_json(
     try:
         return json.loads(json_str)
     except json.JSONDecodeError:
-        raise ValueError(f'Invalid JSON format for {parameter_name} parameter: {json_str}')
+        raise ValueError(
+            f'Invalid JSON format for {parameter_name} parameter: {json_str}. Pass valid JSON, '
+            'with double quotes around strings (single quotes, as in a Python repr, are not '
+            'JSON).'
+        )
+
+
+def parse_filter(
+    filter_expr: Optional[Union[str, Dict[str, Any]]], parameter_name: str = 'filter'
+) -> Any:
+    """Parse a filter expression, rejecting an empty one.
+
+    An empty filter (``''``, ``""`` or another blank JSON string, ``{}``, ``[]``, ``null``)
+    is an error rather than "no filter": dropping it would run the query unfiltered, and the
+    result would read as a filtered one.
+
+    Args:
+        filter_expr: The filter, as an object or a JSON string. None means no filter.
+        parameter_name: Name of the parameter (for error messages)
+
+    Returns:
+        The parsed filter (not shape-checked; the service validates it), or None when
+        ``filter_expr`` is None
+
+    Raises:
+        ValueError: If the filter is empty or not valid JSON
+    """
+    if filter_expr is None:
+        return None
+    if isinstance(filter_expr, str):
+        filter_expr = filter_expr.strip()
+    parsed = parse_json(filter_expr, parameter_name)
+    if parsed in (None, {}, []) or (isinstance(parsed, str) and not parsed.strip()):
+        raise ValueError(
+            f'{parameter_name} is empty. Omit {parameter_name} to query without one, or pass '
+            'a filter expression.'
+        )
+    return parsed
 
 
 DEFAULT_COST_METRICS = ['UnblendedCost']
@@ -261,7 +359,7 @@ async def handle_aws_error(
         await ctx_logger.warning(f'DEBUG - Error repr: {repr(error)}')
 
     # Initialize error response
-    error_response = {
+    error_response: Dict[str, Any] = {
         'status': 'error',
         'service': service_name,
         'operation': operation,
@@ -272,7 +370,13 @@ async def handle_aws_error(
         # Get AWS error details
         aws_error = error.response.get('Error', {})
         error_code = aws_error.get('Code', 'UnknownError')
-        aws_message = aws_error.get('Message') or 'No error message provided'
+        aws_message = aws_error.get('Message') or (
+            # Cost Explorer sends DataUnavailableException with an empty Message.
+            f'{service_name} has no data for this request '
+            '(DataUnavailableException; the service sent no message).'
+            if error_code == 'DataUnavailableException'
+            else 'No error message provided'
+        )
         request_id = error.response.get('ResponseMetadata', {}).get('RequestId', 'Unknown')
         http_status = error.response.get('ResponseMetadata', {}).get('HTTPStatusCode', 0)
 
@@ -287,6 +391,11 @@ async def handle_aws_error(
                 'full_response': str(getattr(error, 'response', '{}')),
             }
         )
+        # Some services (e.g. Cost Optimization Hub) put the failing field and the
+        # reason only in the response's 'fields'; the message just says to check them.
+        fields = error.response.get('fields')
+        if isinstance(fields, list) and fields:
+            error_response['fields'] = fields
 
         # Log with appropriate severity based on error code
         if error_code in ('AccessDenied', 'UnauthorizedOperation', 'AuthFailure'):
@@ -338,7 +447,12 @@ async def handle_aws_error(
     elif isinstance(error, BotoCoreError):
         error_type = 'aws_connection_error'
         error_code = error.__class__.__name__
-        user_message = f'AWS service connection error: {error_code}'
+        transient = isinstance(error, _TRANSIENT_BOTOCORE_ERRORS)
+        user_message = (
+            f'AWS service connection error: {error_code}'
+            if transient
+            else f'AWS SDK error (not a connection failure): {error_code}'
+        )
         await ctx_logger.error(f'Connection error: {error_context}', exc_info=True)
 
         error_response.update(
@@ -350,10 +464,18 @@ async def handle_aws_error(
             }
         )
 
-        if isinstance(error, _NON_RETRYABLE_BOTOCORE_ERRORS):
-            # Credential/configuration failure: same error_type, but not retryable.
+        if isinstance(error, BotoValidationError):
+            # botocore's ValidationError family (UnknownParameterError, RangeError, ...):
+            # the arguments are wrong, as for ParamValidationError above.
+            error_response['retry_strategy'] = MODIFY_REQUEST
+            error_response['hint'] = _HINT_BOTO_VALIDATION
+        elif not transient:
             error_response['retry_strategy'] = DO_NOT_RETRY
-            error_response['hint'] = _HINT_AWS_CONFIGURATION
+            error_response['hint'] = (
+                _HINT_AWS_CONFIGURATION
+                if isinstance(error, _CONFIGURATION_BOTOCORE_ERRORS)
+                else _HINT_AWS_SDK
+            )
 
     else:
         error_type = 'unknown_error'
@@ -431,6 +553,10 @@ class PageSpec:
         caller_token_message_required: Require the error message to name the token before
             a ``caller_token_error_codes`` code is treated as a rejected token. Set False
             only for a service whose token errors do not name the token.
+        caller_token_empty_message_codes: Codes that mean a rejected token on the first
+            request of a continuation only when the error has no message. For services
+            that report a bad token with a code that, with a message, means something
+            else (e.g. an ``AccessDeniedException`` that is a real permission error).
     """
 
     result_key: Union[str, Tuple[str, ...]]
@@ -445,6 +571,7 @@ class PageSpec:
     token_error_codes: FrozenSet[str] = field(default=TOKEN_ERROR_CODES)
     caller_token_error_codes: FrozenSet[str] = frozenset()
     caller_token_message_required: bool = True
+    caller_token_empty_message_codes: FrozenSet[str] = frozenset()
 
 
 def partial_data_warning(items_returned: int, limit_param: str = 'max_items') -> str:
@@ -503,13 +630,15 @@ def _error_code(error: Exception) -> str:
 
 def _is_caller_token_error(error: Exception, code: str, spec: PageSpec) -> bool:
     """Whether a generic error code on the first request means the caller's token was rejected."""
+    message = (
+        error.response.get('Error', {}).get('Message') if isinstance(error, ClientError) else ''
+    )
+    if code in spec.caller_token_empty_message_codes and not (message or '').strip():
+        return True
     if code not in spec.caller_token_error_codes:
         return False
     if not spec.caller_token_message_required:
         return True
-    message = (
-        error.response.get('Error', {}).get('Message') if isinstance(error, ClientError) else ''
-    )
     return 'token' in (message or '').lower()
 
 

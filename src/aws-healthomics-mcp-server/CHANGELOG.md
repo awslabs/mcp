@@ -7,9 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+- **Breaking for network transports: local file paths are stdio-only**: over `streamable-http` and `sse` (single- or multi-tenant), tools no longer read or write caller-selected paths on the server host. This covers `PackageAHOWorkflow` `main_file_content`, `additional_files`, and `output_path`; `CreateAHOWorkflow` and `CreateAHOWorkflowVersion` `definition_source` and `readme`; and `GenerateAHORunTimeline` `output_path`. Network callers send inline content or S3 URIs for input, and use an S3 `output_path` or the response for output. A single-line absolute path, or a whitespace-free relative path ending in `.md`, `.wdl`, `.nf`, `.cwl`, `.zip`, `.json`, `.yml`, or `.yaml`, is rejected with an error without checking the filesystem. `stdio` behavior is unchanged
+- **Breaking for network transports: workflow linting is stdio-only**: over `streamable-http` and `sse`, `LintAHOWorkflowDefinition` and `LintAHOWorkflowBundle` return `{"status": "error", "format": ..., "message": ...}` without linting, because miniwdl and cwltool resolve workflow imports from the local filesystem or the network. Linting over `stdio` is unchanged
+- **StartAHORunBatch default run settings**: `StartAHORunBatch` now accepts `networking_mode` and `configuration_name` (for VPC runs; batches otherwise use RESTRICTED networking), `log_level`, `engine_settings` (for example Nextflow profiles), `workflow_owner_id` and `output_bucket_owner_id` (cross-account), `priority`, `run_name` (a default run name), and `run_tags`, all forwarded in `defaultRunSetting`. `run_tags` tags each run; the existing `tags` parameter tags only the batch resource, and runs do not inherit it. Networking mode, configuration name, log level and `workflow_type` are checked locally before the API call. `workflow_type` is now documented and checked as the real API values (`PRIVATE` or `READY2RUN`), not workflow languages, and the tool description lists which settings per-run entries in `batch_run_settings` can override
+
+## [0.1.7] - 2026-11-09
+
+- **Output path layout for runs**: `StartAHORun` accepts an optional `output_uri_prefix_mode` (`SERVICE_DEFINED` or `NONE_WITH_OVERWRITE`). `SERVICE_DEFINED`, the HealthOmics default, writes outputs under `<output_uri>/<runId>/out/`; `NONE_WITH_OVERWRITE` writes them directly under `output_uri`, with logs still under `logs/<runId>/`, and overwrites same-named files from earlier runs without warning. The value is checked locally and sent only when provided, and `GetAHORun` now returns `outputUriPrefixMode`. Requires boto3/botocore >= 1.43.123
+
+## [0.1.6] - 2026-10-27
+
+- **ListAHORuns date filters**: `created_after` and `created_before` values without a UTC offset, such as `2024-01-01` or `2024-01-01T10:00`, are now treated as UTC instead of failing with "can't compare offset-naive and offset-aware datetimes"
+
+## [0.1.5] - 2026-10-12
+
 - **Session policies for runs**: `StartAHORun` and `StartAHORunBatch` accept an optional `session_policy` (inline IAM policy as a JSON string or object, max 2048 characters) that scopes down the run role; its shape and length are checked locally and it is sent minified, and `GetAHORun` now returns `sessionPolicy`. Requires boto3/botocore >= 1.43.90
 - **StartAHORun tags**: `StartAHORun` now accepts an optional `tags` map that is applied to the run at start
-- **ListAHORuns date filters**: `created_after` and `created_before` values without a UTC offset, such as `2024-01-01` or `2024-01-01T10:00`, are now treated as UTC instead of failing with "can't compare offset-naive and offset-aware datetimes"
 
 ## [0.1.1] - 2026-09-01
 

@@ -16,7 +16,7 @@
 
 File layout:
 - Tool entrypoints: the @budget_server.tool functions the MCP client sees
-  (`budgets`, `budget-actions`, `budget-notifications`).
+  (`budgets`, `budget-actions`, `budget-notifications`, `budget-performance-history`).
 - Account helper: `get_aws_account_id`.
 - Operation handlers: the read calls each tool delegates to.
 - Formatters: pure reshapers from raw AWS API dicts to the response shape.
@@ -30,9 +30,11 @@ from ..utilities.aws_service_base import (
     paginate_aws_items,
     with_pagination,
 )
+from ..utilities.constants import PAGINATION_LIMIT_TEXT
 from ..utilities.sql_utils import convert_response_if_needed
+from ..utilities.time_utils import format_timestamp_to_utc_iso
 from botocore.exceptions import ClientError
-from datetime import datetime
+from datetime import datetime, timezone
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
 
@@ -40,11 +42,14 @@ from typing import Any, Dict, List, Optional
 budget_server = FastMCP(name='budget-tools', instructions='Tools for working with AWS Budgets API')
 
 
-_PAGINATION_DESCRIPTION = """Pagination: `max_items` is the total number of items to return. Omit it to fetch every
-page (no limit); pass it when the account can have many budgets. A partial result leads with
+_PAGINATION_DESCRIPTION = (
+    """Pagination: `max_items` is the total number of items to return. If it is omitted, the tool fetches every page for """
+    + PAGINATION_LIMIT_TEXT
+    + """, then returns a partial result; pass it when the account can have many budgets. A partial result leads with
 `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by passing
 `pagination.next_token` back as `next_token`, or say in the answer that the result is partial.
 `pagination.items_returned` counts the items in this response, not every item that exists."""
+)
 
 
 # =============================================================================
@@ -62,12 +67,62 @@ unknown name returns an empty `budgets` list).
 
 The API returns information about:
 - Budget names, types, and time periods
-- Budget limits (amount and unit)
+- Budget limits (amount and unit), and any planned per-period limits or auto-adjust settings
 - Current actual spend
 - Forecasted spend
-- Cost filters applied to budgets
+- The scope each budget tracks: its filter, cost metric and billing view, and whether AWS is
+  still updating its spend
+
+A budget's filter is in `filter_expression` (an Expression of Dimensions, Tags, CostCategories and
+ProductAttributes combined with And, Or and Not) or, for budgets that use the deprecated form, in
+`cost_filters`.
+AWS does not forecast a COST or USAGE budget filtered by ProductAttributes, and its alerts can fire
+only on actual spend, not on a forecast. Such a budget with no `forecasted_spend` carries
+`forecast_note`: its `status`, when present, is `EXCEEDED` or `OK` from actual spend alone.
+If `filter_expression_incomplete` is true, part of the filter could not be read (an empty or null
+node in `filter_expression`): the budget is still filtered and `calculated_spend` reflects its full
+filter.
+`metrics` (or the deprecated `cost_types`) says how cost is measured, and `billing_view_arn` names
+the billing view the budget reads, which can be a non-primary view such as a billing group or
+custom view. A budget with no filter tracks everything its budget type measures in its billing
+view. `calculated_spend` is computed on the budget's own filter, metric and billing view, so
+compare it only with a Cost Explorer query that applies the same ones, never with an unfiltered
+total. A `health_status` of `UNHEALTHY` means AWS has stopped updating the budget's spend, for
+example because it can no longer read its billing view (`status_reason` says why), so its
+`calculated_spend` may be stale.
+
+An `actual_spend` of 0 on a filtered budget does not prove there was no spend: a filter that
+matches nothing also tracks 0, and no error is raised. Two common causes: SERVICE (or `cost_filters`
+`Service`) values given as service codes such as `AmazonEC2` instead of Cost Explorer service names
+such as `Amazon Elastic Compute Cloud - Compute`; and `cost_filters` keys are combined with AND
+(values within one key with OR), so keys that never occur together match nothing. Before reporting
+no spend, run the equivalent filter, metric and billing view with `cost-explorer`. In
+`filter_expression`, a tag value of `""` matches costs that have no value for that tag key.
+
+In `cost_types` on a COST budget, `IncludeCredit` and `IncludeRefund` default to true, so unless
+they are false the budget's spend is net of credits and refunds. A COST budget with no `cost_types`
+includes credits and refunds unless its `filter_expression` excludes them, for example with a `Not`
+on dimension `RECORD_TYPE` with values `Credit` and `Refund`. USAGE, RI and Savings Plans budgets
+can also return `cost_types`; when an RI or Savings Plans budget returns it, it is
+`IncludeSubscription` true and all else false.
+
+`budget_limit` is the limit for the current period. A budget with `planned_budget_limits` has a
+limit for each period of its plan (`period_start` in UTC; past periods are included) and keeps the
+last one after the plan ends. A budget with `auto_adjust` (`last_auto_adjust_time` in UTC) has its
+limit recomputed by AWS, from the average of up to `budget_adjustment_period` past periods
+(`HISTORICAL`; `look_back_available_periods` is how many of those periods were averaged; periods
+before the first one with cost are left out) or from the forecast (`FORECAST`), so the limit can
+change with no one editing the budget.
 
 With this information, you can determine which budgets have been exceeded or are projected to exceed their limits.
+
+`status` (`EXCEEDED`, `FORECASTED_TO_EXCEED` or `OK`) compares actual and forecasted spend with the
+limit, and is returned only for COST and USAGE budgets. RI_UTILIZATION, RI_COVERAGE,
+SAVINGS_PLANS_UTILIZATION and SAVINGS_PLANS_COVERAGE budgets have no `status`: their limit is always
+100 PERCENTAGE, `actual_spend` is the utilization or coverage percentage (higher is better), and
+they alert when it falls below a notification threshold. For those, compare `actual_spend` with the
+thresholds from `budget-notifications`, where `notification_state` is `ALARM` once a threshold is
+crossed.
 
 """
     + _PAGINATION_DESCRIPTION
@@ -223,6 +278,80 @@ async def budget_notifications(
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'budget-notifications', 'AWS Budgets')
+
+
+@budget_server.tool(
+    name='budget-performance-history',
+    description="""Reads a budget's performance history using the DescribeBudgetPerformanceHistory API:
+for each period, the amount budgeted and the actual cost or usage. Use it to answer "was this
+budget over last month?" or "which months breached?"; the `budgets` tool covers only the current
+period. Read-only.
+
+- Only DAILY, MONTHLY and QUARTERLY budgets have history. A CUSTOM or ANNUALLY budget returns a
+  validation_error.
+- The tool returns the service's default window: up to 13 MONTHLY periods (this month and the
+  previous 12), 4 QUARTERLY periods or 60 DAILY periods. History starts when the budget was
+  created (or re-created), whatever its start date, so a newer budget returns fewer periods:
+  one created this period returns only the current one.
+- `periods` are oldest first. Each has `start` and `end` (UTC dates; the end is exclusive, the
+  start of the next period), `budgeted_amount` (the limit that applied in that period; null when
+  the budget had none for it) and `actual_amount` (null when no actual data is available). The
+  last period is the one containing today, so its actual amount is to date, not final.
+- Amounts are decimal strings with a `unit`: compare them as numbers. For RI and Savings Plans
+  utilization and coverage budgets they are percentages, and a period breached when
+  `actual_amount` is below `budgeted_amount`; for COST and USAGE budgets, when it is above.
+- `actual_amount` is measured with the budget's own filter and cost settings, so it can differ
+  from an unfiltered Cost Explorer total.
+- `time_unit` is often null: the service omits it for many budgets, and nothing in a budget's
+  definition shows which. Take the time unit from the `budgets` tool, which always returns it.
+- An unknown `budget_name` (an exact name) returns NotFoundException.
+
+Pagination: the whole history fits in one page (at most 60 periods), so omit `max_items`;
+passing it only trims the result, and `next_token` continues a trimmed one.
+
+The account ID is retrieved automatically or you may pass `account_id`.""",
+)
+async def budget_performance_history(
+    ctx: Context,
+    budget_name: str,
+    account_id: Optional[str] = None,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Reads a budget's budgeted and actual amounts per period.
+
+    Args:
+        ctx: The MCP context object.
+        budget_name: Exact name of the budget.
+        account_id: Optional AWS account ID; retrieved automatically if not provided.
+        max_items: Optional total number of periods to return. Omit it to fetch every page.
+        next_token: Optional pagination token from a previous response.
+
+    Returns:
+        Dict containing the budget's periods and a ``pagination`` block.
+    """
+    if not budget_name or not budget_name.strip():
+        return format_response(
+            'error',
+            {'invalid_parameter': 'budget_name'},
+            'budget_name is required: pass the exact name of a budget.',
+            error_type='validation_error',
+            operation='budget-performance-history',
+            service='AWS Budgets',
+        )
+
+    try:
+        await ctx.info('Retrieving budget performance history')
+
+        if not account_id:
+            account_id = await get_aws_account_id(ctx)
+
+        return await describe_budget_performance_history(
+            ctx, account_id, budget_name, max_items, next_token
+        )
+
+    except Exception as e:
+        return await handle_aws_error(ctx, e, 'budget-performance-history', 'AWS Budgets')
 
 
 # =============================================================================
@@ -485,9 +614,133 @@ async def describe_budget_notifications(
         return await handle_aws_error(ctx, e, 'describe_budget_notifications', 'AWS Budgets')
 
 
+# DescribeBudgetPerformanceHistory: MaxResults 1-100, each item one budget period. The periods
+# are nested under BudgetPerformanceHistory, which also carries the budget's name and type.
+BUDGETS_DESCRIBE_BUDGET_PERFORMANCE_HISTORY = PageSpec(
+    result_key=('BudgetPerformanceHistory', 'BudgetedAndActualAmountsList'),
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=100,
+    page_size_param='MaxResults',
+)
+
+# The API's InvalidParameterException text for a budget whose time unit has no history
+# (CUSTOM and ANNUALLY; a budget gets a history record when it is created).
+_UNSUPPORTED_HISTORY_MESSAGE = 'does not support custom time periods'
+
+
+def _no_history_error(budget_name: str) -> Dict[str, Any]:
+    """The validation_error for a budget whose time unit has no performance history."""
+    return format_response(
+        'error',
+        {'budget_name': budget_name},
+        f'Budget {budget_name} has no performance history: history exists only for DAILY, '
+        'MONTHLY and QUARTERLY budgets, and this budget is CUSTOM or ANNUALLY. Use the budgets '
+        'tool for its current period.',
+        error_type='validation_error',
+        operation='budget-performance-history',
+        service='AWS Budgets',
+    )
+
+
+async def describe_budget_performance_history(
+    ctx: Context,
+    account_id: str,
+    budget_name: str,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Retrieves a budget's performance history, paging through its periods.
+
+    A budget whose time unit has no history is reported as a validation_error naming the
+    supported time units; other failures go to the shared handler.
+    """
+    try:
+        budgets_client = create_aws_client('budgets', region_name='us-east-1')
+
+        periods, pages, pagination = await paginate_aws_items(
+            ctx,
+            'DescribeBudgetPerformanceHistory',
+            budgets_client.describe_budget_performance_history,
+            {'AccountId': account_id, 'BudgetName': budget_name},
+            BUDGETS_DESCRIBE_BUDGET_PERFORMANCE_HISTORY,
+            max_items=max_items,
+            next_token=next_token,
+        )
+    except ClientError as e:
+        error = e.response.get('Error', {})
+        if error.get('Code') == 'InvalidParameterException' and _UNSUPPORTED_HISTORY_MESSAGE in (
+            error.get('Message') or ''
+        ):
+            return _no_history_error(budget_name)
+        return await handle_aws_error(ctx, e, 'describe_budget_performance_history', 'AWS Budgets')
+    except Exception as e:
+        return await handle_aws_error(ctx, e, 'describe_budget_performance_history', 'AWS Budgets')
+
+    history = (pages[0] if pages else {}).get('BudgetPerformanceHistory') or {}
+    if history.get('TimeUnit') == 'ANNUALLY' and not periods:
+        # The API rejects an ANNUALLY budget only when its history query finds a record, which a
+        # budget gets on creation; a missing record (a rare data gap) returns no periods instead.
+        return _no_history_error(budget_name)
+    # At most 60 periods, so unlike budget-actions this is never offloaded to session SQL.
+    data = {
+        'budget_name': history.get('BudgetName', budget_name),
+        'budget_type': history.get('BudgetType'),
+        'time_unit': history.get('TimeUnit'),
+        'account_id': account_id,
+        'periods': [format_budget_period(period) for period in periods],
+    }
+    return format_response('success', with_pagination(data, pagination))
+
+
 # =============================================================================
 # Formatters (raw AWS API dict -> response shape)
 # =============================================================================
+
+
+# Budget types where more spend is worse, so actual or forecast at or above the limit is a breach.
+# Utilization and coverage budgets (limit fixed at 100 PERCENTAGE) alert when actual falls below a
+# notification threshold instead, so a spend-vs-limit status would read them inverted.
+_SPEND_BUDGET_TYPES = frozenset({'COST', 'USAGE'})
+
+_FILTER_EXPRESSION_INCOMPLETE_NOTE = (
+    "Part of this budget's filter could not be read (an empty or null node in "
+    "filter_expression), for example a filter type newer than this server's AWS SDK. The budget is "
+    'still filtered and calculated_spend reflects its full filter; do not treat it as unfiltered.'
+)
+
+_FORECAST_NOTE = (
+    'AWS does not forecast budgets filtered by ProductAttributes, so status, when present, is '
+    'EXCEEDED or OK from actual spend only, never FORECASTED_TO_EXCEED; OK does not mean spend is '
+    'on track to stay under the limit.'
+)
+
+
+def _expression_nodes(expression: Any):
+    """Yield every node of a budgets Expression tree (And, Or and Not children included)."""
+    yield expression
+    if isinstance(expression, dict):
+        for key in ('And', 'Or'):
+            for child in expression.get(key) or []:
+                yield from _expression_nodes(child)
+        if 'Not' in expression:
+            yield from _expression_nodes(expression['Not'])
+
+
+def _has_unreadable_node(expression: Any) -> bool:
+    """True if a node is empty or null: botocore parses a member it does not know as {}.
+
+    An empty leaf such as {'Dimensions': {}} is not checked: the service never sends one.
+    """
+    return any(not node for node in _expression_nodes(expression))
+
+
+def _has_product_attributes(expression: Any) -> bool:
+    """True if the Expression has a ProductAttributes leaf at any depth."""
+    return any(
+        isinstance(node, dict) and 'ProductAttributes' in node
+        for node in _expression_nodes(expression)
+    )
 
 
 def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -539,9 +792,44 @@ def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
             formatted_budget['calculated_spend'] = calculated_spend_dict
 
-        # Add cost filters if present
+        # Add the budget's scope if present; calculated_spend is computed on it.
         if 'CostFilters' in budget and budget['CostFilters']:
             formatted_budget['cost_filters'] = budget['CostFilters']
+        # The API omits FilterExpression for an unfiltered budget, so a present one is kept even
+        # when it parsed as {}: dropping it would make a filtered budget read as unfiltered.
+        if 'FilterExpression' in budget:
+            filter_expression = budget['FilterExpression']
+            formatted_budget['filter_expression'] = filter_expression
+            if _has_unreadable_node(filter_expression):
+                formatted_budget['filter_expression_incomplete'] = True
+                formatted_budget['filter_expression_note'] = _FILTER_EXPRESSION_INCOMPLETE_NOTE
+            # Only when the response has no forecast, so the note never contradicts status.
+            if (
+                budget.get('BudgetType') in _SPEND_BUDGET_TYPES
+                and _has_product_attributes(filter_expression)
+                and 'ForecastedSpend' not in (budget.get('CalculatedSpend') or {})
+            ):
+                formatted_budget['forecast_note'] = _FORECAST_NOTE
+        if budget.get('Metrics'):
+            formatted_budget['metrics'] = budget['Metrics']
+        if budget.get('CostTypes'):
+            formatted_budget['cost_types'] = budget['CostTypes']
+        if budget.get('BillingViewArn'):
+            formatted_budget['billing_view_arn'] = budget['BillingViewArn']
+        if budget.get('HealthStatus'):
+            health = budget['HealthStatus']
+            formatted_budget['health_status'] = {'status': health.get('Status')}
+            if health.get('StatusReason'):
+                formatted_budget['health_status']['status_reason'] = health['StatusReason']
+
+        # Add planned and auto-adjusting limit settings if present; budget_limit is only the
+        # current period's limit for these budgets.
+        if budget.get('PlannedBudgetLimits'):
+            formatted_budget['planned_budget_limits'] = format_planned_budget_limits(
+                budget['PlannedBudgetLimits']
+            )
+        if budget.get('AutoAdjustData'):
+            formatted_budget['auto_adjust'] = format_auto_adjust(budget['AutoAdjustData'])
 
         # Add time period if present
         if 'TimePeriod' in budget:
@@ -564,12 +852,13 @@ def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
             formatted_budget['time_period'] = time_period_dict
 
-        # Add budget status (derived field)
+        # Add budget status (derived field, COST and USAGE budgets only)
         calculated_spend = formatted_budget.get('calculated_spend')
         budget_limit = formatted_budget.get('budget_limit')
 
         if (
-            calculated_spend is not None
+            budget.get('BudgetType') in _SPEND_BUDGET_TYPES
+            and calculated_spend is not None
             and isinstance(calculated_spend, dict)
             and 'actual_spend' in calculated_spend
             and budget_limit is not None
@@ -604,6 +893,42 @@ def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         formatted_budgets.append(formatted_budget)
 
     return formatted_budgets
+
+
+def format_planned_budget_limits(planned: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Formats PlannedBudgetLimits (epoch-second keys) as a list ordered by period start.
+
+    A key that is not epoch seconds is kept as given, so no planned limit is dropped.
+    """
+    limits = []
+    for key, spend in planned.items():
+        try:
+            period_start = datetime.fromtimestamp(int(key), tz=timezone.utc).strftime('%Y-%m-%d')
+        except (TypeError, ValueError, OverflowError, OSError):
+            period_start = key
+        spend = spend or {}
+        limits.append(
+            {
+                'period_start': period_start,
+                'amount': spend.get('Amount'),
+                'unit': spend.get('Unit'),
+            }
+        )
+    return sorted(limits, key=lambda limit: str(limit['period_start']))
+
+
+def format_auto_adjust(auto_adjust: Dict[str, Any]) -> Dict[str, Any]:
+    """Formats AutoAdjustData, returning only the fields the API set."""
+    formatted: Dict[str, Any] = {'auto_adjust_type': auto_adjust.get('AutoAdjustType')}
+    historical = auto_adjust.get('HistoricalOptions') or {}
+    if 'BudgetAdjustmentPeriod' in historical:
+        formatted['budget_adjustment_period'] = historical['BudgetAdjustmentPeriod']
+    if 'LookBackAvailablePeriods' in historical:
+        formatted['look_back_available_periods'] = historical['LookBackAvailablePeriods']
+    last = format_timestamp_to_utc_iso(auto_adjust.get('LastAutoAdjustTime'))
+    if last:
+        formatted['last_auto_adjust_time'] = last
+    return formatted
 
 
 def format_action(action: Dict[str, Any]) -> Dict[str, Any]:
@@ -693,3 +1018,30 @@ def format_notification(
     if budget_name is not None:
         formatted['budget_name'] = budget_name
     return formatted
+
+
+def _utc_date(value: Any) -> Any:
+    """Render a period boundary as a UTC date string; other values pass through."""
+    if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            value = value.astimezone(timezone.utc)
+        return value.strftime('%Y-%m-%d')
+    return value
+
+
+def _spend(spend: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Reshape a Spend object, or None when it is absent."""
+    if not spend:
+        return None
+    return {'amount': spend.get('Amount'), 'unit': spend.get('Unit')}
+
+
+def format_budget_period(period: Dict[str, Any]) -> Dict[str, Any]:
+    """Formats one BudgetedAndActualAmounts entry from DescribeBudgetPerformanceHistory."""
+    time_period = period.get('TimePeriod') or {}
+    return {
+        'start': _utc_date(time_period.get('Start')),
+        'end': _utc_date(time_period.get('End')),
+        'budgeted_amount': _spend(period.get('BudgetedAmount')),
+        'actual_amount': _spend(period.get('ActualAmount')),
+    }

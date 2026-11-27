@@ -24,7 +24,10 @@ import re
 from typing import Any, Dict, Set
 
 from awslabs.ecs_mcp_server.utils.aws import get_aws_client
-from awslabs.ecs_mcp_server.utils.security import redact_unless_sensitive_data_allowed
+from awslabs.ecs_mcp_server.utils.security import (
+    redact_sensitive_fields,
+    redact_unless_sensitive_data_allowed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -188,7 +191,12 @@ async def ecs_api_operation(api_operation: str, api_params: Dict[str, Any]) -> D
                 ),
             }
 
-    logger.info(f"Executing ECS API operation: {api_operation} with params: {api_params}")
+    # Request parameters can carry environment values and secret references, so the log
+    # always gets a redacted copy, whatever ALLOW_SENSITIVE_DATA says
+    logger.info(
+        f"Executing ECS API operation: {api_operation} "
+        f"with params: {redact_sensitive_fields(api_params)}"
+    )
 
     try:
         # Get the ECS client

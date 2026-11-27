@@ -21,6 +21,7 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     ERROR_CONFIGURATION_NAME_REQUIRES_VPC_MODE,
     ERROR_INVALID_CACHE_BEHAVIOR,
     ERROR_INVALID_NETWORKING_MODE,
+    ERROR_INVALID_OUTPUT_URI_PREFIX_MODE,
     ERROR_INVALID_RUN_LOG_LEVEL,
     ERROR_INVALID_RUN_STATUS,
     ERROR_INVALID_SCRATCH_STORAGE_MODE,
@@ -30,6 +31,8 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     NETWORKING_MODE_RESTRICTED,
     NETWORKING_MODE_VPC,
     NETWORKING_MODES,
+    OUTPUT_URI_PREFIX_MODE_SERVICE_DEFINED,
+    OUTPUT_URI_PREFIX_MODES,
     RUN_LOG_LEVELS,
     RUN_STATUSES,
     SCRATCH_STORAGE_MODES,
@@ -202,6 +205,19 @@ async def start_run(
             'Set to ALL to capture full engine logs for debugging.'
         ),
     ),
+    output_uri_prefix_mode: Optional[str] = Field(
+        None,
+        description=(
+            'Output path layout for the run. Allowed values: SERVICE_DEFINED, '
+            'NONE_WITH_OVERWRITE. SERVICE_DEFINED (the HealthOmics API default) writes '
+            'outputs under output_uri/<runId>/out/ and logs under output_uri/<runId>/logs/. '
+            'NONE_WITH_OVERWRITE writes outputs directly under output_uri with no run ID '
+            'folder, and logs under output_uri/logs/<runId>/. With NONE_WITH_OVERWRITE, a run into a URI that '
+            'already holds outputs overwrites files with the same name without warning. '
+            'Use a unique output_uri per run unless overwriting is intended. When omitted, '
+            'the HealthOmics API default applies.'
+        ),
+    ),
     tags: Optional[Dict[str, str]] = Field(
         None,
         description='Optional tags (key-value pairs) to apply to the run',
@@ -249,6 +265,10 @@ async def start_run(
         log_level: Optional log level for the run (OFF, FATAL, ERROR, or ALL).
             Controls engine log capture to CloudWatch. Defaults to the HealthOmics API
             default when omitted.
+        output_uri_prefix_mode: Optional output path layout (SERVICE_DEFINED or
+            NONE_WITH_OVERWRITE). NONE_WITH_OVERWRITE writes outputs directly under
+            output_uri and overwrites same-named files from earlier runs. Defaults to the
+            HealthOmics API default when omitted.
         tags: Optional tags (key-value pairs) to apply to the run
         session_policy: Optional inline IAM session policy (JSON string or dict) that
             scopes down the permissions of role_arn for this run
@@ -343,6 +363,25 @@ async def start_run(
             'Invalid log level',
         )
 
+    # Normalize output_uri_prefix_mode the same way (guards against an unresolved Field default)
+    effective_output_uri_prefix_mode = (
+        output_uri_prefix_mode if isinstance(output_uri_prefix_mode, str) else None
+    )
+
+    if (
+        effective_output_uri_prefix_mode is not None
+        and effective_output_uri_prefix_mode not in OUTPUT_URI_PREFIX_MODES
+    ):
+        return await handle_tool_error(
+            ctx,
+            ValueError(
+                ERROR_INVALID_OUTPUT_URI_PREFIX_MODE.format(
+                    effective_output_uri_prefix_mode, OUTPUT_URI_PREFIX_MODES
+                )
+            ),
+            'Invalid output URI prefix mode',
+        )
+
     # Normalize tags the same way (guards against an unresolved Field default)
     effective_tags = tags if isinstance(tags, dict) else None
 
@@ -393,6 +432,10 @@ async def start_run(
     if effective_log_level is not None:
         params['logLevel'] = effective_log_level
 
+    # Only set outputUriPrefixMode when provided, to preserve the HealthOmics API default otherwise
+    if effective_output_uri_prefix_mode is not None:
+        params['outputUriPrefixMode'] = effective_output_uri_prefix_mode
+
     if effective_tags is not None:
         params['tags'] = effective_tags
 
@@ -418,6 +461,8 @@ async def start_run(
             else NETWORKING_MODE_RESTRICTED,
             'scratchStorageMode': effective_scratch_storage_mode,
             'logLevel': effective_log_level,
+            'outputUriPrefixMode': effective_output_uri_prefix_mode
+            or OUTPUT_URI_PREFIX_MODE_SERVICE_DEFINED,
         }
     except Exception as e:
         return await handle_tool_error(ctx, e, 'Error starting run')
@@ -646,7 +691,8 @@ async def get_run(
         - Basic run information (id, arn, name, status)
         - Workflow information (workflowId, workflowType, workflowVersionName)
         - Timing information (creationTime, startTime, stopTime)
-        - Output locations (outputUri, runOutputUri)
+        - Output locations (outputUri, runOutputUri) and the output path layout
+          (outputUriPrefixMode), when the service returns it
         - IAM role (roleArn)
         - Run parameters and metadata
         - Status messages and failure reasons (if applicable)
@@ -689,6 +735,7 @@ async def get_run(
             'workflowVersionName',
             'scratchStorageMode',
             'sessionPolicy',
+            'outputUriPrefixMode',
         ]:
             if field in response:
                 result[field] = response[field]

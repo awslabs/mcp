@@ -21,15 +21,24 @@ from awslabs.aws_documentation_mcp_server.util import (
     add_search_intent_to_search_request,
     enforce_redirect_allowlist,
     extract_content_from_html,
-    extract_sections_from_html,
     format_documentation_result,
     has_empty_link_target,
     has_readable_text,
     is_html_content,
     parse_recommendation_results,
+    select_sections,
+    to_html_page_url,
     url_matches_allowlist,
 )
 from unittest.mock import MagicMock, patch
+
+
+def extract_sections_from_markdown(markdown, section_titles):
+    """Return the selection as read_sections renders it, without the server's paging."""
+    selection = select_sections(markdown, section_titles)
+    if selection.whole_page:
+        return f'{selection.notes.lstrip()}\n\n{markdown}' if selection.notes else markdown
+    return selection.markdown + selection.notes
 
 
 ALLOWLIST = (
@@ -670,75 +679,63 @@ class TestAddSearchIntentToSearchRequest:
         assert result == 'https://docs.aws.amazon.com/search?foo=bar&search_intent=test'
 
 
-class TestExtractSectionsFromHtml:
-    """Tests for extract_sections_from_html function."""
+class TestExtractSectionsFromMarkdown:
+    """Tests for extract_sections_from_markdown function."""
 
-    def test_empty_input(self):
-        """Test with empty HTML content."""
-        result = extract_sections_from_html('', ['section1'])
-        assert result == 'No content or section titles provided'
+    def test_empty_input_is_unreadable(self):
+        """Empty content is unreadable, like whitespace-only content."""
+        with pytest.raises(UnreadablePageError):
+            extract_sections_from_markdown('', ['section1'])
 
     def test_empty_section_list(self):
         """Test with empty section_titles list."""
-        result = extract_sections_from_html('<html><body><h1>Test</h1></body></html>', [])
+        result = extract_sections_from_markdown('# Test', [])
         assert result == 'No content or section titles provided'
+
+    def test_whitespace_only_content_is_unreadable(self):
+        """Content with no text at all cannot hold a section."""
+        with pytest.raises(UnreadablePageError):
+            extract_sections_from_markdown('  \n\n ', ['Main Section'])
 
     def test_single_section_extraction(self):
         """Test extracting a single section with content."""
-        html = """<html><body>
-            <h2>Introduction</h2>
-            <p>This is the intro.</p>
-            <h2>Main Section</h2>
-            <p>This is the main content.</p>
-            <p>Some more content here.</p>
-            <h2>Conclusion</h2>
-            <p>This is the end.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['Main Section'])
-        assert '<h2>Main Section</h2>' in result
-        assert '<p>This is the main content.</p>' in result
-        assert '<p>Some more content here.</p>' in result
-        assert '<h2>Introduction</h2>' not in result
-        assert '<h2>Conclusion</h2>' not in result
+        markdown = (
+            '## Introduction\n\nThis is the intro.\n\n'
+            '## Main Section\n\nThis is the main content.\n\nSome more content here.\n\n'
+            '## Conclusion\n\nThis is the end.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Main Section'])
+        assert result == (
+            '## Main Section\n\nThis is the main content.\n\nSome more content here.'
+        )
 
     def test_multiple_sections_extraction(self):
         """Test extracting multiple sections."""
-        html = """<html><body>
-            <h2>Introduction</h2>
-            <p>This is the intro.</p>
-            <h2>First Section</h2>
-            <p>First content.</p>
-            <h2>Second Section</h2>
-            <p>Second content.</p>
-            <h2>Third Section</h2>
-            <p>Third content.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['First Section', 'Third Section'])
-        assert '<h2>First Section</h2>' in result
-        assert 'First content' in result
-        assert '<h2>Third Section</h2>' in result
-        assert 'Third content' in result
-        assert '<h2>Second Section</h2>' not in result
-        assert 'Second content' not in result
+        markdown = (
+            '## Introduction\n\nThis is the intro.\n\n'
+            '## First Section\n\nFirst content.\n\n'
+            '## Second Section\n\nSecond content.\n\n'
+            '## Third Section\n\nThird content.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['First Section', 'Third Section'])
+        assert result == (
+            '## First Section\n\nFirst content.\n\n## Third Section\n\nThird content.'
+        )
 
     def test_case_insensitive_matching(self):
         """Test case-insensitive section matching."""
-        html = """<html><body>
-            <h2>Main Section</h2>
-            <p>Content here.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['MAIN SECTION'])
-        assert '<h2>Main Section</h2>' in result
+        result = extract_sections_from_markdown(
+            '## Main Section\n\nContent here.', ['MAIN SECTION']
+        )
+        assert '## Main Section' in result
         assert 'Content here' in result
 
     def test_whitespace_handling(self):
         """Test section titles with leading/trailing whitespace."""
-        html = """<html><body>
-            <h2>Best practices</h2>
-            <p>This is content for best practices.</p>
-            <h2>Another Section</h2>
-            <p>More content here.</p>
-        </body></html>"""
+        markdown = (
+            '## Best practices\n\nThis is content for best practices.\n\n'
+            '## Another Section\n\nMore content here.\n'
+        )
         test_cases = [
             ' Best practices\n',
             '  Best practices  ',
@@ -748,153 +745,355 @@ class TestExtractSectionsFromHtml:
         ]
 
         for test_input in test_cases:
-            result = extract_sections_from_html(html, [test_input])
-            assert '<h2>Best practices</h2>' in result, f"Failed to match '{repr(test_input)}'"
-            assert 'best practices' in result.lower(), f"Content missing for '{repr(test_input)}'"
-            assert '<h2>Another Section</h2>' not in result, (
+            result = extract_sections_from_markdown(markdown, [test_input])
+            assert '## Best practices' in result, f"Failed to match '{repr(test_input)}'"
+            assert 'content for best practices' in result, (
+                f"Content missing for '{repr(test_input)}'"
+            )
+            assert '## Another Section' not in result, (
                 f"Should not include other sections for '{repr(test_input)}'"
             )
 
     def test_nested_sections_included(self):
         """Test that subsections within matching sections are included."""
-        html = """<html><body>
-            <h2>Main Section</h2>
-            <p>Main content.</p>
-            <h3>Subsection 1</h3>
-            <p>Sub content 1.</p>
-            <h4>Sub-subsection</h4>
-            <p>Sub-sub content.</p>
-            <h3>Subsection 2</h3>
-            <p>Sub content 2.</p>
-            <h2>Another Section</h2>
-            <p>Other content.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['Main Section'])
-        assert '<h2>Main Section</h2>' in result
-        assert 'Main content' in result
-        assert '<h3>Subsection 1</h3>' in result
-        assert 'Sub content 1' in result
-        assert '<h4>Sub-subsection</h4>' in result
-        assert 'Sub-sub content' in result
-        assert '<h3>Subsection 2</h3>' in result
-        assert 'Sub content 2' in result
-        assert '<h2>Another Section</h2>' not in result
+        markdown = (
+            '## Main Section\n\nMain content.\n\n'
+            '### Subsection 1\n\nSub content 1.\n\n'
+            '#### Sub-subsection\n\nSub-sub content.\n\n'
+            '### Subsection 2\n\nSub content 2.\n\n'
+            '## Another Section\n\nOther content.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Main Section'])
+        for expected in (
+            '## Main Section',
+            'Main content',
+            '### Subsection 1',
+            'Sub content 1',
+            '#### Sub-subsection',
+            'Sub-sub content',
+            '### Subsection 2',
+            'Sub content 2',
+        ):
+            assert expected in result
+        assert '## Another Section' not in result
         assert 'Other content' not in result
 
     def test_no_sections_found_with_h2_headings(self):
-        """Test when no sections match but document has h2 headings."""
-        html = """<html><body>
-            <h1>Introduction</h1>
-            <p>Intro content.</p>
-            <h2>Subsection A</h2>
-            <p>Content A.</p>
-            <h2>Subsection B</h2>
-            <p>Content B.</p>
-        </body></html>"""
+        """Test when no sections match but document has level-2 headings."""
+        markdown = (
+            '# Introduction\n\nIntro content.\n\n'
+            '## Subsection A\n\nContent A.\n\n'
+            '## Subsection B\n\nContent B.\n'
+        )
         with pytest.raises(ValueError) as exc_info:
-            extract_sections_from_html(html, ['Nonexistent Section'])
+            extract_sections_from_markdown(markdown, ['Nonexistent Section'])
         error_msg = str(exc_info.value)
         assert 'No matching sections were found' in error_msg
-        assert 'Available sections:' in error_msg
-        assert '"Subsection A"' in error_msg
-        assert '"Subsection B"' in error_msg
+        assert 'Available sections: "Subsection A", "Subsection B".' in error_msg
 
     def test_no_sections_found_without_h2_headings(self):
-        """Test when no sections match and no h2 headings exist."""
-        html = """<html><body>
-            <h1>Introduction</h1>
-            <p>This is the intro.</p>
-            <h1>Main Section</h1>
-            <p>Content here.</p>
-        </body></html>"""
+        """Test when no sections match and no level-2 headings exist."""
+        markdown = '# Introduction\n\nThis is the intro.\n\n# Main Section\n\nContent here.'
         with pytest.raises(ValueError) as exc_info:
-            extract_sections_from_html(html, ['Nonexistent Section', 'Another Missing'])
-        error_msg = str(exc_info.value)
-        assert 'This document does not contain subsections' in error_msg
+            extract_sections_from_markdown(markdown, ['Nonexistent Section', 'Another Missing'])
+        assert 'This document does not contain subsections' in str(exc_info.value)
 
     def test_partial_success(self):
         """Test when some sections found, others missing (graceful handling)."""
-        html = """<html><body>
-            <h2>Introduction</h2>
-            <p>Intro content.</p>
-            <h2>Found Section</h2>
-            <p>Found content.</p>
-            <h2>Another Found</h2>
-            <p>More content.</p>
-        </body></html>"""
-        result = extract_sections_from_html(
-            html, ['Found Section', 'Missing Section', 'Another Found']
+        markdown = (
+            '## Introduction\n\nIntro content.\n\n'
+            '## Found Section\n\nFound content.\n\n'
+            '## Another Found\n\nMore content.\n'
         )
-
-        assert '<h2>Found Section</h2>' in result
-        assert 'Found content' in result
-        assert '<h2>Another Found</h2>' in result
-        assert 'More content' in result
-        assert 'The following requested sections were not found: "Missing Section"' in result
+        result = extract_sections_from_markdown(
+            markdown, ['Found Section', 'Missing Section', 'Another Found']
+        )
+        assert result == (
+            '## Found Section\n\nFound content.\n\n## Another Found\n\nMore content.'
+            '\n\n> **Note**: The following requested sections were not found: "Missing Section"'
+        )
 
     def test_section_at_end_of_document(self):
         """Test extracting the final section."""
-        html = """<html><body>
-            <h2>First Section</h2>
-            <p>First content.</p>
-            <h2>Last Section</h2>
-            <p>Last content.</p>
-            <p>Final line.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['Last Section'])
-        assert '<h2>Last Section</h2>' in result
-        assert 'Last content' in result
-        assert 'Final line' in result
-        assert '<h2>First Section</h2>' not in result
+        markdown = (
+            '## First Section\n\nFirst content.\n\n'
+            '## Last Section\n\nLast content.\n\nFinal line.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Last Section'])
+        assert result == '## Last Section\n\nLast content.\n\nFinal line.'
 
     def test_section_with_no_content(self):
         """Test empty sections."""
-        html = """<html><body>
-            <h2>Section With Content</h2>
-            <p>Some content here.</p>
-            <h2>Empty Section</h2>
-            <h2>Another Section</h2>
-            <p>More content.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['Empty Section'])
-        assert '<h2>Empty Section</h2>' in result
+        markdown = (
+            '## Section With Content\n\nSome content here.\n\n'
+            '## Empty Section\n\n'
+            '## Another Section\n\nMore content.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Empty Section'])
+        assert result == '## Empty Section'
 
     def test_mixed_heading_levels(self):
         """Test mixed heading hierarchy."""
-        html = """<html><body>
-            <h1>Level 1</h1>
-            <p>Content 1.</p>
-            <h2>Level 2</h2>
-            <p>Content 2.</p>
-            <h3>Level 3</h3>
-            <p>Content 3.</p>
-            <h2>Another Level 2</h2>
-            <p>Content 2B.</p>
-            <h1>Another Level 1</h1>
-            <p>Content 1B.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['Level 2'])
-        assert '<h2>Level 2</h2>' in result
-        assert 'Content 2' in result
-        assert '<h3>Level 3</h3>' in result  # Should include subsection
-        assert 'Content 3' in result
-        assert '<h2>Another Level 2</h2>' not in result  # Should stop at same level
-        assert '<h1>Another Level 1</h1>' not in result
+        markdown = (
+            '# Level 1\n\nContent 1.\n\n'
+            '## Level 2\n\nContent 2.\n\n'
+            '### Level 3\n\nContent 3.\n\n'
+            '## Another Level 2\n\nContent 2B.\n\n'
+            '# Another Level 1\n\nContent 1B.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Level 2'])
+        assert result == '## Level 2\n\nContent 2.\n\n### Level 3\n\nContent 3.'
+
+    def test_level_one_line_does_not_end_a_section(self):
+        """Converted HTML leaves a paragraph starting with '#' unescaped; it is section text."""
+        markdown = '## Hosts\n\nIntro.\n\n# of hosts is 3\n\nMore detail.\n\n## Next\n\nOther.\n'
+        result = extract_sections_from_markdown(markdown, ['Hosts'])
+        assert result == '## Hosts\n\nIntro.\n\n# of hosts is 3\n\nMore detail.'
 
     def test_duplicate_section_names(self):
         """Test handling of duplicate section titles (should get all matches)."""
-        html = """<html><body>
-            <h2>Introduction</h2>
-            <p>First intro.</p>
-            <h2>Main Section</h2>
-            <p>First main content.</p>
-            <h2>Main Section</h2>
-            <p>Second main content.</p>
-        </body></html>"""
-        result = extract_sections_from_html(html, ['Main Section'])
-        assert '<h2>Main Section</h2>' in result
+        markdown = (
+            '## Introduction\n\nFirst intro.\n\n'
+            '## Main Section\n\nFirst main content.\n\n'
+            '## Main Section\n\nSecond main content.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Main Section'])
         assert 'First main content' in result
         assert 'Second main content' in result  # Should include both matching sections
+
+    def test_headings_inside_code_blocks_are_ignored(self):
+        """A '#' line inside a fenced code block neither starts nor ends a section."""
+        markdown = (
+            '## Example\n\n```bash\n## not a heading\necho hi\n```\n\n## Next\n\nNext content.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Example'])
+        assert result == '## Example\n\n```bash\n## not a heading\necho hi\n```'
+        with pytest.raises(ValueError, match='Available sections: "Example", "Next".'):
+            extract_sections_from_markdown(markdown, ['not a heading'])
+
+
+class TestSectionsAtAnyHeadingLevel:
+    """Search lists headings at every level, so read_sections must accept any of them."""
+
+    # Shaped on amazondynamodb/latest/developerguide/ServiceQuotas.html
+    QUOTAS = (
+        '\n\n# Quotas in Amazon DynamoDB\n<a name="ServiceQuotas"></a>\n\nIntro.\n\n'
+        '## Read/write throughput\n\nThroughput intro.\n\n'
+        '### Throughput default quotas\n\nDefault quotas body.\n\n'
+        '### Increasing or decreasing throughput (for provisioned tables)\n\nChange intro.\n\n'
+        '#### Increasing provisioned throughput\n\nIncrease body.\n\n'
+        '#### Decreasing provisioned throughput\n\nDecrease body.\n\n'
+        '## Reserved Capacity\n\nReserved body.\n\n'
+        '## Tables\n\nTables body.\n\n'
+        '### Table size\n\nTable size body.\n'
+    )
+
+    def test_level_one_title_selects_the_whole_page(self):
+        """Search recommends the page title, which is an h1."""
+        selection = select_sections(self.QUOTAS, ['Quotas in Amazon DynamoDB'])
+        assert selection.whole_page
+        assert selection.markdown == self.QUOTAS
+        assert selection.missing == []
+
+    def test_whole_page_still_reports_missing_titles(self):
+        """The page title plus a title the page lacks still notes the missing one."""
+        selection = select_sections(self.QUOTAS, ['Quotas in Amazon DynamoDB', 'Service quotas'])
+        assert selection.whole_page
+        assert selection.missing == ['Service quotas']
+
+    def test_level_three_section_ends_at_the_next_level_three(self):
+        """An h3 section stops at its sibling, not at the end of its h2."""
+        result = extract_sections_from_markdown(self.QUOTAS, ['Throughput default quotas'])
+        assert result == '### Throughput default quotas\n\nDefault quotas body.'
+
+    def test_level_three_section_keeps_its_subsections(self):
+        """Deeper headings belong to the section, so the h3 runs to the next h2."""
+        result = extract_sections_from_markdown(
+            self.QUOTAS, ['Increasing or decreasing throughput (for provisioned tables)']
+        )
+        assert result.startswith('### Increasing or decreasing throughput')
+        assert '#### Increasing provisioned throughput' in result
+        assert result.endswith('Decrease body.')
+        assert 'Reserved' not in result
+
+    def test_level_four_section(self):
+        """Shaped on the DevOps Agent authentication page, which lists an h4 title."""
+        markdown = (
+            '# Authentication and security\n\n## Security considerations\n\n'
+            '### Traceability\n\nCloudTrail intro.\n\n'
+            '#### Access token authentication events\n\nAuthenticateAccessToken body.\n\n'
+            '| Field | Description |\n| --- | --- |\n| userName | The token name. |\n\n'
+            '#### Downstream action events\n\nDownstream body.\n\n'
+            '### VPC endpoint policy limitation\n\nVPC body.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Access token authentication events'])
+        assert result == (
+            '#### Access token authentication events\n\nAuthenticateAccessToken body.\n\n'
+            '| Field | Description |\n| --- | --- |\n| userName | The token name. |'
+        )
+
+    def test_level_three_section_at_end_of_document(self):
+        """Shaped on the AppSync resolvers tutorial, which ends on an h3."""
+        markdown = (
+            '# Creating a simple post application using DynamoDB resolvers\n\n'
+            '## Create an updatePost Mutation (DynamoDB UpdateItem)\n\nMutation body.\n\n'
+            '#### [ JSON ]\n\n```json\n{}\n```\n\n'
+            '### Call the API to Update a Post\n\nUpdate body.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Call the API to Update a Post'])
+        assert result == '### Call the API to Update a Post\n\nUpdate body.'
+
+    def test_title_at_two_levels_returns_both_sections(self):
+        """Shaped on the Lambda quotas page, where "Compute and storage" is an h2 and an h3."""
+        markdown = (
+            '## Compute and storage\n\nFunction quotas.\n\n'
+            '## Lambda MicroVMs\n\n### Compute and storage\n\nPer-MicroVM quotas.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Compute and storage'])
+        assert result == (
+            '## Compute and storage\n\nFunction quotas.'
+            '\n\n### Compute and storage\n\nPer-MicroVM quotas.'
+        )
+
+    def test_page_title_that_also_names_a_section_returns_the_section(self):
+        """Shaped on the API Gateway VPCLinks page, which has an h3 property named VpcLinks."""
+        markdown = (
+            '# VPCLinks\n\n## Properties\n\n### VpcLinks\n\nProperty body.\n\n## Other\n\nx\n'
+        )
+        note = (
+            '\n\n> **Note**: "VPCLinks" also names the whole page. Use the read_documentation'
+            ' tool to read all of it.'
+        )
+        alone = extract_sections_from_markdown(markdown, ['VPCLinks'])
+        assert alone == '### VpcLinks\n\nProperty body.' + note
+        mixed = extract_sections_from_markdown(markdown, ['VPCLinks', 'Other'])
+        assert mixed == '### VpcLinks\n\nProperty body.\n\n## Other\n\nx' + note
+
+    def test_nested_titles_are_returned_once(self):
+        """Asking for a section and one of its subsections does not repeat the subsection."""
+        result = extract_sections_from_markdown(
+            self.QUOTAS, ['Read/write throughput', 'Throughput default quotas']
+        )
+        assert result.count('Default quotas body.') == 1
+        assert result.startswith('## Read/write throughput')
+        assert '> **Note**' not in result
+
+    def test_repeated_deeper_titles_return_every_match(self):
+        """Like repeated h2 titles, every heading carrying the title is returned."""
+        markdown = (
+            '## Create\n\n### Prerequisites\n\nCreate prereqs.\n\n### Steps\n\nSteps.\n\n'
+            '## Delete\n\n### Prerequisites\n\nDelete prereqs.\n'
+        )
+        result = extract_sections_from_markdown(markdown, ['Prerequisites'])
+        assert result == (
+            '### Prerequisites\n\nCreate prereqs.\n\n### Prerequisites\n\nDelete prereqs.'
+        )
+
+    def test_level_one_line_does_not_end_a_deeper_section(self):
+        """The unescaped '# of hosts' paragraph is text inside an h3 section too."""
+        markdown = '### Hosts\n\nIntro.\n\n# of hosts is 3\n\nMore.\n\n### Next\n\nOther.\n'
+        result = extract_sections_from_markdown(markdown, ['Hosts'])
+        assert result == '### Hosts\n\nIntro.\n\n# of hosts is 3\n\nMore.'
+
+    def test_deeper_headings_inside_code_blocks_are_ignored(self):
+        """A '###' line in a fenced block neither matches nor ends a section."""
+        markdown = '### Example\n\n```\n### not a heading\n```\n\n### Next\n\nNext.\n'
+        result = extract_sections_from_markdown(markdown, ['Example'])
+        assert result == '### Example\n\n```\n### not a heading\n```'
+        with pytest.raises(ValueError, match='Available sections: "Example", "Next".'):
+            extract_sections_from_markdown(markdown, ['not a heading'])
+
+    def test_page_without_level_two_lists_its_top_subsections(self):
+        """A miss on a page whose subsections start at h3 lists those, not 'no subsections'."""
+        markdown = '# Page\n\n### First\n\n#### Inner\n\nBody.\n\n### Second\n\nBody.\n'
+        with pytest.raises(ValueError) as exc_info:
+            extract_sections_from_markdown(markdown, ['Missing'])
+        assert 'Available sections: "First", "Second".' in str(exc_info.value)
+
+    def test_page_title_with_a_section_returns_the_section(self):
+        """A section named alongside the page title is returned, not lost past the first page."""
+        result = extract_sections_from_markdown(
+            self.QUOTAS, ['Quotas in Amazon DynamoDB', 'Table size']
+        )
+        assert result == (
+            '### Table size\n\nTable size body.'
+            '\n\n> **Note**: "Quotas in Amazon DynamoDB" also names the whole page. Use the'
+            ' read_documentation tool to read all of it.'
+        )
+
+    def test_page_title_equal_to_a_level_two_title_returns_the_section(self):
+        """An h2 that shares the page title returns the h2, not the whole page."""
+        selection = select_sections('# Limits\n\n## Limits\n\nBody.\n', ['Limits'])
+        assert not selection.whole_page
+        assert selection.markdown == '## Limits\n\nBody.'
+        assert selection.page_titles == ['Limits']
+
+    def test_later_level_one_line_is_not_the_page_title(self):
+        """Only the first h1 names the page; an unescaped '# of hosts' paragraph names nothing."""
+        markdown = '# Cluster sizing\n\nIntro.\n\n# of hosts\n\n3\n\n## Details\n\nd\n'
+        with pytest.raises(ValueError, match='Available sections: "Details".'):
+            select_sections(markdown, ['of hosts'])
+
+    def test_empty_title_matches_nothing(self):
+        """A title with no text does not select an empty heading or the page."""
+        markdown = '# \n\n### \n\nEmpty heading body.\n\n## A\n\nb\n'
+        result = extract_sections_from_markdown(markdown, ['', 'A'])
+        assert result == (
+            '## A\n\nb\n\n> **Note**: The following requested sections were not found: ""'
+        )
+
+    def test_callouts_and_empty_headings_are_not_offered(self):
+        """h6 callout titles and empty headings are not listed as sections to retry with."""
+        markdown = '# Page\n\n### \n\nx\n\n### Setup\n\n###### Note\n\nn\n\n### Usage\n\nu\n'
+        with pytest.raises(ValueError) as exc_info:
+            select_sections(markdown, ['Missing'])
+        assert 'Available sections: "Setup", "Usage".' in str(exc_info.value)
+
+    def test_repeated_level_two_titles_are_all_offered(self):
+        """The h2 list in a miss keeps repeated titles, as it always has."""
+        markdown = '## Example\n\na\n\n## Example\n\nb\n'
+        with pytest.raises(ValueError, match='Available sections: "Example", "Example".'):
+            select_sections(markdown, ['Missing'])
+
+    def test_missing_titles_are_reported_stripped(self):
+        """A padded title that matches nothing is named without its padding."""
+        result = extract_sections_from_markdown(self.QUOTAS, ['Tables', '  Service quotas  '])
+        assert result.endswith('were not found: "Service quotas"')
+
+    def test_page_title_spellings_are_noted_once(self):
+        """Two spellings of the page title alongside a section are noted once."""
+        result = extract_sections_from_markdown(
+            self.QUOTAS, ['Quotas in Amazon DynamoDB', 'QUOTAS IN AMAZON DYNAMODB', 'Table size']
+        )
+        assert result.endswith(
+            '"Quotas in Amazon DynamoDB" also names the whole page.'
+            ' Use the read_documentation tool to read all of it.'
+        )
+
+    def test_available_subsections_are_listed_once(self):
+        """Repeated headings are offered once when a title misses."""
+        markdown = '# Page\n\n### [ JSON ]\n\nA.\n\n### [ YAML ]\n\nB.\n\n### [ JSON ]\n\nC.\n'
+        with pytest.raises(ValueError) as exc_info:
+            extract_sections_from_markdown(markdown, ['Missing'])
+        assert 'Available sections: "[ JSON ]", "[ YAML ]".' in str(exc_info.value)
+
+    def test_level_six_titles_match_but_are_not_offered(self):
+        """An h6 callout title can be read by name, but a miss never suggests one."""
+        markdown = '# Page\n\n## Setup\n\n###### Note\n\nCallout.\n\n## Usage\n\nu\n'
+        assert extract_sections_from_markdown(markdown, ['Note']) == '###### Note\n\nCallout.'
+        with pytest.raises(ValueError, match='Available sections: "Setup", "Usage".'):
+            select_sections(markdown, ['Missing'])
+
+    def test_missing_title_spellings_are_noted_once(self):
+        """Two spellings of a title that matches nothing are listed once, as first written."""
+        result = extract_sections_from_markdown(self.QUOTAS, ['Tables', 'Foo', 'foo', 'Bar'])
+        assert result.endswith('were not found: "Foo", "Bar"')
+
+    def test_title_repeated_in_another_case_is_not_reported_missing(self):
+        """Two spellings of one title resolve together, so neither is listed as not found."""
+        result = extract_sections_from_markdown(self.QUOTAS, ['Tables', 'tables'])
+        assert '> **Note**' not in result
+        assert result.startswith('## Tables')
 
 
 class TestEmptyLinkTargets:
@@ -1055,31 +1254,55 @@ class TestShellPagesDoNotSimplify:
 class TestSectionTitleMatching:
     """A caller passing a rendered heading finds the section, whatever markup it contains."""
 
-    HTML = (
-        '<html><body><main>'
-        '<h2>Using the <code>Switch Role</code> API</h2><p>First body.</p>'
-        '<h2>Plain Heading</h2><p>Second body.</p>'
-        '</main></body></html>'
+    MARKDOWN = (
+        '## Using the `Switch Role` API\n\nFirst body.\n\n## Plain Heading\n\nSecond body.\n'
     )
 
     def test_a_heading_with_inline_markup_is_matchable(self):
         """The rendered text of the heading is what a caller can see and pass."""
-        result = extract_sections_from_html(self.HTML, ['Using the Switch Role API'])
+        result = extract_sections_from_markdown(self.MARKDOWN, ['Using the Switch Role API'])
         assert 'First body.' in result
         assert 'Second body.' not in result
 
     def test_available_sections_are_reported_readably(self):
         """A miss lists titles a caller can actually retry with."""
         with pytest.raises(ValueError) as excinfo:
-            extract_sections_from_html(self.HTML, ['No Such Section'])
+            extract_sections_from_markdown(self.MARKDOWN, ['No Such Section'])
         message = str(excinfo.value)
-        assert 'Using the Switch Role API' in message
-        assert 'UsingtheSwitchRoleAPI' not in message
+        assert '"Using the Switch Role API"' in message
+        assert '`' not in message
+
+    def test_a_title_copied_with_markup_matches(self):
+        """Requested titles get the same normalization as the page's headings."""
+        result = extract_sections_from_markdown(self.MARKDOWN, ['Using the `Switch Role` API'])
+        assert 'First body.' in result
+
+    def test_indented_code_is_not_a_heading(self):
+        """Four leading spaces make an indented code block, so '## x' there is code."""
+        markdown = '## Example\n\n    ## a shell comment\n    echo hi\n\n## Next\n\nNext.\n'
+        result = extract_sections_from_markdown(markdown, ['Example'])
+        assert result == '## Example\n\n    ## a shell comment\n    echo hi'
 
     def test_a_plain_heading_still_matches(self):
         """The normalizer does not disturb headings without markup."""
-        result = extract_sections_from_html(self.HTML, ['Plain Heading'])
+        result = extract_sections_from_markdown(self.MARKDOWN, ['Plain Heading'])
         assert 'Second body.' in result
+
+    @pytest.mark.parametrize(
+        'heading, title',
+        [
+            ('## **CloudWatch**', 'CloudWatch'),  # bold-wrapped in published Markdown
+            ('## Using [roles](roles.md)', 'Using roles'),  # link keeps its text
+            ('## x86\\_64 instances', 'x86_64 instances'),  # escaped underscore
+            ('## Options \u00b6', 'Options'),  # pilcrow permalink
+            ('## Using C #', 'Using C #'),  # a trailing '#' is part of the title
+            ('   ## Indented', 'Indented'),  # up to three leading spaces is still a heading
+        ],
+    )
+    def test_published_markdown_heading_forms_match(self, heading, title):
+        """Heading markup seen in published and converted Markdown reduces to its text."""
+        result = extract_sections_from_markdown(f'{heading}\n\nBody.\n', [title])
+        assert result == f'{heading.strip()}\n\nBody.'
 
 
 class TestWhitespaceOnlyBody:
@@ -1094,3 +1317,247 @@ class TestWhitespaceOnlyBody:
         """Paragraphs holding only whitespace are not prose either."""
         with pytest.raises(UnreadablePageError):
             extract_content_from_html('<html><body><p> </p><p>  </p></body></html>')
+
+
+class TestToHtmlPageUrl:
+    """Tests for mapping a documentation URL to the .html page the tools fetch."""
+
+    @pytest.mark.parametrize(
+        'url, expected',
+        [
+            (
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.md',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.md#destinations',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html#section',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.md?x=1',
+                'https://docs.aws.amazon.com/lambda/latest/dg/invocation-sync.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/lambda/latest/dg/README.MD',
+                'https://docs.aws.amazon.com/lambda/latest/dg/README.html',
+            ),
+        ],
+    )
+    def test_html_and_md_urls_map_to_html_page(self, url, expected):
+        """A .md URL names the .html page at its path; query and fragment are dropped."""
+        assert to_html_page_url(url) == expected
+
+    @pytest.mark.parametrize(
+        'url',
+        [
+            'https://docs.aws.amazon.com/test.pdf',
+            'https://docs.aws.amazon.com/lambda/latest/dg/',
+            'https://docs.aws.amazon.com/test.md.bak#x',
+            'https://docs.aws.amazon.com/README.markdown',
+        ],
+    )
+    def test_other_urls_are_rejected(self, url):
+        """Anything not ending in .html or .md has no page URL."""
+        assert to_html_page_url(url) is None
+
+
+class TestCodeFencesInConvertedHtml:
+    """markdownify opens a fence after the ':' markers of a <dd>; the indented closer must close it."""
+
+    # Shaped on IAM/latest/UserGuide/reference_policies_elements_condition_operators.html
+    HTML = (
+        '<html><body><main><h1>Condition operators</h1>'
+        '<h2>String condition operators</h2><p>Intro.</p>'
+        '<div class="collapsible"><dl><dt>JSON</dt><dd><dl><dd>'
+        '<pre class="programlisting"><code>{\n  "Condition": {}\n}</code></pre>'
+        '</dd></dl></dd></dl></div>'
+        '<h2>Numeric condition operators</h2><p>Numbers.</p>'
+        '<h2>ARN condition operators</h2><p>ARNs.</p>'
+        '</main></body></html>'
+    )
+
+    def test_headings_after_a_definition_list_fence_are_found(self):
+        """A heading after the code sample is still a section."""
+        markdown = extract_content_from_html(self.HTML)
+        assert ':   :   ```' in markdown
+        selection = select_sections(markdown, ['ARN condition operators'])
+        assert selection.markdown == '## ARN condition operators\n\nARNs.'
+
+    def test_section_before_the_next_heading_ends_there(self):
+        """The section holding the code sample ends at the next heading."""
+        markdown = extract_content_from_html(self.HTML)
+        selection = select_sections(markdown, ['String condition operators'])
+        assert selection.markdown.startswith('## String condition operators')
+        assert 'Numeric' not in selection.markdown
+
+    def test_headings_after_a_list_item_fence_in_a_definition_are_found(self):
+        """A fence after ':   1. ' (a list item inside a <dd>) also opens a block."""
+        # Shaped on bedrock-agentcore/latest/devguide/runtime-filesystem-configurations.html
+        html = (
+            '<html><body><main><h1>T</h1><h2>Setup</h2><dl><dt>Steps</dt><dd><ol><li>'
+            '<pre><code>pip install x</code></pre>'
+            '</li></ol></dd></dl><h2>Cleanup</h2><p>Bye.</p></main></body></html>'
+        )
+        markdown = extract_content_from_html(html)
+        assert ':   1. ```' in markdown
+        assert select_sections(markdown, ['Cleanup']).markdown == '## Cleanup\n\nBye.'
+
+    @pytest.mark.parametrize('opener', ['- ```', '> ```', '1. ```', ':   ```'])
+    def test_code_after_a_list_or_quote_marker_is_not_a_heading(self, opener):
+        """A '#' line inside a fence opened after a marker is code."""
+        closer = '> ```' if opener.startswith('>') else '```'
+        markdown = f'## A\n\n{opener}\n## inside\n{closer}\n\n## B\n\nB body.\n'
+        with pytest.raises(ValueError, match='Available sections: "A", "B".'):
+            select_sections(markdown, ['inside'])
+
+    def test_inline_triple_backticks_do_not_open_a_fence(self):
+        """'``` x ```' on one line is inline code, so the next heading still counts."""
+        markdown = '## One\n\n``` inline ```\n\n## Two\n\nTwo body.\n'
+        assert select_sections(markdown, ['Two']).markdown == '## Two\n\nTwo body.'
+
+    def test_fence_with_info_string_does_not_close_the_block(self):
+        """'```json' inside a block is content; the next bare fence closes it."""
+        markdown = '## A\n\n```\nprompt = """\n```json\n## inside\n```\n## B\n\nB body.\n'
+        assert select_sections(markdown, ['B']).markdown == '## B\n\nB body.'
+        with pytest.raises(ValueError, match='Available sections: "A", "B".'):
+            select_sections(markdown, ['inside'])
+
+    @pytest.mark.parametrize('line', ['- ```', '1. ```', ':   ```'])
+    def test_marker_before_a_fence_inside_a_block_is_code(self, line):
+        """Only a bare or blockquoted fence closes a block, so '- ```' inside one is code."""
+        markdown = f'## A\n\n```\n{line}\n## inside\n```\n\n## B\n\nB body.\n'
+        with pytest.raises(ValueError, match='Available sections: "A", "B".'):
+            select_sections(markdown, ['inside'])
+
+    @pytest.mark.parametrize('line', ['> ```', '>```'])
+    def test_blockquoted_fence_does_not_close_a_block_outside_a_quote(self, line):
+        """A closer must sit at the same blockquote depth as its opener."""
+        markdown = f'## A\n\n```\n{line}\n## inside\n```\n\n## B\n\nB body.\n'
+        with pytest.raises(ValueError, match='Available sections: "A", "B".'):
+            select_sections(markdown, ['inside'])
+
+    def test_closing_fence_with_a_carriage_return_closes_the_block(self):
+        """CRLF text leaves a carriage return after the closing fence."""
+        markdown = '## A\r\n\r\n```\r\n## inside\r\n```\r\n\r\n## B\r\n\r\nB body.\r\n'
+        with pytest.raises(ValueError, match='Available sections: "A", "B".'):
+            select_sections(markdown, ['inside'])
+
+    def test_shorter_fence_does_not_close_a_longer_block(self):
+        """A block opened with four backticks stays open through a three-backtick line."""
+        markdown = '## One\n\n````\n```\n## inside\n```\n````\n\n## Two\n\nTwo body.\n'
+        with pytest.raises(ValueError, match='Available sections: "One", "Two".'):
+            select_sections(markdown, ['inside'])
+
+    def test_fence_of_the_other_kind_does_not_close_the_block(self):
+        """A '~~~' line inside a backtick block is content."""
+        markdown = '## A\n\n```\n~~~\n## inside\n```\n\n## B\n\nB body.\n'
+        with pytest.raises(ValueError, match='Available sections: "A", "B".'):
+            select_sections(markdown, ['inside'])
+
+    def test_closing_fence_followed_by_an_anchor_closes_the_block(self):
+        """Published Markdown can put the next element's anchor on the closing fence's line."""
+        # Shaped on cdk/v2/guide/bootstrapping-env.md
+        markdown = '## A\n\n```\ncode\n```<a name="b"></a>  \n## B\n\nB body.\n'
+        assert select_sections(markdown, ['B']).markdown == '## B\n\nB body.'
+
+
+class TestCodeSampleTabs:
+    """Published Markdown starts each tab with a '------' rule and a '#### [ JSON ]' line."""
+
+    # Shaped on amazondynamodb/latest/developerguide/specifying-conditions.md
+    MARKDOWN = (
+        '# Conditions\n\n'
+        '#### Example 4: Allow access to specific attributes\n\nPolicy intro.\n\n'
+        '------\n#### [ JSON ]\n\n```\n{"Effect": "Allow"}\n```\n\n------\n\n'
+        'After the sample.\n\n'
+        '#### Example 5: Limit returned attributes\n\nExample 5 body.\n'
+    )
+
+    def test_tab_label_does_not_end_a_section(self):
+        """A section at the tab label's level keeps its code sample."""
+        selection = select_sections(
+            self.MARKDOWN, ['Example 4: Allow access to specific attributes']
+        )
+        assert '{"Effect": "Allow"}' in selection.markdown
+        assert 'After the sample.' in selection.markdown
+        assert 'Example 5 body' not in selection.markdown
+
+    def test_tab_label_is_not_offered_as_a_section(self):
+        """Tab labels are not listed among the available sections."""
+        with pytest.raises(ValueError) as error:
+            select_sections(self.MARKDOWN, ['Missing'])
+        assert '[ JSON ]' not in str(error.value)
+
+    def test_tab_label_requested_by_name_returns_its_tabs(self):
+        """An agent can still ask for '[ JSON ]' and get each tab with that label."""
+        selection = select_sections(self.MARKDOWN, ['[ JSON ]'])
+        assert selection.markdown.startswith('#### [ JSON ]')
+        assert '{"Effect": "Allow"}' in selection.markdown
+        assert 'Example 5 body' not in selection.markdown
+
+    def test_a_repeated_label_returns_each_tab_and_stops_at_the_next(self):
+        """Each tab carrying the label is returned, and ends at the following label."""
+        markdown = (
+            '#### Create\n\n------\n#### [ JSON ]\n\nCreate JSON.\n\n'
+            '------\n#### [ YAML ]\n\nCreate YAML.\n\n'
+            '#### Update\n\n------\n#### [ JSON ]\n\nUpdate JSON.\n'
+        )
+        selection = select_sections(markdown, ['[ JSON ]'])
+        assert 'Create JSON.' in selection.markdown
+        assert 'Update JSON.' in selection.markdown
+        assert 'Create YAML.' not in selection.markdown
+
+    def test_tab_inside_a_selected_section_is_returned_once(self):
+        """A requested tab already inside a requested section is not repeated."""
+        selection = select_sections(
+            self.MARKDOWN, ['Example 4: Allow access to specific attributes', '[ JSON ]']
+        )
+        assert selection.markdown.count('#### [ JSON ]') == 1
+
+    def test_tab_label_followed_by_an_anchor_is_not_a_section(self):
+        """A label such as '#### [ Console ]<a name="x"></a>' is still a tab."""
+        # Shaped on AWSEC2/latest/UserGuide/attach-iam-role.md
+        markdown = (
+            '#### Attach a role\n\n------\n#### [ Console ]<a name="console"></a>\n\nClick.\n\n'
+            '------\n#### [ AWS CLI ]\n\nRun.\n\n------\n'
+        )
+        selection = select_sections(markdown, ['Attach a role'])
+        assert 'Click.' in selection.markdown and 'Run.' in selection.markdown
+        assert select_sections(markdown, ['[ Console ]']).markdown.startswith('#### [ Console ]')
+        anchored = select_sections(markdown, ['[ Console ]<a name="console"></a>'])
+        assert anchored.markdown.startswith('#### [ Console ]')
+        with pytest.raises(ValueError, match='Available sections: "Attach a role". '):
+            select_sections(markdown, ['Missing'])
+
+    def test_bracketed_heading_at_another_level_is_a_section(self):
+        """Tab labels are level 4, so a bracketed h2 after a rule ends the section before it."""
+        markdown = '## Intro\n\nText.\n\n------\n## [ Draft ]\n\nDraft body.\n'
+        assert select_sections(markdown, ['Intro']).markdown == '## Intro\n\nText.\n\n------'
+        assert select_sections(markdown, ['[ Draft ]']).markdown == '## [ Draft ]\n\nDraft body.'
+
+    def test_bracketed_heading_without_a_rule_is_a_section(self):
+        """Only a label directly after a '------' rule is a tab."""
+        markdown = '#### Intro\n\nText.\n\n#### [ Draft ]\n\nDraft body.\n'
+        assert select_sections(markdown, ['Intro']).markdown == '#### Intro\n\nText.'
+        assert select_sections(markdown, ['[ Draft ]']).markdown == '#### [ Draft ]\n\nDraft body.'
+
+    def test_bracketed_heading_after_a_short_rule_is_a_section(self):
+        """Only a six-dash rule starts a tab, so a heading after a '---' break is a section."""
+        markdown = '#### A\n\nText.\n\n---\n#### [ X ]\n\nX body.\n'
+        assert select_sections(markdown, ['A']).markdown == '#### A\n\nText.\n\n---'
+        with pytest.raises(ValueError, match='Available sections: "A", "\\[ X \\]".'):
+            select_sections(markdown, ['Missing'])
+
+    def test_heading_after_a_rule_without_brackets_is_a_section(self):
+        """Only a bracketed label after a '------' rule is a tab."""
+        markdown = '#### A\n\nText.\n\n------\n#### B\n\nB body.\n'
+        assert select_sections(markdown, ['A']).markdown == '#### A\n\nText.\n\n------'
+        assert select_sections(markdown, ['B']).markdown == '#### B\n\nB body.'

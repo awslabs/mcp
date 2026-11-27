@@ -89,6 +89,14 @@ RUN_LOG_LEVELS = [
     RUN_LOG_LEVEL_ALL,
 ]
 
+# Run output URI prefix modes (controls the output path layout under outputUri)
+OUTPUT_URI_PREFIX_MODE_SERVICE_DEFINED = 'SERVICE_DEFINED'
+OUTPUT_URI_PREFIX_MODE_NONE_WITH_OVERWRITE = 'NONE_WITH_OVERWRITE'
+OUTPUT_URI_PREFIX_MODES = [
+    OUTPUT_URI_PREFIX_MODE_SERVICE_DEFINED,
+    OUTPUT_URI_PREFIX_MODE_NONE_WITH_OVERWRITE,
+]
+
 # Run statuses
 RUN_STATUS_PENDING = 'PENDING'
 RUN_STATUS_STARTING = 'STARTING'
@@ -232,6 +240,7 @@ ERROR_INVALID_STORAGE_TYPE = 'Invalid storage type. Must be one of: {}'
 ERROR_INVALID_CACHE_BEHAVIOR = 'Invalid cache behavior. Must be one of: {}'
 ERROR_INVALID_SCRATCH_STORAGE_MODE = "Invalid scratch storage mode '{}'. Must be one of: {}"
 ERROR_INVALID_RUN_LOG_LEVEL = 'Invalid log level. Must be one of: {}'
+ERROR_INVALID_OUTPUT_URI_PREFIX_MODE = "'{}' is not a valid value. Must be one of: {}"
 ERROR_INVALID_SESSION_POLICY = 'Invalid session policy: {}'
 ERROR_INVALID_RUN_STATUS = 'Invalid run status. Must be one of: {}'
 ERROR_STATIC_STORAGE_REQUIRES_CAPACITY = (
@@ -398,6 +407,19 @@ DEFAULT_HTTP_PATH = '/mcp'
 # Supported transports (Phase 1)
 SUPPORTED_TRANSPORTS = ('stdio', 'streamable-http', 'sse')
 NETWORK_TRANSPORTS = ('streamable-http', 'sse')
+LOCAL_TRANSPORTS = ('stdio',)
+
+# Local file paths in tool arguments are honored only over stdio
+ERROR_LOCAL_FILE_ACCESS_DISABLED = (
+    'Local file paths are not supported when the server runs over a network transport. '
+    'Provide inline content or an S3 URI (s3://bucket/key) for input, and an S3 URI '
+    'or no output_path for output.'
+)
+ERROR_LINT_UNAVAILABLE_OVER_NETWORK = (
+    'Workflow linting is not available when the server runs over a network transport, '
+    'because the linters can resolve workflow imports from the local filesystem or '
+    'the network. Run the server locally over stdio to lint workflows.'
+)
 
 # Error messages for transport and network configuration (Phase 1)
 ERROR_UNSUPPORTED_TRANSPORT = "Unsupported transport '{}'. Supported transports: {}"

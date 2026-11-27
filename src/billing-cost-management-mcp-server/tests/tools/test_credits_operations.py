@@ -15,8 +15,10 @@
 """Unit tests for the credits_operations module."""
 
 import boto3
+import os
 import pytest
 import sqlite3
+import time
 from awslabs.billing_cost_management_mcp_server.tools.credits_operations import (
     GET_CREDIT_ALLOCATION_HISTORY_PAGE_SPEC,
     MAX_ALLOCATION_HISTORY_SECONDS,
@@ -34,6 +36,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 CREATE_CLIENT_PATH = (
     'awslabs.billing_cost_management_mcp_server.tools.credits_operations.create_aws_client'
 )
+CREDITS_MODULE = 'awslabs.billing_cost_management_mcp_server.tools.credits_operations'
 CONVERT_PATH = (
     'awslabs.billing_cost_management_mcp_server.tools.credits_operations.'
     'convert_response_if_needed'
@@ -276,6 +279,254 @@ class TestGetCredits:
 
         assert result['status'] == 'success'
         assert result['data']['credits'] == []
+
+
+class TestGetCreditsValidity:
+    """Each credit carries a validityStatus derived from its dates.
+
+    GetCredits returns every credit overlapping the window, including ones that
+    have expired (balance unchanged, creditStatus still ENABLED) and ones that
+    have not started yet, so the date check is done here rather than left to the
+    agent.
+    """
+
+    @staticmethod
+    def _credit(sample_credit, start_days, end_days):
+        """Return a copy of sample_credit valid between two day offsets from now."""
+        now = datetime.now(timezone.utc)
+        credit = dict(sample_credit)
+        credit['startDate'] = now + timedelta(days=start_days)
+        credit['endDate'] = now + timedelta(days=end_days) if end_days is not None else None
+        return credit
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'start_days,end_days,expected',
+        [
+            (-60, 30, 'ACTIVE'),
+            (-60, -1, 'EXPIRED'),
+            (5, 35, 'NOT_YET_ACTIVE'),
+            (-60, None, 'ACTIVE'),
+            (5, None, 'NOT_YET_ACTIVE'),
+        ],
+        ids=['active', 'expired', 'not-yet-active', 'no-end-date', 'no-end-date-not-started'],
+    )
+    async def test_validity_status_from_dates(
+        self, mock_context, sample_credit, start_days, end_days, expected
+    ):
+        """The status compares startDate and endDate with the current time."""
+        credit = self._credit(sample_credit, start_days, end_days)
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        assert result['data']['credits'][0]['validityStatus'] == expected
+
+    @pytest.mark.asyncio
+    async def test_placeholder_end_date_is_active(self, mock_context, sample_credit):
+        """A 2099-12-31 endDate classifies ACTIVE once started, so its balance counts as usable."""
+        now = datetime.now(timezone.utc)
+        credit = dict(
+            sample_credit,
+            startDate=now - timedelta(days=30),
+            endDate=datetime(2099, 12, 31, tzinfo=timezone.utc),
+        )
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        returned = result['data']['credits'][0]
+        assert returned['validityStatus'] == 'ACTIVE'
+        assert returned['endDate'] == '2099-12-31T00:00:00'
+
+    @pytest.mark.asyncio
+    async def test_expired_credit_keeps_balance_and_status(self, mock_context, sample_credit):
+        """An expired credit is flagged, not altered: amounts and creditStatus stay as returned."""
+        credit = self._credit(sample_credit, -60, -1)
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        returned = result['data']['credits'][0]
+        assert returned['validityStatus'] == 'EXPIRED'
+        assert returned['remainingAmount'] == {'currencyCode': 'USD', 'currencyAmount': '250.50'}
+        assert returned['creditStatus'] == 'ENABLED'
+
+    @staticmethod
+    async def _status_at(ctx, credit, frozen):
+        """Classify one credit with the evaluation time frozen at ``frozen``.
+
+        Only the classification clock is frozen; the request window is relative to
+        today so the window checks never age out.
+        """
+        client = _get_credits_client([credit])
+        with patch(f'{CREDITS_MODULE}._utc_now', return_value=frozen):
+            result = await _call_get_credits(ctx, client, start_date=_offset_date(-180))
+        return result['data']['credits'][0]['validityStatus']
+
+    @pytest.mark.asyncio
+    async def test_end_date_equal_to_now_is_expired(self, mock_context, sample_credit):
+        """A credit whose endDate (its expiration date) has been reached is expired."""
+        frozen = datetime.now(timezone.utc).replace(microsecond=0)
+        credit = dict(sample_credit, startDate=frozen - timedelta(days=30), endDate=frozen)
+
+        assert await self._status_at(mock_context, credit, frozen) == 'EXPIRED'
+
+    @pytest.mark.asyncio
+    async def test_start_date_equal_to_now_is_active(self, mock_context, sample_credit):
+        """A credit is active from the moment its startDate is reached."""
+        frozen = datetime.now(timezone.utc).replace(microsecond=0)
+        credit = dict(sample_credit, startDate=frozen, endDate=frozen + timedelta(days=30))
+
+        assert await self._status_at(mock_context, credit, frozen) == 'ACTIVE'
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not hasattr(time, 'tzset'), reason='time.tzset is Unix-only')
+    async def test_naive_datetime_is_read_as_utc(self, mock_context, sample_credit):
+        """A datetime without tzinfo is taken as UTC rather than the host's local time.
+
+        The host is moved to UTC-8, so reading the naive endDate as local time would
+        place it eight hours later and report the credit as ACTIVE.
+        """
+        original_tz = os.environ.get('TZ')
+        os.environ['TZ'] = 'America/Los_Angeles'
+        time.tzset()
+        try:
+            frozen = datetime.now(timezone.utc).replace(microsecond=0)
+            naive_now = frozen.replace(tzinfo=None)
+            credit = dict(
+                sample_credit,
+                startDate=naive_now - timedelta(days=10),
+                endDate=naive_now - timedelta(hours=1),
+            )
+
+            assert await self._status_at(mock_context, credit, frozen) == 'EXPIRED'
+        finally:
+            if original_tz is None:
+                os.environ.pop('TZ', None)
+            else:
+                os.environ['TZ'] = original_tz
+            time.tzset()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('scale', [1, 1000], ids=['seconds', 'milliseconds'])
+    async def test_epoch_dates_are_supported(self, mock_context, sample_credit, scale):
+        """Dates given as epoch seconds or milliseconds are classified like datetimes."""
+        now = int(datetime.now(timezone.utc).timestamp())
+        credit = dict(
+            sample_credit,
+            startDate=(now - 86400 * 40) * scale,
+            endDate=(now - 86400 * 10) * scale,
+        )
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        returned = result['data']['credits'][0]
+        assert returned['validityStatus'] == 'EXPIRED'
+        expected_end = datetime.fromtimestamp(now - 86400 * 10, tz=timezone.utc)
+        assert returned['endDate'] == expected_end.replace(tzinfo=None).isoformat()
+
+    @pytest.mark.asyncio
+    async def test_string_dates_are_normalized(self, mock_context, sample_credit):
+        """Readable string dates are formatted like every other date form."""
+        credit = dict(sample_credit, startDate='2026-01-01T00:00:00Z', endDate='1798675200000')
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        returned = result['data']['credits'][0]
+        assert returned['startDate'] == '2026-01-01T00:00:00'
+        assert returned['endDate'] == '2026-12-31T00:00:00'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('value', ['not-a-date', True], ids=['text', 'bool'])
+    async def test_unreadable_date_is_kept_as_returned(self, mock_context, sample_credit, value):
+        """An unreadable endDate is left in place, not replaced with null."""
+        credit = dict(sample_credit, endDate=value)
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        returned = result['data']['credits'][0]
+        assert returned['validityStatus'] == 'UNKNOWN'
+        assert returned['endDate'] is value
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('blank', ['', '   '], ids=['empty', 'whitespace'])
+    async def test_blank_end_date_means_none_reported(self, mock_context, sample_credit, blank):
+        """A blank endDate string is treated as no endDate, not as unreadable."""
+        now = datetime.now(timezone.utc)
+        credit = dict(sample_credit, startDate=now - timedelta(days=5), endDate=blank)
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        assert result['data']['credits'][0]['validityStatus'] == 'ACTIVE'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('field', ['endDate', 'startDate'])
+    async def test_unreadable_date_is_unknown(self, mock_context, sample_credit, field):
+        """A date that is present but unreadable gives UNKNOWN, never ACTIVE."""
+        now = datetime.now(timezone.utc)
+        dates = {'startDate': now - timedelta(days=5), 'endDate': now + timedelta(days=30)}
+        credit = dict(sample_credit, **dict(dates, **{field: 'not-a-date'}))
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        assert result['data']['credits'][0]['validityStatus'] == 'UNKNOWN'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'start,end,expected',
+        [
+            ('not-a-date', -1, 'EXPIRED'),
+            (5, 'not-a-date', 'NOT_YET_ACTIVE'),
+        ],
+        ids=['past-end-unreadable-start', 'future-start-unreadable-end'],
+    )
+    async def test_readable_date_that_decides_wins(
+        self, mock_context, sample_credit, start, end, expected
+    ):
+        """An unreadable date gives UNKNOWN only when the readable one does not decide."""
+        now = datetime.now(timezone.utc)
+        credit = dict(
+            sample_credit,
+            startDate=start if isinstance(start, str) else now + timedelta(days=start),
+            endDate=end if isinstance(end, str) else now + timedelta(days=end),
+        )
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        assert result['data']['credits'][0]['validityStatus'] == expected
+
+    @pytest.mark.asyncio
+    async def test_mixed_portfolio_is_classified_per_credit(self, mock_context, sample_credit):
+        """Each credit in one response gets its own status."""
+        credits = [
+            self._credit(sample_credit, -60, 30),
+            self._credit(sample_credit, -90, -30),
+            self._credit(sample_credit, 10, 40),
+        ]
+        client = _get_credits_client(credits)
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        statuses = [c['validityStatus'] for c in result['data']['credits']]
+        assert statuses == ['ACTIVE', 'EXPIRED', 'NOT_YET_ACTIVE']
+
+    @pytest.mark.asyncio
+    async def test_response_reports_evaluation_time(self, mock_context, sample_credit):
+        """The response states the instant the statuses were evaluated against."""
+        frozen = datetime.now(timezone.utc).replace(microsecond=0)
+        client = _get_credits_client([sample_credit])
+
+        with patch(f'{CREDITS_MODULE}._utc_now', return_value=frozen):
+            result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        assert result['data']['validity_evaluated_at'] == frozen.replace(tzinfo=None).isoformat()
 
 
 class TestGetCreditsValidation:
@@ -1096,6 +1347,45 @@ class TestSessionSqlOffload:
         data = result['data']
         assert data['data_stored'] is True
         assert data['time_range']['start_date'].startswith(start)
+
+    @pytest.mark.asyncio
+    async def test_credits_offload_keeps_validity(self, mock_context, sample_credit):
+        """An offloaded credit table keeps validity_evaluated_at and a filterable validityStatus.
+
+        The SQL is the recipe the tool description gives for totalling the usable
+        balance from an offloaded table.
+        """
+        now = datetime.now(timezone.utc)
+        active = dict(
+            sample_credit, startDate=now - timedelta(days=30), endDate=now + timedelta(days=30)
+        )
+        expired = dict(
+            sample_credit, startDate=now - timedelta(days=60), endDate=now - timedelta(days=1)
+        )
+        credits = [dict(active, creditId=str(i)) for i in range(20)]
+        credits += [dict(expired, creditId=str(100 + i)) for i in range(20)]
+        client = _get_credits_client(credits)
+
+        with patch.object(sql_utils, 'SQL_CONVERSION_THRESHOLD', 1):
+            result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        data = result['data']
+        assert data['data_stored'] is True
+        assert data['validity_evaluated_at']
+        connection = sqlite3.connect(data['session_db'])
+        try:
+            rows = connection.execute(
+                "SELECT json_extract(remainingAmount, '$.currencyCode') AS currency, "
+                "SUM(CAST(json_extract(remainingAmount, '$.currencyAmount') AS REAL)) "
+                f'FROM {data["table_name"]} '
+                "WHERE validityStatus = 'ACTIVE' "
+                "AND COALESCE(creditStatus, 'ENABLED') != 'DISABLED' "
+                'GROUP BY currency'
+            ).fetchall()
+        finally:
+            connection.close()
+
+        assert rows == [('USD', pytest.approx(20 * 250.50))]
 
     @pytest.mark.asyncio
     async def test_small_response_stays_inline(self, mock_context, sample_allocation):
