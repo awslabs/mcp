@@ -150,30 +150,47 @@ def _categorize_failures(
 
 
 async def _get_stopped_tasks_for_cluster(
-    ecs_client: Any, cluster_name: str, start_time: datetime.datetime
+    ecs_client: Any,
+    cluster_name: str,
+    start_time: datetime.datetime,
+    end_time: Optional[datetime.datetime] = None,
 ) -> List[Dict[str, Any]]:
     """Get stopped tasks for cluster within time window."""
     try:
-        # Get all stopped task ARNs
-        task_arns = ecs_client.list_tasks(cluster=cluster_name, desiredStatus="STOPPED").get(
-            "taskArns", []
-        )
+        # Get all stopped task ARNs (ListTasks returns at most 100 per page)
+        task_arns: List[str] = []
+        list_kwargs: Dict[str, Any] = {"cluster": cluster_name, "desiredStatus": "STOPPED"}
+        while True:
+            page = ecs_client.list_tasks(**list_kwargs)
+            task_arns.extend(page.get("taskArns", []))
+            next_token = page.get("nextToken")
+            if not next_token:
+                break
+            list_kwargs["nextToken"] = next_token
         if not task_arns:
             return []
 
-        # Get task details and filter by time
-        tasks = ecs_client.describe_tasks(cluster=cluster_name, tasks=task_arns).get("tasks", [])
-        return [
-            task
-            for task in tasks
-            if task.get("stoppedAt")
-            and (
-                task["stoppedAt"].replace(tzinfo=datetime.timezone.utc)
-                if task["stoppedAt"].tzinfo is None
-                else task["stoppedAt"]
+        # Get task details (DescribeTasks accepts at most 100 tasks per call)
+        tasks: List[Dict[str, Any]] = []
+        for i in range(0, len(task_arns), 100):
+            batch = task_arns[i : i + 100]
+            tasks.extend(
+                ecs_client.describe_tasks(cluster=cluster_name, tasks=batch).get("tasks", [])
             )
-            >= start_time
-        ]
+
+        selected = []
+        for task in tasks:
+            stopped_at = task.get("stoppedAt")
+            if not stopped_at:
+                continue
+            if stopped_at.tzinfo is None:
+                stopped_at = stopped_at.replace(tzinfo=datetime.timezone.utc)
+            if stopped_at < start_time:
+                continue
+            if end_time is not None and stopped_at > end_time:
+                continue
+            selected.append(task)
+        return selected
     except ClientError:
         return []
 
@@ -238,7 +255,9 @@ async def fetch_task_failures(
             raise
 
         # Get stopped tasks within time window
-        stopped_tasks = await _get_stopped_tasks_for_cluster(ecs, cluster_name, actual_start_time)
+        stopped_tasks = await _get_stopped_tasks_for_cluster(
+            ecs, cluster_name, actual_start_time, actual_end_time
+        )
 
         # Get running tasks count
         running_tasks_count = cluster_info.get("runningTasksCount", 0)
