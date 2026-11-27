@@ -28,7 +28,7 @@ detect_image_pull_failures_module = importlib.import_module(
 )
 
 
-class TestImagePullFailureDetection(unittest.TestCase):
+class TestImagePullFailureDetection(unittest.IsolatedAsyncioTestCase):
     """Test the image pull failure detection functionality."""
 
     @pytest.mark.anyio

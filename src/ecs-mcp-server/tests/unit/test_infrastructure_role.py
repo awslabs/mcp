@@ -13,7 +13,7 @@ from awslabs.ecs_mcp_server.api.infrastructure import (
 )
 
 
-class TestInfrastructureWithRole(unittest.TestCase):
+class TestInfrastructureWithRole(unittest.IsolatedAsyncioTestCase):
     """Tests for infrastructure module with ECR role support."""
 
     @pytest.mark.anyio
