@@ -139,6 +139,62 @@ async def test_list_users_mock():
 
 
 @pytest.mark.asyncio
+async def test_user_tools_do_not_require_ctx():
+    """Context is injected for list_users, get_user, and create_user, not a client argument."""
+    from awslabs.iam_mcp_server.server import mcp
+    from mcp.types import CallToolResult, TextContent
+
+    tools = {tool.name: tool for tool in await mcp.list_tools()}
+    for name in ('list_users', 'get_user', 'create_user'):
+        schema = tools[name].input_schema
+        assert 'ctx' not in schema.get('properties', {})
+        assert 'ctx' not in (schema.get('required') or [])
+
+    assert not tools['list_users'].input_schema.get('required')
+    assert tools['get_user'].input_schema.get('required') == ['user_name']
+    assert tools['create_user'].input_schema.get('required') == ['user_name']
+
+    created = datetime(2023, 1, 1)
+    user = {
+        'UserName': 'test-user',
+        'UserId': 'AIDACKCEVSQ6C2EXAMPLE',
+        'Arn': 'arn:aws:iam::123456789012:user/test-user',
+        'Path': '/',
+        'CreateDate': created,
+    }
+    mock_client = Mock()
+    mock_client.list_users.return_value = {'Users': [user], 'IsTruncated': False}
+    mock_client.get_user.return_value = {'User': user}
+    mock_client.list_attached_user_policies.return_value = {'AttachedPolicies': []}
+    mock_client.list_user_policies.return_value = {'PolicyNames': []}
+    mock_client.list_groups_for_user.return_value = {'Groups': []}
+    mock_client.list_access_keys.return_value = {'AccessKeyMetadata': []}
+    mock_client.create_user.return_value = {'User': user}
+
+    Context.initialize(readonly=False, require_confirmation=False)
+    try:
+        with patch('awslabs.iam_mcp_server.server.get_iam_client', return_value=mock_client):
+            listed = await mcp.call_tool('list_users', {})
+            fetched = await mcp.call_tool('get_user', {'user_name': 'test-user'})
+            created_user = await mcp.call_tool(
+                'create_user', {'user_name': 'test-user', 'confirmed': True}
+            )
+    finally:
+        Context.initialize()
+
+    for result in (listed, fetched, created_user):
+        assert isinstance(result, CallToolResult)
+        assert result.is_error is False
+        text = result.content[0]
+        assert isinstance(text, TextContent)
+        assert 'Field required' not in text.text
+
+    mock_client.list_users.assert_called_once()
+    mock_client.get_user.assert_called_once_with(UserName='test-user')
+    mock_client.create_user.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_create_user_readonly_mode():
     """Test create_user function in readonly mode."""
     from awslabs.iam_mcp_server.server import create_user
