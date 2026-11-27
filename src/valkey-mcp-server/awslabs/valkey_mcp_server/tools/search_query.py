@@ -198,7 +198,7 @@ async def _semantic(
     emb = await provider.generate_embedding(query_text)
     blob = pack_embedding(emb)
     f = filt or '*'
-    query = f'{f}=>[KNN {limit} @{vector_field} $vector AS score]'
+    query = f'{f}=>[KNN {offset + limit} @{vector_field} $vector AS score]'
     results = await ft.search(
         client=client,
         index_name=index_name,
@@ -277,7 +277,7 @@ async def _hybrid(
     emb = await provider.generate_embedding(query_text)
     blob = pack_embedding(emb)
     tf = _build_text_query(query_text, filt)
-    query = f'{tf}=>[KNN {limit} @{vector_field} $vector AS score]'
+    query = f'{tf}=>[KNN {offset + limit} @{vector_field} $vector AS score]'
     results = await ft.search(
         client=client,
         index_name=index_name,

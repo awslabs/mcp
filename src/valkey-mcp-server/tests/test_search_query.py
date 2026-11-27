@@ -151,6 +151,17 @@ class TestSemanticSearch:
         assert result['status'] == 'success'
         assert result['mode'] == 'hybrid'
 
+    async def test_semantic_knn_uses_offset_plus_limit(self, mock_ft, mock_provider):
+        with (
+            patch(f'{MODULE}.has_provider', return_value=True),
+            patch(f'{MODULE}.get_provider', return_value=mock_provider),
+        ):
+            await search(
+                index_name='idx', query_text='animals', mode='semantic', offset=2, limit=2
+            )
+        query_arg = mock_ft.search.call_args.kwargs['query']
+        assert 'KNN 4' in query_arg
+
 
 class TestHybridSearch:
     async def test_hybrid_mode(self, mock_ft, mock_provider):
@@ -161,6 +172,15 @@ class TestHybridSearch:
             result = await search(index_name='idx', query_text='animals', hybrid_weight=0.8)
         assert result['mode'] == 'hybrid'
         assert result['hybrid_weight'] == 0.8
+
+    async def test_hybrid_knn_uses_offset_plus_limit(self, mock_ft, mock_provider):
+        with (
+            patch(f'{MODULE}.has_provider', return_value=True),
+            patch(f'{MODULE}.get_provider', return_value=mock_provider),
+        ):
+            await search(index_name='idx', query_text='animals', mode='hybrid', offset=2, limit=2)
+        query_arg = mock_ft.search.call_args.kwargs['query']
+        assert 'KNN 4' in query_arg
 
 
 class TestFindSimilar:
