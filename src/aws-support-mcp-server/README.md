@@ -55,7 +55,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit 
       "awslabs_support_mcp_server": {
          "command": "uvx",
          "args": [
-            "-m", "awslabs.aws-support-mcp-server@latest",
+            "awslabs.aws-support-mcp-server@latest",
             "--debug",
             "--log-file",
             "./logs/mcp_support_server.log"
@@ -70,7 +70,6 @@ Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit 
 
 Alternatively:
 ```bash
-
 
 uv pip install -e .
 uv run awslabs/aws_support_mcp_server/server.py
