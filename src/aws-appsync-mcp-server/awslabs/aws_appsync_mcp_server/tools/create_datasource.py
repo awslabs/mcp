@@ -26,7 +26,7 @@ def register_create_datasource_tool(mcp):
 
     @mcp.tool(
         name='create_datasource',
-        description="""Creates a DataSource object for a GraphQL API.
+        description="""[DEPRECATED] Creates a DataSource object for a GraphQL API.
 
         This operation creates a data source for the specified GraphQL API. Data sources
         connect your GraphQL API to various backend services like DynamoDB, Lambda,

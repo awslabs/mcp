@@ -26,7 +26,7 @@ def register_create_function_tool(mcp):
 
     @mcp.tool(
         name='create_function',
-        description="""Creates a Function object for a GraphQL API.
+        description="""[DEPRECATED] Creates a Function object for a GraphQL API.
 
         This operation creates a function for the specified GraphQL API. Functions
         are reusable pieces of resolver logic that can be attached to multiple fields

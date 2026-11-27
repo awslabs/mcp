@@ -15,6 +15,7 @@
 """awslabs aws-appsync MCP Server implementation."""
 
 import argparse
+import warnings
 from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
 from awslabs.aws_appsync_mcp_server.tools.create_api import register_create_api_tool
 from awslabs.aws_appsync_mcp_server.tools.create_api_cache import register_create_api_cache_tool
@@ -36,10 +37,17 @@ from loguru import logger
 from mcp.server.mcpserver import MCPServer
 
 
+DEPRECATION_NOTICE = (
+    'awslabs.aws-appsync-mcp-server is deprecated and will not receive further updates. '
+    'Use the AWS MCP Server (https://github.com/aws/agent-toolkit-for-aws) instead. '
+    'Migration guide: https://github.com/awslabs/mcp/blob/main/docs/migration-appsync.md'
+)
+
 # Initialize MCPServer app
 mcp = MCPServer(
     'awslabs.aws-appsync-mcp-server',
-    instructions="""
+    instructions=f"""{DEPRECATION_NOTICE}
+
     AWS AppSync MCP Server provides tools to interact with AWS AppSync API services.
 
     This server enables you to:
@@ -62,6 +70,7 @@ mcp = MCPServer(
 
 def main():
     """Run the MCP server with CLI argument support."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for AWS AppSync'
     )
