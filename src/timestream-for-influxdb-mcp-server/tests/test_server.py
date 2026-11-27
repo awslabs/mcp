@@ -414,7 +414,7 @@ class TestDbClusterOperations:
 
         # Assert
         mock_get_client.assert_called_once()
-        mock_client.list_db_clusters.assert_called_once_with(nextToken='token', maxResults='10')
+        mock_client.list_db_clusters.assert_called_once_with(nextToken='token', maxResults=10)
         assert result == {
             'items': [{'id': 'cluster-1'}, {'id': 'cluster-2'}],
             'nextToken': 'next-token',
@@ -923,7 +923,7 @@ class TestDbInstanceOperations:
 
         # Assert
         mock_get_client.assert_called_once()
-        mock_client.list_db_instances.assert_called_once_with(nextToken='token', maxResults='10')
+        mock_client.list_db_instances.assert_called_once_with(nextToken='token', maxResults=10)
         assert result == {
             'items': [{'id': 'instance-1'}, {'id': 'instance-2'}],
             'nextToken': 'next-token',
@@ -1247,7 +1247,7 @@ class TestDbInstanceOperations:
         mock_client.list_db_instances_for_cluster.assert_called_once()
         call_args = mock_client.list_db_instances_for_cluster.call_args[1]
         assert call_args['nextToken'] == 'some-token'
-        assert call_args['maxResults'] == '10'
+        assert call_args['maxResults'] == 10
         assert result == {'items': [{'id': 'instance-1'}]}
 
 
@@ -1413,7 +1413,7 @@ class TestParameterGroupOperations:
         # Assert
         mock_get_client.assert_called_once()
         mock_client.list_db_parameter_groups.assert_called_once_with(
-            nextToken='token', maxResults='10'
+            nextToken='token', maxResults=10
         )
         assert result == {
             'items': [
