@@ -135,11 +135,13 @@ Mutating operations:
 
 
 ### `--allow-sensitive-data-access`
-Enables access to sensitive data such as logs. By default, the server restricts access to sensitive data.
+Enables `sam_logs`, which returns CloudWatch logs for a stack's Lambda functions, API Gateway APIs and Step Functions state machines, and for any log group passed in `cw_log_group`. Without this flag, `sam_logs` returns an error.
 
 Operations returning sensitive data:
 
-- sam_logs: Returns Lambda function logs and API Gateway logs
+- sam_logs: Returns CloudWatch logs for stack resources and for any log group passed in `cw_log_group`
+
+The flag doesn't apply to `sam_local_invoke`. That tool runs a function from your local SAM project and always returns the output (`function_output`) and logs (`logs`) of the local invocation, including anything the function prints or returns.
 
 ## Local development
 
@@ -660,7 +662,7 @@ This triggers cost optimization for low-volume scenarios:
 2. **TLS Verification**: Enforces TLS verification for all AWS API calls
 3. **Resource Tagging**: Tags all created resources for traceability
 4. **Least Privilege**: Uses IAM roles with appropriate permissions for CloudFormation templates
-5. **Data Protection**: Automatically scrubs sensitive data (AWS credentials, IP addresses, personal information) from logs and responses
+5. **Data Protection**: Some `esm_guidance` and `esm_optimize` responses pass through a best-effort scrubber that redacts values that look like credentials or personal information. Other tools return their output as is. See [Data protection features](#data-protection-features)
 6. **User Confirmation**: ESM tools require explicit user approval before any deployment or infrastructure changes
 7. **Permission Controls**: Write operations blocked by default unless `--allow-write` flag is enabled
 
@@ -689,16 +691,15 @@ To follow security best practices:
 - Do not pass sensitive information directly in the prompt to the model
 
 ### Data protection features
-The server includes comprehensive data protection mechanisms:
+Some `esm_guidance` and `esm_optimize` responses pass through a best-effort, pattern-based scrubber before they're returned. The scrubber redacts values that look like:
 
-* **Automatic Data Scrubbing**: Sensitive data is automatically detected and redacted from logs and responses, including:
-  - AWS credentials (access keys, secret keys, session tokens)
-  - Network information (IP addresses, VPC IDs, subnet IDs)
-  - Personal information (email addresses, phone numbers)
-  - Connection strings and authentication details
-* **Input Sanitization**: User configurations are scrubbed before logging to prevent sensitive data exposure
-* **Output Protection**: All tool responses are scrubbed before being sent to AI models
-* **AWS-Specific Protection**: Specialized handling for AWS resource identifiers and configurations
+- AWS credentials (access keys, secret keys, session tokens) and AWS account IDs
+- IP addresses
+- Personal information (email addresses, phone numbers)
+- Database connection strings and URLs that include credentials, and JWTs
+- Values of fields with sensitive names, such as `password`, `secret` or `token`
+
+Other tools don't scrub their output. `sam_logs` and `sam_local_invoke` return logs and function output as is, so anything your functions log or return reaches the AI model. Keep secrets out of function logs and responses.
 
 ## Links
 

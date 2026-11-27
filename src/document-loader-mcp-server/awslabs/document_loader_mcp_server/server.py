@@ -15,14 +15,19 @@
 
 import asyncio
 import contextlib
+import functools
+import ntpath
 import os
 import pdfplumber
 import secrets
 import shutil
+import signal
 import stat
 import subprocess  # nosec B404 - subprocess used with fixed command, no shell=True
 import sys
 import tempfile
+import threading
+import time
 from fastmcp import FastMCP
 from fastmcp.server.context import Context
 from fastmcp.utilities.types import Image
@@ -31,7 +36,7 @@ from markitdown import MarkItDown
 from pathlib import Path
 from pdf2image import convert_from_path
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import Any, Callable, List, Optional, TypeVar
 
 
 # Set up logging
@@ -169,11 +174,90 @@ class SlidesExtractionResponse(BaseModel):
     error_message: Optional[str] = Field(None, description='Error message if operation failed')
 
 
-def _extract_pdf_text_sync(file_path: str) -> str:
+T = TypeVar('T')
+
+
+class WorkCancelledError(Exception):
+    """Raised inside a worker thread after its tool call has timed out."""
+
+
+class _CancelToken:
+    """Stops a worker thread at its next checkpoint once its tool call has timed out.
+
+    The lock makes cancel() and finish() exclusive: either the worker finishes
+    first and its result is kept, or the call is cancelled first and finish()
+    raises, so a worker never reports success after its timeout fired.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._cancelled = False
+        self._finished = False
+
+    def check(self) -> None:
+        """Raise WorkCancelledError if the call has been cancelled."""
+        if self._cancelled:
+            raise WorkCancelledError('work cancelled after the tool call timed out')
+
+    def finish(self) -> None:
+        """Mark the work finished, or raise WorkCancelledError if it was cancelled first."""
+        with self._lock:
+            self.check()
+            self._finished = True
+
+    def cancel(self) -> bool:
+        """Cancel the work. Return False if the worker had already finished."""
+        with self._lock:
+            if self._finished:
+                return False
+            self._cancelled = True
+            return True
+
+
+def _check_cancelled(cancel: Optional[_CancelToken]) -> None:
+    if cancel is not None:
+        cancel.check()
+
+
+def _discard_result(future: 'asyncio.Future[Any]') -> None:
+    # Retrieve the abandoned worker's outcome so asyncio does not log it as unhandled.
+    if not future.cancelled():
+        future.exception()
+
+
+async def _run_with_timeout(func: Callable[..., T], *args: Any, timeout_seconds: float) -> T:
+    """Run blocking work in a thread, and stop it at its next checkpoint on timeout.
+
+    ``func`` must accept a ``cancel`` keyword argument and call ``cancel.check()``
+    between steps. Raises ``asyncio.TimeoutError`` if the work does not finish in time.
+
+    The timeout error is returned right away; the worker stops at its next checkpoint,
+    so any cleanup it does (such as removing written slides) completes shortly after.
+    A single blocking step, such as one markitdown conversion, runs to its end.
+    """
+    cancel = _CancelToken()
+    loop = asyncio.get_running_loop()
+    future = loop.run_in_executor(None, functools.partial(func, *args, cancel=cancel))
+    try:
+        return await asyncio.wait_for(asyncio.shield(future), timeout=timeout_seconds)
+    except asyncio.TimeoutError:
+        if cancel.cancel():
+            future.add_done_callback(_discard_result)
+            raise
+        # The worker finished just as the timeout fired, so its result is complete.
+        return await future
+    except asyncio.CancelledError:
+        cancel.cancel()
+        future.add_done_callback(_discard_result)
+        raise
+
+
+def _extract_pdf_text_sync(file_path: str, cancel: Optional[_CancelToken] = None) -> str:
     """Synchronous PDF text extraction for thread pool execution."""
     text_content = ''
     with pdfplumber.open(file_path) as pdf:
         for page_num, page in enumerate(pdf.pages, 1):
+            _check_cancelled(cancel)
             text_content += f'\n--- Page {page_num} ---\n'
             page_text = page.extract_text()
             if page_text:
@@ -181,15 +265,17 @@ def _extract_pdf_text_sync(file_path: str) -> str:
     return text_content.strip()
 
 
-def _convert_document_sync(file_path: str) -> str:
+def _convert_document_sync(file_path: str, cancel: Optional[_CancelToken] = None) -> str:
     """Synchronous document conversion for thread pool execution."""
+    _check_cancelled(cancel)
     md = MarkItDown()
     result = md.convert(file_path)
     return result.text_content
 
 
-def _load_image_sync(file_path: str) -> Image:
+def _load_image_sync(file_path: str, cancel: Optional[_CancelToken] = None) -> Image:
     """Synchronous image loading for thread pool execution."""
+    _check_cancelled(cancel)
     return Image(path=file_path)
 
 
@@ -287,9 +373,8 @@ async def _convert_with_markitdown(
 
     try:
         # Run conversion in thread pool with timeout
-        loop = asyncio.get_event_loop()
-        content = await asyncio.wait_for(
-            loop.run_in_executor(None, _convert_document_sync, file_path), timeout=timeout_seconds
+        content = await _run_with_timeout(
+            _convert_document_sync, file_path, timeout_seconds=timeout_seconds
         )
 
         return DocumentReadResponse(
@@ -334,9 +419,8 @@ async def _read_pdf_content(
 
     try:
         # Run PDF extraction in thread pool with timeout
-        loop = asyncio.get_event_loop()
-        text_content = await asyncio.wait_for(
-            loop.run_in_executor(None, _extract_pdf_text_sync, file_path), timeout=timeout_seconds
+        text_content = await _run_with_timeout(
+            _extract_pdf_text_sync, file_path, timeout_seconds=timeout_seconds
         )
 
         return DocumentReadResponse(
@@ -431,9 +515,8 @@ async def read_image(
 
     try:
         # Run image loading in thread pool with timeout
-        loop = asyncio.get_event_loop()
-        image = await asyncio.wait_for(
-            loop.run_in_executor(None, _load_image_sync, file_path), timeout=timeout_seconds
+        image = await _run_with_timeout(
+            _load_image_sync, file_path, timeout_seconds=timeout_seconds
         )
         return image
 
@@ -489,10 +572,61 @@ def _check_soffice_available() -> Optional[str]:
     return None
 
 
+# How often a running soffice conversion checks whether its call was cancelled.
+SOFFICE_POLL_INTERVAL_SECONDS = 0.2
+# How long to wait for output pipes to close after the soffice process tree is killed.
+SOFFICE_REAP_TIMEOUT_SECONDS = 5
+
+
+def _taskkill_path() -> str:
+    """Return the full path of taskkill.exe, so a copy in the working directory is never run."""
+    system_root = os.environ.get('SystemRoot') or os.environ.get('windir') or 'C:\\Windows'
+    return ntpath.join(system_root, 'System32', 'taskkill.exe')
+
+
+def _kill_process_tree(proc: 'subprocess.Popen[bytes]') -> None:
+    """Kill a process and every process it started, then reap it.
+
+    ``proc`` must have been started in its own session (POSIX) or process group
+    (Windows). The tree is only signalled while ``proc`` has not been reaped: after that its
+    pid may belong to an unrelated process.
+    """
+    try:
+        if proc.returncode is None:
+            if sys.platform == 'win32':
+                # /T also ends the child processes soffice started.
+                subprocess.run(  # nosec B603 - fixed command, pid is an int from Popen
+                    [_taskkill_path(), '/F', '/T', '/PID', str(proc.pid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=SOFFICE_REAP_TIMEOUT_SECONDS,
+                )
+            else:
+                os.killpg(proc.pid, signal.SIGKILL)
+    except (OSError, subprocess.SubprocessError) as e:
+        logger.warning(f'Could not stop the soffice process tree, killing soffice only: {e}')
+    with contextlib.suppress(OSError):
+        proc.kill()
+    try:
+        proc.communicate(timeout=SOFFICE_REAP_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        logger.warning('soffice output pipes did not close after the process tree was killed')
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            proc.wait(timeout=SOFFICE_REAP_TIMEOUT_SECONDS)
+
+
 def _convert_to_pdf_with_soffice(
-    file_path: str, temp_dir: str, timeout_seconds: Optional[int] = None
+    file_path: str,
+    temp_dir: str,
+    timeout_seconds: Optional[int] = None,
+    cancel: Optional[_CancelToken] = None,
 ) -> str:
-    """Convert a PPTX file to PDF using LibreOffice/OpenOffice headless mode."""
+    """Convert a PPTX file to PDF using LibreOffice/OpenOffice headless mode.
+
+    soffice runs in its own process group. If it exceeds ``timeout_seconds`` or
+    ``cancel`` fires, the whole process tree is killed, including processes
+    soffice started, before TimeoutExpired or WorkCancelledError is raised.
+    """
     if timeout_seconds is None:
         timeout_seconds = _get_soffice_timeout()
     soffice_path = _find_soffice()
@@ -507,9 +641,33 @@ def _convert_to_pdf_with_soffice(
         '--outdir',
         temp_dir,
     ]
-    subprocess.run(
-        cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout_seconds
-    )  # nosec B603 - fixed command with no shell=True, args are not user-controlled
+    _check_cancelled(cancel)
+    # Start soffice in its own group so the whole tree can be killed together.
+    proc = subprocess.Popen(  # nosec B603 - fixed command with no shell=True, args are not user-controlled
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0,
+        start_new_session=sys.platform != 'win32',
+    )
+    deadline = time.monotonic() + timeout_seconds
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(cmd, timeout_seconds)
+            try:
+                stdout, stderr = proc.communicate(
+                    timeout=min(SOFFICE_POLL_INTERVAL_SECONDS, remaining)
+                )
+                break
+            except subprocess.TimeoutExpired:
+                _check_cancelled(cancel)
+    except BaseException:
+        _kill_process_tree(proc)
+        raise
+    if proc.returncode:
+        raise subprocess.CalledProcessError(proc.returncode, cmd, output=stdout, stderr=stderr)
     pdf_filename = Path(file_path).stem + '.pdf'
     pdf_path = os.path.join(temp_dir, pdf_filename)
     if not os.path.isfile(pdf_path):
@@ -704,12 +862,30 @@ def _write_slide(
         raise
 
 
+def _remove_slides(
+    names: List[str], dir_fd: Optional[int], dir_path: Path, base_dir: Path
+) -> None:
+    """Best-effort removal of slides written by a failed extraction."""
+    if dir_fd is None:
+        try:
+            _verify_output_dir_path(base_dir, dir_path)
+        except OSError:
+            return
+    for name in names:
+        with contextlib.suppress(OSError):
+            if dir_fd is not None:
+                os.unlink(name, dir_fd=dir_fd)
+            else:
+                os.unlink(dir_path / name)
+
+
 def _extract_slides_sync(
     file_path: str,
     output_dir: str,
     dpi: int = 200,
     output_format: str = 'png',
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+    cancel: Optional[_CancelToken] = None,
 ) -> List[str]:
     """Synchronous slide extraction for thread pool execution.
 
@@ -718,14 +894,19 @@ def _extract_slides_sync(
 
     Slides are written only inside the resolved output directory, which must
     be inside the base directory. Existing symlinks at slide paths are refused.
+
+    If ``cancel`` fires, no further slide is started and the slides this call
+    wrote are removed before WorkCancelledError propagates. This happens as the
+    worker stops, so shortly after the caller's timeout error is returned.
     """
     suffix = Path(file_path).suffix.lower()
     temp_dir = None
     dir_fd = None
     try:
+        _check_cancelled(cancel)
         if suffix in {'.pptx', '.ppt'}:
             temp_dir = tempfile.mkdtemp(prefix='docloader_soffice_')
-            pdf_path = _convert_to_pdf_with_soffice(file_path, temp_dir, timeout_seconds)
+            pdf_path = _convert_to_pdf_with_soffice(file_path, temp_dir, timeout_seconds, cancel)
         elif suffix == '.pdf':
             pdf_path = file_path
         else:
@@ -737,18 +918,28 @@ def _extract_slides_sync(
         else:
             _prepare_output_dir_path(base_dir, resolved_dir)
 
-        pages = convert_from_path(pdf_path, dpi=dpi)
+        _check_cancelled(cancel)
+        pages = convert_from_path(pdf_path, dpi=dpi, timeout=timeout_seconds)
+        _check_cancelled(cancel)
         names = [f'slide_{i + 1}.{output_format}' for i in range(len(pages))]
         # Check every target before writing any, so a refused link does not
         # leave a partial set of slides behind.
         for name in names:
             _check_slide_target(name, dir_fd, resolved_dir)
 
-        output_files = []
-        for page, name in zip(pages, names):
-            _write_slide(page, name, output_format.upper(), dir_fd, resolved_dir, base_dir)
-            output_files.append(os.path.join(output_dir, name))
-        return output_files
+        written = []
+        try:
+            for page, name in zip(pages, names):
+                _check_cancelled(cancel)
+                _write_slide(page, name, output_format.upper(), dir_fd, resolved_dir, base_dir)
+                written.append(name)
+            if cancel is not None:
+                cancel.finish()
+        except BaseException:
+            # An error response reports no slides, so remove the ones this call wrote.
+            _remove_slides(written, dir_fd, resolved_dir, base_dir)
+            raise
+        return [os.path.join(output_dir, name) for name in written]
     finally:
         if dir_fd is not None:
             os.close(dir_fd)
@@ -808,12 +999,14 @@ async def extract_slides_as_images(
         )
 
     try:
-        loop = asyncio.get_event_loop()
-        slide_files = await asyncio.wait_for(
-            loop.run_in_executor(
-                None, _extract_slides_sync, file_path, output_dir, dpi, 'png', timeout_seconds
-            ),
-            timeout=timeout_seconds,
+        slide_files = await _run_with_timeout(
+            _extract_slides_sync,
+            file_path,
+            output_dir,
+            dpi,
+            'png',
+            timeout_seconds,
+            timeout_seconds=timeout_seconds,
         )
         return SlidesExtractionResponse(
             status='success',

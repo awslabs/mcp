@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `extract_slides_as_images` now writes slide images only inside the resolved
   output directory under `DOCUMENT_BASE_DIR`. Each slide is written to a new
   temporary file in that directory and then moved into place.
+- `extract_slides_as_images` now removes the slides it already wrote when it
+  fails partway, so an error response matches an output directory with no new
+  slides (#5082).
+- When a tool times out, its background work now stops at the next page or
+  step instead of running on. `extract_slides_as_images` writes no further
+  slides after a timeout and removes the ones it wrote, and the PDF to image
+  step uses its own `timeout` (#5083). The timeout error is returned right
+  away and the cleanup completes as the worker stops, shortly after. A single
+  markitdown conversion cannot be stopped partway, and the PDF to image
+  timeout counts from when poppler starts.
+- `extract_slides_as_images` now stops the soffice conversion when the tool
+  times out or the call is cancelled. soffice runs in its own process group and
+  the whole process tree, including any process it started, is killed before the
+  conversion's temporary folder is removed. A conversion that finishes, or that
+  fails or exceeds `SOFFICE_TIMEOUT_SECONDS`, behaves as before (#5104).
 
 ### Changed
 - `extract_slides_as_images` now returns an error if a slide file path in the

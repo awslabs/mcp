@@ -52,7 +52,7 @@ MAX_LOOKBACK_DAYS = 90
 
 @cost_anomaly_server.tool(
     name='cost-anomaly',
-    description="""Retrieves AWS cost anomalies using the Cost Explorer GetAnomalies API.
+    description="""Retrieves AWS cost anomalies using the Cost Explorer GetAnomalies API. To find monitor ARNs and see who is alerted, use cost-anomaly-monitors.
 
 This tool allows you to retrieve cost anomalies detected on your AWS account during a specified time period.
 Anomalies are available for up to 90 days.

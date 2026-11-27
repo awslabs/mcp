@@ -710,23 +710,21 @@ execute_query(commit_transaction='load')
 
 At most one of `begin_transaction`, `in_transaction`, `commit_transaction` and `rollback_transaction` per call. The name is the caller's to choose. `sql` is required on its own and with `in_transaction`; it is optional with the other three, so a transaction can be opened or closed on its own as well as with a statement.
 
-Both access modes support this. In `read-only` a transaction is opened `READ ONLY`, which gives several statements one consistent snapshot; in `read-write` it makes several statements succeed or fail together. Each write inside one is still confirmed individually, and a declined write leaves the transaction open for you to commit or roll back.
+Both access modes support this. In `read-only` a transaction is opened `READ ONLY`, which gives several statements one consistent snapshot, and always ends in `ROLLBACK`, whichever of `commit_transaction` and `rollback_transaction` closes it; in `read-write` it makes several statements succeed or fail together. Each write inside one is still confirmed individually, and a declined write leaves the transaction open for you to commit or roll back.
 
 What ends a transaction:
 
 | Cause | Result |
 | --- | --- |
-| `commit_transaction` | Its statements are persisted |
+| `commit_transaction` | Its statements are persisted. In `read-only` mode it rolls the transaction back instead |
 | `rollback_transaction` | Its statements are discarded, as far as a rollback reaches: changes in the database go, and anything done outside it, such as an `UNLOAD` to S3, stands |
-| A statement inside it fails | Rolled back, and the name is dropped. Redshift refuses everything after a failed statement, so a later commit would report success while persisting nothing. A statement sent with `in_transaction` that ran but whose result could not be read does not end it: the transaction stays open, and the error says so. Nor does a statement refused before it is sent, by the SQL guard or the confirmation step. A `commit_transaction` that fails once sent always ends it, and says whether the `COMMIT` stands, may have applied, or was discarded |
-| The call is cancelled | Discarded, and the name is dropped: nothing can reach the transaction again, so it is never committed, though its session can hold its locks until `SESSION_KEEPALIVE` ends it. A cancelled `commit_transaction` is the exception, since its `COMMIT` can still reach the cluster and stand. A call cancelled while it waits, for the cluster to resolve or for another call on the same transaction, ends nothing |
+| A statement inside it fails | Rolled back, and the name is dropped. Redshift refuses everything after a failed statement, so a later commit would report success while persisting nothing. A statement sent with `in_transaction` that ran but whose result could not be read does not end it: the transaction stays open, and the error says so. Nor does a statement refused before it is sent, by the SQL guard or the confirmation step. A `commit_transaction` that fails once sent always ends it. In `read-write` mode the error says whether the `COMMIT` stands, may have applied, or was discarded; in `read-only` mode the transaction is discarded, however the call failed |
+| The call is cancelled | Discarded, and the name is dropped: nothing can reach the transaction again, so it is never committed, though its session can hold its locks until `SESSION_KEEPALIVE` ends it. In `read-write` mode a cancelled `commit_transaction` is the exception, since its `COMMIT` can still reach the cluster and stand; in `read-only` mode its transaction is discarded too. A call cancelled while it waits, for the cluster to resolve or for another call on the same transaction, ends nothing |
 | Idle longer than `SESSION_KEEPALIVE` | Redshift ends it and discards its statements |
 
 A statement the guard rejects never reaches the cluster, so it does not abort the transaction. One the engine rejects does.
 
-Some statements cannot run inside a transaction at all, whichever mode you are in. A write to an Iceberg table is one: Redshift answers `insert into an "iceberg" table is not allowed within multistatement transaction`, so submit it on its own rather than inside a named transaction. The same restriction is what keeps such a write out of read-only mode, where every statement runs inside `BEGIN READ ONLY`.
-
-Two more are refused by this server rather than by Redshift, because each can end the transaction from inside it and leave a rollback reporting success over work that stands: `TRUNCATE`, which commits what it does, and `CALL`, since a `NONATOMIC` procedure may issue its own `COMMIT`. In read-write mode, run either on its own instead; read-only mode refuses both everywhere.
+This server refuses two statements inside a transaction, in either mode, because each can end the transaction from inside it and leave a rollback reporting success over work that stands: `TRUNCATE`, which commits what it does, and `CALL`, since a `NONATOMIC` procedure may issue its own `COMMIT`. In read-write mode, run either on its own instead; read-only mode refuses both everywhere.
 
 Keep them short. An open transaction holds a Redshift connection and can block other writers on the tables it touched, so the model is instructed to open one only once the statements it groups are decided, and to put nothing else between them — no waiting on you, no waiting on another system, no exploring. Asking for a transaction to be held open anyway is a legitimate thing to want, and the model is told to warn you what it costs before doing it.
 

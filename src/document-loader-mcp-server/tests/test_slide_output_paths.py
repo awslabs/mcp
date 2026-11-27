@@ -241,7 +241,7 @@ def test_normal_extraction_output_unchanged(sandbox, write_mode):
     with patch.object(server, 'convert_from_path', return_value=pages) as mock_convert:
         result = _extract_slides_sync('/docs/deck.pdf', str(out), 150, 'png')
 
-    mock_convert.assert_called_once_with('/docs/deck.pdf', dpi=150)
+    mock_convert.assert_called_once_with('/docs/deck.pdf', dpi=150, timeout=30)
     assert result == [os.path.join(str(out), f'slide_{i}.png') for i in (1, 2, 3)]
     assert sorted(p.name for p in out.iterdir()) == ['slide_1.png', 'slide_2.png', 'slide_3.png']
     for i, page in enumerate(pages, 1):
@@ -335,6 +335,49 @@ def test_temp_files_removed_when_later_slide_fails(sandbox, write_mode):
         with pytest.raises(OSError):
             _extract_slides_sync('/docs/deck.pdf', str(out), 72, 'png')
     assert _temp_leftovers(out) == []
+
+
+def test_slides_removed_when_middle_slide_fails(sandbox, write_mode):
+    """A failure partway through removes the slides this call already wrote (#5082)."""
+    out = sandbox.base / 'out'
+    pages = _pages(2) + [_FailingPage()] + _pages(2)
+
+    with patch.object(server, 'convert_from_path', return_value=pages):
+        with pytest.raises(OSError, match='disk full'):
+            _extract_slides_sync('/docs/deck.pdf', str(out), 72, 'png')
+    assert list(out.iterdir()) == []
+
+
+def test_failed_extraction_keeps_files_it_did_not_write(sandbox, write_mode):
+    """Cleanup after a failure removes only slides written by the failed call."""
+    out = sandbox.base / 'out'
+    out.mkdir()
+    (out / 'slide_9.png').write_bytes(ORIGINAL)
+    (out / 'notes.txt').write_bytes(ORIGINAL)
+
+    with patch.object(server, 'convert_from_path', return_value=[_pages(1)[0], _FailingPage()]):
+        with pytest.raises(OSError):
+            _extract_slides_sync('/docs/deck.pdf', str(out), 72, 'png')
+    assert sorted(p.name for p in out.iterdir()) == ['notes.txt', 'slide_9.png']
+    assert (out / 'slide_9.png').read_bytes() == ORIGINAL
+
+
+@pytest.mark.asyncio
+async def test_tool_error_leaves_no_slides_when_middle_slide_fails(sandbox, write_mode):
+    """End to end: an error response with no slides matches an output folder with no slides."""
+    deck = sandbox.base / 'deck.pdf'
+    PILImage.new('RGB', (40, 20), 'white').save(deck)
+    out = sandbox.base / 'out'
+    pages = _pages(2) + [_FailingPage()] + _pages(2)
+
+    with patch.object(server, 'convert_from_path', return_value=pages):
+        result = await call_mcp_tool_slides(str(deck), str(out))
+
+    assert result.status == 'error'
+    assert result.slide_count == 0
+    assert result.slide_images == []
+    assert 'disk full' in result.error_message
+    assert list(out.iterdir()) == []
 
 
 def test_is_link_or_reparse_point_classification():

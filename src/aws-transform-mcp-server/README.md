@@ -2,9 +2,9 @@
 
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/awslabs-aws-transform-mcp-server?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/awslabs-aws-transform-mcp-server) [![PyPI Downloads/month](https://static.pepy.tech/personalized-badge/awslabs-aws-transform-mcp-server?period=month&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads/month)](https://pepy.tech/projects/awslabs-aws-transform-mcp-server)
 
-An MCP server for [AWS Transform](https://aws.amazon.com/transform/) that enables AI assistants to manage transformation workspaces, jobs, connectors, human-in-the-loop (HITL) tasks, artifacts, and chat directly from the IDE.
+An MCP server for [AWS Transform](https://aws.amazon.com/transform/) that enables AI assistants to manage transformation workspaces, jobs, connectors, engagements, human-in-the-loop (HITL) tasks, artifacts, and chat directly from the IDE.
 
-AWS Transform accelerates migration and modernization of enterprise workloads using specialized AI agents across discovery, planning, and execution. This MCP server exposes the Transform lifecycle through 19 tools, supporting mainframe modernization, VMware migration, .NET modernization, and custom code transformations.
+AWS Transform accelerates migration and modernization of enterprise workloads using specialized AI agents across discovery, planning, and execution. This MCP server exposes the Transform lifecycle through 21 tools, supporting mainframe modernization, VMware migration, .NET modernization, and custom code transformations.
 
 > [!IMPORTANT]
 > This server uses stdio transport and runs as a long-lived process spawned by your MCP client.
@@ -18,6 +18,7 @@ AWS Transform accelerates migration and modernization of enterprise workloads us
 5. **Chat** - Send messages to the Transform assistant with automatic response polling
 6. **Job status and polling** - Check job status with AI-generated summaries or detailed raw snapshots, with adaptive polling for transitional states
 7. **Resource browsing** - List and inspect any resource: workspaces, jobs, connectors, tasks, artifacts, worklogs, plans, agents, collaborators, and users
+8. **Engagement management** - Create customer or partner engagements, manage invitations, tenants, users, and attached workspaces, and chat with the engagement assistant
 
 ## Prerequisites
 
@@ -258,7 +259,7 @@ To verify your credentials are working, ask your AI assistant: **"Check my AWS T
 
 | Tool | Description | Auth |
 |------|-------------|------|
-| `send_message` | Send a message to the Transform assistant and poll up to 60s for a reply. On timeout, returns `sentMessageId` for follow-up retrieval. | Web API |
+| `send_message` | Send a workspace-, job-, or engagement-scoped message to the Transform assistant and poll up to 60s for a reply. On timeout, returns `sentMessageId` for follow-up retrieval. | Web API |
 
 ### Job Status and Polling
 
@@ -280,12 +281,18 @@ To verify your credentials are working, ask your AI assistant: **"Check my AWS T
 | `create_connector` | Create an S3 or code source connector in a workspace. | Web API |
 | `accept_connector` | Associate an IAM role with a connector. | Web API + AWS credentials |
 
+### Engagements
+
+| Tool | Description | Auth |
+|------|-------------|------|
+| `manage_engagement` | Create or update engagements; accept or reject invitations; and add or remove engagement tenants, users, and workspaces. Destructive actions require `confirm: true`. Engagement termination is not exposed. | Web API |
+
 ### Resource Listing and Details
 
 | Tool | Description | Auth |
 |------|-------------|------|
-| `list_resources` | List any resource type: workspaces, jobs, connectors, tasks, artifacts, messages, worklogs, plan, agents, collaborators, users. Use `category="TOOL_APPROVAL"` and `taskStatus="AWAITING_APPROVAL"` to list pending tool approvals. | Web API |
-| `get_resource` | Get details for any resource by ID. Auto-downloads artifacts and enriches HITL tasks with output schemas. | Web API |
+| `list_resources` | List any resource type, including engagements, invitations, engagement tenants/users/workspaces, and partner types. Use `category="TOOL_APPROVAL"` and `taskStatus="AWAITING_APPROVAL"` to list pending tool approvals. | Web API |
+| `get_resource` | Get details for any resource by ID, including an engagement. Auto-downloads artifacts and enriches HITL tasks with output schemas. | Web API |
 | `download_artifact` | Stream a job or user artifact, or a connector asset, to a local file over the authenticated connection (no pre-signed S3 URL reaches the client). Saves only after the end-of-stream event confirms a complete download. | Web API |
 
 ### Collaborators
@@ -373,13 +380,14 @@ The server blocks reads and writes to sensitive files and directories to prevent
 
 - **Write confinement:** artifact downloads are confined to an allowed base directory (see `AWS_TRANSFORM_MCP_WRITE_DIR`), which defaults to the server's working directory. A `savePath` that resolves outside the base is rejected, so an LLM-controlled path cannot write to arbitrary filesystem locations. If the base would be the filesystem root (`/`), downloads are refused until `AWS_TRANSFORM_MCP_WRITE_DIR` is set, rather than allowing unbounded writes.
 - **Blocked filenames:** `.env`, `.netrc`, `.pgpass`, SSH keys (`id_rsa`, `id_ed25519`, etc.), `credentials`, `authorized_keys`, and others — enforced on both reads and writes
-- **Blocked directories:** `~/.aws`, `~/.ssh`, `~/.gnupg`, `~/.docker`, `~/.aws-transform-mcp`
-- **Path traversal prevention:** all file paths are resolved and validated against directory boundaries
+- **Blocked directories:** `~/.aws`, `~/.ssh`, `~/.kube`, `~/.gnupg`, `~/.docker`, `~/.aws-transform-mcp`, `~/.azure`, `~/.terraform.d`, `~/.config/gcloud`, `~/.config/gh`, and `~/.config/terraform`
+- **Blocked Terraform configuration:** `.terraformrc`, in addition to the existing blocked filenames
+- **Path resolution:** both inputs and blocked paths are resolved through symlinks. Sensitive-directory comparisons fold case on macOS and Windows. System files such as `/etc/passwd` and `/etc/shadow` are blocked using their resolved paths.
 - **Extension allowlisting:** only approved file extensions can be downloaded
 
 ### Audit Logging
 
-All tool invocations are logged with sanitized arguments. Sensitive parameters (`secret`, `password`, `credential`, `token`, `cookie`, `content`, `clientSecretArn`, `startUrl`) are automatically excluded from log output. Audit logging is fault-tolerant — failures in the logging path never block tool execution.
+All tool invocations are logged with sanitized arguments. Sensitive parameters (`secret`, `password`, `credential`, `token`, `cookie`, `content`, `clientSecretArn`, `startUrl`) and engagement customer contact fields are automatically excluded from log output. Audit logging is fault-tolerant — failures in the logging path never block tool execution.
 
 ### File Download Safety
 
