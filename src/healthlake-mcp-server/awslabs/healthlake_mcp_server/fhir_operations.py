@@ -300,22 +300,20 @@ class HealthLakeClient:
         # Build form data with minimal processing
         form_data = {'_count': str(count)}
 
-        # Add basic search parameters with proper encoding for FHIR modifiers
+        # Add basic search parameters. Keys keep FHIR modifiers as written
+        # (e.g. 'name:contains'); httpx form-encodes the body, so encoding the
+        # colon here as well would send 'name%253Acontains'.
         if search_params:
             for key, value in search_params.items():
-                # URL-encode colons in parameter names for FHIR modifiers
-                encoded_key = key.replace(':', '%3A')
                 if isinstance(value, list):
-                    form_data[encoded_key] = ','.join(str(v) for v in value)
+                    form_data[key] = ','.join(str(v) for v in value)
                 else:
-                    form_data[encoded_key] = str(value)
+                    form_data[key] = str(value)
 
-        # Add chained parameters with proper encoding for FHIR modifiers
+        # Add chained parameters, with modifiers kept as written
         if chained_params:
             for key, value in chained_params.items():
-                # URL-encode colons in parameter names for FHIR modifiers
-                encoded_key = key.replace(':', '%3A')
-                form_data[encoded_key] = str(value)
+                form_data[key] = str(value)
 
         # Add include parameters
         if include_params:

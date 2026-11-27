@@ -407,8 +407,8 @@ class TestSearchRequestBuilding:
             count=50,
         )
 
-        # Should URL-encode the colon in parameter names
-        assert 'name%3Acontains' in form_data
+        # Modifier stays as written; httpx encodes the form body
+        assert 'name:contains' in form_data
 
     def test_build_search_request_with_includes(self):
         """Test search request with include parameters."""
@@ -999,11 +999,9 @@ class TestFHIRSearchAdvanced:
             count=50,
         )
 
-        # Should encode colons in parameter names
-        assert 'subject%3APatient.name' in form_data
-        assert 'performer%3APractitioner.name' in form_data
-        assert form_data['subject%3APatient.name'] == 'Smith'
-        assert form_data['performer%3APractitioner.name'] == 'Johnson'
+        # Type modifiers stay as written; httpx encodes the form body
+        assert form_data['subject:Patient.name'] == 'Smith'
+        assert form_data['performer:Practitioner.name'] == 'Johnson'
 
 
 class TestFHIRErrorHandling:
