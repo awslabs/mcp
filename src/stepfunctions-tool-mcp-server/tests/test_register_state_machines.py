@@ -19,20 +19,22 @@ class TestRegisterStateMachines:
     def test_register_machines_with_prefix(self, mock_create_tool, mock_sfn_client):
         """Test registering state machines filtered by prefix."""
         # Set up test data
-        mock_sfn_client.list_state_machines.return_value = {
-            'stateMachines': [
-                {
-                    'name': 'test-state-machine',
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine',
-                    'type': 'STANDARD',
-                },
-                {
-                    'name': 'prefix-test-machine',
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:prefix-test-machine',
-                    'type': 'STANDARD',
-                },
-            ]
-        }
+        mock_sfn_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'stateMachines': [
+                    {
+                        'name': 'test-state-machine',
+                        'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine',
+                        'type': 'STANDARD',
+                    },
+                    {
+                        'name': 'prefix-test-machine',
+                        'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:prefix-test-machine',
+                        'type': 'STANDARD',
+                    },
+                ]
+            }
+        ]
 
         # Call the function
         register_state_machines()
@@ -48,6 +50,53 @@ class TestRegisterStateMachines:
         )
 
     @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.create_state_machine_tool')
+    def test_register_machines_across_multiple_pages(self, mock_create_tool, mock_sfn_client):
+        """Test registering state machines that span multiple paginated responses."""
+        # Set up test data across two pages
+        mock_sfn_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'stateMachines': [
+                    {
+                        'name': 'machine-page1',
+                        'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:machine-page1',
+                        'type': 'STANDARD',
+                    },
+                ]
+            },
+            {
+                'stateMachines': [
+                    {
+                        'name': 'machine-page2',
+                        'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:machine-page2',
+                        'type': 'STANDARD',
+                    },
+                ]
+            },
+        ]
+
+        # Call the function
+        register_state_machines()
+
+        # Verify results
+        assert mock_create_tool.call_count == 2
+        mock_create_tool.assert_any_call(
+            'machine-page1',
+            'arn:aws:states:us-east-1:123456789012:stateMachine:machine-page1',
+            'STANDARD',
+            'AWS Step Functions state machine: machine-page1',
+            None,
+        )
+        mock_create_tool.assert_any_call(
+            'machine-page2',
+            'arn:aws:states:us-east-1:123456789012:stateMachine:machine-page2',
+            'STANDARD',
+            'AWS Step Functions state machine: machine-page2',
+            None,
+        )
+        mock_sfn_client.get_paginator.assert_called_with('list_state_machines')
+
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     @patch(
         'awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_LIST', ['machine1', 'machine2']
     )
@@ -55,25 +104,27 @@ class TestRegisterStateMachines:
     def test_register_machines_with_list(self, mock_create_tool, mock_sfn_client):
         """Test registering state machines filtered by list."""
         # Set up test data
-        mock_sfn_client.list_state_machines.return_value = {
-            'stateMachines': [
-                {
-                    'name': 'machine1',
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:machine1',
-                    'type': 'STANDARD',
-                },
-                {
-                    'name': 'machine2',
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:machine2',
-                    'type': 'STANDARD',
-                },
-                {
-                    'name': 'machine3',
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:machine3',
-                    'type': 'STANDARD',
-                },
-            ]
-        }
+        mock_sfn_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'stateMachines': [
+                    {
+                        'name': 'machine1',
+                        'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:machine1',
+                        'type': 'STANDARD',
+                    },
+                    {
+                        'name': 'machine2',
+                        'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:machine2',
+                        'type': 'STANDARD',
+                    },
+                    {
+                        'name': 'machine3',
+                        'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:machine3',
+                        'type': 'STANDARD',
+                    },
+                ]
+            }
+        ]
 
         # Call the function
         register_state_machines()
@@ -102,15 +153,17 @@ class TestRegisterStateMachines:
     def test_register_machines_with_tags(self, mock_create_tool, mock_sfn_client):
         """Test registering state machines filtered by tags."""
         # Set up test data
-        mock_sfn_client.list_state_machines.return_value = {
-            'stateMachines': [
-                {
-                    'name': 'tagged-machine',
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:tagged-machine',
-                    'type': 'STANDARD',
-                },
-            ]
-        }
+        mock_sfn_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'stateMachines': [
+                    {
+                        'name': 'tagged-machine',
+                        'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:tagged-machine',
+                        'type': 'STANDARD',
+                    },
+                ]
+            }
+        ]
         mock_sfn_client.list_tags_for_resource.return_value = {
             'tags': [{'key': 'test-key', 'value': 'test-value'}]
         }
@@ -132,15 +185,17 @@ class TestRegisterStateMachines:
     def test_register_machines_with_comments(self, mock_create_tool, mock_sfn_client):
         """Test registering state machines with workflow comments."""
         # Set up test data
-        mock_sfn_client.list_state_machines.return_value = {
-            'stateMachines': [
-                {
-                    'name': 'test-machine',
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:test-machine',
-                    'type': 'STANDARD',
-                },
-            ]
-        }
+        mock_sfn_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'stateMachines': [
+                    {
+                        'name': 'test-machine',
+                        'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:test-machine',
+                        'type': 'STANDARD',
+                    },
+                ]
+            }
+        ]
         mock_sfn_client.describe_state_machine.return_value = {
             'description': 'Test Description',
             'definition': '{"Comment": "Workflow Comment", "StartAt": "State1", "States": {"State1": {"Type": "Pass", "End": true}}}',
@@ -164,7 +219,7 @@ class TestRegisterStateMachines:
     def test_register_machines_incomplete_tag_config(self, mock_sfn_client, caplog):
         """Test registering state machines with incomplete tag configuration."""
         # Set up test data
-        mock_sfn_client.list_state_machines.return_value = {'stateMachines': []}
+        mock_sfn_client.get_paginator.return_value.paginate.return_value = [{'stateMachines': []}]
 
         # Call the function and check logging
         with caplog.at_level(logging.WARNING):
@@ -180,7 +235,7 @@ class TestRegisterStateMachines:
     def test_register_machines_error_handling(self, mock_sfn_client, caplog):
         """Test error handling during state machine registration."""
         # Set up mock to raise an exception
-        mock_sfn_client.list_state_machines.side_effect = Exception('List error')
+        mock_sfn_client.get_paginator.side_effect = Exception('List error')
 
         # Call the function and check logging
         with caplog.at_level(logging.ERROR):
