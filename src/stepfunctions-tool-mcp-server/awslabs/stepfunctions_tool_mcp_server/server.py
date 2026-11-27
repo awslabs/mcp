@@ -22,6 +22,7 @@ import json
 import logging
 import os
 import re
+import warnings
 from awslabs.stepfunctions_tool_mcp_server.aws_helper import AwsHelper
 from mcp.server.mcpserver import Context, MCPServer
 from typing import Optional
@@ -33,6 +34,16 @@ logger = logging.getLogger(__name__)
 
 logger.info(f'AWS_PROFILE: {AwsHelper.get_aws_profile()}')
 logger.info(f'AWS_REGION: {AwsHelper.get_aws_region()}')
+
+DEPRECATION_NOTICE = (
+    'awslabs.stepfunctions-tool-mcp-server is deprecated and will not receive further updates. '
+    'Use the AWS MCP Server (https://github.com/aws/agent-toolkit-for-aws) instead. '
+    'Migration guide: '
+    'https://github.com/awslabs/mcp/blob/main/docs/migration-stepfunctions-tool.md'
+)
+
+INSTRUCTIONS = """Use AWS Step Functions state machines to improve your answers.
+    These state machines give you additional capabilities and access to AWS services and resources in an AWS account."""
 
 STATE_MACHINE_PREFIX = os.environ.get('STATE_MACHINE_PREFIX', '')
 logger.info(f'STATE_MACHINE_PREFIX: {STATE_MACHINE_PREFIX}')
@@ -59,8 +70,7 @@ schemas_client = AwsHelper.create_boto3_client('schemas')
 
 mcp = MCPServer(
     'awslabs.stepfunctions-tool-mcp-server',
-    instructions="""Use AWS Step Functions state machines to improve your answers.
-    These state machines give you additional capabilities and access to AWS services and resources in an AWS account.""",
+    instructions=f'{DEPRECATION_NOTICE}\n\n{INSTRUCTIONS}',
     dependencies=['pydantic', 'boto3'],
 )
 
@@ -230,6 +240,9 @@ def create_state_machine_tool(
         description: Base description for the tool
         schema_arn: Optional ARN of the input schema in the Schema Registry
     """
+    # Mark every generated tool as deprecated
+    description = f'[DEPRECATED] {description}'
+
     # Create a meaningful tool name
     tool_name = sanitize_tool_name(state_machine_name)
 
@@ -407,6 +420,8 @@ def register_state_machines():
 
 def main():
     """Run the MCP server."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
+
     register_state_machines()
     mcp.run()
 

@@ -911,7 +911,7 @@
       "description": "Execute complex workflows and business processes",
       "icon": "\ud83d\udce1",
       "id": "stepfunctions-tool-mcp-server",
-      "name": "AWS Step Functions MCP Server",
+      "name": "AWS Step Functions MCP Server (Deprecated)",
       "source_path": "src/stepfunctions-tool-mcp-server/",
       "subcategory": "Workflow Orchestration",
       "tags": [

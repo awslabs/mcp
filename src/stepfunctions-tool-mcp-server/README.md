@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [AWS MCP Server](https://github.com/aws/agent-toolkit-for-aws), part of the Agent Toolkit for AWS, which lists, describes, and starts your state machines through its `run_script` tool (sandboxed Python that calls AWS APIs with your own IAM credentials), using the same Step Functions and EventBridge Schemas API calls. The `aws-step-functions` Agent Skill covers authoring, debugging, and testing state machines. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-stepfunctions-tool.md) for the tool mapping.
+
 # AWS Step Functions Tool MCP Server
 
 A Model Context Protocol (MCP) server for AWS Step Functions to select and run state machines as MCP tools without code changes.

@@ -45,7 +45,7 @@ class TestCreateTool:
         mock_mcp.tool.assert_called_once_with(name='test_state_machine')
         mock_decorator.assert_called_once()
         decorated_function = mock_decorator.call_args[0][0]
-        assert decorated_function.__doc__ == description
+        assert decorated_function.__doc__ == f'[DEPRECATED] {description}'
 
     @patch('awslabs.stepfunctions_tool_mcp_server.server.mcp')
     @patch('awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_PREFIX', 'test-')
@@ -91,7 +91,7 @@ class TestCreateTool:
         mock_get_schema.assert_called_once_with(schema_arn)
         mock_mcp.tool.assert_called_once_with(name='test_state_machine')
         decorated_function = mock_decorator.call_args[0][0]
-        assert description in decorated_function.__doc__
+        assert decorated_function.__doc__.startswith(f'[DEPRECATED] {description}')
         assert str(schema_content) in decorated_function.__doc__
 
     @patch('awslabs.stepfunctions_tool_mcp_server.server.mcp')
@@ -117,7 +117,7 @@ class TestCreateTool:
             mock_get_schema.assert_called_once_with(schema_arn)
             mock_mcp.tool.assert_called_once_with(name='test_state_machine')
             decorated_function = mock_decorator.call_args[0][0]
-            assert decorated_function.__doc__ == description
+            assert decorated_function.__doc__ == f'[DEPRECATED] {description}'
 
     @pytest.mark.asyncio
     @patch('awslabs.stepfunctions_tool_mcp_server.server.invoke_standard_state_machine_impl')

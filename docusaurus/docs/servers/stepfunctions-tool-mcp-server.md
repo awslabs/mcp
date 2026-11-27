@@ -1,5 +1,5 @@
 ---
-title: AWS Step Functions Tool MCP Server
+title: AWS Step Functions Tool MCP Server (Deprecated)
 ---
 
 import ReadmeContent from "../../../src/stepfunctions-tool-mcp-server/README.md";
