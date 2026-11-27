@@ -14,12 +14,14 @@
 """Tests for the server module."""
 
 import os
+import pytest
 import sys
 from awslabs.aws_serverless_mcp_server.server import main, mcp
 from awslabs.aws_serverless_mcp_server.utils.const import DEPLOYMENT_STATUS_DIR
 from unittest.mock import ANY, MagicMock, call, patch
 
 
+@pytest.mark.filterwarnings('ignore:awslabs.aws-serverless-mcp-server is deprecated:FutureWarning')
 class TestServer:
     """Tests for the server module."""
 

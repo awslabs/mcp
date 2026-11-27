@@ -47,22 +47,22 @@ class SecureEsmGuidanceTool(BaseTool):
         # Register secure policy generation tools
         mcp.tool(
             name='secure_esm_msk_policy',
-            description='Generate security-approved IAM policy for MSK Kafka ESM with scoped permissions. Uses pre-approved templates, not LLM generation.',
+            description='[DEPRECATED] Generate security-approved IAM policy for MSK Kafka ESM with scoped permissions. Uses pre-approved templates, not LLM generation.',
         )(self.secure_esm_msk_policy_tool)
 
         mcp.tool(
             name='secure_esm_sqs_policy',
-            description='Generate security-approved IAM policy for SQS ESM with scoped permissions. Uses pre-approved templates, not LLM generation.',
+            description='[DEPRECATED] Generate security-approved IAM policy for SQS ESM with scoped permissions. Uses pre-approved templates, not LLM generation.',
         )(self.secure_esm_sqs_policy_tool)
 
         mcp.tool(
             name='secure_esm_kinesis_policy',
-            description='Generate security-approved IAM policy for Kinesis ESM with scoped permissions. Uses pre-approved templates, not LLM generation.',
+            description='[DEPRECATED] Generate security-approved IAM policy for Kinesis ESM with scoped permissions. Uses pre-approved templates, not LLM generation.',
         )(self.secure_esm_kinesis_policy_tool)
 
         mcp.tool(
             name='secure_esm_dynamodb_policy',
-            description='Generate security-approved IAM policy for DynamoDB Streams ESM with scoped permissions. Uses pre-approved templates, not LLM generation.',
+            description='[DEPRECATED] Generate security-approved IAM policy for DynamoDB Streams ESM with scoped permissions. Uses pre-approved templates, not LLM generation.',
         )(self.secure_esm_dynamodb_policy_tool)
 
     async def secure_esm_msk_policy_tool(

@@ -36,7 +36,7 @@ class GetServerlessTemplatesTool:
             default=None, description='Lambda runtime (e.g., nodejs22.x, python3.13)'
         ),
     ) -> Dict[str, Any]:
-        """Returns example SAM templates from the Serverless Land GitHub repo.
+        """[DEPRECATED] Returns example SAM templates from the Serverless Land GitHub repo.
 
         Use this tool to get examples for building serverless applications with AWS Lambda and best practices of serverless architecture.
         The examples are centered on event-driven architecture that can help you boost agility and build reliable, scalable applications.

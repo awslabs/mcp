@@ -34,7 +34,7 @@ class WebappDeploymentHelpTool:
             description='Type of deployment to get help information for'
         ),
     ) -> Dict[str, Any]:
-        """Get help information about using the deploy_webapp_tool to perform web application deployments.
+        """[DEPRECATED] Get help information about using the deploy_webapp_tool to perform web application deployments.
 
         If deployment_type is provided, returns help information for that deployment type.
         Otherwise, returns general help information.

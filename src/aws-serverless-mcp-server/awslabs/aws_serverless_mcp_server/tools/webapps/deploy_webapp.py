@@ -74,7 +74,7 @@ class DeployWebAppTool(BaseTool):
             default=None, description='Frontend configuration'
         ),
     ) -> Dict[str, Any]:
-        """Deploy web applications to AWS Serverless, including Lambda as compute, DynamoDB as databases, API GW, ACM Certificates, and Route 53 DNS records.
+        """[DEPRECATED] Deploy web applications to AWS Serverless, including Lambda as compute, DynamoDB as databases, API GW, ACM Certificates, and Route 53 DNS records.
 
         This tool uses the Lambda Web Adapter framework so that applications can be written in a standard web framework like Express or Next.js can be easily
         deployed to Lambda. You do not need to use integrate the code with any adapter framework before using this tool.

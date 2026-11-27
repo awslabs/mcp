@@ -53,7 +53,7 @@ class SearchSchemaTool:
             default=None, description='Next token returned by the previous operation.'
         ),
     ) -> Dict:
-        """Search for schemas in a registry using keywords.
+        """[DEPRECATED] Search for schemas in a registry using keywords.
 
         REQUIREMENTS:
         - You MUST use this tool to find schemas for AWS service events

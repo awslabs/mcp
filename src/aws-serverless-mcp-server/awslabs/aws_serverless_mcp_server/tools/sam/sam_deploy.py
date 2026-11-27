@@ -75,7 +75,7 @@ class SamDeployTool(BaseTool):
         ),
         debug: bool = Field(default=False, description='Turn on debug logging'),
     ) -> Dict[str, Any]:
-        """Deploys a serverless application onto AWS Cloud using AWS SAM (Serverless Application Model) CLI and CloudFormation.
+        """[DEPRECATED] Deploys a serverless application onto AWS Cloud using AWS SAM (Serverless Application Model) CLI and CloudFormation.
 
         Requirements:
         - AWS SAM CLI MUST be installed and configured in your environment

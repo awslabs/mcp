@@ -43,7 +43,7 @@ class DescribeSchemaTool:
             description='Version number of the schema. For AWS service events, use latest version (default) to ensure up-to-date event handling.',
         ),
     ) -> Dict:
-        """Retrieve the schema definition for the specified schema version.
+        """[DEPRECATED] Retrieve the schema definition for the specified schema version.
 
         REQUIREMENTS:
         - You MUST use this tool to get complete schema definitions before implementing handlers

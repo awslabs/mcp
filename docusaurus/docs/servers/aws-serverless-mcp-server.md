@@ -1,5 +1,5 @@
 ---
-title: AWS Serverless MCP Server
+title: AWS Serverless MCP Server (Deprecated)
 ---
 
 import ReadmeContent from "../../../src/aws-serverless-mcp-server/README.md";

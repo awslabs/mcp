@@ -134,7 +134,7 @@ class GetIaCGuidanceTool:
             default=True, description='Whether to include examples'
         ),
     ) -> Dict[str, Any]:
-        """Returns guidance on selecting an infrastructure as code (IaC) platform to deploy Serverless applications to AWS.
+        """[DEPRECATED] Returns guidance on selecting an infrastructure as code (IaC) platform to deploy Serverless applications to AWS.
 
         Using IaC is a best practice when managing AWS resources. IaC platform choices include AWS SAM, CDK, and CloudFormation.
         Use this tool to decide which IaC tool to use for your Serverless deployments based on your specific use case and requirements.

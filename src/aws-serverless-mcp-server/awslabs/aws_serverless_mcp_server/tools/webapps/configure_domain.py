@@ -51,7 +51,7 @@ class ConfigureDomainTool(BaseTool):
             default=None, description='AWS region to use (e.g., us-east-1)'
         ),
     ) -> Dict[str, Any]:
-        """Configures a custom domain for a deployed web application on AWS Serverless.
+        """[DEPRECATED] Configures a custom domain for a deployed web application on AWS Serverless.
 
         Before using this tool, you must already own the domain name and have a Route53 hosted zone in your account.
         This tool does not register domain names.

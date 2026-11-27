@@ -80,7 +80,7 @@ class EsmRecommendTool(BaseTool):
         # Register consolidated ESM optimization tool - MAIN USER-FACING TOOL
         mcp.tool(
             name='esm_optimize',
-            description='Optimize streaming data processing performance and costs. Analyzes Lambda function configurations for Kafka, Kinesis, DynamoDB, and SQS event sources. Provides recommendations for batch sizes, concurrency, throughput, and cost optimization. Validates configurations and generates deployment templates.',
+            description='[DEPRECATED] Optimize streaming data processing performance and costs. Analyzes Lambda function configurations for Kafka, Kinesis, DynamoDB, and SQS event sources. Provides recommendations for batch sizes, concurrency, throughput, and cost optimization. Validates configurations and generates deployment templates.',
         )(self.esm_optimize_tool)
 
         # Cache for AWS API limits to avoid repeated API calls

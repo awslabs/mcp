@@ -258,7 +258,7 @@
       "description": "Complete serverless application lifecycle with SAM CLI",
       "icon": "\ud83c\udfd7\ufe0f",
       "id": "aws-serverless-mcp-server",
-      "name": "AWS Serverless MCP Server",
+      "name": "AWS Serverless MCP Server (Deprecated)",
       "source_path": "src/aws-serverless-mcp-server/",
       "subcategory": "Serverless & Functions",
       "tags": [

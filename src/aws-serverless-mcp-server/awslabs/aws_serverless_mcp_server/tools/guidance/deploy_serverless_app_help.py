@@ -42,7 +42,7 @@ class DeployServerlessAppHelpTool:
             description='Type of application to deploy'
         ),
     ) -> Dict[str, Any]:
-        """Provides instructions on how to deploy a serverless application to AWS Lambda.
+        """[DEPRECATED] Provides instructions on how to deploy a serverless application to AWS Lambda.
 
         Deploying a Lambda application requires generating IaC templates, building the code, packaging
         the code, selecting a deployment tool, and executing the deployment commands. This tool walks through

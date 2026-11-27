@@ -50,7 +50,7 @@ class UpdateFrontendTool(BaseTool):
             default=None, description='AWS region to use (e.g., us-east-1)'
         ),
     ) -> Dict[str, Any]:
-        """Update the frontend assets of a deployed web application.
+        """[DEPRECATED] Update the frontend assets of a deployed web application.
 
         This tool uploads new frontend assets to S3 and optionally invalidates the CloudFront cache.
         """

@@ -38,7 +38,7 @@ class EsmDiagnosisTool(BaseTool):
         # Register unified Kafka diagnostic and resolution tool
         mcp.tool(
             name='esm_kafka_troubleshoot',
-            description='Troubleshoot Kafka streaming issues and connectivity problems. Diagnoses MSK cluster connectivity, Lambda function timeouts, authentication failures, and network configuration issues. Provides step-by-step resolution guidance for Kafka and Lambda integration problems.',
+            description='[DEPRECATED] Troubleshoot Kafka streaming issues and connectivity problems. Diagnoses MSK cluster connectivity, Lambda function timeouts, authentication failures, and network configuration issues. Provides step-by-step resolution guidance for Kafka and Lambda integration problems.',
         )(self.esm_kafka_troubleshoot_tool)
 
     async def esm_kafka_troubleshoot_tool(
