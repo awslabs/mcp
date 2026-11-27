@@ -380,8 +380,9 @@ The server blocks reads and writes to sensitive files and directories to prevent
 
 - **Write confinement:** artifact downloads are confined to an allowed base directory (see `AWS_TRANSFORM_MCP_WRITE_DIR`), which defaults to the server's working directory. A `savePath` that resolves outside the base is rejected, so an LLM-controlled path cannot write to arbitrary filesystem locations. If the base would be the filesystem root (`/`), downloads are refused until `AWS_TRANSFORM_MCP_WRITE_DIR` is set, rather than allowing unbounded writes.
 - **Blocked filenames:** `.env`, `.netrc`, `.pgpass`, SSH keys (`id_rsa`, `id_ed25519`, etc.), `credentials`, `authorized_keys`, and others — enforced on both reads and writes
-- **Blocked directories:** `~/.aws`, `~/.ssh`, `~/.gnupg`, `~/.docker`, `~/.aws-transform-mcp`
-- **Path traversal prevention:** all file paths are resolved and validated against directory boundaries
+- **Blocked directories:** `~/.aws`, `~/.ssh`, `~/.kube`, `~/.gnupg`, `~/.docker`, `~/.aws-transform-mcp`, `~/.azure`, `~/.terraform.d`, `~/.config/gcloud`, `~/.config/gh`, and `~/.config/terraform`
+- **Blocked Terraform configuration:** `.terraformrc`, in addition to the existing blocked filenames
+- **Path resolution:** both inputs and blocked paths are resolved through symlinks. Sensitive-directory comparisons fold case on macOS and Windows. System files such as `/etc/passwd` and `/etc/shadow` are blocked using their resolved paths.
 - **Extension allowlisting:** only approved file extensions can be downloaded
 
 ### Audit Logging

@@ -123,7 +123,7 @@ mcp = MCPServer(
 
     ## Usage Notes
     - By default, the server runs in read-only mode. Use the `--allow-write` flag to enable write operations and public resource creation.
-    - Access to sensitive data (Lambda function and API GW logs) requires the `--allow-sensitive-data-access` flag.
+    - The `--allow-sensitive-data-access` flag enables `sam_logs`, which returns CloudWatch logs for a stack's Lambda functions, API Gateway APIs and Step Functions state machines, and for any log group passed in `cw_log_group`. Without the flag, `sam_logs` returns an error. The flag doesn't apply to `sam_local_invoke`, which always returns the output and logs of the local invocation.
 
     ## Prerequisites
     1. Have an AWS account
@@ -298,7 +298,11 @@ def main() -> int:
     parser.add_argument(
         '--allow-sensitive-data-access',
         action='store_true',
-        help='Returns sensitive data from tools (e.g. logs, environment variables)',
+        help=(
+            'Enables sam_logs, which returns CloudWatch logs for stack resources and for '
+            'any log group passed in cw_log_group. Does not apply to sam_local_invoke, '
+            'which always returns the output and logs of the local invocation.'
+        ),
     )
 
     args = parser.parse_args()
