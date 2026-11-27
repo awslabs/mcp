@@ -33,6 +33,7 @@ let the Pydantic bug reach a live cluster.
 """
 
 import asyncio
+import importlib
 import inspect
 import os
 import pytest
@@ -673,3 +674,25 @@ def test_proxy_harness_apg_uses_the_cluster_lookup_not_the_instance_one():
     assert 'find_proxy_for_cluster' in src
     assert 'find_proxy_for_instance' not in src
     assert 'select_proxy_endpoint' in src
+
+
+ro_diff = importlib.import_module('ro_policy_differential')
+
+
+def test_every_expected_divergence_names_a_probe():
+    """Every EXPECTED_DIVERGENCES entry is the name of a probe in build_corpus()."""
+    probes = {name for _, name, _ in ro_diff.build_corpus(ro_diff.SCHEMA)}
+    assert sorted(set(ro_diff.EXPECTED_DIVERGENCES) - probes) == []
+
+
+def test_differential_probe_names_are_unique():
+    """Probe names key EXPECTED_DIVERGENCES, so no two probes may share one."""
+    names = [name for _, name, _ in ro_diff.build_corpus(ro_diff.SCHEMA)]
+    assert len(names) == len(set(names))
+
+
+def test_guard_rejects_the_gin_clean_pending_probe():
+    """PostgreSQL runs this probe in a read-only transaction, so the guard must reject it."""
+    probes = {name: sql for _, name, sql in ro_diff.build_corpus(ro_diff.SCHEMA)}
+    verdict, _ = ro_diff.guard_verdict(probes['gin clean pending'])
+    assert verdict == 'REJECT'
