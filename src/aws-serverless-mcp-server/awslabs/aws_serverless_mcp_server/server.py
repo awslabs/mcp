@@ -314,10 +314,10 @@ def main() -> int:
     GetLambdaGuidanceTool(mcp)
     GetServerlessTemplatesTool(mcp)
 
-    SamBuildTool(mcp)
+    SamBuildTool(mcp, args.allow_write)
     SamDeployTool(mcp, args.allow_write)
-    SamInitTool(mcp)
-    SamLocalInvokeTool(mcp)
+    SamInitTool(mcp, args.allow_write)
+    SamLocalInvokeTool(mcp, args.allow_write)
     SamLogsTool(mcp, args.allow_sensitive_data_access)
 
     ListRegistriesTool(mcp, schemas_client)

@@ -119,10 +119,13 @@ For Windows users, the MCP server configuration format is slightly different:
 
 ## Serverless MCP Server configuration options
 ### `--allow-write`
-Enables write access mode, which allows mutating operations and creation of public resources. By default, the server runs in read-only mode, which restricts operations to only perform read actions, preventing any changes to AWS resources.
+Enables write access mode, which allows mutating operations and creation of public resources. By default, the server runs in read-only mode, which restricts operations to only perform read actions, preventing any changes to AWS resources or the local file system.
 
 Mutating operations:
 
+- sam_init: Creates a new SAM project on the local file system
+- sam_build: Builds a SAM project and writes build artifacts to the local file system. The build directory and its contents are removed before building
+- sam_local_invoke: Runs a Lambda function locally in a container and can write logs to a local file
 - sam_deploy: Deploys a SAM application into AWS Cloud using CloudFormation
 - deploy_webapp: Generates SAM template and deploys a web application into AWS CloudFormation. Creates public resources, including Route 53 DNS records, and CloudFront distributions
 - configure_domain: Create custom domain using Route53 and ACM certificate and associates it with the project's CloudFront distribution
