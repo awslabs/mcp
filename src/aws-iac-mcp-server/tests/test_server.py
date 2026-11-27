@@ -16,9 +16,10 @@
 
 import json
 import pytest
+import re
 from awslabs.aws_iac_mcp_server import server
-from awslabs.aws_iac_mcp_server.knowledge_models import CDKToolResponse
-from unittest.mock import patch
+from awslabs.aws_iac_mcp_server.knowledge_models import CDKToolResponse, KnowledgeResult
+from unittest.mock import AsyncMock, patch
 
 
 # Access underlying functions from FastMCP decorated tools
@@ -299,6 +300,62 @@ class TestCdkBestPractices:
         assert result == 'sanitized response'
         mock_best_practices.assert_called_once_with()
         mock_sanitize.assert_called_once()
+
+
+class TestKnowledgeToolResultDescriptions:
+    """Test that knowledge tool descriptions document the JSON they actually return."""
+
+    @pytest.mark.parametrize(
+        'tool_name, call_args',
+        [
+            ('search_cdk_documentation', ('lambda function',)),
+            ('search_cloudformation_documentation', ('AWS::S3::Bucket',)),
+            ('search_cdk_samples_and_constructs', ('serverless api',)),
+            ('cdk_best_practices', ()),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_result_interpretation_matches_response(self, tool_name, call_args):
+        """The Result Interpretation section must describe the real response structure."""
+        search_results = [
+            KnowledgeResult(
+                rank=1, title='Doc title', url='https://docs.aws.amazon.com/doc', context='text'
+            )
+        ]
+        with patch(
+            'awslabs.aws_iac_mcp_server.tools.iac_tools.search_documentation',
+            new=AsyncMock(return_value=search_results),
+        ):
+            raw_response = await getattr(server, tool_name)(*call_args)
+
+        # The sanitizer wraps the JSON payload in <tool_response> tags.
+        json_match = re.search(r'\{.*\}', raw_response, flags=re.DOTALL)
+        assert json_match is not None
+        payload = json.loads(json_match.group(0))
+
+        # Real response: knowledge_response is a flat array of result objects.
+        assert set(payload) == {'knowledge_response', 'next_step_guidance'}
+        assert isinstance(payload['knowledge_response'], list)
+        result_fields = set(payload['knowledge_response'][0])
+        assert result_fields == {'rank', 'title', 'url', 'context'}
+
+        tool = await server.mcp.get_tool(tool_name)
+        assert tool is not None and tool.description
+        section = tool.description.split('## Result Interpretation')[1]
+        section = section.split('## Args')[0].split('Args:')[0]
+
+        # knowledge_response is documented as an array, not an object wrapping `results`.
+        lines = [line.strip() for line in section.splitlines()]
+        kr_line = next(line for line in lines if line.startswith('- knowledge_response:'))
+        assert 'array' in kr_line.lower()
+
+        # Every documented field name must exist in the real response.
+        documented = {m for line in lines for m in re.findall(r'^- (\w+):', line)}
+        assert documented <= {'knowledge_response', 'next_step_guidance'} | result_fields
+        assert 'results' not in documented
+
+        # The response has no `error` field, so the description must not point clients at one.
+        assert 'error field' not in section
 
 
 class TestMain:
