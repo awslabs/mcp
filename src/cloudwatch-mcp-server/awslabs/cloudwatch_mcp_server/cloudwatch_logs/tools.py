@@ -54,20 +54,30 @@ class CloudWatchLogsTools:
         pass
 
     def _validate_log_group_parameters(
-        self, log_group_names: Optional[List[str]], log_group_identifiers: Optional[List[str]]
+        self,
+        log_group_names: Optional[List[str]],
+        log_group_identifiers: Optional[List[str]],
+        log_group_data_source: Optional[str] = None,
     ) -> None:
-        """Validate that exactly one of log_group_names or log_group_identifiers is provided.
+        """Validate that exactly one log group selector is provided.
 
         Args:
             log_group_names: List of log group names
             log_group_identifiers: List of log group identifiers
+            log_group_data_source: ARN of a CloudWatch Logs data source
 
         Raises:
-            ValueError: If both or neither parameters are provided
+            ValueError: If none or more than one selector is provided
         """
-        if bool(log_group_names) == bool(log_group_identifiers):
+        provided = [
+            bool(log_group_names),
+            bool(log_group_identifiers),
+            bool(log_group_data_source),
+        ]
+        if sum(provided) != 1:
             raise ValueError(
-                'Exactly one of log_group_names or log_group_identifiers must be provided'
+                'Exactly one of log_group_names, log_group_identifiers, or '
+                'log_group_data_source must be provided'
             )
 
     def _convert_time_to_timestamp(self, time_str: str) -> int:
@@ -85,6 +95,7 @@ class CloudWatchLogsTools:
         self,
         log_group_names: Optional[List[str]],
         log_group_identifiers: Optional[List[str]],
+        log_group_data_source: Optional[str],
         start_time: str,
         end_time: str,
         query_string: str,
@@ -95,6 +106,7 @@ class CloudWatchLogsTools:
         Args:
             log_group_names: List of log group names
             log_group_identifiers: List of log group identifiers
+            log_group_data_source: ARN of a CloudWatch Logs data source
             start_time: Start time in ISO 8601 format
             end_time: End time in ISO 8601 format
             query_string: CloudWatch Logs Insights query string
@@ -109,6 +121,7 @@ class CloudWatchLogsTools:
             'queryString': query_string,
             'logGroupIdentifiers': log_group_identifiers,
             'logGroupNames': log_group_names,
+            'logGroupDataSource': log_group_data_source,
             'limit': limit,
         }
 
@@ -515,14 +528,20 @@ class CloudWatchLogsTools:
             List[str] | None,
             Field(
                 max_length=50,
-                description='The list of up to 50 log group names to be queried. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null.',
+                description='The list of up to 50 log group names to be queried. CRITICAL: Exactly one of [log_group_names, log_group_identifiers, log_group_data_source] should be non-null.',
             ),
         ] = None,
         log_group_identifiers: Annotated[
             List[str] | None,
             Field(
                 max_length=50,
-                description="The list of up to 50 logGroupIdentifiers to query. You can specify them by the log group name or ARN. If a log group that you're querying is in a source account and you're using a monitoring account, you must use the ARN. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null.",
+                description="The list of up to 50 logGroupIdentifiers to query. You can specify them by the log group name or ARN. If a log group that you're querying is in a source account and you're using a monitoring account, you must use the ARN. CRITICAL: Exactly one of [log_group_names, log_group_identifiers, log_group_data_source] should be non-null.",
+            ),
+        ] = None,
+        log_group_data_source: Annotated[
+            str | None,
+            Field(
+                description='ARN of a CloudWatch Logs data source (query group) to query. CRITICAL: Exactly one of [log_group_names, log_group_identifiers, log_group_data_source] should be non-null.',
             ),
         ] = None,
         start_time: str = Field(
@@ -568,7 +587,7 @@ class CloudWatchLogsTools:
     ) -> Dict:
         """Executes a CloudWatch Logs Insights query and waits for the results to be available.
 
-        IMPORTANT: The operation must include exactly one of the following parameters: log_group_names, or log_group_identifiers.
+        IMPORTANT: The operation must include exactly one of the following parameters: log_group_names, log_group_identifiers, or log_group_data_source.
 
         CRITICAL: The volume of returned logs can easily overwhelm the agent context window. Always include a limit in the query
         (| limit 50) or using the limit parameter.
@@ -592,11 +611,19 @@ class CloudWatchLogsTools:
         """
         try:
             # Validate parameters
-            self._validate_log_group_parameters(log_group_names, log_group_identifiers)
+            self._validate_log_group_parameters(
+                log_group_names, log_group_identifiers, log_group_data_source
+            )
 
             # Build query parameters
             kwargs = self._build_logs_query_params(
-                log_group_names, log_group_identifiers, start_time, end_time, query_string, limit
+                log_group_names,
+                log_group_identifiers,
+                log_group_data_source,
+                start_time,
+                end_time,
+                query_string,
+                limit,
             )
 
             # Create logs client for the specified region
