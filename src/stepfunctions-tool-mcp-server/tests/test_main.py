@@ -9,6 +9,9 @@ with pytest.MonkeyPatch().context() as CTX:
     from awslabs.stepfunctions_tool_mcp_server.server import main
 
 
+@pytest.mark.filterwarnings(
+    'ignore:awslabs.stepfunctions-tool-mcp-server is deprecated:FutureWarning'
+)
 class TestMain:
     """Tests for the main function."""
 

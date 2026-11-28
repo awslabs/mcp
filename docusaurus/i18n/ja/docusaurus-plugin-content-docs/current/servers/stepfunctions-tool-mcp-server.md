@@ -1,6 +1,8 @@
 ---
-title: "AWS Step Functions ツール MCPサーバー"
+title: "AWS Step Functions ツール MCPサーバー（非推奨）"
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。こちらは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて、同じ Step Functions および EventBridge Schemas の API 呼び出しでステートマシンの一覧取得、詳細確認、実行開始を行います。`aws-step-functions` の Agent Skill が、ステートマシンの作成、デバッグ、テストを扱います。ツールの対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-stepfunctions-tool.md) を参照してください。
 
 コード変更なしにステートマシンを MCP ツールとして選択・実行するための、AWS Step Functions 向けの Model Context Protocol (MCP) サーバーです。
 

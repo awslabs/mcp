@@ -7,7 +7,11 @@ from unittest.mock import MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.stepfunctions_tool_mcp_server.server import mcp, register_state_machines
+    from awslabs.stepfunctions_tool_mcp_server.server import (
+        DEPRECATION_NOTICE,
+        mcp,
+        register_state_machines,
+    )
 
 
 class TestRegisterStateMachines:
@@ -196,6 +200,7 @@ class TestRegisterStateMachines:
         assert mcp.name == 'awslabs.stepfunctions-tool-mcp-server'
         assert (
             mcp.instructions is not None
+            and mcp.instructions.startswith(DEPRECATION_NOTICE)
             and 'Use AWS Step Functions state machines' in mcp.instructions
         )
         assert 'pydantic' in mcp.dependencies
