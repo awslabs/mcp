@@ -262,8 +262,8 @@ def _parse_multi_row_thead(header_rows: list[Tag]) -> list[str]:
     Dynamically expands the grid to accommodate rowspan reservations.
     """
     num_rows = len(header_rows)
-    # Build grid dynamically — expand as cells are placed
-    grid: list[list[str]] = [[] for _ in range(num_rows)]
+    # None marks an unoccupied slot; an empty header still reserves its column.
+    grid: list[list[Optional[str]]] = [[] for _ in range(num_rows)]
 
     for row_idx, tr in enumerate(header_rows):
         col_idx = 0
@@ -271,7 +271,7 @@ def _parse_multi_row_thead(header_rows: list[Tag]) -> list[str]:
             if not isinstance(cell, Tag):
                 continue
             # Skip columns already filled by rowspan from above
-            while col_idx < len(grid[row_idx]) and grid[row_idx][col_idx]:
+            while col_idx < len(grid[row_idx]) and grid[row_idx][col_idx] is not None:
                 col_idx += 1
             text = _cell_text(cell)
             colspan = _safe_span(cell, 'colspan')
@@ -282,7 +282,7 @@ def _parse_multi_row_thead(header_rows: list[Tag]) -> list[str]:
                     target_col = col_idx + c
                     if target_row < num_rows:
                         while len(grid[target_row]) <= target_col:
-                            grid[target_row].append('')
+                            grid[target_row].append(None)
                         grid[target_row][target_col] = text
             col_idx += colspan
 
