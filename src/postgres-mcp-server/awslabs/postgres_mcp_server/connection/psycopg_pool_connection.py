@@ -255,6 +255,11 @@ def _read_credentials_from_secret(
             f'Secret does not contain username. Available keys: {", ".join(secret.keys())}'
         )
 
+    if not isinstance(username, str):
+        raise ValueError('Secret username must be a string')
+    if require_password and password and not isinstance(password, str):
+        raise ValueError('Secret password must be a string')
+
     if require_password and not password:
         logger.error('Password not found in secret')
         raise ValueError(

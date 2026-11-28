@@ -1662,3 +1662,21 @@ def test_credentials_reader_rejects_missing_runtime_password():
     ):
         with pytest.raises(ValueError, match='password'):
             get_credentials_from_secret('arn:secret', 'us-east-1')
+
+
+@pytest.mark.parametrize(
+    'reader, payload, invalid_field',
+    [
+        (get_credentials_from_secret, {'username': 'app_reader', 'Password': 42}, 'password'),
+        (get_username_from_secret, {'Username': ['app_reader']}, 'username'),
+    ],
+)
+def test_reader_rejects_non_string_credential(reader, payload, invalid_field):
+    """JSON values must match the reader's advertised string return types."""
+    with patch('boto3.Session') as session:
+        session.return_value.client.return_value.get_secret_value.return_value = {
+            'SecretString': json.dumps(payload)
+        }
+
+        with pytest.raises(ValueError, match=f'^Secret {invalid_field} must be a string$'):
+            reader('arn:secret', 'us-east-1')
