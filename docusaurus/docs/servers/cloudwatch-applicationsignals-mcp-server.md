@@ -1,5 +1,5 @@
 ---
-title: CloudWatch Application Signals MCP Server
+title: CloudWatch Application Signals MCP Server (Deprecated)
 ---
 
 import ReadmeContent from "../../../src/cloudwatch-applicationsignals-mcp-server/README.md";

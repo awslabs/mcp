@@ -31,7 +31,7 @@ async def get_enablement_guide(
     iac_directory: str,
     app_directory: str,
 ) -> str:
-    """Get enablement guide for AWS Application Signals.
+    """[DEPRECATED] Get enablement guide for AWS Application Signals.
 
     Use this tool when the user wants to:
     - Enable observability, monitoring, or Application Signals for their AWS service

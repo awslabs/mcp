@@ -630,12 +630,18 @@ async def test_search_transaction_spans_timeout(mock_aws_clients):
                 assert 'did not complete within 30 seconds' in result['message']
 
 
+@pytest.mark.filterwarnings(
+    'ignore:awslabs.cloudwatch-applicationsignals-mcp-server is deprecated:FutureWarning'
+)
 def test_main_normal_execution(mock_mcp):
     """Test normal execution of main function."""
     main()
     mock_mcp.run.assert_called_once_with(transport='stdio')
 
 
+@pytest.mark.filterwarnings(
+    'ignore:awslabs.cloudwatch-applicationsignals-mcp-server is deprecated:FutureWarning'
+)
 def test_main_keyboard_interrupt(mock_mcp):
     """Test KeyboardInterrupt handling in main function."""
     mock_mcp.run.side_effect = KeyboardInterrupt()
@@ -644,6 +650,9 @@ def test_main_keyboard_interrupt(mock_mcp):
     mock_mcp.run.assert_called_once_with(transport='stdio')
 
 
+@pytest.mark.filterwarnings(
+    'ignore:awslabs.cloudwatch-applicationsignals-mcp-server is deprecated:FutureWarning'
+)
 def test_main_general_exception(mock_mcp):
     """Test general exception handling in main function."""
     mock_mcp.run.side_effect = Exception('Server error')
@@ -1941,6 +1950,9 @@ async def test_list_slis_general_exception(mock_aws_clients):
     assert 'Error getting SLI status: Service unavailable' in result
 
 
+@pytest.mark.filterwarnings(
+    'ignore:awslabs.cloudwatch-applicationsignals-mcp-server is deprecated:FutureWarning'
+)
 def test_main_success(mock_aws_clients):
     """Test main function normal execution."""
     with patch('awslabs.cloudwatch_applicationsignals_mcp_server.server.mcp') as mock_mcp:
@@ -1948,6 +1960,9 @@ def test_main_success(mock_aws_clients):
         mock_mcp.run.assert_called_once_with(transport='stdio')
 
 
+@pytest.mark.filterwarnings(
+    'ignore:awslabs.cloudwatch-applicationsignals-mcp-server is deprecated:FutureWarning'
+)
 def test_main_exception(mock_aws_clients):
     """Test main function with general exception."""
     with patch('awslabs.cloudwatch_applicationsignals_mcp_server.server.mcp') as mock_mcp:
@@ -1959,6 +1974,9 @@ def test_main_exception(mock_aws_clients):
         assert 'Server error' in str(exc_info.value)
 
 
+@pytest.mark.filterwarnings(
+    'ignore:awslabs.cloudwatch-applicationsignals-mcp-server is deprecated:FutureWarning'
+)
 def test_main_entry_point(mock_aws_clients):
     """Test the if __name__ == '__main__' entry point."""
     # The __main__ block is simple and just calls main()

@@ -160,6 +160,9 @@ async def test_audit_service_operations_empty_array(mock_aws_clients):
     assert 'Error: `operation_targets` must contain at least 1 item' in result
 
 
+@pytest.mark.filterwarnings(
+    'ignore:awslabs.cloudwatch-applicationsignals-mcp-server is deprecated:FutureWarning'
+)
 def test_main_entry_point():
     """Test the __name__ == '__main__' entry point."""
     # Test that the main function can be called

@@ -66,7 +66,7 @@ def search_snapshots_for_status_event(
     max_timeout: int = 30,
     custom_filters: Optional[List[str]] = None,
 ) -> str:
-    """Search CloudWatch Logs snapshots near a known instrumentation status timestamp.
+    """[DEPRECATED] Search CloudWatch Logs snapshots near a known instrumentation status timestamp.
 
     This helper builds a Logs Insights query around the supplied status event time,
     searches for records containing the `location_hash`, and returns a JSON string
@@ -164,7 +164,7 @@ def get_sample_snapshot_for_breakpoint(
     max_timeout: int = 30,
     include_raw: bool = False,
 ) -> str:
-    """Fetch one nearby snapshot to inspect the structure of captured data.
+    """[DEPRECATED] Fetch one nearby snapshot to inspect the structure of captured data.
 
     This is a discovery helper intended to show the shape of one snapshot record
     before building narrower CloudWatch queries or deciding which capture fields

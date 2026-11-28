@@ -25,7 +25,7 @@ from time import perf_counter as timer
 async def get_slo(
     slo_id: str = Field(..., description='The ARN or name of the SLO to retrieve'),
 ) -> str:
-    """Get detailed information about a specific Service Level Objective (SLO).
+    """[DEPRECATED] Get detailed information about a specific Service Level Objective (SLO).
 
     **RECOMMENDED WORKFLOW AFTER USING THIS TOOL:**
     After getting SLO configuration details, use `audit_slos()` with `auditors="all"` for comprehensive root cause analysis:
@@ -287,7 +287,7 @@ async def list_slos(
         default=50, description='Maximum number of SLOs to return (default: 50, max: 50)'
     ),
 ) -> str:
-    """List all Service Level Objectives (SLOs) in Application Signals.
+    """[DEPRECATED] List all Service Level Objectives (SLOs) in Application Signals.
 
     Use this tool to:
     - Get a complete list of all SLOs in your account

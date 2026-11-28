@@ -1,6 +1,8 @@
 ---
-title: "CloudWatch Application Signals MCPサーバー"
+title: "CloudWatch Application Signals MCPサーバー（非推奨）"
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。こちらは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて、Application Signals、CloudWatch、CloudWatch Logs、X-Ray、Synthetics、RUM に対する同じ API を呼び出します。`aws-observability` と `setting-up-cloudwatch-observability` の Agent Skills が、Application Signals の利用、Dynamic Instrumentation、およびオンボーディングを扱います。ツールの対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-cloudwatch-applicationsignals.md) を参照してください。
 
 [AWS Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals.html) を使用して AWS サービスを監視・分析するための包括的なツールを提供する MCP (Model Context Protocol) サーバーです。
 

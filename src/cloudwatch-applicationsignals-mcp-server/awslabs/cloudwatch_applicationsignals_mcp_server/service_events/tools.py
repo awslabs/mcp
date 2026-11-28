@@ -43,7 +43,7 @@ def list_functions(
     service_name: Optional[str] = None,
     environment: Optional[str] = None,
 ) -> dict:
-    """List instrumented functions with runtime metrics, with filtering and limiting.
+    """[DEPRECATED] List instrumented functions with runtime metrics, with filtering and limiting.
 
     This is the primary discovery tool for functions. Use filters to narrow down:
     - No filter: Top functions by call count (default)
@@ -133,7 +133,7 @@ async def get_function_details(
     environment: Optional[str] = None,
     endpoint: Optional[str] = None,
 ) -> dict:
-    """Get detailed metrics for a specific function.
+    """[DEPRECATED] Get detailed metrics for a specific function.
 
     **Data source:** CloudWatch Metrics V2 (`service.function.duration`) via PromQL.
     Available stats are **average duration** and **call/error counts** only.
@@ -246,7 +246,7 @@ def search_functions(
     environment: Optional[str] = None,
     endpoint: Optional[str] = None,
 ) -> dict:
-    """Search for functions by name.
+    """[DEPRECATED] Search for functions by name.
 
     **Data source:** CloudWatch Metrics V2 — matches against the `function.name`
     label values of `service.function.duration`. (File-path search is not available;
@@ -615,7 +615,7 @@ async def get_endpoints(
     environment: Optional[str] = None,
     percentile: float = 99,
 ) -> dict:
-    """Get summaries for HTTP endpoints with optional filtering.
+    """[DEPRECATED] Get summaries for HTTP endpoints with optional filtering.
 
     **Data sources (mutually exclusive):**
     - When **Application Signals is enabled** for the application, endpoint
@@ -767,7 +767,7 @@ async def get_incidents(
     service_name: Optional[str] = None,
     environment: Optional[str] = None,
 ) -> dict:
-    """Get a lightweight summary of recent incidents (errors, timeouts, slow requests).
+    """[DEPRECATED] Get a lightweight summary of recent incidents (errors, timeouts, slow requests).
 
     **Data sources:** Queries the ServiceEvents incident_snapshot records in
     CloudWatch Logs. If no incidents are found and Application Signals is enabled,
@@ -949,7 +949,7 @@ async def get_incident_details(
     service_name: Optional[str] = None,
     environment: Optional[str] = None,
 ) -> dict:
-    """Get full details for a specific incident for root-cause analysis.
+    """[DEPRECATED] Get full details for a specific incident for root-cause analysis.
 
     **Two RCA signals are available:**
 
@@ -1239,7 +1239,7 @@ async def get_health_overview(
     service_name: Optional[str] = None,
     environment: Optional[str] = None,
 ) -> dict:
-    """Get a health overview of the system.
+    """[DEPRECATED] Get a health overview of the system.
 
     **PRIMARY ENTRY POINT for general health, performance, AND error-pattern
     questions.** Use this FIRST for any broad, open-ended ask such as "is anything
@@ -1586,7 +1586,7 @@ def find_deployment(
     service_name: Optional[str] = None,
     environment: Optional[str] = None,
 ) -> dict:
-    """Find deployments by searching deployment history in the ServiceEvents CloudWatch Logs.
+    """[DEPRECATED] Find deployments by searching deployment history in the ServiceEvents CloudWatch Logs.
 
     **Mode 1 - Find specific deployment (git_commit_sha provided):**
     Use when you've identified a suspect commit from code analysis but need to confirm

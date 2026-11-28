@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [AWS MCP Server](https://github.com/aws/agent-toolkit-for-aws), part of the Agent Toolkit for AWS, which makes the same Application Signals, CloudWatch, CloudWatch Logs, X-Ray, Synthetics, and RUM calls through its `run_script` tool (sandboxed Python that calls AWS APIs with your own IAM credentials). The `aws-observability` and `setting-up-cloudwatch-observability` Agent Skills cover Application Signals usage, Dynamic Instrumentation, and onboarding. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-cloudwatch-applicationsignals.md) for the tool mapping.
+
 # CloudWatch Application Signals MCP Server
 
 An MCP (Model Context Protocol) server that provides comprehensive tools for monitoring and analyzing AWS services using [AWS Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals.html).

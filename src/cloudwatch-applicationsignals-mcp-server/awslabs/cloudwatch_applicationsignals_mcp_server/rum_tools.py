@@ -98,7 +98,7 @@ async def query_rum_events(
     compare_previous: Optional[bool] = None,
     limit: Optional[int] = None,
 ) -> str:
-    """CloudWatch RUM – monitor real user experience across web and mobile apps.
+    """[DEPRECATED] CloudWatch RUM – monitor real user experience across web and mobile apps.
 
     Use the ``action`` parameter to select an operation.  All other parameters
     are optional and depend on the chosen action.
