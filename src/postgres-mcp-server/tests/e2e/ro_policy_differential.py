@@ -140,13 +140,9 @@ EXPECTED_DIVERGENCES = {
     'pg_switch_wal': 'forces a WAL segment switch',
     'pg_logical_emit_message': 'writes a WAL record',
     'advisory unlock all': 'mutates shared advisory lock state',
-    'gin clean pending': 'writes GIN index pages',
     # -- deliberate strictness beyond the engine ---------------------------
     'copy to stdout': 'all COPY is rejected in read-only mode; SELECT covers the same need',
     'copy query to stdout': 'all COPY is rejected in read-only mode; SELECT covers the same need',
-    'select into': 'creates a table -- a write wearing a SelectStmt',
-    'refresh matview': 'rewrites materialized view contents',
-    'nextval': 'advances a sequence',
     # -- backstop-reliant --------------------------------------------------
     'for update': 'row locks; refused by SET TRANSACTION READ ONLY, not duplicated in the parser',
     'for no key update': 'row locks; refused by SET TRANSACTION READ ONLY',
@@ -488,6 +484,12 @@ def main():
         server_version = row[0] if row else 'unknown'
 
     corpus = build_corpus(SCHEMA)
+    corpus_names = {name for _, name, _ in corpus}
+    missing_probes = sorted(set(EXPECTED_DIVERGENCES) - corpus_names)
+    if missing_probes:
+        print(f'\nFAIL: EXPECTED_DIVERGENCES names no probe: {missing_probes}')
+        print('Remove the stale label or add the probe it describes.')
+        return 1
     false_positives, backstop, inconclusive = [], [], []
     per_group = {}
 
@@ -548,6 +550,15 @@ def main():
         print(f'\nFAIL: {len(unlabeled)} unlabeled divergence(s): {sorted(set(unlabeled))}')
         print('Add a justification to EXPECTED_DIVERGENCES, or fix the guard.')
         return 1
+
+    seen = {name for _, name, _, _ in false_positives}
+    seen.update(name for _, name, _, _ in backstop)
+    stale = sorted(set(EXPECTED_DIVERGENCES) - seen)
+    if stale:
+        print(f'\nFAIL: expected divergence(s) never observed: {stale}')
+        print('Remove the stale label or investigate why the probe no longer diverges.')
+        return 1
+
     print(f'\nOK: every divergence is accounted for ({len(EXPECTED_DIVERGENCES)} labeled).')
     return 0
 
