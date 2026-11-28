@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [AWS MCP Server](https://github.com/aws/agent-toolkit-for-aws), part of the Agent Toolkit for AWS, which calls the same Amazon Translate APIs (`TranslateText`, `ImportTerminology`, `StartTextTranslationJob` and the others) through its `run_script` tool (sandboxed Python that calls AWS APIs with your own IAM credentials) and returns the full responses. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-translate.md) for the tool mapping.
+
 # Amazon Translate MCP Server
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)

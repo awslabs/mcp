@@ -1261,7 +1261,7 @@
       "description": "Intelligent text translation with 75+ languages, custom terminology, batch processing, and advanced workflow orchestration",
       "icon": "\ud83c\udf10",
       "id": "amazon-translate-mcp-server",
-      "name": "Amazon Translate MCP Server",
+      "name": "Amazon Translate MCP Server (Deprecated)",
       "source_path": "src/amazon-translate-mcp-server/",
       "subcategory": "Language Processing",
       "tags": [

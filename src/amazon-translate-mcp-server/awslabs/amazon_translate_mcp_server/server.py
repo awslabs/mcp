@@ -23,6 +23,7 @@ import asyncio
 import logging
 import sys
 import time
+import warnings
 from .aws_client import AWSClientManager
 from .batch_manager import BatchJobManager
 from .config import load_config_from_env
@@ -51,8 +52,14 @@ from typing import Any, Dict, List, Optional
 # Initialize logging
 logger = logging.getLogger(__name__)
 
+DEPRECATION_NOTICE = (
+    'awslabs.amazon-translate-mcp-server is deprecated and will not receive further updates. '
+    'Use the AWS MCP Server (https://github.com/aws/agent-toolkit-for-aws) instead. '
+    'Migration guide: https://github.com/awslabs/mcp/blob/main/docs/migration-translate.md'
+)
+
 # Initialize FastMCP server
-mcp = FastMCP('Amazon Translate MCP Server')
+mcp = FastMCP('Amazon Translate MCP Server', instructions=DEPRECATION_NOTICE)
 
 
 # Pydantic models for tool parameters
@@ -337,11 +344,11 @@ async def translate_text(
         default=None, description='List of custom terminology names to apply'
     ),
 ) -> Dict[str, Any]:
-    """Translate text from one language to another using Amazon Translate.
+    """[DEPRECATED] Translate text from one language to another using Amazon Translate.
 
     This tool provides real-time text translation with support for custom terminology
     and automatic language detection.
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not translation_service:
             raise TranslationError('Translation service not initialized')
@@ -374,10 +381,10 @@ async def translate_text(
 async def detect_language(
     ctx: Context, text: str = Field(..., description='Text to analyze for language detection')
 ) -> Dict[str, Any]:
-    """Detect the language of the provided text using Amazon Translate.
+    """[DEPRECATED] Detect the language of the provided text using Amazon Translate.
 
     Returns the detected language with confidence score and alternative language candidates.
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not translation_service:
             raise TranslationError('Translation service not initialized')
@@ -405,10 +412,10 @@ async def validate_translation(
     source_language: str = Field(..., description='Source language code'),
     target_language: str = Field(..., description='Target language code'),
 ) -> Dict[str, Any]:
-    """Validate the quality of a translation using various quality checks.
+    """[DEPRECATED] Validate the quality of a translation using various quality checks.
 
     Performs quality assessment and provides suggestions for improvement.
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not translation_service:
             raise TranslationError('Translation service not initialized')
@@ -455,10 +462,10 @@ async def start_batch_translation(
         default=None, description='Unique identifier for the request'
     ),
 ) -> Dict[str, Any]:
-    """Start a batch translation job for processing multiple documents.
+    """[DEPRECATED] Start a batch translation job for processing multiple documents.
 
     Supports various document formats and custom terminology application.
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not batch_manager:
             raise BatchJobError('Batch manager not initialized')
@@ -505,10 +512,10 @@ async def start_batch_translation(
 async def get_translation_job(
     ctx: Context, job_id: str = Field(..., description='Translation job ID to retrieve')
 ) -> Dict[str, Any]:
-    """Get the status and details of a translation job.
+    """[DEPRECATED] Get the status and details of a translation job.
 
     Returns current job status, progress, and results location when completed.
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not batch_manager:
             raise BatchJobError('Batch manager not initialized')
@@ -552,10 +559,10 @@ async def list_translation_jobs(
     ),
     next_token: Optional[str] = Field(default=None, description='Token for pagination'),
 ) -> Dict[str, Any]:
-    """List translation jobs with optional status filtering.
+    """[DEPRECATED] List translation jobs with optional status filtering.
 
     Returns a list of jobs with their current status and metadata.
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not batch_manager:
             raise BatchJobError('Batch manager not initialized')
@@ -601,10 +608,10 @@ async def list_translation_jobs(
 
 @mcp.tool()
 async def list_terminologies(ctx: Context) -> Dict[str, Any]:
-    """List all available custom terminologies.
+    """[DEPRECATED] List all available custom terminologies.
 
     Returns a list of terminologies with their metadata and language pairs.
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not terminology_manager:
             raise TerminologyError('Terminology manager not initialized')
@@ -656,10 +663,10 @@ async def create_terminology(
     target_languages: List[str] = Field(..., description='List of target language codes'),
     terms: List[Dict[str, str]] = Field(..., description='List of term pairs (source/target)'),
 ) -> Dict[str, Any]:
-    """Create a new custom terminology for consistent translations.
+    """[DEPRECATED] Create a new custom terminology for consistent translations.
 
     Accepts term pairs and creates a terminology that can be applied to translations.
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not terminology_manager:
             raise TerminologyError('Terminology manager not initialized')
@@ -711,10 +718,10 @@ async def import_terminology(
     source_language: str = Field(..., description='Source language code'),
     target_languages: List[str] = Field(..., description='List of target language codes'),
 ) -> Dict[str, Any]:
-    """Import terminology from a file (CSV or TMX format).
+    """[DEPRECATED] Import terminology from a file (CSV or TMX format).
 
     Supports importing terminology data from external files for consistent translations.
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not terminology_manager:
             raise TerminologyError('Terminology manager not initialized')
@@ -767,10 +774,10 @@ async def import_terminology(
 async def get_terminology(
     ctx: Context, name: str = Field(..., description='Name of the terminology to retrieve')
 ) -> Dict[str, Any]:
-    """Get detailed information about a specific terminology.
+    """[DEPRECATED] Get detailed information about a specific terminology.
 
     Returns terminology metadata, term pairs, and usage statistics.
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not terminology_manager:
             raise TerminologyError('Terminology manager not initialized')
@@ -800,10 +807,10 @@ async def get_terminology(
 
 @mcp.tool()
 async def list_language_pairs(ctx: Context) -> Dict[str, Any]:
-    """List all supported language pairs for translation.
+    """[DEPRECATED] List all supported language pairs for translation.
 
     Returns all available source-target language combinations with their capabilities.
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not language_operations:
             raise TranslationError('Language operations not initialized')
@@ -840,10 +847,10 @@ async def get_language_metrics(
         default='24h', description='Time range for metrics (24h, 7d, 30d)'
     ),
 ) -> Dict[str, Any]:
-    """Get usage metrics and statistics for language operations.
+    """[DEPRECATED] Get usage metrics and statistics for language operations.
 
     Returns translation volume, performance metrics, and usage patterns.
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not language_operations:
             raise TranslationError('Language operations not initialized')
@@ -886,7 +893,7 @@ async def smart_translate_workflow(
         default=True, description='Whether to auto-detect source language'
     ),
 ) -> Dict[str, Any]:
-    """Execute intelligent translation workflow with automatic language detection and quality validation.
+    """[DEPRECATED] Execute intelligent translation workflow with automatic language detection and quality validation.
 
     This workflow combines multiple translation operations into a single, intelligent process:
     1. Automatically detects source language (if enabled)
@@ -900,7 +907,7 @@ async def smart_translate_workflow(
     - Built-in quality assurance with confidence scoring
     - Automatic language pair validation
     - Comprehensive results with detection, translation, and quality metrics
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not workflow_orchestrator:
             raise WorkflowError('Workflow orchestrator not initialized')
@@ -953,7 +960,7 @@ async def managed_batch_translation_workflow(
         default=3600, description='Maximum monitoring duration in seconds'
     ),
 ) -> Dict[str, Any]:
-    """Execute managed batch translation workflow with comprehensive monitoring and analytics.
+    """[DEPRECATED] Execute managed batch translation workflow with comprehensive monitoring and analytics.
 
     This workflow provides complete batch translation lifecycle management:
     1. Pre-validates language pairs and terminologies
@@ -967,7 +974,7 @@ async def managed_batch_translation_workflow(
     - Automated monitoring with continuous progress tracking
     - Performance analytics and optimization insights
     - Comprehensive error handling and status reporting
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not workflow_orchestrator:
             raise WorkflowError('Workflow orchestrator not initialized')
@@ -1027,7 +1034,7 @@ async def trigger_batch_translation(
     ),
     content_type: str = Field(default='text/plain', description='Content type of input documents'),
 ) -> Dict[str, Any]:
-    """Trigger a batch translation job without monitoring.
+    """[DEPRECATED] Trigger a batch translation job without monitoring.
 
     This tool starts a batch translation job and returns immediately with the job ID.
     Use this when you want to start a job and monitor it separately.
@@ -1038,7 +1045,7 @@ async def trigger_batch_translation(
     - status: Initial job status (typically SUBMITTED)
     - validation_results: Pre-validation results for language pairs and terminologies
 
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not workflow_orchestrator:
             raise WorkflowError('Workflow orchestrator not initialized')
@@ -1160,7 +1167,7 @@ async def monitor_batch_translation(
         default=3600, description='Maximum monitoring duration in seconds'
     ),
 ) -> Dict[str, Any]:
-    """Monitor a batch translation job until completion or failure.
+    """[DEPRECATED] Monitor a batch translation job until completion or failure.
 
     This tool continuously monitors a batch translation job and returns when it reaches
     a final state (COMPLETED, FAILED, or STOPPED). It provides progress updates and
@@ -1173,7 +1180,7 @@ async def monitor_batch_translation(
     - performance_metrics: Performance and timing metrics
     - error_analysis: Detailed error analysis if the job failed (includes S3 error details)
 
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not batch_manager:
             raise BatchJobError('Batch manager not initialized')
@@ -1274,7 +1281,7 @@ async def analyze_batch_translation_errors(
     job_id: str = Field(..., description='Translation job ID to analyze'),
     output_s3_uri: str = Field(..., description='S3 URI for output location'),
 ) -> Dict[str, Any]:
-    """Analyze errors from a failed batch translation job.
+    """[DEPRECATED] Analyze errors from a failed batch translation job.
 
     This tool examines the S3 output location for error detail files and provides
     comprehensive error analysis with actionable suggestions for resolution.
@@ -1286,7 +1293,7 @@ async def analyze_batch_translation_errors(
     - suggested_actions: Actionable suggestions to resolve the errors
     - error_summary: Summary of error patterns and root causes
 
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not workflow_orchestrator:
             raise WorkflowError('Workflow orchestrator not initialized')
@@ -1368,11 +1375,11 @@ async def analyze_batch_translation_errors(
 
 @mcp.tool()
 async def list_active_workflows(ctx: Context) -> Dict[str, Any]:
-    """List all currently active workflows.
+    """[DEPRECATED] List all currently active workflows.
 
     Returns information about workflows that are currently executing,
     including their current step and progress.
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not workflow_orchestrator:
             raise WorkflowError('Workflow orchestrator not initialized')
@@ -1390,11 +1397,11 @@ async def list_active_workflows(ctx: Context) -> Dict[str, Any]:
 async def get_workflow_status(
     ctx: Context, workflow_id: str = Field(..., description='Workflow ID to check status for')
 ) -> Dict[str, Any]:
-    """Get the current status of a specific workflow.
+    """[DEPRECATED] Get the current status of a specific workflow.
 
     Returns detailed information about workflow progress, current step,
     and any errors encountered.
-    """
+    """  # noqa: D401 (the [DEPRECATED] prefix is not a verb)
     try:
         if not workflow_orchestrator:
             raise WorkflowError('Workflow orchestrator not initialized')
@@ -1467,6 +1474,7 @@ def health_check() -> Dict[str, Any]:
 
 def main() -> None:
     """Start the Amazon Translate MCP Server."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     try:
         # Setup logging
         setup_logging()
