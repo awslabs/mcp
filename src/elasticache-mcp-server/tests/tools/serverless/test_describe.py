@@ -1,7 +1,9 @@
 """Tests for the describe serverless tool."""
 
+import botocore.session
 import pytest
 from awslabs.elasticache_mcp_server.tools.serverless.describe import describe_serverless_caches
+from botocore.stub import Stubber
 from unittest.mock import MagicMock, patch
 
 
@@ -77,12 +79,10 @@ async def test_describe_serverless_caches_with_pagination():
         'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
         return_value=mock_client,
     ):
-        result = await describe_serverless_caches(
-            max_items=20, starting_token='current-page', page_size=10
-        )
+        result = await describe_serverless_caches(starting_token='current-page', page_size=10)
 
         mock_client.describe_serverless_caches.assert_called_once_with(
-            MaxItems=20, StartingToken='current-page', PageSize=10
+            NextToken='current-page', MaxResults=10
         )
         assert 'NextToken' in result
         assert result['NextToken'] == 'next-page'
@@ -109,9 +109,7 @@ async def test_describe_serverless_caches_with_starting_token():
     ):
         result = await describe_serverless_caches(starting_token='current-token')
 
-        mock_client.describe_serverless_caches.assert_called_once_with(
-            StartingToken='current-token'
-        )
+        mock_client.describe_serverless_caches.assert_called_once_with(NextToken='current-token')
         assert 'NextToken' in result
         assert result['NextToken'] == 'next-token'
 
@@ -136,7 +134,7 @@ async def test_describe_serverless_caches_with_page_size():
     ):
         result = await describe_serverless_caches(page_size=5)
 
-        mock_client.describe_serverless_caches.assert_called_once_with(PageSize=5)
+        mock_client.describe_serverless_caches.assert_called_once_with(MaxResults=5)
         assert len(result['ServerlessCaches']) == 1
 
 
@@ -211,3 +209,34 @@ async def test_describe_serverless_caches_works_in_readonly_mode():
         result = await describe_serverless_caches()
         assert 'error' not in result
         assert 'ServerlessCaches' in result
+
+
+@pytest.mark.asyncio
+async def test_describe_serverless_caches_max_items_uses_paginator():
+    """max_items goes to the paginator, and the API call only gets valid parameters."""
+    session = botocore.session.get_session()
+    client = session.create_client(
+        'elasticache',
+        region_name='us-east-1',
+    )
+    stubber = Stubber(client)
+    stubber.add_response(
+        'describe_serverless_caches',
+        {'ServerlessCaches': [{'ServerlessCacheName': 'cache-1'}], 'NextToken': 'next-page'},
+        {'NextToken': 'current-page', 'MaxResults': 10},
+    )
+
+    with (
+        stubber,
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=client,
+        ),
+    ):
+        result = await describe_serverless_caches(
+            max_items=1, starting_token='current-page', page_size=10
+        )
+
+    stubber.assert_no_pending_responses()
+    assert result['ServerlessCaches'] == [{'ServerlessCacheName': 'cache-1'}]
+    assert 'NextToken' in result
