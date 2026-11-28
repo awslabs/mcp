@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- `run_query` no longer drops columns that share a name. Rows are dicts keyed
+  by column name, so `SELECT *` over a join of two tables that both have `id`
+  or `name` kept only one of each, and on the direct (asyncmy) connection the
+  repeated columns also carried the first column's values. A result that
+  repeats a column name or an `AS` label now returns an error that names the
+  columns and asks for aliases, the same as the db2 server.
+
 ## 1.0.22
 
 ### Security

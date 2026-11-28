@@ -395,3 +395,35 @@ class TestRunQueryStatementLeadingVerbsReadonly:
 
         assert 'error' not in result[0]
         mock_conn.execute_query.assert_called_once()
+
+
+class TestRunQueryDuplicateColumnNames:
+    """Tests for a query whose result repeats a column name."""
+
+    @patch('awslabs.mysql_mcp_server.server.db_connection_map')
+    async def test_returns_the_message_so_the_query_can_be_fixed(self, mock_map, mock_ctx):
+        """The error names the columns and asks for aliases, unlike other errors."""
+        mock_conn = MagicMock()
+        mock_conn.readonly_query = True
+        mock_conn.execute_query = AsyncMock(
+            return_value={
+                'columnMetadata': [{'name': 'name'}, {'name': 'name'}],
+                'records': [[{'stringValue': 'Alice'}, {'stringValue': 'Engineering'}]],
+            }
+        )
+        mock_map.get.return_value = mock_conn
+
+        result = await run_query(
+            sql='SELECT e.name, d.name FROM employees e JOIN departments d ON d.id = e.department_id',
+            ctx=mock_ctx,
+            connection_method=ConnectionMethod.RDS_API,
+            cluster_identifier='cluster-1',
+            db_endpoint='ep',
+            database='testdb',
+        )
+
+        assert len(result) == 1
+        assert result[0]['error'] != unexpected_error_key
+        assert 'duplicate column names (name)' in result[0]['error']
+        assert 'Alias the duplicates' in result[0]['error']
+        mock_ctx.error.assert_called_once()

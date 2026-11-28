@@ -14,7 +14,13 @@
 
 """Tests for extract_cell, parse_execute_response, DummyCtx."""
 
-from awslabs.mysql_mcp_server.server import DummyCtx, extract_cell, parse_execute_response
+import pytest
+from awslabs.mysql_mcp_server.server import (
+    DummyCtx,
+    DuplicateColumnNamesError,
+    extract_cell,
+    parse_execute_response,
+)
 
 
 class TestExtractCell:
@@ -172,3 +178,70 @@ class TestDummyCtx:
         """Should be able to instantiate DummyCtx."""
         ctx = DummyCtx()
         assert ctx is not None
+
+
+class TestDuplicateColumnNames:
+    """Tests for result sets that repeat a column name."""
+
+    def test_join_with_repeated_names_raises(self):
+        """A join whose tables share column names raises instead of dropping columns."""
+        # SELECT * FROM employees e JOIN departments d ON d.id = e.department_id
+        response = {
+            'columnMetadata': [
+                {'name': 'id'},
+                {'name': 'name'},
+                {'name': 'department_id'},
+                {'name': 'id'},
+                {'name': 'name'},
+            ],
+            'records': [
+                [
+                    {'longValue': 7},
+                    {'stringValue': 'Alice'},
+                    {'longValue': 3},
+                    {'longValue': 3},
+                    {'stringValue': 'Engineering'},
+                ]
+            ],
+        }
+        with pytest.raises(
+            DuplicateColumnNamesError, match=r'duplicate column names \(id, name\)'
+        ):
+            parse_execute_response(response)
+
+    def test_raises_without_rows(self):
+        """The check is on the columns, so an empty result raises too."""
+        response = {'columnMetadata': [{'name': 'a'}, {'name': 'a'}], 'records': []}
+        with pytest.raises(DuplicateColumnNamesError, match='Alias the duplicates'):
+            parse_execute_response(response)
+
+    def test_names_each_duplicate_once_in_column_order(self):
+        """Each repeated name is listed once, in the order the columns come."""
+        response = {
+            'columnMetadata': [{'name': n} for n in ['b', 'a', 'b', 'a', 'b', 'c']],
+            'records': [],
+        }
+        with pytest.raises(DuplicateColumnNamesError, match=r'\(b, a\)'):
+            parse_execute_response(response)
+
+    def test_aliased_columns_are_returned_in_full(self):
+        """Labels from AS aliases are the keys, so aliased repeats are fine."""
+        response = {
+            'columnMetadata': [
+                {'name': 'name', 'label': 'employee_name'},
+                {'name': 'name', 'label': 'department_name'},
+            ],
+            'records': [[{'stringValue': 'Alice'}, {'stringValue': 'Engineering'}]],
+        }
+        assert parse_execute_response(response) == [
+            {'employee_name': 'Alice', 'department_name': 'Engineering'}
+        ]
+
+    def test_repeated_labels_raise(self):
+        """Two columns aliased to the same label collide the same way."""
+        response = {
+            'columnMetadata': [{'name': 'x', 'label': 'n'}, {'name': 'y', 'label': 'n'}],
+            'records': [],
+        }
+        with pytest.raises(DuplicateColumnNamesError, match=r'\(n\)'):
+            parse_execute_response(response)
