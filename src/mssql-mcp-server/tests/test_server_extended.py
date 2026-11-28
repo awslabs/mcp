@@ -1167,3 +1167,29 @@ def test_main_secret_arn_whitespace_only_key_exits(mocker):
     with pytest.raises(SystemExit) as exc_info:
         srv.main()
     assert exc_info.value.code == 2
+
+
+@pytest.mark.asyncio
+async def test_run_query_repeated_column_names(mocker):
+    """Repeated column names return an error that names them and asks for aliases."""
+    mock_conn = MagicMock()
+    mock_conn.readonly_query = True
+    mock_conn.execute_query = AsyncMock(
+        return_value={
+            'columnMetadata': [{'name': 'name'}, {'name': 'name'}],
+            'records': [[{'stringValue': 'Alice'}, {'stringValue': 'Engineering'}]],
+        }
+    )
+    mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
+    result = await run_query(
+        sql='SELECT e.name, d.name FROM employees e JOIN departments d ON d.id = e.department_id',
+        ctx=DummyCtx(),
+        connection_method=ConnectionMethod.MSSQL_PASSWORD,
+        instance_identifier='i',
+        db_endpoint='e',
+        database='d',
+    )
+    error = json.loads(result)[0]['error']
+    assert error.startswith('DuplicateColumnNamesError: ')
+    assert 'duplicate column names (name)' in error
+    assert 'Alias the duplicates' in error

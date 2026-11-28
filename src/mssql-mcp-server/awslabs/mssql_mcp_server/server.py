@@ -31,6 +31,7 @@ from awslabs.mssql_mcp_server.mutable_sql_detector import (
 )
 from botocore.config import Config
 from botocore.exceptions import ClientError
+from collections import Counter
 from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.shared.exceptions import MCPError
@@ -93,9 +94,22 @@ def extract_cell(cell: dict):
     return None
 
 
+class DuplicateColumnNamesError(ValueError):
+    """A result set repeats a column name, so its rows can't be keyed by name."""
+
+
 def parse_execute_response(response: dict) -> list[dict]:
     """Parse an execute_query response into a list of row dicts."""
     columns = [col['name'] for col in response.get('columnMetadata', [])]
+    # Rows are dicts keyed by column name, so a repeated name, as in a join of
+    # two tables that both have `id`, would keep only one of those columns.
+    duplicates = [name for name, count in Counter(columns).items() if count > 1]
+    if duplicates:
+        raise DuplicateColumnNamesError(
+            f'Result set has duplicate column names ({", ".join(n or "unnamed" for n in duplicates)}). '
+            'Rows are keyed by column name, so each repeat would overwrite the one before it. '
+            'Alias the duplicates, e.g. SELECT e.name AS employee_name, d.name AS department_name.'
+        )
     records = []
     for row in response.get('records', []):
         row_data = {col: extract_cell(cell) for col, cell in zip(columns, row)}
