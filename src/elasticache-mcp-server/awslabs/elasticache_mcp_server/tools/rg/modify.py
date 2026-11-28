@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional, Union
 async def modify_replication_group_shard_configuration(
     replication_group_id: str,
     node_group_count: int,
-    apply_immediately: Optional[bool] = None,
+    apply_immediately: bool = True,
     resharding_configuration: Optional[Union[str, List[Dict]]] = None,
 ) -> Dict:
     """Modify the shard configuration of an existing Amazon ElastiCache replication group.
@@ -41,7 +41,8 @@ async def modify_replication_group_shard_configuration(
     Parameters:
         replication_group_id (str): The identifier of the replication group to modify.
         node_group_count (int): The number of node groups (shards) in the replication group.
-        apply_immediately (Optional[bool]): Whether to apply changes immediately or during maintenance window.
+        apply_immediately (bool): Whether the shard reconfiguration starts immediately. The API requires
+            this parameter and currently only accepts true. Defaults to True.
         resharding_configuration (Optional[Union[str, List[Dict]]]): Resharding configuration in either shorthand string format or list of dictionaries format.
             Shorthand format: "NodeGroupId=string,NewShardConfiguration={NewReplicaCount=integer,PreferredAvailabilityZones=string1,string2}"
             Multiple configurations can be separated by spaces.
@@ -67,11 +68,10 @@ async def modify_replication_group_shard_configuration(
     modify_request = {
         'ReplicationGroupId': replication_group_id,
         'NodeGroupCount': node_group_count,
+        'ApplyImmediately': apply_immediately,
     }
 
     # Add optional parameters if provided
-    if apply_immediately is not None:
-        modify_request['ApplyImmediately'] = str(apply_immediately).lower()
 
     if resharding_configuration:
         try:
