@@ -1066,6 +1066,20 @@ class TestListTables:
 
         assert result == ['table1', 'table2', 'table3']
 
+    def test_list_tables_follows_pagination(self):
+        """Tables beyond the first page (100 names) are returned too."""
+        mock_client = Mock()
+        mock_client.list_tables.side_effect = [
+            {'TableNames': ['table1', 'table2'], 'LastEvaluatedTableName': 'table2'},
+            {'TableNames': ['table3']},
+        ]
+
+        result = list_tables(mock_client)
+
+        assert result == ['table1', 'table2', 'table3']
+        assert mock_client.list_tables.call_count == 2
+        mock_client.list_tables.assert_called_with(ExclusiveStartTableName='table2')
+
     def test_list_tables_error(self):
         """Test table listing error handling."""
         mock_client = Mock()
