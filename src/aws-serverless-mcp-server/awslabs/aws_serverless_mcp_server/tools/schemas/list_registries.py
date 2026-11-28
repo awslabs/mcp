@@ -54,7 +54,7 @@ class ListRegistriesTool:
             default=None, description='Next token returned by the previous operation.'
         ),
     ) -> Dict:
-        """Lists the registries in your account.
+        """[DEPRECATED] Lists the registries in your account.
 
         REQUIREMENTS:
         - For AWS service events, you MUST use the aws.events registry directly

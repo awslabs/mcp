@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [AWS SAM CLI](https://github.com/aws/aws-sam-cli), which your agent can run directly from its own shell (`sam init`, `sam build`, `sam deploy`, `sam local invoke`, `sam logs`), and the [AWS MCP Server](https://github.com/aws/agent-toolkit-for-aws), part of the Agent Toolkit for AWS, which makes the CloudWatch, EventBridge Schemas, Lambda event source mapping, ACM, CloudFront, and Route 53 calls through its `run_script` tool (sandboxed Python that calls AWS APIs with your own IAM credentials). The [`aws-serverless`](https://github.com/aws/agent-toolkit-for-aws/tree/main/skills/core-skills/aws-serverless) Agent Skill covers much of the server's Lambda and event source guidance. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-aws-serverless.md) for the tool mapping.
+
 # AWS Serverless MCP Server
 
 ## Overview

@@ -76,7 +76,7 @@ class SamLocalInvokeTool(BaseTool):
         ),
         profile: Optional[str] = Field(default=None, description='AWS profile to use'),
     ) -> Dict[str, Any]:
-        """Locally invokes a Lambda function using AWS SAM CLI.
+        """[DEPRECATED] Locally invokes a Lambda function using AWS SAM CLI.
 
         Requirements:
         - AWS SAM CLI MUST be installed and configured in your environment

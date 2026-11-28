@@ -103,7 +103,7 @@ class SamInitTool(BaseTool):
             default=False, description='Deactivate AWS X-Ray tracing for Lambda functions'
         ),
     ) -> dict[str, Any]:
-        """Initializes a serverless application using AWS SAM (Serverless Application Model) CLI.
+        """[DEPRECATED] Initializes a serverless application using AWS SAM (Serverless Application Model) CLI.
 
         Requirements:
         - AWS SAM CLI MUST be installed and configured in your environment

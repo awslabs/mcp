@@ -1,6 +1,8 @@
 ---
-title: AWS Serverless MCPサーバー
+title: "AWS Serverless MCPサーバー（非推奨）"
 ---
+
+> **⚠️ 非推奨のお知らせ**: このサーバーは非推奨となり、今後アップデートは提供されません。エージェントが自身のシェルから直接実行できる [AWS SAM CLI](https://github.com/aws/aws-sam-cli)（`sam init`、`sam build`、`sam deploy`、`sam local invoke`、`sam logs`）と、Agent Toolkit for AWS の一部である [AWS MCP サーバー](https://github.com/aws/agent-toolkit-for-aws) への移行をお願いします。AWS MCP サーバーは `run_script` ツール（お客様自身の IAM 認証情報で AWS API を呼び出す、サンドボックス化された Python）を通じて、CloudWatch、EventBridge Schemas、Lambda のイベントソースマッピング、ACM、CloudFront、Route 53 の API を呼び出します。[`aws-serverless`](https://github.com/aws/agent-toolkit-for-aws/tree/main/skills/core-skills/aws-serverless) Agent Skill が、Lambda とイベントソースに関するガイダンスの多くを扱います。ツールの対応関係については [移行ガイド](https://github.com/awslabs/mcp/blob/main/docs/migration-aws-serverless.md) を参照してください。
 
 ## 概要 {#overview}
 

@@ -41,7 +41,7 @@ class EsmGuidanceTool(BaseTool):
         # Register main ESM guidance tool - PRIMARY USER-FACING TOOL
         mcp.tool(
             name='esm_guidance',
-            description='Create and configure AWS infrastructure for streaming data processing. Handles Kafka clusters (MSK), Kinesis streams, DynamoDB streams, SQS queues with Lambda functions. Sets up VPCs, security groups, IAM roles, and Event Source Mappings. Generates complete SAM templates for deployment.',
+            description='[DEPRECATED] Create and configure AWS infrastructure for streaming data processing. Handles Kafka clusters (MSK), Kinesis streams, DynamoDB streams, SQS queues with Lambda functions. Sets up VPCs, security groups, IAM roles, and Event Source Mappings. Generates complete SAM templates for deployment.',
         )(self.esm_guidance_tool)
 
     async def esm_guidance_tool(

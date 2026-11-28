@@ -17,6 +17,7 @@
 import argparse
 import os
 import sys
+import warnings
 from awslabs.aws_serverless_mcp_server import __version__
 from awslabs.aws_serverless_mcp_server.resources import (
     handle_deployment_details,
@@ -63,12 +64,21 @@ from mcp.server.mcpserver import MCPServer
 from typing import Any, Dict
 
 
+DEPRECATION_NOTICE = (
+    'awslabs.aws-serverless-mcp-server is deprecated and will not receive further updates. '
+    'Use the AWS MCP Server (https://github.com/aws/agent-toolkit-for-aws) and the AWS SAM CLI '
+    '(https://github.com/aws/aws-sam-cli) instead. '
+    'Migration guide: https://github.com/awslabs/mcp/blob/main/docs/migration-aws-serverless.md'
+)
+
 # Initialize boto3 client
 schemas_client = get_aws_client('schemas', AWS_REGION)
 
 mcp = MCPServer(
     'awslabs.aws-serverless-mcp-server',
-    instructions="""AWS Serverless MCP
+    instructions=f"""{DEPRECATION_NOTICE}
+
+    AWS Serverless MCP
 
     AUTOMATIC TOOL SELECTION FOR STREAMING DATA SCENARIOS
 
@@ -287,6 +297,8 @@ def main() -> int:
     Returns:
         int: Exit code (0 for success, non-zero for failure)
     """
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
+
     os.makedirs(DEPLOYMENT_STATUS_DIR, mode=0o700, exist_ok=True)
     logger.remove()
     logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))

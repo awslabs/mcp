@@ -147,7 +147,7 @@ class GetLambdaEventSchemasTool:
             description='Programming language for the schema references (e.g., go, nodejs, python, java)'
         ),
     ) -> Dict[str, Any]:
-        """Returns AWS Lambda event schemas for different event sources (e.g. s3, sns, apigw) and programming languages.
+        """[DEPRECATED] Returns AWS Lambda event schemas for different event sources (e.g. s3, sns, apigw) and programming languages.
 
         When a event source triggers a Lambda function, the request payload comes in a specific format.
         Each Lambda event source defines its own schema and language-specific types, which should be used in

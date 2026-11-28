@@ -143,7 +143,7 @@ class GetLambdaGuidanceTool:
             default=True, description='Whether to include examples'
         ),
     ) -> Dict[str, Any]:
-        """Use this tool to determine if AWS Lambda is suitable platform to deploy an application.
+        """[DEPRECATED] Use this tool to determine if AWS Lambda is suitable platform to deploy an application.
 
         Returns a comprehensive guide on when to choose AWS Lambda as a deployment platform.
         It includes scenarios when to use and not use Lambda, advantages and disadvantages,

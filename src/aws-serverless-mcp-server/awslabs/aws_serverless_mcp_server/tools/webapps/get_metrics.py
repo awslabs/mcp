@@ -62,7 +62,7 @@ class GetMetricsTool(BaseTool):
         ),
         stage: Optional[str] = Field(default='prod', description='API Gateway stage'),
     ) -> Dict[str, Any]:
-        """Retrieves CloudWatch metrics from a deployed web application.
+        """[DEPRECATED] Retrieves CloudWatch metrics from a deployed web application.
 
         Use this tool get metrics on error rates, latency, throttles, etc. of Lambda functions, API Gateways, or CloudFront distributions.
         This tool can help provide insights into anomalies and monitor operations, which can help with troubleshooting.

@@ -114,7 +114,7 @@ class SamBuildTool(BaseTool):
         ),
         profile: Optional[str] = Field(default=None, description='AWS profile to use'),
     ) -> dict[str, Any]:
-        """Builds a serverless application using AWS SAM (Serverless Application Model) CLI.
+        """[DEPRECATED] Builds a serverless application using AWS SAM (Serverless Application Model) CLI.
 
         Requirements:
         - AWS SAM CLI MUST be installed and configured in your environment
